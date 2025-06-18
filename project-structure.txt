@@ -1,0 +1,34 @@
+.
+├── electron
+│   ├── main.ts
+│   └── preload.ts
+├── package-lock.json
+├── package.json
+├── project-structure.txt
+├── src
+│   ├── App.css
+│   ├── App.test.tsx
+│   ├── App.tsx
+│   ├── components
+│   ├── hooks
+│   ├── index.css
+│   ├── index.tsx
+│   ├── logo.svg
+│   ├── monaco-workers
+│   │   ├── editor.worker.js
+│   │   └── json.worker.js
+│   ├── react-app-env.d.ts
+│   ├── reportWebVitals.ts
+│   ├── setup
+│   │   └── monaco.ts
+│   ├── setupTests.ts
+│   ├── types
+│   │   └── monaco-workers.d.ts
+│   ├── utils
+│   └── workers
+│       └── jsonParser.worker.js
+├── tsconfig.electron.json
+├── tsconfig.json
+└── vite.config.ts
+
+10 directories, 22 files

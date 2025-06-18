@@ -1,0 +1,270 @@
+/* src/App.css */
+/* ============================================= */
+/*    App.css —— 用于覆盖 react-split gutter     */
+/* ============================================= */
+
+/* —— 垂直分割（左右） gutter —— */
+html body .gutter.gutter-vertical {
+  background-color: #e74c3c !important;
+  width: 10px !important;
+  cursor: col-resize !important;
+  transition: background-color 0.15s ease !important;
+}
+html body .gutter.gutter-vertical:hover {
+  background-color: #c0392b !important;
+}
+
+/* ============================================= */
+/*       编辑器搜索结果高亮样式（monaco）       */
+/* ============================================= */
+.searchHighlight {
+  background-color: rgba(255, 235, 59, 0.5) !important;   /* 半透明黄 */
+}
+.currentSearchHighlight {
+  background-color: rgba(255, 152, 0, 0.7) !important;   /* 半透明橙 */
+}
+
+/* ============================================= */
+/*       可选：全局基础样式调整（可自行增删）    */
+/* ============================================= */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+body {
+  background-color: #f0f0f0;  /* 整体淡灰背景 */
+}
+
+/* ============================================= */
+/*           深色/浅色模式配色变量定义          */
+/* ============================================= */
+:root {
+  /* 浅色模式全局变量 */
+  --btn-bg: #eeeeee;
+  --btn-text: #333333;
+  --btn-hover-bg: #dddddd;
+  --toolbar-bg: #f5f5f5;
+  --toolbar-border: #dddddd;
+  --input-bg: #ffffff;
+  --input-text: #333333;
+  --input-border: #cccccc;
+  --input-focus-border: #888888;
+}
+.app-container.dark-mode {
+  /* 深色模式覆盖变量 */
+  --btn-bg: #444444;
+  --btn-text: #ffffff;
+  --btn-hover-bg: #3a3a3a;
+  --toolbar-bg: #2f2f2f;
+  --toolbar-border: #444444;
+  --input-bg: #3a3a3a;
+  --input-text: #eeeeee;
+  --input-border: #555555;
+  --input-focus-border: #888888;
+}
+
+/* ============================================= */
+/*                  工具栏样式                  */
+/* ============================================= */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;            /* 允许换行 */
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--toolbar-border);
+  font-size: 14px;
+}
+
+/* 各分组在默认宽度下都可见 */
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px; /* 换行时保留垂直间距 */
+}
+
+/* 搜索输入组 */
+.toolbar-search {
+  margin-left: 24px;
+}
+
+/* 自动换行 + 深色切换组 */
+.toolbar-options {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* “更多”下拉，默认隐藏 */
+.toolbar-more {
+  display: none;
+}
+
+/* 错误提示 */
+.toolbar-error {
+  margin-left: 16px;
+  color: #e53935;
+  font-weight: 500;
+}
+
+/* ============================================= */
+/*                  按钮样式                    */
+/* ============================================= */
+button {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  cursor: pointer;
+  transition: background-color 0.15s;
+  white-space: nowrap; /* 文本不自动换行 */
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--btn-hover-bg);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;  
+}
+
+/* ============================================= */
+/*                输入框样式                      */
+/* ============================================= */
+.toolbar-input {
+  width: 200px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  transition: border-color 0.15s;
+}
+
+.toolbar-input:focus {
+  outline: none;
+  border-color: var(--input-focus-border);
+}
+
+/* ============================================= */
+/*         复选框 + 标签 样式                      */
+/* ============================================= */
+.toolbar-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: inherit;
+}
+
+/* ============================================= */
+/*            编辑区中央大号占位文本（伪 placeholder）  */
+/* ============================================= */
+.editor-center-placeholder {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;       /* 不拦截鼠标 */
+  color: rgba(128, 128, 128, 0.7);
+  font-size: 24px;            /* 字号大一点 */
+  font-weight: 500;
+  z-index: 1;
+}
+
+/* ============================================= */
+/*              响应式：中等屏（≤1200px）           */
+/* ============================================= */
+@media (max-width: 1200px) {
+  .toolbar {
+    font-size: 13px;
+  }
+  button {
+    padding: 3px 10px;
+    font-size: 13px;
+  }
+  .toolbar-input {
+    width: 160px;
+    font-size: 13px;
+  }
+}
+
+/* ============================================= */
+/*              响应式：窄屏（≤800px）            */
+/* ============================================= */
+@media (max-width: 800px) {
+  .toolbar {
+    font-size: 12px;
+  }
+  button {
+    padding: 2px 8px;
+    font-size: 12px;
+  }
+  .toolbar-input {
+    width: 120px;
+    font-size: 12px;
+  }
+
+  /* 隐藏自动换行 + 深色切换 */
+  .toolbar-options {
+    display: none;
+  }
+
+  /* 显示“更多”下拉 */
+  .toolbar-more {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .toolbar-more select {
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--input-border);
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    font-size: 12px;
+  }
+}
+
+/* ============================================= */
+/* 深色模式下工具栏控件配色优化                  */
+/* ============================================= */
+
+.app-container.dark-mode .toolbar {
+  color: var(--input-text);
+}
+
+.app-container.dark-mode .toolbar-checkbox {
+  color: var(--input-text);
+}
+
+.app-container.dark-mode .toolbar-more select {
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+}
+
+.app-container.dark-mode .toolbar-more select option {
+  background-color: var(--input-bg);
+  color: var(--input-text);
+}
+
+.app-container.dark-mode button {
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+}
+.app-container.dark-mode button:hover:not(:disabled) {
+  background-color: var(--btn-hover-bg);
+}
+
+.app-container.dark-mode .toolbar-input {
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+}
+
