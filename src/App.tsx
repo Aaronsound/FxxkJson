@@ -29,7 +29,6 @@ const App: React.FC = () => {
   // —— 编辑器 & 模型 引用 —— 
   const leftEditor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const leftModelRef = useRef<monaco.editor.ITextModel | null>(null);
   const workerRef = useRef<Worker>(jsonWorker);
 
   // —— JSON 树 引用 —— 
@@ -49,6 +48,72 @@ const App: React.FC = () => {
   const [wrapLongLines, setWrapLongLines] = useState(false);
   const [leftValue, setLeftValue] = useState('');
   const [rightValue, setRightValue] = useState(''); // 格式化后文本
+
+  // —— 新增：多标签页状态 —— 
+  interface Tab {
+    id: string;
+    title: string;
+    content: string;
+  }
+  const [tabs, setTabs] = useState<Tab[]>([{
+    id: 'tab-1',
+    title: 'Untitled',
+    content: ''
+  }]);
+  const [activeTabId, setActiveTabId] = useState('tab-1');
+
+  const addTab = () => {
+    const id = `tab-${Date.now()}`;
+    setTabs(ts => {
+      setActiveTabId(id);
+      return [...ts, { id, title: 'Untitled', content: '' }];
+    });
+  };
+
+  const closeTab = (id: string) => {
+    setTabs(ts => ts.filter(t => t.id !== id));
+    if (activeTabId === id && tabs.length > 1) {
+      const idx = tabs.findIndex(t => t.id === id);
+      const next = tabs[idx - 1 >= 0 ? idx - 1 : idx + 1];
+      setActiveTabId(next.id);
+    }
+  };
+
+  const updateTabContent = (id: string, content: string) => {
+    setTabs(ts => ts.map(t => t.id === id ? { ...t, content } : t));
+  };
+
+  // 通用：给指定 Tab 重命名
+  const renameTab = (id: string, newTitle: string) => {
+    setTabs(ts =>
+      ts.map(t =>
+        t.id === id
+          ? { ...t, title: newTitle }
+          : t
+      )
+    );
+  };
+
+
+  // 1. 记录当前要重命名的 tab id 和输入值
+  const [renamingTab, setRenamingTab] = useState<{
+    id: string;
+    value: string;
+  } | null>(null);
+
+  const startRenaming = (id: string, currentTitle: string) => {
+    setRenamingTab({ id, value: currentTitle });
+  };
+
+  const finishRenaming = () => {
+    if (renamingTab) {
+      renameTab(renamingTab.id, renamingTab.value);
+      setRenamingTab(null);
+    }
+  };
+
+
+
 
   // —— 自定义右键菜单 状态（保留复制值功能，如果已不需要可删除） —— 
   const [contextMenu, setContextMenu] = useState<{
@@ -73,6 +138,12 @@ const App: React.FC = () => {
       window.removeEventListener('click', handleWindowClick);
     };
   }, []);
+
+
+  // —— per‐tab 格式化结果存储 —— 
+  const [rightValues, setRightValues] = useState<Record<string, string>>({
+    'tab-1': ''
+  });
 
   // —— Monaco 编辑器的公共配置 —— 
   const getMonacoOptions = (): monaco.editor.IStandaloneEditorConstructionOptions => ({
@@ -109,7 +180,16 @@ const App: React.FC = () => {
 
   /** 左侧挂载 */
   const onLeftMount: OnMount = (editor) => {
+
+
     leftEditor.current = editor;
+
+    // 当 editor 被 dispose 时，清空引用
+    editor.onDidDispose(() => {
+      if (leftEditor.current === editor) {
+        leftEditor.current = null;
+      }
+    });
 
     // —— 覆盖 Delete 命令 —— //
     editor.addCommand(monaco.KeyCode.Delete, () => {
@@ -136,51 +216,58 @@ const App: React.FC = () => {
       }
     });
 
-    // src/App.tsx 中 onLeftMount(editor) 里
-editor.onDidChangeModelContent(() => {
+    editor.onDidChangeModelContent(() => {
   const txt = editor.getValue();
-  setLeftValue(txt);        // 同步 state
-  formatInWorker(txt);      // 自动格式化到右侧
+  // 直接用当前激活的 activeTabId
+  updateTabContent(activeTabId, txt);
+  formatInWorker(txt, activeTabId);
 });
 
-// —— 拦截“粘贴”命令（键盘 + 右键菜单） —— //
-  editor.addAction({
-    id: 'custom.clipboardPasteAction',
-    label: 'Custom Paste',
-    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
-    contextMenuGroupId: '9_cutcopypaste',
-    contextMenuOrder: 1,
-    run: (ed) => {
-      navigator.clipboard.readText().then((text) => {
-        // **全文粘贴**：销毁旧模型，换新模型，保证一次性插入所有行
-        const oldModel = ed.getModel()!;
-        const sel      = ed.getSelection()!;
-        if (sel.equalsRange(oldModel.getFullModelRange())) {
-          oldModel.dispose();
-          const newModel = monaco.editor.createModel(text, 'json');
-          ed.setModel(newModel);
-          leftModelRef.current = newModel;
-        } else {
-          // **部分粘贴**：安全地在选区里替换
-          ed.executeEdits('paste', [{
-            range: sel,
-            text,
-            forceMoveMarkers: true
-          }]);
-        }
-      });
-    }
-  });
 
 
-    if (leftModelRef.current) {
-      editor.setModel(leftModelRef.current);
-    }
+    // —— 拦截“粘贴”命令（键盘 + 右键菜单） —— //
+   editor.addAction({
+  id: 'custom.clipboardPasteAction',
+  label: 'Custom Paste',
+  keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
+  contextMenuGroupId: '9_cutcopypaste',
+  contextMenuOrder: 1,
+  run: (ed) => {
+    navigator.clipboard.readText().then((text) => {
+      const model = ed.getModel()!;
+      const sel = ed.getSelection()!;
+      if (sel.equalsRange(model.getFullModelRange())) {
+        // **全文粘贴**：直接替换编辑器内容
+        ed.setValue(text);
+        // 同步到 tabs[].content
+        updateTabContent(activeTabId, text);
+        // 触发格式化
+        formatInWorker(text, activeTabId);
+      } else {
+        // **部分粘贴**：按选区插入
+        ed.executeEdits('paste', [{
+          range: sel,
+          text,
+          forceMoveMarkers: true
+        }]);
+      }
+    });
+  }
+});
+
+
   };
 
   /** 右侧挂载：同步高亮 + 自定义右键菜单 “复制值” */
   const onRightMount: OnMount = (editor) => {
     rightEditor.current = editor;
+
+    // 当 editor 被 dispose 时，清空引用
+    editor.onDidDispose(() => {
+      if (rightEditor.current === editor) {
+        rightEditor.current = null;
+      }
+    });
 
     // —— (1) 光标同步左右侧高亮 逻辑不变 —— 
     editor.onDidChangeCursorPosition((e) => {
@@ -256,38 +343,51 @@ editor.onDidChangeModelContent(() => {
     });
   };
 
+
+
+
+
+
   /** 导入 JSON */
+  // —— 导入 JSON，不再 dispose 或新建 model —— 
   const handleImport = async () => {
-    try {
-      const filePath = await window.electronAPI?.selectJsonFile();
-      if (!filePath) return;
-      const content = await window.electronAPI!.readJsonFile(filePath);
-      if (leftModelRef.current) {
-        leftModelRef.current.dispose();
-        leftTreeRef.current = undefined;
-      }
-      const rawModel = monaco.editor.createModel(content, 'json');
-      leftModelRef.current = rawModel;
-      leftEditor.current?.setModel(rawModel);
-      leftTreeRef.current = parseTree(content);
-      formatInWorker(content);
-      setLeftValue(content);
-      setSearchTerm('');
-      setRightMatches([]);
-      setRightDecs([]);
-      setCurrentIdx(0);
-    } catch (e: any) {
-      setError('导入失败：' + e.message);
-    }
-  };
+  try {
+    const filePath = await window.electronAPI!.selectJsonFile();
+    if (!filePath) return;
+    const content = await window.electronAPI!.readJsonFile(filePath);
+
+    // 更新标签名称
+    const fileName = filePath.split(/[\\/]/).pop() || 'Untitled';
+    renameTab(activeTabId, fileName);
+
+    // 只更新 tabs[].content，不要再操作 model
+    updateTabContent(activeTabId, content);
+
+    // 更新 AST 并触发格式化
+    leftTreeRef.current = parseTree(content);
+    formatInWorker(content, activeTabId);
+
+    // 重置搜索/高亮状态
+    setSearchTerm('');
+    setRightMatches([]);
+    setRightDecs([]);
+    setCurrentIdx(0);
+
+  } catch (e: any) {
+    setError('导入失败：' + e.message);
+  }
+};
+
+
+
 
   /** 格式化 JSON → 更新 state */
-  const formatInWorker = (text: string) => {
+  const formatInWorker = (text: string, tabId: string) => {
     setError(null);
     workerRef.current.onmessage = (e: MessageEvent) => {
       const { success, data, error: msg } = e.data;
       if (success) {
-        setRightValue(data);
+        setRightValues(rv => ({ ...rv, [tabId]: data }));
         rightTreeRef.current = parseTree(data);
       } else {
         setError(msg);
@@ -295,6 +395,7 @@ editor.onDidChangeModelContent(() => {
     };
     workerRef.current.postMessage(text);
   };
+
 
   /** 点击格式化 （先更新左侧 AST，再格式化右侧） */
   const handleFormat = () => {
@@ -304,29 +405,31 @@ editor.onDidChangeModelContent(() => {
     } else {
       leftTreeRef.current = undefined;
     }
-    formatInWorker(txt);
+    formatInWorker(txt, activeTabId);
   };
 
   /** 清除 两侧 */
+  // —— 清除内容，也不 dispose model —— 
   const handleClear = () => {
-    if (leftModelRef.current) {
-      leftModelRef.current.dispose();
-      leftTreeRef.current = undefined;
-    }
-    const emptyLeftModel = monaco.editor.createModel('', 'json');
-    leftModelRef.current = emptyLeftModel;
-    leftEditor.current?.setModel(emptyLeftModel);
+  // 1. 只更新 tabs[].content，不再操作 model
+  updateTabContent(activeTabId, '');
 
-    setRightValue('');
-    setError(null);
-    setSearchTerm('');
-    setRightMatches([]);
-    setRightDecs([]);
-    setCurrentIdx(0);
-    leftTreeRef.current = undefined;
-    rightTreeRef.current = undefined;
-    setLeftValue('');
-  };
+  // 2. 清空 AST 和格式化结果
+  leftTreeRef.current = undefined;
+  rightTreeRef.current = undefined;
+  setRightValues(rv => ({ ...rv, [activeTabId]: '' }));
+
+  // 3. 重置搜索/高亮/报错等状态
+  setError(null);
+  setSearchTerm('');
+  setRightMatches([]);
+  setRightDecs([]);
+  setCurrentIdx(0);
+};
+
+
+
+
 
   /** 折叠全部 */
   const handleFoldAll = () => {
@@ -485,61 +588,116 @@ editor.onDidChangeModelContent(() => {
         {error && <span className="toolbar-error">{error}</span>}
       </div>
 
-      <Split
-        sizes={[50, 50]}
-        minSize={200}
-        gutterSize={6}
-        style={{ display: 'flex', height: 'calc(100% - 48px)' }}
-      >
-        {/* —— 左侧编辑器 —— */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd'
-        }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <Editor
-              onMount={onLeftMount}
-              language="json"
-              defaultValue=""
-              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-              options={{
-                ...getMonacoOptions(),
-              }}
-              height="100%"
-              loading={null}
-              onChange={(value) => setLeftValue(value || '')}
-            />
-            {leftValue === '' && (
-              <div className="editor-center-placeholder">
-                原始 JSON
-              </div>
-            )}
-          </div>
-        </div>
+      {/* —— 多标签页栏 —— */}
+      <div className="tab-bar">
+        {tabs.map(tab => {
+          const isRenaming = renamingTab?.id === tab.id;
+          return (
+            <div
+              key={tab.id}
+              className={tab.id === activeTabId ? 'tab active' : 'tab'}
+              onClick={() => setActiveTabId(tab.id)}
+              // 双击或右键都触发 startRenaming
+              onDoubleClick={() => startRenaming(tab.id, tab.title)}
+              onContextMenu={e => { e.preventDefault(); startRenaming(tab.id, tab.title); }}
+            >
+              {isRenaming ? (
+                // 2. 正在重命名，显示 <input>
+                <input
+                  autoFocus
+                  value={renamingTab.value}
+                  onChange={e => setRenamingTab({ ...renamingTab, value: e.target.value })}
+                  onBlur={finishRenaming}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      finishRenaming();
+                    } else if (e.key === 'Escape') {
+                      setRenamingTab(null);
+                    }
+                  }}
+                  style={{
+                    width: '80px',
+                    fontSize: 'inherit',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              ) : (
+                // 3. 正常模式，显示 title
+                <>
+                  {tab.title}
+                  <span
+                    onClick={e => { e.stopPropagation(); closeTab(tab.id); }}
+                  >
+                    ×
+                  </span>
+                </>
+              )}
+            </div>
+          );
+        })}
+        <button className="add-tab" onClick={addTab}>＋</button>
+      </div>
 
-        {/* —— 右侧编辑器 —— */}
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <Editor
-              onMount={onRightMount}
-              language="json"
-              value={rightValue}
-              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-              options={{
-                ...getMonacoOptions(),
-                readOnly: true,
-              }}
-              height="100%"
-              loading={null}
-            />
-            {rightValue === '' && (
-              <div className="editor-center-placeholder">格式化结果</div>
-            )}
-          </div>
-        </div>
-      </Split>
+
+      {/* —— 根据 activeTabId 渲染当前标签面板 —— */}
+      {tabs.map(tab =>
+        tab.id === activeTabId && (
+          <Split
+            key={tab.id}
+            sizes={[50, 50]}
+            minSize={200}
+            gutterSize={6}
+            style={{ display: 'flex', height: 'calc(100% - 48px)' }}
+          >
+            {/* —— 左侧编辑器，绑定到 tab.content —— */}
+            <div style={{
+              flex: 1,
+              position: 'relative',
+              borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd'
+            }}>
+              <Editor
+                key={tab.id}
+                onMount={onLeftMount}
+                language="json"
+                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+                options={getMonacoOptions()}
+                path={tab.id}                                   // 唯一标识
+                value={tab.content}
+                onChange={v => {
+                  const txt = v || '';
+                  updateTabContent(tab.id, txt);                // 同步到 tabs[].content
+                  formatInWorker(txt, tab.id);                  // 触发右侧格式化
+                }}
+                height="100%"
+                loading={null}
+              />
+              {tab.content === '' && (
+                <div className="editor-center-placeholder">原始 JSON</div>
+              )}
+            </div>
+
+            {/* —— 右侧编辑器，使用 per-tab 格式化结果 —— */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              <Editor
+                onMount={onRightMount}
+                language="json"
+                value={rightValues[tab.id] || ''}
+                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+                options={{ ...getMonacoOptions(), readOnly: true }}
+                height="100%"
+                loading={null}
+              />
+              {!rightValues[tab.id] && (
+                <div className="editor-center-placeholder">格式化结果</div>
+              )}
+            </div>
+          </Split>
+        )
+      )}
+
+
+
+
 
       {/* —— 自定义 “复制值” 右键菜单 —— */}
       {contextMenu.visible && (

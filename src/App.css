@@ -268,3 +268,38 @@ button:disabled {
   border: 1px solid var(--input-border);
 }
 
+/* —— 多标签页栏 —— */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--toolbar-border);
+  background: var(--toolbar-bg);
+  padding: 4px 12px;
+}
+
+.tab-bar .tab {
+  margin-right: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px 4px 0 0;
+}
+
+.tab-bar .tab.active {
+  background: var(--btn-bg);
+  font-weight: bold;
+}
+
+.tab-bar .tab span {
+  margin-left: 4px;
+  color: #888;
+}
+
+.tab-bar .add-tab {
+  /* 取消自动左间距，让按钮跟在最后一个 tab 之后 */
+  margin-left: 8px;
+  padding: 4px 8px;
+}
+
+
+
