@@ -217,43 +217,43 @@ const App: React.FC = () => {
     });
 
     editor.onDidChangeModelContent(() => {
-  const txt = editor.getValue();
-  // 直接用当前激活的 activeTabId
-  updateTabContent(activeTabId, txt);
-  formatInWorker(txt, activeTabId);
-});
+      const txt = editor.getValue();
+      // 直接用当前激活的 activeTabId
+      updateTabContent(activeTabId, txt);
+      formatInWorker(txt, activeTabId);
+    });
 
 
 
     // —— 拦截“粘贴”命令（键盘 + 右键菜单） —— //
-   editor.addAction({
-  id: 'custom.clipboardPasteAction',
-  label: 'Custom Paste',
-  keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
-  contextMenuGroupId: '9_cutcopypaste',
-  contextMenuOrder: 1,
-  run: (ed) => {
-    navigator.clipboard.readText().then((text) => {
-      const model = ed.getModel()!;
-      const sel = ed.getSelection()!;
-      if (sel.equalsRange(model.getFullModelRange())) {
-        // **全文粘贴**：直接替换编辑器内容
-        ed.setValue(text);
-        // 同步到 tabs[].content
-        updateTabContent(activeTabId, text);
-        // 触发格式化
-        formatInWorker(text, activeTabId);
-      } else {
-        // **部分粘贴**：按选区插入
-        ed.executeEdits('paste', [{
-          range: sel,
-          text,
-          forceMoveMarkers: true
-        }]);
+    editor.addAction({
+      id: 'custom.clipboardPasteAction',
+      label: 'Custom Paste',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
+      contextMenuGroupId: '9_cutcopypaste',
+      contextMenuOrder: 1,
+      run: (ed) => {
+        navigator.clipboard.readText().then((text) => {
+          const model = ed.getModel()!;
+          const sel = ed.getSelection()!;
+          if (sel.equalsRange(model.getFullModelRange())) {
+            // **全文粘贴**：直接替换编辑器内容
+            ed.setValue(text);
+            // 同步到 tabs[].content
+            updateTabContent(activeTabId, text);
+            // 触发格式化
+            formatInWorker(text, activeTabId);
+          } else {
+            // **部分粘贴**：按选区插入
+            ed.executeEdits('paste', [{
+              range: sel,
+              text,
+              forceMoveMarkers: true
+            }]);
+          }
+        });
       }
     });
-  }
-});
 
 
   };
@@ -351,32 +351,32 @@ const App: React.FC = () => {
   /** 导入 JSON */
   // —— 导入 JSON，不再 dispose 或新建 model —— 
   const handleImport = async () => {
-  try {
-    const filePath = await window.electronAPI!.selectJsonFile();
-    if (!filePath) return;
-    const content = await window.electronAPI!.readJsonFile(filePath);
+    try {
+      const filePath = await window.electronAPI!.selectJsonFile();
+      if (!filePath) return;
+      const content = await window.electronAPI!.readJsonFile(filePath);
 
-    // 更新标签名称
-    const fileName = filePath.split(/[\\/]/).pop() || 'Untitled';
-    renameTab(activeTabId, fileName);
+      // 更新标签名称
+      const fileName = filePath.split(/[\\/]/).pop() || 'Untitled';
+      renameTab(activeTabId, fileName);
 
-    // 只更新 tabs[].content，不要再操作 model
-    updateTabContent(activeTabId, content);
+      // 只更新 tabs[].content，不要再操作 model
+      updateTabContent(activeTabId, content);
 
-    // 更新 AST 并触发格式化
-    leftTreeRef.current = parseTree(content);
-    formatInWorker(content, activeTabId);
+      // 更新 AST 并触发格式化
+      leftTreeRef.current = parseTree(content);
+      formatInWorker(content, activeTabId);
 
-    // 重置搜索/高亮状态
-    setSearchTerm('');
-    setRightMatches([]);
-    setRightDecs([]);
-    setCurrentIdx(0);
+      // 重置搜索/高亮状态
+      setSearchTerm('');
+      setRightMatches([]);
+      setRightDecs([]);
+      setCurrentIdx(0);
 
-  } catch (e: any) {
-    setError('导入失败：' + e.message);
-  }
-};
+    } catch (e: any) {
+      setError('导入失败：' + e.message);
+    }
+  };
 
 
 
@@ -411,21 +411,21 @@ const App: React.FC = () => {
   /** 清除 两侧 */
   // —— 清除内容，也不 dispose model —— 
   const handleClear = () => {
-  // 1. 只更新 tabs[].content，不再操作 model
-  updateTabContent(activeTabId, '');
+    // 1. 只更新 tabs[].content，不再操作 model
+    updateTabContent(activeTabId, '');
 
-  // 2. 清空 AST 和格式化结果
-  leftTreeRef.current = undefined;
-  rightTreeRef.current = undefined;
-  setRightValues(rv => ({ ...rv, [activeTabId]: '' }));
+    // 2. 清空 AST 和格式化结果
+    leftTreeRef.current = undefined;
+    rightTreeRef.current = undefined;
+    setRightValues(rv => ({ ...rv, [activeTabId]: '' }));
 
-  // 3. 重置搜索/高亮/报错等状态
-  setError(null);
-  setSearchTerm('');
-  setRightMatches([]);
-  setRightDecs([]);
-  setCurrentIdx(0);
-};
+    // 3. 重置搜索/高亮/报错等状态
+    setError(null);
+    setSearchTerm('');
+    setRightMatches([]);
+    setRightDecs([]);
+    setCurrentIdx(0);
+  };
 
 
 
@@ -528,7 +528,14 @@ const App: React.FC = () => {
   return (
     <div
       className={isDarkMode ? 'app-container dark-mode' : 'app-container'}
-      style={{ height: '100vh', width: '100vw' }}
+      style={{ 
+        height: '100vh', 
+        width: '100vw',
+              /* 禁止整个页面滚动 */
+      overflow: 'hidden',
+           display: 'flex',           // 新增：Flex 容器
+    flexDirection: 'column'    // 新增：纵向排列
+}}
     >
       {/* —— 统一顶部菜单栏 —— */}
       <div className="toolbar">
@@ -647,13 +654,19 @@ const App: React.FC = () => {
             sizes={[50, 50]}
             minSize={200}
             gutterSize={6}
-            style={{ display: 'flex', height: 'calc(100% - 48px)' }}
+            style={{
+              display: 'flex',
+              flex: 1,        // 填满父容器剩余空间
+              height: 'calc(100% - 48px)'
+            }}
           >
             {/* —— 左侧编辑器，绑定到 tab.content —— */}
             <div style={{
               flex: 1,
               position: 'relative',
-              borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd'
+              borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd',
+              /* Monaco 自身滚动生效 */
+              overflow: 'auto'
             }}>
               <Editor
                 key={tab.id}
@@ -677,7 +690,12 @@ const App: React.FC = () => {
             </div>
 
             {/* —— 右侧编辑器，使用 per-tab 格式化结果 —— */}
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{
+              flex: 1,
+              position: 'relative',
+              /* Monaco 自身滚动生效 */
+              overflow: 'auto'
+            }}>
               <Editor
                 onMount={onRightMount}
                 language="json"
