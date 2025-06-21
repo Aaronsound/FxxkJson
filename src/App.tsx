@@ -57,7 +57,7 @@ const App: React.FC = () => {
   }
   const [tabs, setTabs] = useState<Tab[]>([{
     id: 'tab-1',
-    title: 'Untitled',
+    title: 'HelloJson',
     content: ''
   }]);
   const [activeTabId, setActiveTabId] = useState('tab-1');
@@ -66,7 +66,7 @@ const App: React.FC = () => {
     const id = `tab-${Date.now()}`;
     setTabs(ts => {
       setActiveTabId(id);
-      return [...ts, { id, title: 'Untitled', content: '' }];
+      return [...ts, { id, title: 'newTab', content: '' }];
     });
   };
 
