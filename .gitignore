@@ -1,1 +1,11 @@
 node_modules
+# 忽略前端/后端构建产物
+dist-renderer/
+dist-electron/
+release/
+
+# Node 依赖
+node_modules/
+
+# 日志文件
+*.log
