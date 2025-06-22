@@ -5,11 +5,14 @@ import * as fs from 'fs/promises';
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  // 无论开发还是打包，都从 __dirname 目录加载 preload.js
+  const preloadPath = path.join(__dirname, 'preload.js');
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -23,6 +26,8 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist-renderer/index.html'));
+      // mainWindow.webContents.openDevTools({ mode: 'detach' });
+
   }
 }
 

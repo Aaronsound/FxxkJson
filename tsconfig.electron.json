@@ -7,7 +7,9 @@
     "strict": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+       "lib": ["es2020", "dom"],
+   "types": ["node", "electron"]
   },
   "include": ["electron"]
 }

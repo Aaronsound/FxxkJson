@@ -9,7 +9,9 @@
     "dev": "npm-run-all -s dev:electron --parallel dev:renderer start:electron",
     "build": "vite build && tsc -p tsconfig.electron.json",
     "start": "electron ./dist-electron/main.js",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:zip": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -32,5 +34,35 @@
     "vite": "^5.2.0",
     "vite-plugin-electron": "^0.12.0",
     "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.aaronsound.hanjson",
+    "productName": "FuckJson",
+    "directories": {
+      "output": "release"
+    },
+    "asar": false,
+    "asarUnpack": [
+      "dist-electron/preload.js"
+    ],
+    "files": [
+      "dist-renderer/**",
+      "dist-electron/**",
+      "build/icons/win/icon.ico",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icons/win/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
