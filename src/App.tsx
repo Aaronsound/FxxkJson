@@ -358,14 +358,23 @@ const App: React.FC = () => {
 
       // 更新标签名称
       const fileName = filePath.split(/[\\/]/).pop() || 'Untitled';
-      renameTab(activeTabId, fileName);
 
-      // 只更新 tabs[].content，不要再操作 model
-      updateTabContent(activeTabId, content);
-
-      // 更新 AST 并触发格式化
-      leftTreeRef.current = parseTree(content);
-      formatInWorker(content, activeTabId);
+      // 如果没有任何标签，直接创建一个「文件名」的标签并填充内容
+      if (tabs.length === 0) {
+        const newId = `tab-${Date.now()}`;
+        setTabs([{ id: newId, title: fileName, content }]);
+        setActiveTabId(newId);
+        setRightValues(rv => ({ ...rv, [newId]: '' }));
+        // 然后做格式化
+        leftTreeRef.current = parseTree(content);
+        formatInWorker(content, newId);
+      } else {
+        //  否则复用当前激活标签：重命名 + 填内容 + 格式化
+        renameTab(activeTabId, fileName);
+        updateTabContent(activeTabId, content);
+        leftTreeRef.current = parseTree(content);
+        formatInWorker(content, activeTabId);
+      }
 
       // 重置搜索/高亮状态
       setSearchTerm('');
@@ -385,10 +394,10 @@ const App: React.FC = () => {
   const formatInWorker = (text: string, tabId: string) => {
     setError(null);
     // —— 如果是空内容，就不走 Worker 了，直接清空右侧
-  if (!text) {
-    setRightValues(rv => ({ ...rv, [tabId]: '' }));
-    return;
-  }
+    if (!text) {
+      setRightValues(rv => ({ ...rv, [tabId]: '' }));
+      return;
+    }
     workerRef.current.onmessage = (e: MessageEvent) => {
       const { success, data, error: msg } = e.data;
       if (success) {
@@ -419,8 +428,8 @@ const App: React.FC = () => {
     // 1. 只更新 tabs[].content，不再操作 model
     updateTabContent(activeTabId, '');
 
-      // 2. 重置标签标题为默认
-+  renameTab(activeTabId, 'newTab');
+    // 2. 重置标签标题为默认
+    +  renameTab(activeTabId, 'newTab');
 
     // 3. 清空 AST 和格式化结果
     leftTreeRef.current = undefined;
@@ -536,14 +545,14 @@ const App: React.FC = () => {
   return (
     <div
       className={isDarkMode ? 'app-container dark-mode' : 'app-container'}
-      style={{ 
-        height: '100vh', 
+      style={{
+        height: '100vh',
         width: '100vw',
-              /* 禁止整个页面滚动 */
-      overflow: 'hidden',
-           display: 'flex',           // 新增：Flex 容器
-    flexDirection: 'column'    // 新增：纵向排列
-}}
+        /* 禁止整个页面滚动 */
+        overflow: 'hidden',
+        display: 'flex',           // 新增：Flex 容器
+        flexDirection: 'column'    // 新增：纵向排列
+      }}
     >
       {/* —— 统一顶部菜单栏 —— */}
       <div className="toolbar">
