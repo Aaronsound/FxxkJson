@@ -384,6 +384,11 @@ const App: React.FC = () => {
   /** 格式化 JSON → 更新 state */
   const formatInWorker = (text: string, tabId: string) => {
     setError(null);
+    // —— 如果是空内容，就不走 Worker 了，直接清空右侧
+  if (!text) {
+    setRightValues(rv => ({ ...rv, [tabId]: '' }));
+    return;
+  }
     workerRef.current.onmessage = (e: MessageEvent) => {
       const { success, data, error: msg } = e.data;
       if (success) {
@@ -414,12 +419,15 @@ const App: React.FC = () => {
     // 1. 只更新 tabs[].content，不再操作 model
     updateTabContent(activeTabId, '');
 
-    // 2. 清空 AST 和格式化结果
+      // 2. 重置标签标题为默认
++  renameTab(activeTabId, 'newTab');
+
+    // 3. 清空 AST 和格式化结果
     leftTreeRef.current = undefined;
     rightTreeRef.current = undefined;
     setRightValues(rv => ({ ...rv, [activeTabId]: '' }));
 
-    // 3. 重置搜索/高亮/报错等状态
+    // 4. 重置搜索/高亮/报错等状态
     setError(null);
     setSearchTerm('');
     setRightMatches([]);
