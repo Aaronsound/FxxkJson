@@ -203,7 +203,7 @@ const App: React.FC = () => {
         // 否则执行 Monaco 默认的“删除右侧”命令
         editor.trigger('', 'deleteRight', null);
       }
-    });
+    }, 'editorTextFocus');
 
     // 覆盖 Backspace
     editor.addCommand(monaco.KeyCode.Backspace, () => {
@@ -214,7 +214,7 @@ const App: React.FC = () => {
       } else {
         editor.trigger('', 'deleteLeft', null);
       }
-    });
+    }, 'editorTextFocus');
 
     editor.onDidChangeModelContent(() => {
       const txt = editor.getValue();
