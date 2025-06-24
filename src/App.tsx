@@ -3,6 +3,11 @@ import React, { useRef, useState, useEffect } from 'react';
 import Split from 'react-split';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+import toast, { Toaster } from 'react-hot-toast';
+import { useNotifier } from './hooks/useNotifier';
+import { ArrowLeft } from 'lucide-react';
+
+
 import {
   parseTree,
   getLocation,
@@ -26,10 +31,16 @@ const jsonWorker = new Worker(
 );
 
 const App: React.FC = () => {
+  const notifier = useNotifier();
+
   // —— 编辑器 & 模型 引用 —— 
   const leftEditor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const workerRef = useRef<Worker>(jsonWorker);
+
+  // —— 新增编辑 data 用的状态 —— 
+  const [isEditingData, setIsEditingData] = useState(false);
+  const [editingDataValue, setEditingDataValue] = useState(''); // 用来在 Modal 里保存 inner JSON 文本
 
   // —— JSON 树 引用 —— 
   const leftTreeRef = useRef<JsonNode | undefined>(undefined);
@@ -48,6 +59,9 @@ const App: React.FC = () => {
   const [wrapLongLines, setWrapLongLines] = useState(false);
   const [leftValue, setLeftValue] = useState('');
   const [rightValue, setRightValue] = useState(''); // 格式化后文本
+
+  // —— 新增局部反馈状态 —— 
+  const [hasCopied, setHasCopied] = useState(false);
 
   // —— 新增：多标签页状态 —— 
   interface Tab {
@@ -444,6 +458,61 @@ const App: React.FC = () => {
     setCurrentIdx(0);
   };
 
+  /** 打开 JSON 编辑器：把左侧整段内容解析并漂亮缩进后放到 Modal 里 */
+  const handleOpenEditData = () => {
+    try {
+      const raw = leftEditor.current?.getValue() || '';
+      // 验证并格式化整段 JSON
+      const obj = JSON.parse(raw);
+      setEditingDataValue(JSON.stringify(obj, null, 2));
+      setIsEditingData(true);
+    } catch (e: any) {
+      // setError('打开 JSON 编辑失败：' + e.message);
+      notifier.error('打开 JSON 编辑失败：' + e.message);
+    }
+  };
+
+  /** 保存 JSON 编辑：把 Modal 里用户改好的整段 JSON 写回左侧并触发格式化 */
+  const handleSaveEditData = () => {
+    try {
+      // 验证并统一格式化
+      const obj = JSON.parse(editingDataValue);
+      const updated = JSON.stringify(obj, null, 2);
+      updateTabContent(activeTabId, updated);
+      // 更新 AST 并触发右侧格式化
+      leftTreeRef.current = parseTree(updated);
+      formatInWorker(updated, activeTabId);
+      setIsEditingData(false);
+    } catch (e: any) {
+      setError('保存 JSON 失败：' + e.message);
+    }
+  };
+
+  /** 复制当前 Modal 中编辑好的 JSON 为带转义符的字符串 */
+  const handleCopyEscapedJson = () => {
+    try {
+      const obj = JSON.parse(editingDataValue);
+      // 第一次 stringify 得到 JSON 文本
+      const jsonText = JSON.stringify(obj);
+      // 第二次 stringify，把 JSON 文本变成 JS 字符串字面量，自动加引号并转义内部双引号
+      const literal = JSON.stringify(jsonText);
+      navigator.clipboard.writeText(literal)
+        .then(() => {
+          // notifier.success('全局：已复制转义字符串');       // 全局通知
+          setHasCopied(true);                              // 行内反馈
+          setTimeout(() => setHasCopied(false), 2000);
+        })
+        .catch(() => {
+          notifier.error('复制失败，请重试');
+          setHasCopied(false);
+        });
+    } catch (e: any) {
+      notifier.error('复制转义字符串失败：' + e.message);
+    }
+  };
+
+
+
 
 
 
@@ -554,6 +623,10 @@ const App: React.FC = () => {
         flexDirection: 'column'    // 新增：纵向排列
       }}
     >
+
+
+      {/* 全局通知容器，放在 app 根部即可 */}
+      <Toaster position="top-right" gutter={8} />
       {/* —— 统一顶部菜单栏 —— */}
       <div className="toolbar">
         <div className="toolbar-group">
@@ -562,6 +635,7 @@ const App: React.FC = () => {
           <button onClick={handleClear}>清除</button>
           <button onClick={handleFoldAll}>折叠全部</button>
           <button onClick={handleUnfoldAll}>展开全部</button>
+          <button onClick={handleOpenEditData}>编辑 JSON</button>
         </div>
 
         <div className="toolbar-group toolbar-search">
@@ -729,6 +803,100 @@ const App: React.FC = () => {
           </Split>
         )
       )}
+
+      {/* —— 编辑 data 的 Modal —— */}
+      {isEditingData && (
+        <div className="modal-overlay" style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 10000
+        }}>
+          <div className="modal" style={{
+            background: '#fff', padding: '16px', borderRadius: '8px',
+            width: '80%', maxWidth: '800px', maxHeight: '80%', overflow: 'auto'
+          }}>
+            <h3>编辑 JSON</h3>
+            <Editor
+              key={`modal-editor-${activeTabId}`}                  /* 确保每次打开都重建 */
+              language="json"
+              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+              value={editingDataValue}
+              onMount={editor => {
+                editor.updateOptions({ readOnly: false });       /* 显式可写 */
+                // 重新绑定 Backspace → deleteLeft
+                editor.addCommand(
+                  monaco.KeyCode.Backspace,
+                  () => editor.trigger('', 'deleteLeft', null),
+                  'editorTextFocus'
+                );
+                // 重新绑定 Delete → deleteRight
+                editor.addCommand(
+                  monaco.KeyCode.Delete,
+                  () => editor.trigger('', 'deleteRight', null),
+                  'editorTextFocus'
+                );
+              }}
+              onChange={v => setEditingDataValue(v || '')}
+              options={{
+                automaticLayout: true,
+                minimap: { enabled: false },
+                wordWrap: 'on',
+                folding: true,
+                readOnly: false
+              }}
+              height="400px"
+            />
+
+            <div style={{
+              marginTop: '12px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              {/* 更新原始 JSON */}
+              <button
+                onClick={handleSaveEditData}
+                title="将右侧编辑结果同步到左侧原始 JSON 编辑区"
+                style={{ display: 'inline-flex', alignItems: 'center' }}
+              >
+                <ArrowLeft size={16} style={{ marginRight: 4 }} />
+                更新原始 JSON
+              </button>
+
+              {/* 复制为字符串字面量（行内反馈） */}
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <button onClick={handleCopyEscapedJson}>
+                  复制为字符串字面量
+                </button>
+                {hasCopied && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '-1.2em',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    padding: '2px 6px',
+                    background: '#4caf50',
+                    color: '#fff',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    pointerEvents: 'none'
+                  }}>
+                    已复制字符串字面量
+                  </div>
+                )}
+              </div>
+
+              {/* 取消 */}
+              <button onClick={() => setIsEditingData(false)}>
+                取消
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
 
 
 
