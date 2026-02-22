@@ -3,15 +3,20 @@
 /*    App.css —— 用于覆盖 react-split gutter     */
 /* ============================================= */
 
-/* —— 垂直分割（左右） gutter —— */
-html body .gutter.gutter-vertical {
-  background-color: #e74c3c !important;
+/* —— 左右分割常见 gutter 样式（兼容不同方向类名） —— */
+html body .gutter.gutter-vertical,
+html body .gutter.gutter-horizontal {
+  position: relative !important;
+  background-color: #d1d5db !important;
   width: 10px !important;
   cursor: col-resize !important;
   transition: background-color 0.15s ease !important;
+  z-index: 20 !important;
+  flex-shrink: 0 !important;
 }
-html body .gutter.gutter-vertical:hover {
-  background-color: #c0392b !important;
+html body .gutter.gutter-vertical:hover,
+html body .gutter.gutter-horizontal:hover {
+  background-color: #9ca3af !important;
 }
 
 /* ============================================= */
@@ -258,6 +263,47 @@ button:disabled {
   background-color: var(--btn-bg);
   color: var(--btn-text);
 }
+
+/* ============================================= */
+/*                  标签栏样式                   */
+/* ============================================= */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--toolbar-border);
+  background: var(--toolbar-bg);
+  overflow-x: auto;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  cursor: pointer;
+  user-select: none;
+  max-width: 180px;
+  white-space: nowrap;
+}
+
+.tab span {
+  font-weight: 600;
+}
+
+.tab.active {
+  box-shadow: inset 0 0 0 1px #4f8cff;
+}
+
+.add-tab {
+  flex: 0 0 auto;
+  font-size: 16px;
+  line-height: 1;
+}
 .app-container.dark-mode button:hover:not(:disabled) {
   background-color: var(--btn-hover-bg);
 }
@@ -354,7 +400,3 @@ button:disabled {
 .tab-bar .add-tab:hover {
   background-color: var(--btn-hover-bg);
 }
-
-
-
-

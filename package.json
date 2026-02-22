@@ -6,11 +6,12 @@
     "dev:electron": "tsc -p tsconfig.electron.json",
     "start:electron": "wait-on http://localhost:5173 && electron ./dist-electron/main.js",
     "dev:renderer": "vite",
-    "dev": "npm-run-all -s dev:electron --parallel dev:renderer start:electron",
+    "dev": "npm-run-all -s dev:electron dev:renderer",
     "build": "vite build && tsc -p tsconfig.electron.json",
     "start": "electron ./dist-electron/main.js",
     "dist": "electron-builder",
     "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:mac": "npm run build && electron-builder --mac",
     "dist:zip": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
@@ -43,7 +44,7 @@
     "directories": {
       "output": "release"
     },
-    "asar": false,
+    "asar": true,
     "asarUnpack": [
       "dist-electron/preload.js"
     ],
@@ -59,6 +60,14 @@
         "nsis",
         "zip"
       ]
+    },
+    "mac": {
+      "icon": "build/icons/win/icon.ico",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
     },
     "nsis": {
       "oneClick": false,
