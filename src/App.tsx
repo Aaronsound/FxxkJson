@@ -4,6 +4,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { findNodeAtLocation, getLocation, Node as JsonNode, parseTree } from 'jsonc-parser';
 import JsonEditModal from './components/JsonEditModal';
+import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
 import {
@@ -13,6 +14,9 @@ import {
   INITIAL_TAB_ID,
   LARGE_FILE_FORMAT_DEBOUNCE_MS,
   LARGE_FILE_THRESHOLD,
+  PerformanceSnapshot,
+  PerformanceSnapshotStatus,
+  PerformanceTrigger,
   RenamingTabState,
   SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
@@ -30,6 +34,7 @@ import {
   getLeftModelPath,
   getOrCreateModel,
   getRightModelPath,
+  getUtf8ByteLength,
   isLargeDocument,
   recreateModel,
   selectionCoversModel,
@@ -46,6 +51,33 @@ declare global {
     };
   }
 }
+
+type PerformanceSession = {
+  requestId: number | null;
+  pendingFormat: boolean;
+  trigger: PerformanceTrigger;
+  sourceLabel: string;
+  fileSizeBytes: number | null;
+  rawBytes: number;
+  formattedBytes: number;
+  largeMode: boolean;
+  structureEnabled: boolean;
+  startedAt: number;
+  readStartedAt?: number;
+  readCompletedAt?: number;
+  leftModelStartedAt?: number;
+  leftModelCompletedAt?: number;
+  formatQueuedAt?: number;
+  formatStartedAt?: number;
+  formatCompletedAt?: number;
+  rightModelStartedAt?: number;
+  rightModelCompletedAt?: number;
+  structureCompletedAt?: number;
+  status: PerformanceSnapshotStatus;
+  error: string | null;
+};
+
+const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible';
 
 const App: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>([createTab(INITIAL_TAB_ID, 'HelloJson')]);
@@ -77,9 +109,19 @@ const App: React.FC = () => {
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [wrapLongLines, setWrapLongLines] = useState(false);
+  const [showPerformancePanel, setShowPerformancePanel] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    return window.localStorage.getItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY) !== 'false';
+  });
   const [editJsonSession, setEditJsonSession] = useState<{ key: number; initialValue: string } | null>(null);
   const [editJsonError, setEditJsonError] = useState<string | null>(null);
   const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
+  const [performanceByTab, setPerformanceByTab] = useState<Record<string, PerformanceSnapshot | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
 
   const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -116,6 +158,7 @@ const App: React.FC = () => {
   const highlightTimeoutRef = useRef<number | null>(null);
   const editJsonValueRef = useRef('');
   const copyLiteralTimeoutRef = useRef<number | null>(null);
+  const performanceSessionsRef = useRef<Record<string, PerformanceSession>>({});
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
   const activeDocumentMeta = activeTab
@@ -153,6 +196,9 @@ const App: React.FC = () => {
   const canUseRightPaneFolding = activeTab
     ? activeDocumentMeta.rawLength > 0 && activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
     : false;
+  const activePerformanceSnapshot = activeTab
+    ? performanceByTab[activeTab.id] ?? null
+    : null;
 
   const clearPendingFormat = (tabId: string) => {
     const timeoutId = formatTimersRef.current[tabId];
@@ -237,10 +283,11 @@ const App: React.FC = () => {
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
 
   const updateTabContent = (tabId: string, content: string, syncModel = false) => {
+    const byteLength = getUtf8ByteLength(content);
     rawTextByTabRef.current[tabId] = content;
     setDocumentMeta(tabId, (current) => ({
       ...current,
-      rawLength: content.length,
+      rawLength: byteLength,
     }));
 
     if (syncModel) {
@@ -249,10 +296,11 @@ const App: React.FC = () => {
   };
 
   const updateFormattedContent = (tabId: string, content: string, syncModel = false) => {
+    const byteLength = getUtf8ByteLength(content);
     formattedTextByTabRef.current[tabId] = content;
     setDocumentMeta(tabId, (current) => ({
       ...current,
-      formattedLength: content.length,
+      formattedLength: byteLength,
       formattedRevision: current.formattedRevision + 1,
     }));
 
@@ -268,6 +316,100 @@ const App: React.FC = () => {
       ...details,
     })).catch(() => {
       // Ignore logging failures in the renderer path.
+    });
+  };
+
+  const measureDuration = (start?: number, end?: number) => (
+    typeof start === 'number' && typeof end === 'number'
+      ? Math.round((end - start) * 10) / 10
+      : null
+  );
+
+  const syncPerformanceSnapshot = (tabId: string, shouldLog = false) => {
+    const session = performanceSessionsRef.current[tabId];
+    if (!session) {
+      return;
+    }
+
+    const snapshot: PerformanceSnapshot = {
+      trigger: session.trigger,
+      sourceLabel: session.sourceLabel,
+      fileSizeBytes: session.fileSizeBytes,
+      rawBytes: session.rawBytes,
+      formattedBytes: session.formattedBytes,
+      largeMode: session.largeMode,
+      structureEnabled: session.structureEnabled,
+      readFileMs: measureDuration(session.readStartedAt, session.readCompletedAt),
+      leftModelSyncMs: measureDuration(session.leftModelStartedAt, session.leftModelCompletedAt),
+      formatQueueMs: measureDuration(session.formatQueuedAt, session.formatStartedAt),
+      formatWorkerMs: measureDuration(session.formatStartedAt, session.formatCompletedAt),
+      rightModelSyncMs: measureDuration(session.rightModelStartedAt, session.rightModelCompletedAt),
+      totalToFormattedMs: measureDuration(session.startedAt, session.rightModelCompletedAt),
+      structureIndexMs: measureDuration(session.formatCompletedAt, session.structureCompletedAt),
+      updatedAt: Date.now(),
+      status: session.status,
+      error: session.error,
+    };
+
+    setPerformanceByTab((current) => ({ ...current, [tabId]: snapshot }));
+
+    if (shouldLog) {
+      logEvent('performance-snapshot', {
+        tabId,
+        snapshot,
+      });
+    }
+  };
+
+  const beginPerformanceSession = (
+    tabId: string,
+    trigger: PerformanceTrigger,
+    sourceLabel: string,
+    fileSizeBytes: number | null,
+    rawBytes: number,
+    largeMode: boolean
+  ) => {
+    performanceSessionsRef.current[tabId] = {
+      requestId: null,
+      pendingFormat: true,
+      trigger,
+      sourceLabel,
+      fileSizeBytes,
+      rawBytes,
+      formattedBytes: 0,
+      largeMode,
+      structureEnabled: false,
+      startedAt: performance.now(),
+      status: 'running',
+      error: null,
+    };
+    syncPerformanceSnapshot(tabId);
+  };
+
+  const mutatePerformanceSession = (
+    tabId: string,
+    mutate: (session: PerformanceSession) => void,
+    shouldLog = false
+  ) => {
+    const session = performanceSessionsRef.current[tabId];
+    if (!session) {
+      return;
+    }
+
+    mutate(session);
+    syncPerformanceSnapshot(tabId, shouldLog);
+  };
+
+  const clearPerformanceState = (tabId: string, removeOnly = false) => {
+    delete performanceSessionsRef.current[tabId];
+    setPerformanceByTab((current) => {
+      const next = { ...current };
+      if (removeOnly) {
+        delete next[tabId];
+      } else {
+        next[tabId] = null;
+      }
+      return next;
     });
   };
 
@@ -291,7 +433,8 @@ const App: React.FC = () => {
 
   const syncLeftModel = (tabId: string, content: string, forceValue = false) => {
     const path = getLeftModelPath(tabId);
-    const language = getEditorLanguageByLength(content.length);
+    const byteLength = getUtf8ByteLength(content);
+    const language = getEditorLanguageByLength(byteLength);
     let model = getOrCreateModel(path, language);
 
     if (
@@ -309,7 +452,7 @@ const App: React.FC = () => {
       suppressLeftChangeRef.current[tabId] = false;
       logEvent(forceValue ? 'left-model-value-written' : 'left-model-value-synced', {
         tabId,
-        rawLength: content.length,
+        rawLength: byteLength,
       });
     }
 
@@ -317,14 +460,15 @@ const App: React.FC = () => {
       attachEditorModel(leftEditorRef.current, model, 'left-model-attached', {
         tabId,
         path,
-        rawLength: content.length,
+        rawLength: byteLength,
       });
     }
   };
 
   const syncRightModel = (tabId: string, content: string, forceValue = false) => {
     const path = getRightModelPath(tabId);
-    const language = getEditorLanguageByLength(content.length);
+    const byteLength = getUtf8ByteLength(content);
+    const language = getEditorLanguageByLength(byteLength);
     let model = getOrCreateModel(path, language);
 
     if (
@@ -340,7 +484,7 @@ const App: React.FC = () => {
       );
       logEvent(forceValue ? 'right-model-value-written' : 'right-model-value-synced', {
         tabId,
-        formattedLength: content.length,
+        formattedLength: byteLength,
       });
     }
 
@@ -348,7 +492,7 @@ const App: React.FC = () => {
       attachEditorModel(rightEditorRef.current, model, 'right-model-attached', {
         tabId,
         path,
-        formattedLength: content.length,
+        formattedLength: byteLength,
       });
     }
   };
@@ -413,6 +557,16 @@ const App: React.FC = () => {
     setTabError(tabId, null);
 
     if (!text.trim()) {
+      mutatePerformanceSession(tabId, (session) => {
+        if (session.pendingFormat) {
+          session.pendingFormat = false;
+        }
+        session.requestId = null;
+        session.rawBytes = getUtf8ByteLength(text);
+        session.formattedBytes = 0;
+        session.status = 'ready';
+        session.error = null;
+      }, true);
       setTabFormatting(tabId, false);
       setTabLargeMode(tabId, false);
       workerStructureEnabledRef.current[tabId] = false;
@@ -436,20 +590,46 @@ const App: React.FC = () => {
 
     const requestId = ++requestCounterRef.current;
     latestRequestRef.current[tabId] = requestId;
+    mutatePerformanceSession(tabId, (session) => {
+      if (!session.pendingFormat) {
+        return;
+      }
+
+      session.pendingFormat = false;
+      session.requestId = requestId;
+      session.largeMode = largeMode;
+      session.structureEnabled = workerStructureEnabled;
+      session.formatQueuedAt = performance.now();
+      session.formatStartedAt = undefined;
+      session.formatCompletedAt = undefined;
+      session.rightModelStartedAt = undefined;
+      session.rightModelCompletedAt = undefined;
+      session.structureCompletedAt = undefined;
+      session.formattedBytes = 0;
+      session.status = 'running';
+      session.error = null;
+    });
     logEvent('format-queued', {
       tabId,
       requestId,
-      textLength: text.length,
+      textLength: getUtf8ByteLength(text),
       immediate,
       largeMode,
       workerStructureEnabled,
     });
 
     const run = () => {
+      mutatePerformanceSession(tabId, (session) => {
+        if (session.requestId !== requestId) {
+          return;
+        }
+
+        session.formatStartedAt = performance.now();
+      });
       logEvent('format-start', {
         tabId,
         requestId,
-        textLength: text.length,
+        textLength: getUtf8ByteLength(text),
       });
       workerRef.current?.postMessage({
         type: 'format',
@@ -481,6 +661,7 @@ const App: React.FC = () => {
 
   const resetTabArtifacts = (tabId: string) => {
     clearPendingFormat(tabId);
+    clearPerformanceState(tabId);
     setTabImporting(tabId, null);
     setTabFormatting(tabId, false);
     setTabLargeMode(tabId, false);
@@ -500,6 +681,7 @@ const App: React.FC = () => {
 
   const removeTabArtifacts = (tabId: string) => {
     clearPendingFormat(tabId);
+    clearPerformanceState(tabId, true);
     workerRef.current?.postMessage({
       type: 'clear-structure',
       tabId,
@@ -564,6 +746,13 @@ const App: React.FC = () => {
   useEffect(() => {
     activeTabIdRef.current = activeTabId;
   }, [activeTabId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY,
+      String(showPerformancePanel)
+    );
+  }, [showPerformancePanel]);
 
   useEffect(() => {
     if (!activeTab) {
@@ -631,6 +820,7 @@ const App: React.FC = () => {
 
       if (type === 'format-result') {
         const { success, data, error } = event.data;
+        const performanceSession = performanceSessionsRef.current[tabId];
 
         if (latestRequestRef.current[tabId] !== requestId) {
           return;
@@ -638,20 +828,42 @@ const App: React.FC = () => {
 
         if (success && data) {
           const largeMode = isLargeDocument(data) || Boolean(largeModeRef.current[tabId]);
+          const formatCompletedAt = performance.now();
           logEvent('format-success', {
             tabId,
             requestId,
-            formattedLength: data.length,
+            formattedLength: getUtf8ByteLength(data),
           });
           setTabFormatting(tabId, false);
           setTabLargeMode(tabId, largeMode);
+          if (performanceSession?.requestId === requestId) {
+            performanceSession.formatCompletedAt = formatCompletedAt;
+            performanceSession.rightModelStartedAt = performance.now();
+            performanceSession.formattedBytes = getUtf8ByteLength(data);
+            performanceSession.largeMode = largeMode;
+          }
           updateFormattedContent(tabId, data, true);
+          if (performanceSession?.requestId === requestId) {
+            performanceSession.rightModelCompletedAt = performance.now();
+            performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
+            performanceSession.error = null;
+            syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
+          }
           rightTreesRef.current[tabId] = largeMode ? undefined : parseTree(data) ?? undefined;
           setTabError(tabId, null);
           return;
         }
 
         setTabFormatting(tabId, false);
+        mutatePerformanceSession(tabId, (session) => {
+          if (session.requestId !== requestId) {
+            return;
+          }
+
+          session.formatCompletedAt = performance.now();
+          session.status = 'failed';
+          session.error = error ?? 'JSON parse failed';
+        }, true);
         logEvent('format-failed', {
           tabId,
           requestId,
@@ -669,6 +881,14 @@ const App: React.FC = () => {
           return;
         }
 
+        mutatePerformanceSession(tabId, (session) => {
+          if (session.requestId !== requestId) {
+            return;
+          }
+
+          session.structureCompletedAt = performance.now();
+          session.status = 'ready';
+        }, true);
         setStructureStatus(
           tabId,
           event.data.ready ? 'ready' : 'disabled'
@@ -1037,6 +1257,14 @@ const App: React.FC = () => {
     const presumedLargeMode = file.size >= LARGE_FILE_THRESHOLD;
 
     try {
+      beginPerformanceSession(
+        tabId,
+        'import',
+        file.name,
+        file.size,
+        file.size,
+        presumedLargeMode
+      );
       logEvent('import-start', {
         tabId,
         fileName: file.name,
@@ -1055,21 +1283,37 @@ const App: React.FC = () => {
         window.requestAnimationFrame(() => resolve());
       });
 
+      mutatePerformanceSession(tabId, (session) => {
+        session.readStartedAt = performance.now();
+      });
       const content = await file.text();
+      const rawBytes = getUtf8ByteLength(content);
+      mutatePerformanceSession(tabId, (session) => {
+        session.readCompletedAt = performance.now();
+        session.rawBytes = rawBytes;
+      });
       logEvent('import-read-complete', {
         tabId,
         fileName: file.name,
-        rawLength: content.length,
+        rawLength: rawBytes,
       });
       const largeMode = isLargeDocument(content) || presumedLargeMode;
       const workerStructureEnabled = canUseStructureSync(content)
         && Boolean(largeFileLocateEnabledRef.current[tabId]);
 
+      mutatePerformanceSession(tabId, (session) => {
+        session.leftModelStartedAt = performance.now();
+        session.largeMode = largeMode;
+        session.structureEnabled = workerStructureEnabled;
+      });
       leftTreesRef.current[tabId] = largeMode
         ? undefined
         : parseTree(content) ?? undefined;
       updateTabContent(tabId, content, true);
       updateFormattedContent(tabId, '', true);
+      mutatePerformanceSession(tabId, (session) => {
+        session.leftModelCompletedAt = performance.now();
+      });
       setTabLargeMode(tabId, largeMode);
       setTabFormatting(tabId, true);
       setTabImporting(tabId, null);
@@ -1081,6 +1325,10 @@ const App: React.FC = () => {
       rightTreesRef.current[tabId] = undefined;
       queueFormatAfterImport(tabId, content);
     } catch (error) {
+      mutatePerformanceSession(tabId, (session) => {
+        session.status = 'failed';
+        session.error = error instanceof Error ? error.message : String(error);
+      }, true);
       logEvent('import-failed', {
         tabId,
         fileName: file.name,
@@ -1116,7 +1364,21 @@ const App: React.FC = () => {
     }
 
     const currentText = getTabContent(activeTab.id);
+    if (!currentText.trim()) {
+      clearPerformanceState(activeTab.id);
+      queueFormat(activeTab.id, currentText, true);
+      return;
+    }
+
     const largeMode = isLargeDocument(currentText);
+    beginPerformanceSession(
+      activeTab.id,
+      'manual-format',
+      activeTab.title,
+      null,
+      getUtf8ByteLength(currentText),
+      largeMode
+    );
     setTabLargeMode(activeTab.id, largeMode);
     leftTreesRef.current[activeTab.id] = largeMode
       ? undefined
@@ -1161,8 +1423,22 @@ const App: React.FC = () => {
     try {
       const updated = JSON.stringify(JSON.parse(editJsonValueRef.current), null, 2);
       const largeMode = isLargeDocument(updated);
+      beginPerformanceSession(
+        activeTab.id,
+        'edit-save',
+        activeTab.title,
+        null,
+        getUtf8ByteLength(updated),
+        largeMode
+      );
 
+      mutatePerformanceSession(activeTab.id, (session) => {
+        session.leftModelStartedAt = performance.now();
+      });
       updateTabContent(activeTab.id, updated, true);
+      mutatePerformanceSession(activeTab.id, (session) => {
+        session.leftModelCompletedAt = performance.now();
+      });
       setTabLargeMode(activeTab.id, largeMode);
       leftTreesRef.current[activeTab.id] = largeMode
         ? undefined
@@ -1257,6 +1533,7 @@ const App: React.FC = () => {
     setLargeModeByTab((current) => ({ ...current, [nextId]: false }));
     setLargeFileLocateEnabledByTab((current) => ({ ...current, [nextId]: false }));
     setStructureStatusByTab((current) => ({ ...current, [nextId]: 'ready' }));
+    setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
     largeModeRef.current[nextId] = false;
     largeFileLocateEnabledRef.current[nextId] = false;
     structureStatusRef.current[nextId] = 'ready';
@@ -1364,11 +1641,20 @@ const App: React.FC = () => {
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
         isLargeFileLocateEnabled={isLargeFileLocateEnabled}
         onLargeFileLocateToggle={handleLargeFileLocateToggle}
+        showPerformancePanel={showPerformancePanel}
+        onShowPerformancePanelChange={setShowPerformancePanel}
         importingFileName={importingFileName}
         canEnableLargeFileLocate={canEnableLargeFileLocate}
         currentStructureStatus={currentStructureStatus}
         currentError={currentError}
       />
+
+      {showPerformancePanel && (
+        <JsonPerformancePanel
+          snapshot={activePerformanceSnapshot}
+          isDarkMode={isDarkMode}
+        />
+      )}
 
       <JsonToolTabBar
         tabs={tabs}

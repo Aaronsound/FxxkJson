@@ -4,6 +4,7 @@ export interface Tab {
 }
 
 export interface TabDocumentMeta {
+  // Stored as UTF-8 byte lengths so imported file sizes and in-app thresholds match.
   rawLength: number;
   formattedLength: number;
   formattedRevision: number;
@@ -28,6 +29,28 @@ export interface WorkerMessage {
 }
 
 export type StructureStatus = 'ready' | 'building' | 'disabled';
+export type PerformanceTrigger = 'import' | 'manual-format' | 'edit-save';
+export type PerformanceSnapshotStatus = 'running' | 'ready' | 'failed';
+
+export interface PerformanceSnapshot {
+  trigger: PerformanceTrigger;
+  sourceLabel: string;
+  fileSizeBytes: number | null;
+  rawBytes: number;
+  formattedBytes: number;
+  largeMode: boolean;
+  structureEnabled: boolean;
+  readFileMs: number | null;
+  leftModelSyncMs: number | null;
+  formatQueueMs: number | null;
+  formatWorkerMs: number | null;
+  rightModelSyncMs: number | null;
+  totalToFormattedMs: number | null;
+  structureIndexMs: number | null;
+  updatedAt: number;
+  status: PerformanceSnapshotStatus;
+  error: string | null;
+}
 
 export const DEFAULT_TAB_TITLE = 'newTab';
 export const INITIAL_TAB_ID = 'tab-1';

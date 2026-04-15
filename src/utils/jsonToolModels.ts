@@ -6,6 +6,8 @@ import {
   Tab,
 } from '../types/jsonTool';
 
+const utf8Encoder = new TextEncoder();
+
 export function createTab(id: string, title = DEFAULT_TAB_TITLE): Tab {
   return { id, title };
 }
@@ -14,12 +16,17 @@ export function getFileName(filePath: string) {
   return filePath.split(/[\\/]/).pop() || 'Untitled';
 }
 
+export function getUtf8ByteLength(text: string) {
+  return utf8Encoder.encode(text).length;
+}
+
 export function isLargeDocument(text: string) {
-  return text.length >= LARGE_FILE_THRESHOLD;
+  return getUtf8ByteLength(text) >= LARGE_FILE_THRESHOLD;
 }
 
 export function canUseStructureSync(text: string) {
-  return isLargeDocument(text) && text.length <= STRUCTURE_SYNC_THRESHOLD;
+  const byteLength = getUtf8ByteLength(text);
+  return byteLength >= LARGE_FILE_THRESHOLD && byteLength <= STRUCTURE_SYNC_THRESHOLD;
 }
 
 export function selectionCoversModel(editor: monaco.editor.IStandaloneCodeEditor) {
@@ -37,8 +44,8 @@ export function getRightModelPath(tabId: string) {
   return `inmemory://hanjson/formatted/${tabId}.json`;
 }
 
-export function getEditorLanguageByLength(textLength: number) {
-  return textLength >= LARGE_FILE_THRESHOLD ? 'plaintext' : 'json';
+export function getEditorLanguageByLength(textByteLength: number) {
+  return textByteLength >= LARGE_FILE_THRESHOLD ? 'plaintext' : 'json';
 }
 
 export function getOrCreateModel(path: string, language: string) {

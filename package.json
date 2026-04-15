@@ -1,11 +1,12 @@
 {
   "name": "my-json-tool-new",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "start": "electron ./dist-electron/main.js",
+    "bench": "node ./scripts/bench-json.mjs",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win --x64",
     "dist:mac": "npm run build && electron-builder --mac",

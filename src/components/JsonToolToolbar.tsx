@@ -21,6 +21,8 @@ interface JsonToolToolbarProps {
   onToggleDarkMode: () => void;
   isLargeFileLocateEnabled: boolean;
   onLargeFileLocateToggle: (checked: boolean) => void;
+  showPerformancePanel: boolean;
+  onShowPerformancePanelChange: (checked: boolean) => void;
   importingFileName: string | null;
   canEnableLargeFileLocate: boolean;
   currentStructureStatus: StructureStatus;
@@ -88,6 +90,8 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onToggleDarkMode,
   isLargeFileLocateEnabled,
   onLargeFileLocateToggle,
+  showPerformancePanel,
+  onShowPerformancePanelChange,
   importingFileName,
   canEnableLargeFileLocate,
   currentStructureStatus,
@@ -151,6 +155,14 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
           />
           大文件启用右侧定位
         </label>
+        <label className="toolbar-checkbox">
+          <input
+            type="checkbox"
+            checked={showPerformancePanel}
+            onChange={(event) => onShowPerformancePanelChange(event.target.checked)}
+          />
+          显示性能面板
+        </label>
       </div>
 
       <div className="toolbar-more">
@@ -160,6 +172,8 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
               onWrapLongLinesChange(!wrapLongLines);
             } else if (event.target.value === 'theme') {
               onToggleDarkMode();
+            } else if (event.target.value === 'performance') {
+              onShowPerformancePanelChange(!showPerformancePanel);
             }
 
             event.target.value = '';
@@ -168,6 +182,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
           <option value="" hidden>更多</option>
           <option value="wrap">{wrapLongLines ? '关闭自动换行' : '开启自动换行'}</option>
           <option value="theme">{isDarkMode ? '切回浅色' : '切换深色'}</option>
+          <option value="performance">{showPerformancePanel ? '隐藏性能面板' : '显示性能面板'}</option>
         </select>
       </div>
 
