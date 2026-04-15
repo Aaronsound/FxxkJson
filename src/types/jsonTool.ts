@@ -1,0 +1,44 @@
+export interface Tab {
+  id: string;
+  title: string;
+}
+
+export interface TabDocumentMeta {
+  rawLength: number;
+  formattedLength: number;
+  formattedRevision: number;
+}
+
+export interface RenamingTabState {
+  id: string;
+  value: string;
+}
+
+export interface WorkerMessage {
+  type: 'format-result' | 'structure-ready' | 'locate-result';
+  requestId: number;
+  tabId: string;
+  success?: boolean;
+  ready?: boolean;
+  found?: boolean;
+  data?: string;
+  error?: string;
+  startOffset?: number;
+  endOffset?: number;
+}
+
+export type StructureStatus = 'ready' | 'building' | 'disabled';
+
+export const DEFAULT_TAB_TITLE = 'newTab';
+export const INITIAL_TAB_ID = 'tab-1';
+export const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024;
+export const STRUCTURE_SYNC_THRESHOLD = 20 * 1024 * 1024;
+export const SEARCH_HIGHLIGHT_DURATION = 1500;
+export const FORMAT_DEBOUNCE_MS = 120;
+export const LARGE_FILE_FORMAT_DEBOUNCE_MS = 1200;
+
+export const EMPTY_DOCUMENT_META: TabDocumentMeta = {
+  rawLength: 0,
+  formattedLength: 0,
+  formattedRevision: 0,
+};

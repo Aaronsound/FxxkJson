@@ -1,28 +1,22 @@
 {
   "name": "my-json-tool-new",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev:electron": "tsc -p tsconfig.electron.json",
-    "start:electron": "wait-on http://localhost:5173 && electron ./dist-electron/main.js",
-    "dev:renderer": "vite",
-    "dev": "npm-run-all -s dev:electron dev:renderer",
-    "build": "vite build && tsc -p tsconfig.electron.json",
+    "dev": "vite",
+    "build": "vite build",
     "start": "electron ./dist-electron/main.js",
-    "dist": "electron-builder",
+    "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win --x64",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:zip": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "axios": "^1.10.0",
     "jsonc-parser": "^3.3.1",
-    "lucide-react": "^0.523.0",
     "monaco-editor": "^0.52.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-hot-toast": "^2.5.2",
     "react-split": "^2.0.14"
   },
   "devDependencies": {
@@ -32,11 +26,9 @@
     "@vitejs/plugin-react": "^4.1.0",
     "electron": "^35.5.0",
     "electron-builder": "^26.0.12",
-    "npm-run-all": "^4.1.5",
     "typescript": "^5.4.5",
     "vite": "^5.2.0",
-    "vite-plugin-electron": "^0.12.0",
-    "wait-on": "^8.0.3"
+    "vite-plugin-electron": "^0.12.0"
   },
   "build": {
     "appId": "com.aaronsound.hanjson",
