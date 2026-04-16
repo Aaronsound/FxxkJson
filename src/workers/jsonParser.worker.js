@@ -3,6 +3,35 @@ import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 
 const structureCache = new Map();
 
+function getResolvedNodes(cached, offset) {
+  if (
+    !cached
+    || typeof cached.formattedText !== 'string'
+    || !cached.rawTree
+    || !cached.formattedTree
+  ) {
+    return null;
+  }
+
+  const candidateOffsets = [
+    offset,
+    Math.max(0, offset - 1),
+    Math.min(cached.formattedText.length, offset + 1),
+  ].filter((candidate, index, values) => values.indexOf(candidate) === index);
+
+  for (const candidateOffset of candidateOffsets) {
+    const location = getLocation(cached.formattedText, candidateOffset);
+    const rightNode = findNodeAtLocation(cached.formattedTree, location.path);
+    const leftNode = findNodeAtLocation(cached.rawTree, location.path);
+
+    if (rightNode && leftNode) {
+      return { rightNode, leftNode };
+    }
+  }
+
+  return null;
+}
+
 self.onmessage = (event) => {
   const message = event.data;
 
@@ -88,21 +117,9 @@ self.onmessage = (event) => {
     const { requestId, tabId, offset } = message;
     const cached = structureCache.get(tabId);
 
-    if (!cached || !cached.rawTree || !cached.formattedTree) {
-      postMessage({
-        type: 'locate-result',
-        requestId,
-        tabId,
-        found: false,
-      });
-      return;
-    }
+    const resolvedNodes = getResolvedNodes(cached, offset);
 
-    const location = getLocation(cached.formattedText, offset);
-    const rightNode = findNodeAtLocation(cached.formattedTree, location.path);
-    const leftNode = findNodeAtLocation(cached.rawTree, location.path);
-
-    if (!rightNode || !leftNode) {
+    if (!resolvedNodes) {
       postMessage({
         type: 'locate-result',
         requestId,
@@ -117,8 +134,40 @@ self.onmessage = (event) => {
       requestId,
       tabId,
       found: true,
-      startOffset: leftNode.offset,
-      endOffset: leftNode.offset + leftNode.length,
+      startOffset: resolvedNodes.leftNode.offset,
+      endOffset: resolvedNodes.leftNode.offset + resolvedNodes.leftNode.length,
+    });
+
+    return;
+  }
+
+  if (message.type === 'read-value') {
+    const { requestId, tabId, offset } = message;
+    const cached = structureCache.get(tabId);
+    const resolvedNodes = getResolvedNodes(cached, offset);
+
+    if (!resolvedNodes || typeof cached?.formattedText !== 'string') {
+      postMessage({
+        type: 'value-result',
+        requestId,
+        tabId,
+        found: false,
+        value: null,
+      });
+      return;
+    }
+
+    const { rightNode } = resolvedNodes;
+    const value = rightNode.type === 'string'
+      ? String(rightNode.value ?? '')
+      : cached.formattedText.slice(rightNode.offset, rightNode.offset + rightNode.length);
+
+    postMessage({
+      type: 'value-result',
+      requestId,
+      tabId,
+      found: true,
+      value,
     });
   }
 };

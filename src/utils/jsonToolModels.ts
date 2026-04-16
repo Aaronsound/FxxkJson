@@ -29,6 +29,20 @@ export function canUseStructureSync(text: string) {
   return byteLength >= LARGE_FILE_THRESHOLD && byteLength <= STRUCTURE_SYNC_THRESHOLD;
 }
 
+export function shouldBuildWorkerStructure(text: string, largeFileLocateEnabled: boolean) {
+  const byteLength = getUtf8ByteLength(text);
+
+  if (byteLength === 0) {
+    return false;
+  }
+
+  if (byteLength < LARGE_FILE_THRESHOLD) {
+    return true;
+  }
+
+  return byteLength <= STRUCTURE_SYNC_THRESHOLD && largeFileLocateEnabled;
+}
+
 export function selectionCoversModel(editor: monaco.editor.IStandaloneCodeEditor) {
   const model = editor.getModel();
   const selection = editor.getSelection();
