@@ -77,7 +77,7 @@ type PerformanceSession = {
   error: string | null;
 };
 
-const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible';
+const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
 
 const App: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>([createTab(INITIAL_TAB_ID, 'HelloJson')]);

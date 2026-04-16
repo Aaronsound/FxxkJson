@@ -172,6 +172,70 @@ button:disabled {
   color: inherit;
 }
 
+.toolbar {
+  gap: 10px 16px;
+}
+
+.toolbar-group {
+  flex-wrap: wrap;
+  min-height: 32px;
+}
+
+.toolbar-group-actions {
+  flex: 1 1 auto;
+}
+
+.toolbar-group-search {
+  display: flex;
+  align-items: center;
+  flex: 1 1 320px;
+}
+
+.toolbar-group-options {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.toolbar-section-label {
+  color: #8b6a3f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.app-container.dark-mode .toolbar-section-label {
+  color: #d9c18c;
+}
+
+.toolbar-button-primary {
+  background: linear-gradient(135deg, #39a96b, #208b57);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(32, 139, 87, 0.22);
+}
+
+.toolbar-button-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #44b575, #24955f);
+}
+
+.toolbar-button-secondary {
+  background: rgba(73, 104, 150, 0.12);
+}
+
+.toolbar-button-secondary:hover:not(:disabled) {
+  background: rgba(73, 104, 150, 0.2);
+}
+
+.app-container.dark-mode .toolbar-button-secondary {
+  background: rgba(141, 180, 255, 0.12);
+}
+
+.app-container.dark-mode .toolbar-button-secondary:hover:not(:disabled) {
+  background: rgba(141, 180, 255, 0.22);
+}
+
 /* ============================================= */
 /*            编辑区中央大号占位文本（伪 placeholder）  */
 /* ============================================= */
@@ -504,6 +568,238 @@ button:disabled {
   background-color: var(--input-bg);
   color: var(--input-text);
   border: 1px solid var(--input-border);
+}
+
+/* ============================================= */
+/*              Toolbar Layout Refresh            */
+/* ============================================= */
+
+.toolbar {
+  display: block;
+  padding: 8px 12px 6px;
+}
+
+.toolbar-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toolbar-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.95fr);
+  gap: 10px;
+}
+
+.toolbar-bottom-row {
+  display: block;
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(97, 83, 52, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 8px 20px rgba(78, 61, 29, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+
+.toolbar-section-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  min-height: 30px;
+  margin: 0;
+  padding: 0 10px;
+  color: #8b6a3f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  background: rgba(139, 106, 63, 0.1);
+  white-space: nowrap;
+}
+
+.toolbar-section-body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.toolbar-actions-layout {
+  justify-content: flex-start;
+  gap: 8px 10px;
+}
+
+.toolbar-actions-primary,
+.toolbar-actions-secondary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.toolbar-actions-secondary {
+  justify-content: flex-start;
+  padding-left: 10px;
+  margin-left: 2px;
+  border-left: 1px solid rgba(97, 83, 52, 0.14);
+}
+
+.toolbar-section-search {
+  justify-content: space-between;
+}
+
+.toolbar-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.toolbar-search-buttons {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.toolbar-view-row {
+  justify-content: flex-start;
+  gap: 5px;
+}
+
+.toolbar-section-view {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.toolbar-input {
+  width: auto;
+  min-width: 160px;
+  flex: 1 1 auto;
+}
+
+.toolbar-checkbox {
+  padding: 3px 8px;
+  border: 1px solid rgba(97, 83, 52, 0.16);
+  border-radius: 999px;
+  background: rgba(97, 83, 52, 0.06);
+}
+
+.toolbar-button-primary {
+  background: linear-gradient(135deg, #39a96b, #208b57);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(32, 139, 87, 0.22);
+}
+
+.toolbar-button-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #44b575, #24955f);
+}
+
+.toolbar-button-secondary {
+  background: rgba(73, 104, 150, 0.12);
+}
+
+.toolbar-button-secondary:hover:not(:disabled) {
+  background: rgba(73, 104, 150, 0.2);
+}
+
+.toolbar-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 6px;
+}
+
+.toolbar-hint,
+.toolbar-error {
+  margin-left: 0;
+}
+
+.app-container.dark-mode .toolbar-section-label {
+  color: #d9c18c;
+  background: rgba(217, 193, 140, 0.08);
+}
+
+.app-container.dark-mode .toolbar-section {
+  border-color: rgba(217, 193, 140, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.app-container.dark-mode .toolbar-checkbox {
+  border-color: rgba(217, 193, 140, 0.18);
+  background: rgba(217, 193, 140, 0.08);
+}
+
+.app-container.dark-mode .toolbar-actions-secondary {
+  border-left-color: rgba(217, 193, 140, 0.16);
+}
+
+.app-container.dark-mode .toolbar-button-secondary {
+  background: rgba(141, 180, 255, 0.12);
+}
+
+.app-container.dark-mode .toolbar-button-secondary:hover:not(:disabled) {
+  background: rgba(141, 180, 255, 0.22);
+}
+
+@media (max-width: 1320px) {
+  .toolbar-top-row {
+    grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.9fr);
+  }
+}
+
+@media (max-width: 1080px) {
+  .toolbar-top-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .toolbar-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+    padding: 8px 9px;
+  }
+
+  .toolbar-section-label {
+    align-self: flex-start;
+    min-height: 28px;
+  }
+
+  .toolbar-search-row {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar-search-buttons {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .toolbar-actions-secondary {
+    justify-content: flex-start;
+    padding-left: 0;
+    margin-left: 0;
+    border-left: 0;
+  }
+
+  .toolbar-input {
+    min-width: 0;
+  }
 }
 
 /* —— 多标签页栏 —— */
