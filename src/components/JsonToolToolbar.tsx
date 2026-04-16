@@ -37,7 +37,7 @@ function getToolbarHintMessage({
   currentStructureStatus,
 }: Pick<
   JsonToolToolbarProps,
-  'importingFileName'
+  | 'importingFileName'
   | 'isLargeFileMode'
   | 'isLargeFileLocateEnabled'
   | 'canEnableLargeFileLocate'
@@ -107,87 +107,100 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
 
   return (
     <div className="toolbar">
-      <div className="toolbar-group">
-        <button onClick={onImport}>导入 JSON</button>
-        <button onClick={onFormat}>格式化</button>
-        <button onClick={onClear}>清除</button>
-        <button onClick={onEditJson} disabled={!canEditJson}>编辑 JSON</button>
-        <button onClick={onFoldAll} disabled={isLargeFileMode}>
-          折叠全部
-        </button>
-        <button onClick={onUnfoldAll} disabled={isLargeFileMode}>
-          展开全部
-        </button>
+      <div className="toolbar-layout">
+        <div className="toolbar-top-row">
+          <section className="toolbar-section toolbar-section-actions">
+            <span className="toolbar-section-label">操作</span>
+            <div className="toolbar-section-body toolbar-actions-layout">
+              <div className="toolbar-actions-primary">
+                <button className="toolbar-button-primary" onClick={onImport}>
+                  导入 JSON
+                </button>
+                <button className="toolbar-button-primary" onClick={onFormat}>
+                  格式化
+                </button>
+              </div>
+              <div className="toolbar-actions-secondary">
+                <button className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
+                  编辑 JSON
+                </button>
+                <button onClick={onClear}>清空</button>
+                <button onClick={onFoldAll} disabled={isLargeFileMode}>
+                  折叠全部
+                </button>
+                <button onClick={onUnfoldAll} disabled={isLargeFileMode}>
+                  展开全部
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="toolbar-section toolbar-section-search">
+            <span className="toolbar-section-label">搜索</span>
+            <div className="toolbar-section-body toolbar-search-row">
+              <input
+                className="toolbar-input"
+                placeholder="搜索格式化结果..."
+                value={searchTerm}
+                onChange={(event) => onSearchTermChange(event.target.value)}
+              />
+              <div className="toolbar-search-buttons">
+                <button onClick={onPrevMatch} disabled={!hasSearchMatches}>
+                  上一个
+                </button>
+                <button onClick={onNextMatch} disabled={!hasSearchMatches}>
+                  下一个
+                </button>
+                <button onClick={() => onSearchTermChange('')} disabled={!searchTerm}>
+                  清空搜索
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="toolbar-bottom-row">
+          <section className="toolbar-section toolbar-section-view">
+            <span className="toolbar-section-label">视图</span>
+            <div className="toolbar-section-body toolbar-view-row">
+              <label className="toolbar-checkbox">
+                <input
+                  type="checkbox"
+                  checked={wrapLongLines}
+                  onChange={(event) => onWrapLongLinesChange(event.target.checked)}
+                />
+                自动换行
+              </label>
+              <label className="toolbar-checkbox">
+                <input
+                  type="checkbox"
+                  checked={isLargeFileLocateEnabled}
+                  onChange={(event) => onLargeFileLocateToggle(event.target.checked)}
+                />
+                大文件启用右侧定位
+              </label>
+              <label className="toolbar-checkbox">
+                <input
+                  type="checkbox"
+                  checked={showPerformancePanel}
+                  onChange={(event) => onShowPerformancePanelChange(event.target.checked)}
+                />
+                显示性能面板
+              </label>
+              <button className="toolbar-button-secondary" onClick={onToggleDarkMode}>
+                {isDarkMode ? '浅色模式' : '深色模式'}
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
 
-      <div className="toolbar-group toolbar-search">
-        <input
-          className="toolbar-input"
-          placeholder="搜索格式化结果..."
-          value={searchTerm}
-          onChange={(event) => onSearchTermChange(event.target.value)}
-        />
-        <button onClick={onPrevMatch} disabled={!hasSearchMatches}>
-          上一个
-        </button>
-        <button onClick={onNextMatch} disabled={!hasSearchMatches}>
-          下一个
-        </button>
-      </div>
-
-      <div className="toolbar-group toolbar-options">
-        <label className="toolbar-checkbox">
-          <input
-            type="checkbox"
-            checked={wrapLongLines}
-            onChange={(event) => onWrapLongLinesChange(event.target.checked)}
-          />
-          自动换行
-        </label>
-        <button onClick={onToggleDarkMode} className="toolbar-toggle">
-          {isDarkMode ? '切回浅色' : '切换深色'}
-        </button>
-        <label className="toolbar-checkbox">
-          <input
-            type="checkbox"
-            checked={isLargeFileLocateEnabled}
-            onChange={(event) => onLargeFileLocateToggle(event.target.checked)}
-          />
-          大文件启用右侧定位
-        </label>
-        <label className="toolbar-checkbox">
-          <input
-            type="checkbox"
-            checked={showPerformancePanel}
-            onChange={(event) => onShowPerformancePanelChange(event.target.checked)}
-          />
-          显示性能面板
-        </label>
-      </div>
-
-      <div className="toolbar-more">
-        <select
-          onChange={(event) => {
-            if (event.target.value === 'wrap') {
-              onWrapLongLinesChange(!wrapLongLines);
-            } else if (event.target.value === 'theme') {
-              onToggleDarkMode();
-            } else if (event.target.value === 'performance') {
-              onShowPerformancePanelChange(!showPerformancePanel);
-            }
-
-            event.target.value = '';
-          }}
-        >
-          <option value="" hidden>更多</option>
-          <option value="wrap">{wrapLongLines ? '关闭自动换行' : '开启自动换行'}</option>
-          <option value="theme">{isDarkMode ? '切回浅色' : '切换深色'}</option>
-          <option value="performance">{showPerformancePanel ? '隐藏性能面板' : '显示性能面板'}</option>
-        </select>
-      </div>
-
-      {hintMessage && <span className="toolbar-hint">{hintMessage}</span>}
-      {currentError && <span className="toolbar-error">{currentError}</span>}
+      {(hintMessage || currentError) && (
+        <div className="toolbar-feedback">
+          {hintMessage && <span className="toolbar-hint">{hintMessage}</span>}
+          {currentError && <span className="toolbar-error">{currentError}</span>}
+        </div>
+      )}
     </div>
   );
 };

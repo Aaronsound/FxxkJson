@@ -19,7 +19,7 @@ type PanelPosition = {
   y: number;
 };
 
-const PANEL_POSITION_STORAGE_KEY = 'hanjson.performancePanel.position';
+const PANEL_POSITION_STORAGE_KEY = 'hanjson.performancePanel.position.v4';
 
 const stageLabels: Array<{ key: StageKey; label: string }> = [
   { key: 'readFileMs', label: '读取文件' },
@@ -32,7 +32,7 @@ const stageLabels: Array<{ key: StageKey; label: string }> = [
 
 function formatDuration(value: number | null) {
   if (typeof value !== 'number') {
-    return '—';
+    return '--';
   }
 
   return `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
@@ -88,8 +88,8 @@ function getBottleneck(snapshot: PerformanceSnapshot) {
 
   if (!topStage || typeof topStage.value !== 'number') {
     return {
-      label: '—',
-      duration: '—',
+      label: '--',
+      duration: '--',
     };
   }
 
@@ -132,7 +132,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
 
   const bottleneck = useMemo(
-    () => (snapshot ? getBottleneck(snapshot) : { label: '—', duration: '—' }),
+    () => (snapshot ? getBottleneck(snapshot) : { label: '--', duration: '--' }),
     [snapshot]
   );
 
@@ -154,7 +154,12 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
   };
 
   useEffect(() => {
-    if (!position || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!position) {
+      window.localStorage.removeItem(PANEL_POSITION_STORAGE_KEY);
       return;
     }
 
@@ -200,15 +205,18 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
       return;
     }
 
-    const handleResize = () => {
+    const handleViewportChange = () => {
       setPosition((current) => (
         current ? clampPosition(current.x, current.y) : current
       ));
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleViewportChange);
+    document.addEventListener('fullscreenchange', handleViewportChange);
+
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', handleViewportChange);
+      document.removeEventListener('fullscreenchange', handleViewportChange);
     };
   }, [position]);
 
@@ -333,7 +341,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
           </div>
 
           <div className="performance-meta-row">
-            <span>文件大小：{snapshot.fileSizeBytes ? formatBytes(snapshot.fileSizeBytes) : '—'}</span>
+            <span>文件大小：{snapshot.fileSizeBytes ? formatBytes(snapshot.fileSizeBytes) : '--'}</span>
             <span>大文件模式：{snapshot.largeMode ? '开启' : '关闭'}</span>
             <span>定位索引：{snapshot.structureEnabled ? '启用' : '未启用'}</span>
           </div>
