@@ -271,6 +271,67 @@ button:disabled {
   color: #e5e5e5;
 }
 
+.editor-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 8px 12px 6px;
+  color: rgba(92, 76, 52, 0.72);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.editor-pane-header.dark {
+  color: rgba(212, 212, 212, 0.62);
+}
+
+.editor-pane-header-subtle {
+  color: rgba(120, 120, 120, 0.72);
+}
+
+.editor-pane-header-subtle.dark {
+  color: rgba(190, 190, 190, 0.5);
+}
+
+.editor-pane-header-text {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-pane-header-flag {
+  display: none;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: rgba(92, 76, 52, 0.82);
+  background: rgba(250, 247, 239, 0.84);
+  border: 1px solid rgba(120, 96, 58, 0.12);
+}
+
+.editor-pane-header-flag.visible {
+  display: inline-flex;
+}
+
+.editor-pane-header.dark .editor-pane-header-flag {
+  color: rgba(234, 217, 188, 0.88);
+  background: rgba(34, 30, 24, 0.82);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.editor-pane-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .native-json-viewer {
   width: 100%;
   height: 100%;

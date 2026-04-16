@@ -79,6 +79,32 @@ type PerformanceSession = {
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
 
+function formatBytes(value: number) {
+  if (value <= 0) {
+    return '0 B';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  const precision = size >= 100 || unitIndex === 0 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[unitIndex]}`;
+}
+
+function formatDuration(value: number | null | undefined) {
+  if (typeof value !== 'number') {
+    return null;
+  }
+
+  return `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
+}
+
 const App: React.FC = () => {
   const [tabs, setTabs] = useState<Tab[]>([createTab(INITIAL_TAB_ID, 'HelloJson')]);
   const [activeTabId, setActiveTabId] = useState(INITIAL_TAB_ID);
@@ -199,6 +225,42 @@ const App: React.FC = () => {
   const activePerformanceSnapshot = activeTab
     ? performanceByTab[activeTab.id] ?? null
     : null;
+  const leftPaneMetaText = [
+    activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
+    formatDuration(activePerformanceSnapshot?.readFileMs)
+      ? `导入 ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
+      : null,
+  ].filter(Boolean).join(' · ');
+  const rightPaneStatusText = (() => {
+    if (!isLargeFileMode) {
+      return canUseRightPaneFolding ? '支持折叠' : null;
+    }
+
+    if (!canEnableLargeFileLocate) {
+      return '定位已关闭';
+    }
+
+    if (!isLargeFileLocateEnabled) {
+      return '定位未启用';
+    }
+
+    if (currentStructureStatus === 'building') {
+      return '定位索引中';
+    }
+
+    if (currentStructureStatus === 'ready') {
+      return '定位已启用';
+    }
+
+    return '定位已关闭';
+  })();
+  const rightPaneMetaText = [
+    activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
+    formatDuration(activePerformanceSnapshot?.formatWorkerMs)
+      ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
+      : null,
+    rightPaneStatusText,
+  ].filter(Boolean).join(' · ');
 
   const clearPendingFormat = (tabId: string) => {
     const timeoutId = formatTimersRef.current[tabId];
@@ -1696,55 +1758,72 @@ const App: React.FC = () => {
         }}
       >
         <div
+          className="editor-pane"
           style={{
             flex: 1,
-            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
             borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd',
             overflow: 'hidden',
             overscrollBehavior: 'contain',
           }}
         >
-          <Editor
-            onMount={handleLeftMount}
-            theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-            options={getMonacoOptions(isLargeFileMode)}
-            onChange={handleLeftChange}
-            height="100%"
-            loading={null}
-          />
-          {activeDocumentMeta.rawLength === 0 && !isImportingActiveTab && (
-            <div className="editor-center-placeholder">原始 JSON</div>
-          )}
-          {isImportingActiveTab && (
-            <div className="editor-loading-overlay">
-              {`正在导入 ${importingFileName}...`}
-            </div>
-          )}
+          <div className={`editor-pane-header editor-pane-header-subtle ${isDarkMode ? 'dark' : ''}`}>
+            <span className="editor-pane-header-text">{leftPaneMetaText}</span>
+          </div>
+          <div className="editor-pane-body">
+            <Editor
+              onMount={handleLeftMount}
+              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+              options={getMonacoOptions(isLargeFileMode)}
+              onChange={handleLeftChange}
+              height="100%"
+              loading={null}
+            />
+            {activeDocumentMeta.rawLength === 0 && !isImportingActiveTab && (
+              <div className="editor-center-placeholder">原始 JSON</div>
+            )}
+            {isImportingActiveTab && (
+              <div className="editor-loading-overlay">
+                {`正在导入 ${importingFileName}...`}
+              </div>
+            )}
+          </div>
         </div>
 
         <div
+          className="editor-pane"
           style={{
             flex: 1,
-            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
             overflow: 'hidden',
             overscrollBehavior: 'contain',
           }}
         >
-          <Editor
-            onMount={handleRightMount}
-            theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-            options={getMonacoOptions(isLargeFileMode, true, canUseRightPaneFolding)}
-            height="100%"
-            loading={null}
-          />
-          {!formattedValue && !isImportingActiveTab && (
-            <div className="editor-center-placeholder">
-              {isFormattingActiveTab ? '正在格式化...' : '格式化结果'}
-            </div>
-          )}
-          {isImportingActiveTab && (
-            <div className="editor-loading-overlay">正在读取文件...</div>
-          )}
+          <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
+            <span className="editor-pane-header-text">{rightPaneMetaText}</span>
+            <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
+              轻量模式
+            </span>
+          </div>
+          <div className="editor-pane-body">
+            <Editor
+              onMount={handleRightMount}
+              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+              options={getMonacoOptions(isLargeFileMode, true, canUseRightPaneFolding)}
+              height="100%"
+              loading={null}
+            />
+            {!formattedValue && !isImportingActiveTab && (
+              <div className="editor-center-placeholder">
+                {isFormattingActiveTab ? '正在格式化...' : '格式化结果'}
+              </div>
+            )}
+            {isImportingActiveTab && (
+              <div className="editor-loading-overlay">正在读取文件...</div>
+            )}
+          </div>
         </div>
       </Split>
     </div>
