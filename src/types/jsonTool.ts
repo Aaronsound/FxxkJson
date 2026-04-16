@@ -16,13 +16,14 @@ export interface RenamingTabState {
 }
 
 export interface WorkerMessage {
-  type: 'format-result' | 'structure-ready' | 'locate-result';
+  type: 'format-result' | 'structure-ready' | 'locate-result' | 'value-result';
   requestId: number;
   tabId: string;
   success?: boolean;
   ready?: boolean;
   found?: boolean;
   data?: string;
+  value?: string | null;
   error?: string;
   startOffset?: number;
   endOffset?: number;

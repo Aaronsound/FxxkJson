@@ -71,6 +71,7 @@ body {
   display: flex;
   flex-wrap: wrap;            /* 允许换行 */
   align-items: center;
+  flex: 0 0 auto;
   padding: 8px 12px;
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--toolbar-border);
@@ -637,6 +638,7 @@ button:disabled {
 
 .toolbar {
   display: block;
+  flex: 0 0 auto;
   padding: 8px 12px 6px;
 }
 
@@ -867,6 +869,7 @@ button:disabled {
 .tab-bar {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   border-bottom: 1px solid var(--toolbar-border);
   background: var(--toolbar-bg);
   padding: 4px 12px;
@@ -926,16 +929,6 @@ button:disabled {
 }
 
 /* 关闭按钮只在 hover 或激活态显现 */
-.tab-bar .tab span {
-  margin-left: 4px;
-  color: #888;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.tab-bar .tab:hover span,
-.tab-bar .tab.active span {
-  opacity: 1;
-}
 
 /* “＋” 按钮紧跟最后一个 tab */
 .tab-bar .add-tab {
@@ -1013,6 +1006,84 @@ button:disabled {
 
 .modal-card-dark .modal-error {
   color: #ef9a9a;
+}
+
+/* Tab bar overrides */
+.tab-bar {
+  align-items: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  scrollbar-width: thin;
+}
+
+.tab-bar .tab {
+  flex: 1 1 180px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 1;
+  min-width: 132px;
+  max-width: 280px;
+  margin-right: 0;
+  padding: 7px 12px 8px;
+  overflow: hidden;
+}
+
+.tab-title {
+  flex: 1 1 auto;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  color: inherit;
+  opacity: 1;
+  visibility: visible;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.tab-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #888;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.tab-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #333;
+}
+
+.tab-bar .tab:hover .tab-close,
+.tab-bar .tab.active .tab-close {
+  opacity: 1;
+}
+
+.tab-rename-input {
+  width: 140px;
+  max-width: 180px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.tab-bar .add-tab {
+  align-self: center;
+  margin-left: 0;
 }
 
 

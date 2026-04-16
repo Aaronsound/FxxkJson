@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import Split from 'react-split';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { findNodeAtLocation, getLocation, Node as JsonNode, parseTree } from 'jsonc-parser';
 import JsonEditModal from './components/JsonEditModal';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
@@ -38,6 +37,7 @@ import {
   isLargeDocument,
   recreateModel,
   selectionCoversModel,
+  shouldBuildWorkerStructure,
 } from './utils/jsonToolModels';
 import './App.css';
 
@@ -177,8 +177,8 @@ const App: React.FC = () => {
   const workerStructureEnabledRef = useRef<Record<string, boolean>>({
     [INITIAL_TAB_ID]: false,
   });
-  const leftTreesRef = useRef<Record<string, JsonNode | undefined>>({});
-  const rightTreesRef = useRef<Record<string, JsonNode | undefined>>({});
+  const latestLocateRequestRef = useRef<Record<string, number>>({});
+  const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
   const leftDecorationIdsRef = useRef<string[]>([]);
   const rightDecorationIdsRef = useRef<string[]>([]);
   const highlightTimeoutRef = useRef<number | null>(null);
@@ -603,6 +603,45 @@ const App: React.FC = () => {
     }, SEARCH_HIGHLIGHT_DURATION);
   };
 
+  const requestWorkerLocate = (tabId: string, offset: number) => {
+    if (
+      !workerRef.current
+      || !workerStructureEnabledRef.current[tabId]
+      || structureStatusRef.current[tabId] !== 'ready'
+    ) {
+      return;
+    }
+
+    const requestId = ++locateRequestCounterRef.current;
+    latestLocateRequestRef.current[tabId] = requestId;
+    workerRef.current.postMessage({
+      type: 'locate',
+      requestId,
+      tabId,
+      offset,
+    });
+  };
+
+  const requestWorkerValue = (tabId: string, offset: number) => new Promise<string | null>((resolve) => {
+    if (
+      !workerRef.current
+      || !workerStructureEnabledRef.current[tabId]
+      || structureStatusRef.current[tabId] !== 'ready'
+    ) {
+      resolve(null);
+      return;
+    }
+
+    const requestId = ++locateRequestCounterRef.current;
+    pendingValueRequestsRef.current[requestId] = resolve;
+    workerRef.current.postMessage({
+      type: 'read-value',
+      requestId,
+      tabId,
+      offset,
+    });
+  });
+
   const renameTab = (tabId: string, nextTitle: string) => {
     const trimmedTitle = nextTitle.trim() || DEFAULT_TAB_TITLE;
     setTabs((currentTabs) =>
@@ -633,13 +672,20 @@ const App: React.FC = () => {
       setTabLargeMode(tabId, false);
       workerStructureEnabledRef.current[tabId] = false;
       setStructureStatus(tabId, 'ready');
-      rightTreesRef.current[tabId] = undefined;
+      delete latestLocateRequestRef.current[tabId];
+      workerRef.current?.postMessage({
+        type: 'clear-structure',
+        tabId,
+      });
       updateFormattedContent(tabId, '', true);
       return;
     }
 
     const largeMode = largeModeRef.current[tabId] || isLargeDocument(text);
-    const workerStructureEnabled = canUseStructureSync(text) && Boolean(largeFileLocateEnabledRef.current[tabId]);
+    const workerStructureEnabled = shouldBuildWorkerStructure(
+      text,
+      Boolean(largeFileLocateEnabledRef.current[tabId])
+    );
     if (largeModeRef.current[tabId] !== largeMode) {
       setTabLargeMode(tabId, largeMode);
     }
@@ -733,8 +779,7 @@ const App: React.FC = () => {
       tabId,
     });
     setStructureStatus(tabId, 'ready');
-    leftTreesRef.current[tabId] = undefined;
-    rightTreesRef.current[tabId] = undefined;
+    delete latestLocateRequestRef.current[tabId];
     latestRequestRef.current[tabId] = 0;
     updateTabContent(tabId, '', true);
     updateFormattedContent(tabId, '', true);
@@ -750,8 +795,7 @@ const App: React.FC = () => {
     });
     delete formatTimersRef.current[tabId];
     delete latestRequestRef.current[tabId];
-    delete leftTreesRef.current[tabId];
-    delete rightTreesRef.current[tabId];
+    delete latestLocateRequestRef.current[tabId];
     delete largeModeRef.current[tabId];
     delete largeFileLocateEnabledRef.current[tabId];
     delete structureStatusRef.current[tabId];
@@ -911,7 +955,6 @@ const App: React.FC = () => {
             performanceSession.error = null;
             syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
           }
-          rightTreesRef.current[tabId] = largeMode ? undefined : parseTree(data) ?? undefined;
           setTabError(tabId, null);
           return;
         }
@@ -931,7 +974,6 @@ const App: React.FC = () => {
           requestId,
           error: error ?? 'JSON parse failed',
         });
-        rightTreesRef.current[tabId] = undefined;
         updateFormattedContent(tabId, '', true);
         setTabError(tabId, error ?? 'JSON 解析失败');
         setStructureStatus(tabId, 'disabled');
@@ -959,13 +1001,27 @@ const App: React.FC = () => {
       }
 
       if (type === 'locate-result') {
-        if (tabId !== activeTabIdRef.current) {
+        if (
+          tabId !== activeTabIdRef.current
+          || latestLocateRequestRef.current[tabId] !== requestId
+        ) {
           return;
         }
 
         if (event.data.found && typeof event.data.startOffset === 'number' && typeof event.data.endOffset === 'number') {
           revealLeftRange(event.data.startOffset, event.data.endOffset);
         }
+        return;
+      }
+
+      if (type === 'value-result') {
+        const resolve = pendingValueRequestsRef.current[requestId];
+        if (!resolve) {
+          return;
+        }
+
+        delete pendingValueRequestsRef.current[requestId];
+        resolve(event.data.found ? (event.data.value ?? null) : null);
       }
     };
 
@@ -973,6 +1029,10 @@ const App: React.FC = () => {
       Object.keys(formatTimersRef.current).forEach(clearPendingFormat);
       clearLeftHighlights();
       clearRightHighlights();
+      Object.keys(pendingValueRequestsRef.current).forEach((requestId) => {
+        pendingValueRequestsRef.current[Number(requestId)]?.(null);
+        delete pendingValueRequestsRef.current[Number(requestId)];
+      });
       worker.terminate();
       workerRef.current = null;
     };
@@ -1174,9 +1234,6 @@ const App: React.FC = () => {
 
           updateTabContent(currentTabId, text, true);
           setTabLargeMode(currentTabId, largeMode);
-          leftTreesRef.current[currentTabId] = largeMode
-            ? undefined
-            : parseTree(text) ?? undefined;
           resetSearchState();
           queueFormat(currentTabId, text, true);
           return;
@@ -1205,37 +1262,24 @@ const App: React.FC = () => {
     editor.onDidChangeCursorPosition((event) => {
       const currentTabId = activeTabIdRef.current;
 
-      if (largeModeRef.current[currentTabId]) {
+      if (
+        largeModeRef.current[currentTabId]
+        || !workerStructureEnabledRef.current[currentTabId]
+        || structureStatusRef.current[currentTabId] !== 'ready'
+      ) {
         return;
       }
 
-      const rightTree = rightTreesRef.current[currentTabId];
-      const leftTree = leftTreesRef.current[currentTabId];
-      const leftEditor = leftEditorRef.current;
       const rightModel = editor.getModel();
-      const leftModel = leftEditor?.getModel();
 
       if (
-        !rightTree ||
-        !leftTree ||
-        !leftEditor ||
         !rightModel ||
-        !leftModel ||
         (event.position.lineNumber === 1 && event.position.column === 1)
       ) {
         return;
       }
 
-      const offset = rightModel.getOffsetAt(event.position);
-      const location = getLocation(rightModel.getValue(), offset);
-      const rightNode = findNodeAtLocation(rightTree, location.path);
-      const leftNode = findNodeAtLocation(leftTree, location.path);
-
-      if (!rightNode || !leftNode) {
-        return;
-      }
-
-      revealLeftRange(leftNode.offset, leftNode.offset + leftNode.length);
+      requestWorkerLocate(currentTabId, rightModel.getOffsetAt(event.position));
     });
 
     editor.onMouseUp(() => {
@@ -1255,13 +1299,7 @@ const App: React.FC = () => {
         return;
       }
 
-      const requestId = ++locateRequestCounterRef.current;
-      workerRef.current?.postMessage({
-        type: 'locate',
-        requestId,
-        tabId: currentTabId,
-        offset: model.getOffsetAt(position),
-      });
+      requestWorkerLocate(currentTabId, model.getOffsetAt(position));
     });
 
     editor.addAction({
@@ -1273,23 +1311,16 @@ const App: React.FC = () => {
         const currentTabId = activeTabIdRef.current;
         const model = mountedEditor.getModel();
         const position = mountedEditor.getPosition();
-        const rightTree = rightTreesRef.current[currentTabId];
 
-        if (!model || !position || !rightTree || largeModeRef.current[currentTabId]) {
+        if (!model || !position || largeModeRef.current[currentTabId]) {
           return;
         }
 
         const offset = model.getOffsetAt(position);
-        const location = getLocation(model.getValue(), offset);
-        const node = findNodeAtLocation(rightTree, location.path);
-
-        if (!node) {
+        const valueToCopy = await requestWorkerValue(currentTabId, offset);
+        if (valueToCopy === null) {
           return;
         }
-
-        const valueToCopy = node.type === 'string'
-          ? String(node.value ?? '')
-          : model.getValue().slice(node.offset, node.offset + node.length);
 
         await navigator.clipboard.writeText(valueToCopy);
       },
@@ -1309,9 +1340,6 @@ const App: React.FC = () => {
     const largeMode = isLargeDocument(nextContent);
     updateTabContent(activeTab.id, nextContent);
     setTabLargeMode(activeTab.id, largeMode);
-    leftTreesRef.current[activeTab.id] = largeMode
-      ? undefined
-      : parseTree(nextContent) ?? undefined;
     queueFormat(activeTab.id, nextContent);
   };
 
@@ -1339,6 +1367,11 @@ const App: React.FC = () => {
       setTabLargeMode(tabId, presumedLargeMode);
       setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
+      delete latestLocateRequestRef.current[tabId];
+      workerRef.current?.postMessage({
+        type: 'clear-structure',
+        tabId,
+      });
       resetSearchState();
 
       await new Promise<void>((resolve) => {
@@ -1360,17 +1393,16 @@ const App: React.FC = () => {
         rawLength: rawBytes,
       });
       const largeMode = isLargeDocument(content) || presumedLargeMode;
-      const workerStructureEnabled = canUseStructureSync(content)
-        && Boolean(largeFileLocateEnabledRef.current[tabId]);
+      const workerStructureEnabled = shouldBuildWorkerStructure(
+        content,
+        Boolean(largeFileLocateEnabledRef.current[tabId])
+      );
 
       mutatePerformanceSession(tabId, (session) => {
         session.leftModelStartedAt = performance.now();
         session.largeMode = largeMode;
         session.structureEnabled = workerStructureEnabled;
       });
-      leftTreesRef.current[tabId] = largeMode
-        ? undefined
-        : parseTree(content) ?? undefined;
       updateTabContent(tabId, content, true);
       updateFormattedContent(tabId, '', true);
       mutatePerformanceSession(tabId, (session) => {
@@ -1384,7 +1416,6 @@ const App: React.FC = () => {
         tabId,
         workerStructureEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
       );
-      rightTreesRef.current[tabId] = undefined;
       queueFormatAfterImport(tabId, content);
     } catch (error) {
       mutatePerformanceSession(tabId, (session) => {
@@ -1442,9 +1473,6 @@ const App: React.FC = () => {
       largeMode
     );
     setTabLargeMode(activeTab.id, largeMode);
-    leftTreesRef.current[activeTab.id] = largeMode
-      ? undefined
-      : parseTree(currentText) ?? undefined;
     queueFormat(activeTab.id, currentText, true);
   };
 
@@ -1502,9 +1530,6 @@ const App: React.FC = () => {
         session.leftModelCompletedAt = performance.now();
       });
       setTabLargeMode(activeTab.id, largeMode);
-      leftTreesRef.current[activeTab.id] = largeMode
-        ? undefined
-        : parseTree(updated) ?? undefined;
       setEditJsonError(null);
       closeEditJson();
       resetSearchState();
@@ -1542,14 +1567,18 @@ const App: React.FC = () => {
       return;
     }
 
+    const currentText = getTabContent(activeTab.id);
+    const largeMode = isLargeDocument(currentText);
     setLargeFileLocateEnabled(activeTab.id, enabled);
+
+    if (!largeMode) {
+      setStructureStatus(activeTab.id, 'ready');
+      return;
+    }
 
     if (!enabled) {
       workerStructureEnabledRef.current[activeTab.id] = false;
-      setStructureStatus(
-        activeTab.id,
-        isLargeDocument(getTabContent(activeTab.id)) ? 'disabled' : 'ready'
-      );
+      setStructureStatus(activeTab.id, 'disabled');
       workerRef.current?.postMessage({
         type: 'clear-structure',
         tabId: activeTab.id,
@@ -1557,18 +1586,12 @@ const App: React.FC = () => {
       return;
     }
 
-    if (!isLargeDocument(getTabContent(activeTab.id))) {
-      workerStructureEnabledRef.current[activeTab.id] = false;
-      setStructureStatus(activeTab.id, 'ready');
-      return;
-    }
-
-    if (!canUseStructureSync(getTabContent(activeTab.id))) {
+    if (!canUseStructureSync(currentText)) {
       setStructureStatus(activeTab.id, 'disabled');
       return;
     }
 
-    queueFormat(activeTab.id, getTabContent(activeTab.id), true);
+    queueFormat(activeTab.id, currentText, true);
   };
 
   const handleClear = () => {
@@ -1754,7 +1777,7 @@ const App: React.FC = () => {
         style={{
           display: 'flex',
           flex: 1,
-          height: 'calc(100% - 48px)',
+          minHeight: 0,
         }}
       >
         <div
