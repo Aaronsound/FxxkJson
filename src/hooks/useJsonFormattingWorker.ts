@@ -1,0 +1,601 @@
+import { MutableRefObject, useEffect, useRef } from 'react';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import {
+  FORMAT_DEBOUNCE_MS,
+  LARGE_FILE_FORMAT_DEBOUNCE_MS,
+  LARGE_FILE_THRESHOLD,
+  StructureStatus,
+  WorkerMessage,
+} from '../types/jsonTool';
+import { PerformanceSession } from './useJsonPerformanceTracking';
+import {
+  disposeModel,
+  getFileName,
+  getLeftModelPath,
+  getRightModelPath,
+  getUtf8ByteLength,
+  isLargeDocument,
+  shouldBuildWorkerStructure,
+} from '../utils/jsonToolModels';
+
+interface UseJsonFormattingWorkerArgs {
+  activeTabIdRef: MutableRefObject<string>;
+  largeModeRef: MutableRefObject<Record<string, boolean>>;
+  largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
+  leftViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
+  rightViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
+  structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
+  workerStructureEnabledRef: MutableRefObject<Record<string, boolean>>;
+  rawTextByTabRef: MutableRefObject<Record<string, string>>;
+  formattedTextByTabRef: MutableRefObject<Record<string, string>>;
+  performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
+  beginPerformanceSession: (
+    tabId: string,
+    trigger: 'import' | 'manual-format' | 'edit-save',
+    sourceLabel: string,
+    fileSizeBytes: number | null,
+    rawBytes: number,
+    largeMode: boolean
+  ) => void;
+  clearPerformanceState: (tabId: string, removeOnly?: boolean) => void;
+  logEvent: (event: string, details?: Record<string, unknown>) => void;
+  mutatePerformanceSession: (
+    tabId: string,
+    mutate: (session: PerformanceSession) => void,
+    shouldLog?: boolean
+  ) => void;
+  syncPerformanceSnapshot: (tabId: string, shouldLog?: boolean) => void;
+  renameTab: (tabId: string, nextTitle: string) => void;
+  removeTabState: (tabId: string) => void;
+  setTabError: (tabId: string, message: string | null) => void;
+  setTabImporting: (tabId: string, fileName: string | null) => void;
+  setTabFormatting: (tabId: string, formatting: boolean) => void;
+  setTabLargeMode: (tabId: string, enabled: boolean) => void;
+  setStructureStatus: (tabId: string, status: StructureStatus) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  resetSearchState: () => void;
+  revealLeftRange: (startOffset: number, endOffset: number) => void;
+  clearLeftHighlights: () => void;
+  clearRightHighlights: () => void;
+}
+
+export function useJsonFormattingWorker({
+  activeTabIdRef,
+  largeModeRef,
+  largeFileLocateEnabledRef,
+  leftViewStateByTabRef,
+  rightViewStateByTabRef,
+  structureStatusRef,
+  workerStructureEnabledRef,
+  rawTextByTabRef,
+  formattedTextByTabRef,
+  performanceSessionsRef,
+  beginPerformanceSession,
+  clearPerformanceState,
+  logEvent,
+  mutatePerformanceSession,
+  syncPerformanceSnapshot,
+  renameTab,
+  removeTabState,
+  setTabError,
+  setTabImporting,
+  setTabFormatting,
+  setTabLargeMode,
+  setStructureStatus,
+  updateTabContent,
+  updateFormattedContent,
+  resetSearchState,
+  revealLeftRange,
+  clearLeftHighlights,
+  clearRightHighlights,
+}: UseJsonFormattingWorkerArgs) {
+  const workerRef = useRef<Worker | null>(null);
+  const formatTimersRef = useRef<Record<string, number>>({});
+  const latestRequestRef = useRef<Record<string, number>>({});
+  const requestCounterRef = useRef(0);
+  const locateRequestCounterRef = useRef(0);
+  const latestLocateRequestRef = useRef<Record<string, number>>({});
+  const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
+  const callbacksRef = useRef({
+    beginPerformanceSession,
+    clearLeftHighlights,
+    clearPerformanceState,
+    clearRightHighlights,
+    logEvent,
+    mutatePerformanceSession,
+    removeTabState,
+    renameTab,
+    resetSearchState,
+    revealLeftRange,
+    setStructureStatus,
+    setTabError,
+    setTabFormatting,
+    setTabImporting,
+    setTabLargeMode,
+    syncPerformanceSnapshot,
+    updateFormattedContent,
+    updateTabContent,
+  });
+
+  callbacksRef.current = {
+    beginPerformanceSession,
+    clearLeftHighlights,
+    clearPerformanceState,
+    clearRightHighlights,
+    logEvent,
+    mutatePerformanceSession,
+    removeTabState,
+    renameTab,
+    resetSearchState,
+    revealLeftRange,
+    setStructureStatus,
+    setTabError,
+    setTabFormatting,
+    setTabImporting,
+    setTabLargeMode,
+    syncPerformanceSnapshot,
+    updateFormattedContent,
+    updateTabContent,
+  };
+
+  const clearPendingFormat = (tabId: string) => {
+    const timeoutId = formatTimersRef.current[tabId];
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+      delete formatTimersRef.current[tabId];
+    }
+  };
+
+  const clearTabStructure = (tabId: string, status: StructureStatus = 'ready') => {
+    workerStructureEnabledRef.current[tabId] = false;
+    delete latestLocateRequestRef.current[tabId];
+    workerRef.current?.postMessage({
+      type: 'clear-structure',
+      tabId,
+    });
+    callbacksRef.current.setStructureStatus(tabId, status);
+  };
+
+  const requestWorkerLocate = (tabId: string, offset: number) => {
+    if (
+      !workerRef.current
+      || !workerStructureEnabledRef.current[tabId]
+      || structureStatusRef.current[tabId] !== 'ready'
+    ) {
+      return;
+    }
+
+    const requestId = ++locateRequestCounterRef.current;
+    latestLocateRequestRef.current[tabId] = requestId;
+    workerRef.current.postMessage({
+      type: 'locate',
+      requestId,
+      tabId,
+      offset,
+    });
+  };
+
+  const requestWorkerValue = (tabId: string, offset: number) => new Promise<string | null>((resolve) => {
+    if (!workerRef.current) {
+      resolve(null);
+      return;
+    }
+
+    const requestId = ++locateRequestCounterRef.current;
+    pendingValueRequestsRef.current[requestId] = resolve;
+
+    if (
+      workerStructureEnabledRef.current[tabId]
+      && structureStatusRef.current[tabId] === 'ready'
+    ) {
+      workerRef.current.postMessage({
+        type: 'read-value',
+        requestId,
+        tabId,
+        offset,
+      });
+      return;
+    }
+
+    const formattedText = formattedTextByTabRef.current[tabId] ?? '';
+    if (!formattedText) {
+      delete pendingValueRequestsRef.current[requestId];
+      resolve(null);
+      return;
+    }
+
+    workerRef.current.postMessage({
+      type: 'read-value-direct',
+      requestId,
+      tabId,
+      offset,
+      text: formattedText,
+    });
+  });
+
+  const queueFormat = (tabId: string, text: string, immediate = false) => {
+    clearPendingFormat(tabId);
+    callbacksRef.current.setTabError(tabId, null);
+
+    if (!text.trim()) {
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        if (session.pendingFormat) {
+          session.pendingFormat = false;
+        }
+        session.requestId = null;
+        session.rawBytes = getUtf8ByteLength(text);
+        session.formattedBytes = 0;
+        session.status = 'ready';
+        session.error = null;
+      }, true);
+      callbacksRef.current.setTabFormatting(tabId, false);
+      callbacksRef.current.setTabLargeMode(tabId, false);
+      clearTabStructure(tabId, 'ready');
+      callbacksRef.current.updateFormattedContent(tabId, '', true);
+      return;
+    }
+
+    const largeMode = largeModeRef.current[tabId] || isLargeDocument(text);
+    const workerStructureEnabled = shouldBuildWorkerStructure(
+      text,
+      Boolean(largeFileLocateEnabledRef.current[tabId])
+    );
+
+    if (largeModeRef.current[tabId] !== largeMode) {
+      callbacksRef.current.setTabLargeMode(tabId, largeMode);
+    }
+
+    callbacksRef.current.setTabFormatting(tabId, true);
+    workerStructureEnabledRef.current[tabId] = workerStructureEnabled;
+    callbacksRef.current.setStructureStatus(
+      tabId,
+      workerStructureEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+    );
+
+    const requestId = ++requestCounterRef.current;
+    latestRequestRef.current[tabId] = requestId;
+    callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+      if (!session.pendingFormat) {
+        return;
+      }
+
+      session.pendingFormat = false;
+      session.requestId = requestId;
+      session.largeMode = largeMode;
+      session.structureEnabled = workerStructureEnabled;
+      session.formatQueuedAt = performance.now();
+      session.formatStartedAt = undefined;
+      session.formatCompletedAt = undefined;
+      session.rightModelStartedAt = undefined;
+      session.rightModelCompletedAt = undefined;
+      session.structureCompletedAt = undefined;
+      session.formattedBytes = 0;
+      session.status = 'running';
+      session.error = null;
+    });
+    callbacksRef.current.logEvent('format-queued', {
+      tabId,
+      requestId,
+      textLength: getUtf8ByteLength(text),
+      immediate,
+      largeMode,
+      workerStructureEnabled,
+    });
+
+    const run = () => {
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        if (session.requestId !== requestId) {
+          return;
+        }
+
+        session.formatStartedAt = performance.now();
+      });
+      callbacksRef.current.logEvent('format-start', {
+        tabId,
+        requestId,
+        textLength: getUtf8ByteLength(text),
+      });
+      workerRef.current?.postMessage({
+        type: 'format',
+        requestId,
+        tabId,
+        text,
+        enableStructure: workerStructureEnabled,
+      });
+    };
+
+    if (immediate) {
+      run();
+      return;
+    }
+
+    formatTimersRef.current[tabId] = window.setTimeout(
+      run,
+      largeMode ? LARGE_FILE_FORMAT_DEBOUNCE_MS : FORMAT_DEBOUNCE_MS
+    );
+  };
+
+  const queueFormatAfterImport = (tabId: string, text: string) => {
+    clearPendingFormat(tabId);
+    formatTimersRef.current[tabId] = window.setTimeout(() => {
+      delete formatTimersRef.current[tabId];
+      queueFormat(tabId, text, true);
+    }, 0);
+  };
+
+  const resetTabArtifacts = (tabId: string) => {
+    clearPendingFormat(tabId);
+    callbacksRef.current.clearPerformanceState(tabId);
+    callbacksRef.current.setTabImporting(tabId, null);
+    callbacksRef.current.setTabFormatting(tabId, false);
+    callbacksRef.current.setTabLargeMode(tabId, false);
+    clearTabStructure(tabId, 'ready');
+    latestRequestRef.current[tabId] = 0;
+    callbacksRef.current.updateTabContent(tabId, '', true);
+    callbacksRef.current.updateFormattedContent(tabId, '', true);
+    callbacksRef.current.setTabError(tabId, null);
+  };
+
+  const removeTabArtifacts = (tabId: string) => {
+    clearPendingFormat(tabId);
+    callbacksRef.current.clearPerformanceState(tabId, true);
+    workerRef.current?.postMessage({
+      type: 'clear-structure',
+      tabId,
+    });
+    delete formatTimersRef.current[tabId];
+    delete latestRequestRef.current[tabId];
+    delete latestLocateRequestRef.current[tabId];
+    delete largeModeRef.current[tabId];
+    delete largeFileLocateEnabledRef.current[tabId];
+    delete structureStatusRef.current[tabId];
+    delete workerStructureEnabledRef.current[tabId];
+
+    delete rawTextByTabRef.current[tabId];
+    delete formattedTextByTabRef.current[tabId];
+    delete leftViewStateByTabRef.current[tabId];
+    delete rightViewStateByTabRef.current[tabId];
+    disposeModel(getLeftModelPath(tabId));
+    disposeModel(getRightModelPath(tabId));
+    callbacksRef.current.removeTabState(tabId);
+  };
+
+  const importJsonFile = async (tabId: string, file: File) => {
+    const presumedLargeMode = file.size >= LARGE_FILE_THRESHOLD;
+
+    try {
+      callbacksRef.current.beginPerformanceSession(
+        tabId,
+        'import',
+        file.name,
+        file.size,
+        file.size,
+        presumedLargeMode
+      );
+      callbacksRef.current.logEvent('import-start', {
+        tabId,
+        fileName: file.name,
+        fileSize: file.size,
+      });
+      callbacksRef.current.setTabError(tabId, null);
+      callbacksRef.current.setTabImporting(tabId, file.name);
+      callbacksRef.current.setTabFormatting(tabId, false);
+      callbacksRef.current.renameTab(tabId, getFileName(file.name));
+      callbacksRef.current.setTabLargeMode(tabId, presumedLargeMode);
+      callbacksRef.current.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
+      workerStructureEnabledRef.current[tabId] = false;
+      delete latestLocateRequestRef.current[tabId];
+      workerRef.current?.postMessage({
+        type: 'clear-structure',
+        tabId,
+      });
+      callbacksRef.current.resetSearchState();
+
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        session.readStartedAt = performance.now();
+      });
+      const content = await file.text();
+      const rawBytes = getUtf8ByteLength(content);
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        session.readCompletedAt = performance.now();
+        session.rawBytes = rawBytes;
+      });
+      callbacksRef.current.logEvent('import-read-complete', {
+        tabId,
+        fileName: file.name,
+        rawLength: rawBytes,
+      });
+      const largeMode = isLargeDocument(content) || presumedLargeMode;
+      const workerStructureEnabled = shouldBuildWorkerStructure(
+        content,
+        Boolean(largeFileLocateEnabledRef.current[tabId])
+      );
+
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        session.leftModelStartedAt = performance.now();
+        session.largeMode = largeMode;
+        session.structureEnabled = workerStructureEnabled;
+      });
+      callbacksRef.current.updateTabContent(tabId, content, true);
+      callbacksRef.current.updateFormattedContent(tabId, '', true);
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        session.leftModelCompletedAt = performance.now();
+      });
+      callbacksRef.current.setTabLargeMode(tabId, largeMode);
+      callbacksRef.current.setTabFormatting(tabId, true);
+      callbacksRef.current.setTabImporting(tabId, null);
+      workerStructureEnabledRef.current[tabId] = workerStructureEnabled;
+      callbacksRef.current.setStructureStatus(
+        tabId,
+        workerStructureEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+      );
+      queueFormatAfterImport(tabId, content);
+    } catch (error) {
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        session.status = 'failed';
+        session.error = error instanceof Error ? error.message : String(error);
+      }, true);
+      callbacksRef.current.logEvent('import-failed', {
+        tabId,
+        fileName: file.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      callbacksRef.current.setTabImporting(tabId, null);
+      callbacksRef.current.setTabFormatting(tabId, false);
+      callbacksRef.current.setTabError(
+        tabId,
+        error instanceof Error ? `导入失败：${error.message}` : '导入失败'
+      );
+    }
+  };
+
+  useEffect(() => {
+    const worker = new Worker(
+      new URL('../workers/jsonParser.worker.js', import.meta.url),
+      { type: 'module' }
+    );
+
+    workerRef.current = worker;
+    worker.onerror = (event) => {
+      callbacksRef.current.logEvent('worker-error', {
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        column: event.colno,
+      });
+    };
+    worker.onmessageerror = () => {
+      callbacksRef.current.logEvent('worker-message-error');
+    };
+    worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+      const { type, requestId, tabId } = event.data;
+
+      if (type === 'format-result') {
+        const { success, data, error } = event.data;
+        const performanceSession = performanceSessionsRef.current[tabId];
+
+        if (latestRequestRef.current[tabId] !== requestId) {
+          return;
+        }
+
+        if (success && data) {
+          const largeMode = isLargeDocument(data) || Boolean(largeModeRef.current[tabId]);
+          const formatCompletedAt = performance.now();
+          callbacksRef.current.logEvent('format-success', {
+            tabId,
+            requestId,
+            formattedLength: getUtf8ByteLength(data),
+          });
+          callbacksRef.current.setTabFormatting(tabId, false);
+          callbacksRef.current.setTabLargeMode(tabId, largeMode);
+          if (performanceSession?.requestId === requestId) {
+            performanceSession.formatCompletedAt = formatCompletedAt;
+            performanceSession.rightModelStartedAt = performance.now();
+            performanceSession.formattedBytes = getUtf8ByteLength(data);
+            performanceSession.largeMode = largeMode;
+          }
+          callbacksRef.current.updateFormattedContent(tabId, data, true);
+          if (performanceSession?.requestId === requestId) {
+            performanceSession.rightModelCompletedAt = performance.now();
+            performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
+            performanceSession.error = null;
+            callbacksRef.current.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
+          }
+          callbacksRef.current.setTabError(tabId, null);
+          return;
+        }
+
+        callbacksRef.current.setTabFormatting(tabId, false);
+        callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+          if (session.requestId !== requestId) {
+            return;
+          }
+
+          session.formatCompletedAt = performance.now();
+          session.status = 'failed';
+          session.error = error ?? 'JSON parse failed';
+        }, true);
+        callbacksRef.current.logEvent('format-failed', {
+          tabId,
+          requestId,
+          error: error ?? 'JSON parse failed',
+        });
+        callbacksRef.current.updateFormattedContent(tabId, '', true);
+        callbacksRef.current.setTabError(tabId, error ?? 'JSON 解析失败');
+        callbacksRef.current.setStructureStatus(tabId, 'disabled');
+        return;
+      }
+
+      if (type === 'structure-ready') {
+        if (latestRequestRef.current[tabId] !== requestId) {
+          return;
+        }
+
+        callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+          if (session.requestId !== requestId) {
+            return;
+          }
+
+          session.structureCompletedAt = performance.now();
+          session.status = 'ready';
+        }, true);
+        callbacksRef.current.setStructureStatus(
+          tabId,
+          event.data.ready ? 'ready' : 'disabled'
+        );
+        return;
+      }
+
+      if (type === 'locate-result') {
+        if (
+          tabId !== activeTabIdRef.current
+          || latestLocateRequestRef.current[tabId] !== requestId
+        ) {
+          return;
+        }
+
+        if (event.data.found && typeof event.data.startOffset === 'number' && typeof event.data.endOffset === 'number') {
+          callbacksRef.current.revealLeftRange(event.data.startOffset, event.data.endOffset);
+        }
+        return;
+      }
+
+      if (type === 'value-result') {
+        const resolve = pendingValueRequestsRef.current[requestId];
+        if (!resolve) {
+          return;
+        }
+
+        delete pendingValueRequestsRef.current[requestId];
+        resolve(event.data.found ? (event.data.value ?? null) : null);
+      }
+    };
+
+    return () => {
+      Object.keys(formatTimersRef.current).forEach(clearPendingFormat);
+      callbacksRef.current.clearLeftHighlights();
+      callbacksRef.current.clearRightHighlights();
+      Object.keys(pendingValueRequestsRef.current).forEach((requestId) => {
+        pendingValueRequestsRef.current[Number(requestId)]?.(null);
+        delete pendingValueRequestsRef.current[Number(requestId)];
+      });
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, [activeTabIdRef, performanceSessionsRef]);
+
+  return {
+    clearTabStructure,
+    importJsonFile,
+    queueFormat,
+    removeTabArtifacts,
+    requestWorkerLocate,
+    requestWorkerValue,
+    resetTabArtifacts,
+  };
+}

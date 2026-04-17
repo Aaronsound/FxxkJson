@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -21,7 +21,7 @@ function logRuntimeEvent(event: string, details: Record<string, unknown> = {}) {
 }
 
 function createWindow() {
-  const shouldOpenDevTools = process.env.ELECTRON_OPEN_DEVTOOLS === '1';
+  const shouldOpenDevTools = process.env.ELECTRON_OPEN_DEVTOOLS !== '0';
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -32,7 +32,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
     },
   });
 
@@ -89,7 +89,9 @@ app.on('activate', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
 
 process.on('uncaughtException', (error) => {
@@ -107,29 +109,7 @@ process.on('unhandledRejection', (reason) => {
   });
 });
 
-// —— IPC 保留你的逻辑：文件选择与读取 —— //
-ipcMain.handle('dialog:openFile', async () => {
-  const result = await dialog.showOpenDialog({
-    filters: [
-      { name: 'JSON', extensions: ['json', 'txt'] },
-      { name: 'All Files', extensions: ['*'] }
-    ],
-    properties: ['openFile']
-  });
-  if (result.canceled || result.filePaths.length === 0) return null;
-  return result.filePaths[0];
-});
-
-ipcMain.handle('file:readJson', async (_ev, filePath: string) => {
-  try {
-    return await fs.readFile(filePath, 'utf-8');
-  } catch (e: any) {
-    throw new Error('读取文件失败：' + e.message);
-  }
-});
-ipcMain.handle('log:append', async (_ev, payload: string) => {
+ipcMain.handle('log:append', async (_event, payload: string) => {
   await appendRuntimeLog(payload);
   return logFilePath;
 });
-
-ipcMain.handle('log:path', () => logFilePath);

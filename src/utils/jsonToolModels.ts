@@ -74,7 +74,11 @@ export function getOrCreateModel(path: string, language: string) {
     return existingModel;
   }
 
-  return monaco.editor.createModel('', language, uri);
+  const model = monaco.editor.createModel('', language, uri);
+  if (model.getLanguageId() !== language) {
+    monaco.editor.setModelLanguage(model, language);
+  }
+  return model;
 }
 
 export function recreateModel(
@@ -94,7 +98,21 @@ export function recreateModel(
     existingModel.dispose();
   }
 
-  return monaco.editor.createModel(value, language, uri);
+  const model = monaco.editor.createModel(value, language, uri);
+  if (model.getLanguageId() !== language) {
+    monaco.editor.setModelLanguage(model, language);
+  }
+  return model;
+}
+
+export function forceEnableModelTokenization(model: monaco.editor.ITextModel) {
+  const target = model as monaco.editor.ITextModel & {
+    _isTooLargeForTokenization?: boolean;
+  };
+
+  if (typeof target._isTooLargeForTokenization === 'boolean') {
+    target._isTooLargeForTokenization = false;
+  }
 }
 
 export function disposeModel(path: string) {

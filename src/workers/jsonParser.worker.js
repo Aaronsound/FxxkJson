@@ -158,9 +158,12 @@ self.onmessage = (event) => {
     }
 
     const { rightNode } = resolvedNodes;
-    const value = rightNode.type === 'string'
-      ? String(rightNode.value ?? '')
-      : cached.formattedText.slice(rightNode.offset, rightNode.offset + rightNode.length);
+    // Copy the exact JSON literal under the cursor so pasting into a new tab
+    // keeps valid JSON semantics for strings, numbers, arrays, objects, etc.
+    const value = cached.formattedText.slice(
+      rightNode.offset,
+      rightNode.offset + rightNode.length
+    );
 
     postMessage({
       type: 'value-result',
@@ -169,5 +172,64 @@ self.onmessage = (event) => {
       found: true,
       value,
     });
+  }
+
+  if (message.type === 'read-value-direct') {
+    const { requestId, tabId, offset, text } = message;
+
+    if (typeof text !== 'string' || !text) {
+      postMessage({
+        type: 'value-result',
+        requestId,
+        tabId,
+        found: false,
+        value: null,
+      });
+      return;
+    }
+
+    try {
+      const formattedTree = parseTree(text);
+      if (!formattedTree) {
+        postMessage({
+          type: 'value-result',
+          requestId,
+          tabId,
+          found: false,
+          value: null,
+        });
+        return;
+      }
+
+      const location = getLocation(text, offset);
+      const rightNode = findNodeAtLocation(formattedTree, location.path);
+
+      if (!rightNode) {
+        postMessage({
+          type: 'value-result',
+          requestId,
+          tabId,
+          found: false,
+          value: null,
+        });
+        return;
+      }
+
+      postMessage({
+        type: 'value-result',
+        requestId,
+        tabId,
+        found: true,
+        value: text.slice(rightNode.offset, rightNode.offset + rightNode.length),
+      });
+    } catch {
+      postMessage({
+        type: 'value-result',
+        requestId,
+        tabId,
+        found: false,
+        value: null,
+      });
+    }
   }
 };
