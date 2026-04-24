@@ -9,6 +9,10 @@ import React, {
   useState,
 } from 'react';
 import { LargeJsonViewerData, LargeJsonViewerRegion } from '../types/jsonTool';
+import {
+  findSearchMatchesInLargeJson,
+  LargeJsonSearchMatch,
+} from '../utils/largeJsonViewerData';
 
 const LINE_HEIGHT = 22;
 const OVERSCAN = 30;
@@ -37,15 +41,6 @@ interface VisibleSegment {
   actualEnd: number;
   visibleStart: number;
   visibleEnd: number;
-}
-
-interface SearchMatch {
-  start: number;
-  end: number;
-  lineNumber: number;
-  lineStartOffset: number;
-  localStart: number;
-  localEnd: number;
 }
 
 function getCollapsedPreview(lineText: string, region: LargeJsonViewerRegion) {
@@ -78,27 +73,6 @@ function binarySearchSegment(segments: VisibleSegment[], visibleIndex: number) {
   return null;
 }
 
-function binarySearchLineStarts(lineStarts: Uint32Array, offset: number) {
-  let low = 0;
-  let high = lineStarts.length - 1;
-  let result = 0;
-
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const value = lineStarts[mid];
-
-    if (value <= offset) {
-      result = mid;
-      low = mid + 1;
-      continue;
-    }
-
-    high = mid - 1;
-  }
-
-  return result;
-}
-
 const LargeJsonReadonlyViewer = forwardRef<
   LargeJsonReadonlyViewerHandle,
   LargeJsonReadonlyViewerProps
@@ -115,6 +89,8 @@ const LargeJsonReadonlyViewer = forwardRef<
   onLocateOffset,
   onCopyValue,
 }, ref) => {
+  void wrapLongLines;
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -277,7 +253,10 @@ const LargeJsonReadonlyViewer = forwardRef<
       const caretRange = doc.caretRangeFromPoint?.(event.clientX, event.clientY);
       if (caretRange && currentTarget.contains(caretRange.startContainer)) {
         charOffset = caretRange.startOffset;
-      } else if (event.target instanceof HTMLElement && event.target.classList.contains('large-json-line-text')) {
+      } else if (
+        event.target instanceof HTMLElement
+        && event.target.classList.contains('large-json-line-text')
+      ) {
         charOffset = lineText.length;
       }
     }
@@ -300,48 +279,12 @@ const LargeJsonReadonlyViewer = forwardRef<
     onCollapsedLinesChange(Array.from(next).sort((left, right) => left - right));
   }, [collapsedLineSet, onCollapsedLinesChange, regionsByStartLine]);
 
-  const searchMatches = useMemo(() => {
-    const normalizedTerm = searchTerm.trim().toLowerCase();
-    if (!normalizedTerm) {
-      return [] as SearchMatch[];
-    }
-
-    const normalizedText = text.toLowerCase();
-    const matches: SearchMatch[] = [];
-    let fromIndex = 0;
-
-    while (fromIndex < normalizedText.length) {
-      const matchIndex = normalizedText.indexOf(normalizedTerm, fromIndex);
-      if (matchIndex === -1) {
-        break;
-      }
-
-      const lineIndex = binarySearchLineStarts(data.lineStarts, matchIndex);
-      const lineNumber = lineIndex + 1;
-      const lineStartOffset = data.lineStarts[lineIndex] ?? 0;
-      const lineEndOffset = lineNumber < data.lineCount
-        ? Math.max(lineStartOffset, (data.lineStarts[lineNumber] ?? text.length) - 1)
-        : text.length;
-      const localStart = matchIndex - lineStartOffset;
-      const localEnd = Math.min(matchIndex + normalizedTerm.length, lineEndOffset) - lineStartOffset;
-
-      matches.push({
-        start: matchIndex,
-        end: matchIndex + normalizedTerm.length,
-        lineNumber,
-        lineStartOffset,
-        localStart,
-        localEnd,
-      });
-
-      fromIndex = matchIndex + Math.max(normalizedTerm.length, 1);
-    }
-
-    return matches;
-  }, [data.lineCount, data.lineStarts, searchTerm, text]);
+  const searchMatches = useMemo(() => (
+    findSearchMatchesInLargeJson(text, data.lineStarts, data.lineCount, searchTerm)
+  ), [data.lineCount, data.lineStarts, searchTerm, text]);
 
   const matchesByLine = useMemo(() => {
-    const map = new Map<number, Array<SearchMatch & { matchIndex: number }>>();
+    const map = new Map<number, Array<LargeJsonSearchMatch & { matchIndex: number }>>();
 
     searchMatches.forEach((match, index) => {
       const lineMatches = map.get(match.lineNumber) ?? [];
@@ -518,9 +461,9 @@ const LargeJsonReadonlyViewer = forwardRef<
           onClick={() => toggleLine(lineNumber)}
           onMouseDown={(event) => event.preventDefault()}
           disabled={!region}
-          aria-label={isCollapsed ? '展开节点' : '折叠节点'}
+          aria-label={isCollapsed ? 'Expand node' : 'Collapse node'}
         >
-          {region ? (isCollapsed ? '▸' : '▾') : ''}
+          {region ? (isCollapsed ? '▶' : '▼') : ''}
         </button>
         <span className="large-json-line-number">{lineNumber}</span>
         <span
@@ -576,7 +519,7 @@ const LargeJsonReadonlyViewer = forwardRef<
               setContextMenu(null);
             }}
           >
-            复制值
+            Copy value
           </button>
         </div>
       )}
