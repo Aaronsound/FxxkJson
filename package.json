@@ -1,0 +1,78 @@
+{
+  "name": "my-json-tool-new",
+  "version": "1.0.5",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "electron ./dist-electron/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "node ./scripts/bench-json.mjs",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:zip": "npm run build && electron-builder --win --x64"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "jsonc-parser": "^3.3.1",
+    "monaco-editor": "^0.52.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-split": "^2.0.14"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^20.11.30",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.1.0",
+    "electron": "^35.5.0",
+    "electron-builder": "^26.0.12",
+    "jsdom": "^28.1.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.0",
+    "vite-plugin-electron": "^0.12.0",
+    "vitest": "^4.1.5"
+  },
+  "build": {
+    "appId": "com.aaronsound.hanjson",
+    "productName": "FuckJson",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "dist-electron/preload.js"
+    ],
+    "files": [
+      "dist-renderer/**",
+      "dist-electron/**",
+      "build/icons/win/icon.ico",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icons/win/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "mac": {
+      "icon": "build/icons/win/icon.ico",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

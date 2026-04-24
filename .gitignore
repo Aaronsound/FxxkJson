@@ -1,0 +1,13 @@
+node_modules
+node_modules/
+.npm-cache
+
+# Build outputs
+dist-renderer/
+dist-electron/
+release/
+
+# Logs and local artifacts
+*.log
+.DS_Store
+json/
