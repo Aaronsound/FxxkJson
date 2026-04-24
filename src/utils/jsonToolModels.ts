@@ -105,16 +105,6 @@ export function recreateModel(
   return model;
 }
 
-export function forceEnableModelTokenization(model: monaco.editor.ITextModel) {
-  const target = model as monaco.editor.ITextModel & {
-    _isTooLargeForTokenization?: boolean;
-  };
-
-  if (typeof target._isTooLargeForTokenization === 'boolean') {
-    target._isTooLargeForTokenization = false;
-  }
-}
-
 export function disposeModel(path: string) {
   monaco.editor.getModel(monaco.Uri.parse(path))?.dispose();
 }

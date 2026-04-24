@@ -2,6 +2,7 @@
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 
 const structureCache = new Map();
+const DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD = 300000;
 
 function getResolvedNodes(cached, offset) {
   if (
@@ -32,6 +33,90 @@ function getResolvedNodes(cached, offset) {
   return null;
 }
 
+function buildLargeViewerData(text) {
+  const lineStarts = [0];
+  const regions = [];
+  const stack = [];
+  let line = 1;
+  let inString = false;
+  let escaping = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escaping = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '\n') {
+      line += 1;
+      lineStarts.push(index + 1);
+      continue;
+    }
+
+    if (char === '{') {
+      stack.push({ close: '}', startLine: line, kind: 'object' });
+      continue;
+    }
+
+    if (char === '[') {
+      stack.push({ close: ']', startLine: line, kind: 'array' });
+      continue;
+    }
+
+    if (char === '}' || char === ']') {
+      const current = stack.pop();
+      if (!current || current.close !== char) {
+        continue;
+      }
+
+      if (current.startLine < line) {
+        regions.push({
+          startLine: current.startLine,
+          endLine: line,
+          kind: current.kind,
+        });
+      }
+    }
+  }
+
+  if (lineStarts.length <= DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD) {
+    return null;
+  }
+
+  regions.sort((left, right) => {
+    if (left.startLine !== right.startLine) {
+      return left.startLine - right.startLine;
+    }
+
+    return right.endLine - left.endLine;
+  });
+
+  return {
+    lineStarts: Uint32Array.from(lineStarts),
+    regions,
+    lineCount: lineStarts.length,
+  };
+}
+
 self.onmessage = (event) => {
   const message = event.data;
 
@@ -41,7 +126,7 @@ self.onmessage = (event) => {
   }
 
   if (message.type === 'format') {
-    const { requestId, tabId, text, enableStructure } = message;
+    const { requestId, tabId, text, enableStructure, buildViewer } = message;
 
     try {
       const formatted = JSON.stringify(JSON.parse(text), null, 2);
@@ -52,6 +137,26 @@ self.onmessage = (event) => {
         success: true,
         data: formatted,
       });
+
+      if (buildViewer) {
+        setTimeout(() => {
+          const viewerData = buildLargeViewerData(formatted);
+          postMessage({
+            type: 'viewer-ready',
+            requestId,
+            tabId,
+            viewerData,
+          });
+        }, 0);
+      }
+      else {
+        postMessage({
+          type: 'viewer-ready',
+          requestId,
+          tabId,
+          viewerData: null,
+        });
+      }
 
       if (!enableStructure) {
         structureCache.delete(tabId);

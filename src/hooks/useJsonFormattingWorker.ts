@@ -1,9 +1,11 @@
 import { MutableRefObject, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import {
+  DEDICATED_RIGHT_VIEWER_THRESHOLD,
   FORMAT_DEBOUNCE_MS,
   LARGE_FILE_FORMAT_DEBOUNCE_MS,
   LARGE_FILE_THRESHOLD,
+  LargeJsonViewerData,
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
@@ -52,6 +54,8 @@ interface UseJsonFormattingWorkerArgs {
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
+  setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
+  setLargeViewerStatus: (tabId: string, status: 'idle' | 'building' | 'ready') => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
   updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
   resetSearchState: () => void;
@@ -83,6 +87,8 @@ export function useJsonFormattingWorker({
   setTabFormatting,
   setTabLargeMode,
   setStructureStatus,
+  setLargeViewerData,
+  setLargeViewerStatus,
   updateTabContent,
   updateFormattedContent,
   resetSearchState,
@@ -113,6 +119,8 @@ export function useJsonFormattingWorker({
     setTabFormatting,
     setTabImporting,
     setTabLargeMode,
+    setLargeViewerData,
+    setLargeViewerStatus,
     syncPerformanceSnapshot,
     updateFormattedContent,
     updateTabContent,
@@ -134,6 +142,8 @@ export function useJsonFormattingWorker({
     setTabFormatting,
     setTabImporting,
     setTabLargeMode,
+    setLargeViewerData,
+    setLargeViewerStatus,
     syncPerformanceSnapshot,
     updateFormattedContent,
     updateTabContent,
@@ -231,6 +241,8 @@ export function useJsonFormattingWorker({
       }, true);
       callbacksRef.current.setTabFormatting(tabId, false);
       callbacksRef.current.setTabLargeMode(tabId, false);
+      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+      callbacksRef.current.setLargeViewerData(tabId, null);
       clearTabStructure(tabId, 'ready');
       callbacksRef.current.updateFormattedContent(tabId, '', true);
       return;
@@ -246,7 +258,13 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setTabLargeMode(tabId, largeMode);
     }
 
+    const shouldBuildLargeViewer = getUtf8ByteLength(text) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
     callbacksRef.current.setTabFormatting(tabId, true);
+    callbacksRef.current.setLargeViewerData(tabId, null);
+    callbacksRef.current.setLargeViewerStatus(
+      tabId,
+      shouldBuildLargeViewer ? 'building' : 'idle'
+    );
     workerStructureEnabledRef.current[tabId] = workerStructureEnabled;
     callbacksRef.current.setStructureStatus(
       tabId,
@@ -302,6 +320,7 @@ export function useJsonFormattingWorker({
         tabId,
         text,
         enableStructure: workerStructureEnabled,
+        buildViewer: shouldBuildLargeViewer,
       });
     };
 
@@ -330,6 +349,8 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setTabImporting(tabId, null);
     callbacksRef.current.setTabFormatting(tabId, false);
     callbacksRef.current.setTabLargeMode(tabId, false);
+    callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+    callbacksRef.current.setLargeViewerData(tabId, null);
     clearTabStructure(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
     callbacksRef.current.updateTabContent(tabId, '', true);
@@ -352,6 +373,8 @@ export function useJsonFormattingWorker({
     delete structureStatusRef.current[tabId];
     delete workerStructureEnabledRef.current[tabId];
 
+    callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+    callbacksRef.current.setLargeViewerData(tabId, null);
     delete rawTextByTabRef.current[tabId];
     delete formattedTextByTabRef.current[tabId];
     delete leftViewStateByTabRef.current[tabId];
@@ -383,6 +406,8 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setTabFormatting(tabId, false);
       callbacksRef.current.renameTab(tabId, getFileName(file.name));
       callbacksRef.current.setTabLargeMode(tabId, presumedLargeMode);
+      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+      callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
       delete latestLocateRequestRef.current[tabId];
@@ -447,6 +472,8 @@ export function useJsonFormattingWorker({
       });
       callbacksRef.current.setTabImporting(tabId, null);
       callbacksRef.current.setTabFormatting(tabId, false);
+      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+      callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setTabError(
         tabId,
         error instanceof Error ? `导入失败：${error.message}` : '导入失败'
@@ -511,6 +538,8 @@ export function useJsonFormattingWorker({
         }
 
         callbacksRef.current.setTabFormatting(tabId, false);
+        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+        callbacksRef.current.setLargeViewerData(tabId, null);
         callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
           if (session.requestId !== requestId) {
             return;
@@ -528,6 +557,19 @@ export function useJsonFormattingWorker({
         callbacksRef.current.updateFormattedContent(tabId, '', true);
         callbacksRef.current.setTabError(tabId, error ?? 'JSON 解析失败');
         callbacksRef.current.setStructureStatus(tabId, 'disabled');
+        return;
+      }
+
+      if (type === 'viewer-ready') {
+        if (latestRequestRef.current[tabId] !== requestId) {
+          return;
+        }
+
+        callbacksRef.current.setLargeViewerData(tabId, event.data.viewerData ?? null);
+        callbacksRef.current.setLargeViewerStatus(
+          tabId,
+          event.data.viewerData ? 'ready' : 'idle'
+        );
         return;
       }
 

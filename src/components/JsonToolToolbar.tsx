@@ -8,6 +8,7 @@ interface JsonToolToolbarProps {
   onEditJson: () => void;
   onFoldAll: () => void;
   onUnfoldAll: () => void;
+  canControlRightPaneFolding: boolean;
   isLargeFileMode: boolean;
   canEditJson: boolean;
   searchTerm: string;
@@ -77,6 +78,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onEditJson,
   onFoldAll,
   onUnfoldAll,
+  canControlRightPaneFolding,
   isLargeFileMode,
   canEditJson,
   searchTerm,
@@ -125,10 +127,10 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                   编辑 JSON
                 </button>
                 <button onClick={onClear}>清空</button>
-                <button onClick={onFoldAll} disabled={isLargeFileMode}>
+                <button onClick={onFoldAll} disabled={!canControlRightPaneFolding}>
                   折叠全部
                 </button>
-                <button onClick={onUnfoldAll} disabled={isLargeFileMode}>
+                <button onClick={onUnfoldAll} disabled={!canControlRightPaneFolding}>
                   展开全部
                 </button>
               </div>

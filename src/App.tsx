@@ -3,6 +3,7 @@ import Split from 'react-split';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonEditModal from './components/JsonEditModal';
+import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
@@ -14,6 +15,7 @@ import {
   EMPTY_DOCUMENT_META,
   INITIAL_TAB_ID,
   LARGE_FILE_THRESHOLD,
+  LargeJsonViewerData,
   SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
@@ -21,7 +23,6 @@ import {
 import {
   canUseStructureSync,
   createTab,
-  forceEnableModelTokenization,
   getEditorLanguageByLength,
   getLeftModelPath,
   getOrCreateModel,
@@ -95,6 +96,7 @@ const App: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [rightMatches, setRightMatches] = useState<monaco.editor.FindMatch[]>([]);
+  const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [wrapLongLines, setWrapLongLines] = useState(false);
@@ -108,9 +110,19 @@ const App: React.FC = () => {
   const [editJsonSession, setEditJsonSession] = useState<{ key: number; initialValue: string } | null>(null);
   const [editJsonError, setEditJsonError] = useState<string | null>(null);
   const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
+  const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
+  const [largeViewerStatusByTab, setLargeViewerStatusByTab] = useState<Record<string, 'idle' | 'building' | 'ready'>>({
+    [INITIAL_TAB_ID]: 'idle',
+  });
+  const [largeViewerCollapsedLinesByTab, setLargeViewerCollapsedLinesByTab] = useState<Record<string, number[]>>({
+    [INITIAL_TAB_ID]: [],
+  });
 
   const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const largeViewerRef = useRef<LargeJsonReadonlyViewerHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const rawTextByTabRef = useRef<Record<string, string>>({
     [INITIAL_TAB_ID]: '',
@@ -196,6 +208,29 @@ const App: React.FC = () => {
   const activePerformanceSnapshot = activeTab
     ? performanceByTab[activeTab.id] ?? null
     : null;
+  const activeLargeViewerData = activeTab
+    ? largeViewerDataByTab[activeTab.id] ?? null
+    : null;
+  const activeLargeViewerStatus = activeTab
+    ? largeViewerStatusByTab[activeTab.id] ?? 'idle'
+    : 'idle';
+  const activeLargeViewerCollapsedLines = activeTab
+    ? largeViewerCollapsedLinesByTab[activeTab.id] ?? []
+    : [];
+  const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
+  const isBuildingDedicatedRightViewer = Boolean(
+    formattedValue
+    && !shouldUseDedicatedRightViewer
+    && activeLargeViewerStatus === 'building'
+  );
+  const canControlRightPaneFolding = Boolean(
+    formattedValue
+    && !isBuildingDedicatedRightViewer
+    && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
+  );
+  const activeRightMatchCount = shouldUseDedicatedRightViewer
+    ? largeViewerMatchCount
+    : rightMatches.length;
   const leftPaneMetaText = [
     activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
     formatDuration(activePerformanceSnapshot?.readFileMs)
@@ -260,6 +295,15 @@ const App: React.FC = () => {
     setHasCopiedLiteral(false);
   };
 
+  const copyValueAtOffset = async (tabId: string, offset: number) => {
+    const valueToCopy = await requestWorkerValue(tabId, offset);
+    if (valueToCopy === null) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(valueToCopy);
+  };
+
   const logRightEditorState = (
     event: string,
     tabId: string,
@@ -291,6 +335,7 @@ const App: React.FC = () => {
   const resetSearchState = () => {
     setSearchTerm('');
     setRightMatches([]);
+    setLargeViewerMatchCount(0);
     setCurrentMatchIndex(0);
     clearLeftHighlights();
     clearRightHighlights();
@@ -309,6 +354,15 @@ const App: React.FC = () => {
   const setStructureStatus = (tabId: string, status: StructureStatus) => {
     structureStatusRef.current[tabId] = status;
     setStructureStatusState(tabId, status);
+  };
+
+  const setLargeViewerData = (tabId: string, data: LargeJsonViewerData | null) => {
+    setLargeViewerDataByTab((current) => ({ ...current, [tabId]: data }));
+    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [tabId]: [] }));
+  };
+
+  const setLargeViewerStatus = (tabId: string, status: 'idle' | 'building' | 'ready') => {
+    setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: status }));
   };
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
@@ -407,6 +461,20 @@ const App: React.FC = () => {
     const byteLength = getUtf8ByteLength(content);
     const rawText = rawTextByTabRef.current[tabId] ?? '';
     const rawByteLength = getUtf8ByteLength(rawText);
+    const shouldPreferDedicatedViewer = Boolean(largeViewerDataByTab[tabId])
+      || largeViewerStatusByTab[tabId] === 'building';
+
+    if (shouldPreferDedicatedViewer) {
+      const existingModel = monaco.editor.getModel(monaco.Uri.parse(path));
+      if (existingModel) {
+        if (rightEditorRef.current?.getModel() === existingModel) {
+          rightEditorRef.current.setModel(null);
+        }
+        existingModel.dispose();
+      }
+      return;
+    }
+
     const enableStructuralFolding = rawByteLength <= STRUCTURE_SYNC_THRESHOLD;
     const effectiveLargeMode = largeModeRef.current[tabId] || isLargeDocument(rawText);
     const language = rawByteLength > 0 && rawByteLength <= STRUCTURE_SYNC_THRESHOLD
@@ -432,10 +500,6 @@ const App: React.FC = () => {
         tabId,
         formattedLength: byteLength,
       });
-    }
-
-    if (enableStructuralFolding) {
-      forceEnableModelTokenization(model);
     }
 
     if (activeTabIdRef.current === tabId) {
@@ -535,6 +599,8 @@ const App: React.FC = () => {
     setTabFormatting,
     setTabLargeMode,
     setStructureStatus,
+    setLargeViewerData,
+    setLargeViewerStatus,
     updateTabContent,
     updateFormattedContent,
     resetSearchState,
@@ -574,23 +640,39 @@ const App: React.FC = () => {
     const currentFormatted = formattedTextByTabRef.current[activeTab.id] ?? '';
     syncLeftModel(activeTab.id, currentRaw);
     syncRightModel(activeTab.id, currentFormatted);
-  }, [activeTab, activeDocumentMeta.formattedLength, activeDocumentMeta.rawLength]);
+  }, [
+    activeLargeViewerData,
+    activeLargeViewerStatus,
+    activeTab,
+    activeDocumentMeta.formattedLength,
+    activeDocumentMeta.rawLength,
+  ]);
 
   useEffect(() => {
     leftEditorRef.current?.updateOptions(getMonacoOptions(isLargeFileMode));
     leftEditorRef.current?.layout();
-    rightEditorRef.current?.updateOptions(
-      getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)
-    );
-    rightEditorRef.current?.layout();
-    if (activeTab) {
+    if (!shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
+      rightEditorRef.current?.updateOptions(
+        getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)
+      );
+      rightEditorRef.current?.layout();
+    }
+    if (activeTab && !shouldUseDedicatedRightViewer) {
       logRightEditorState(activeTab.id === activeTabId ? 'right-editor-options-refreshed' : 'right-editor-options-skipped', activeTab.id, {
         isLargeFileMode,
         shouldEnableRightPaneFolding,
         wrapLongLines,
       });
     }
-  }, [activeTabId, isLargeFileMode, shouldEnableRightPaneFolding, wrapLongLines]);
+  }, [
+    activeTab,
+    activeTabId,
+    isBuildingDedicatedRightViewer,
+    isLargeFileMode,
+    shouldEnableRightPaneFolding,
+    shouldUseDedicatedRightViewer,
+    wrapLongLines,
+  ]);
 
   useEffect(() => (
     () => {
@@ -608,7 +690,7 @@ const App: React.FC = () => {
     const editor = rightEditorRef.current;
     const model = editor?.getModel();
 
-    if (!editor || !model || !searchTerm) {
+    if (!editor || !model || !searchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
       setRightMatches([]);
       clearRightHighlights();
       return;
@@ -683,7 +765,14 @@ const App: React.FC = () => {
     highlightTimeoutRef.current = window.setTimeout(() => {
       clearLeftHighlights();
     }, SEARCH_HIGHLIGHT_DURATION);
-  }, [activeTabId, activeDocumentMeta.formattedRevision, currentMatchIndex, searchTerm]);
+  }, [
+    activeTabId,
+    activeDocumentMeta.formattedRevision,
+    currentMatchIndex,
+    isBuildingDedicatedRightViewer,
+    searchTerm,
+    shouldUseDedicatedRightViewer,
+  ]);
 
   const getMonacoOptions = (
     largeMode: boolean,
@@ -884,12 +973,7 @@ const App: React.FC = () => {
         }
 
         const offset = model.getOffsetAt(position);
-        const valueToCopy = await requestWorkerValue(currentTabId, offset);
-        if (valueToCopy === null) {
-          return;
-        }
-
-        await navigator.clipboard.writeText(valueToCopy);
+        await copyValueAtOffset(currentTabId, offset);
       },
     });
   };
@@ -1086,6 +1170,9 @@ const App: React.FC = () => {
     formattedTextByTabRef.current[nextId] = '';
     initializeTabState(nextId);
     setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
+    setLargeViewerDataByTab((current) => ({ ...current, [nextId]: null }));
+    setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
+    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
     largeModeRef.current[nextId] = false;
     largeFileLocateEnabledRef.current[nextId] = false;
     structureStatusRef.current[nextId] = 'ready';
@@ -1105,6 +1192,21 @@ const App: React.FC = () => {
 
     setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
     removeTabArtifacts(tabId);
+    setLargeViewerDataByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setLargeViewerStatusByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setLargeViewerCollapsedLinesByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
 
     if (activeTabId === tabId) {
       setActiveTabId(fallbackTab.id);
@@ -1112,19 +1214,19 @@ const App: React.FC = () => {
   };
 
   const gotoNext = () => {
-    if (rightMatches.length === 0) {
+    if (activeRightMatchCount === 0) {
       return;
     }
 
-    setCurrentMatchIndex((current) => (current + 1) % rightMatches.length);
+    setCurrentMatchIndex((current) => (current + 1) % activeRightMatchCount);
   };
 
   const gotoPrev = () => {
-    if (rightMatches.length === 0) {
+    if (activeRightMatchCount === 0) {
       return;
     }
 
-    setCurrentMatchIndex((current) => (current - 1 + rightMatches.length) % rightMatches.length);
+    setCurrentMatchIndex((current) => (current - 1 + activeRightMatchCount) % activeRightMatchCount);
   };
 
   const handleSearchTermChange = (value: string) => {
@@ -1161,15 +1263,28 @@ const App: React.FC = () => {
         onFormat={handleFormat}
         onClear={handleClear}
         onEditJson={handleOpenEditJson}
-        onFoldAll={() => rightEditorRef.current?.getAction('editor.foldAll')?.run()}
-        onUnfoldAll={() => rightEditorRef.current?.getAction('editor.unfoldAll')?.run()}
+        onFoldAll={() => {
+          if (shouldUseDedicatedRightViewer) {
+            largeViewerRef.current?.foldAll();
+            return;
+          }
+          rightEditorRef.current?.getAction('editor.foldAll')?.run();
+        }}
+        onUnfoldAll={() => {
+          if (shouldUseDedicatedRightViewer) {
+            largeViewerRef.current?.unfoldAll();
+            return;
+          }
+          rightEditorRef.current?.getAction('editor.unfoldAll')?.run();
+        }}
+        canControlRightPaneFolding={canControlRightPaneFolding}
         isLargeFileMode={isLargeFileMode}
         canEditJson={canEditJson}
         searchTerm={searchTerm}
         onSearchTermChange={handleSearchTermChange}
         onPrevMatch={gotoPrev}
         onNextMatch={gotoNext}
-        hasSearchMatches={rightMatches.length > 0}
+        hasSearchMatches={activeRightMatchCount > 0}
         wrapLongLines={wrapLongLines}
         onWrapLongLinesChange={setWrapLongLines}
         isDarkMode={isDarkMode}
@@ -1276,22 +1391,56 @@ const App: React.FC = () => {
         >
           <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
             <span className="editor-pane-header-text">{rightPaneMetaText}</span>
-            <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
-              轻量模式
-            </span>
+            <div className="editor-pane-header-flags">
+              <span className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}>
+                大文件查看模式
+              </span>
+              <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
+                轻量模式
+              </span>
+            </div>
           </div>
           <div className="editor-pane-body">
-            <Editor
-              onMount={handleRightMount}
-              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-              options={getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)}
-              height="100%"
-              loading={null}
-            />
-            {!formattedValue && !isImportingActiveTab && (
+            {shouldUseDedicatedRightViewer ? (
+              <LargeJsonReadonlyViewer
+                ref={largeViewerRef}
+                text={formattedValue}
+                data={activeLargeViewerData}
+                isDarkMode={isDarkMode}
+                wrapLongLines={wrapLongLines}
+                collapsedLines={activeLargeViewerCollapsedLines}
+                searchTerm={searchTerm}
+                activeMatchIndex={currentMatchIndex}
+                onCollapsedLinesChange={(lines) => {
+                  if (!activeTab) {
+                    return;
+                  }
+
+                  setLargeViewerCollapsedLinesByTab((current) => ({
+                    ...current,
+                    [activeTab.id]: lines,
+                  }));
+                }}
+                onMatchCountChange={setLargeViewerMatchCount}
+                onLocateOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
+                onCopyValue={(offset) => copyValueAtOffset(activeTab.id, offset)}
+              />
+            ) : !isBuildingDedicatedRightViewer ? (
+              <Editor
+                onMount={handleRightMount}
+                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+                options={getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)}
+                height="100%"
+                loading={null}
+              />
+            ) : null}
+            {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
               <div className="editor-center-placeholder">
                 {isFormattingActiveTab ? '正在格式化...' : '格式化结果'}
               </div>
+            )}
+            {isBuildingDedicatedRightViewer && !isImportingActiveTab && (
+              <div className="editor-loading-overlay">正在构建大文件查看模式...</div>
             )}
             {isImportingActiveTab && (
               <div className="editor-loading-overlay">正在读取文件...</div>
