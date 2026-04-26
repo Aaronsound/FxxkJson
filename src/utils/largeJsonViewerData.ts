@@ -1,5 +1,7 @@
 import {
   DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
+} from '../types/jsonTool';
+import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeJsonViewerRegion,
@@ -113,6 +115,45 @@ export function binarySearchLineStarts(lineStarts: Uint32Array, offset: number) 
   return result;
 }
 
+function equalsNormalizedChar(text: string, index: number, normalizedChar: string) {
+  const sourceCode = text.charCodeAt(index);
+  const normalizedCode = normalizedChar.charCodeAt(0);
+
+  if (sourceCode <= 0x7f && normalizedCode <= 0x7f) {
+    const lowerSourceCode = sourceCode >= 65 && sourceCode <= 90
+      ? sourceCode + 32
+      : sourceCode;
+    return lowerSourceCode === normalizedCode;
+  }
+
+  return text[index].toLowerCase() === normalizedChar;
+}
+
+function matchesNormalizedTermAt(text: string, index: number, normalizedTerm: string) {
+  for (let termIndex = 0; termIndex < normalizedTerm.length; termIndex += 1) {
+    if (!equalsNormalizedChar(text, index + termIndex, normalizedTerm[termIndex])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function findNormalizedTerm(text: string, normalizedTerm: string, fromIndex: number) {
+  const lastStart = text.length - normalizedTerm.length;
+
+  for (let index = fromIndex; index <= lastStart; index += 1) {
+    if (
+      equalsNormalizedChar(text, index, normalizedTerm[0])
+      && matchesNormalizedTermAt(text, index, normalizedTerm)
+    ) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
 export function findSearchMatchesInLargeJson(
   text: string,
   lineStarts: Uint32Array,
@@ -124,12 +165,11 @@ export function findSearchMatchesInLargeJson(
     return [];
   }
 
-  const normalizedText = text.toLowerCase();
   const matches: LargeJsonSearchMatch[] = [];
   let fromIndex = 0;
 
-  while (fromIndex < normalizedText.length) {
-    const matchIndex = normalizedText.indexOf(normalizedTerm, fromIndex);
+  while (fromIndex < text.length) {
+    const matchIndex = findNormalizedTerm(text, normalizedTerm, fromIndex);
     if (matchIndex === -1) {
       break;
     }

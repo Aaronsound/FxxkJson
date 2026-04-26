@@ -63,6 +63,8 @@ function getTriggerLabel(trigger: PerformanceSnapshot['trigger']) {
       return '手动格式化';
     case 'edit-save':
       return '编辑保存后格式化';
+    case 'paste':
+      return '粘贴后自动格式化';
     default:
       return trigger;
   }

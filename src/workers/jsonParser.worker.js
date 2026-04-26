@@ -1,10 +1,15 @@
 /* eslint-disable no-restricted-globals */
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
+import {
+  binarySearchLineStarts,
+  buildLargeViewerData,
+  findSearchMatchesInLargeJson,
+} from '../utils/largeJsonViewerData';
 
 const structureCache = new Map();
 const viewerCache = new Map();
 const directValueTreeCache = new Map();
-const DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD = 0;
+const latestFormatRequestByTab = new Map();
 
 function getResolvedNodes(cached, offset) {
   if (
@@ -35,149 +40,28 @@ function getResolvedNodes(cached, offset) {
   return null;
 }
 
-function buildLargeViewerData(text) {
-  const lineStarts = [0];
-  const regions = [];
-  const stack = [];
-  let line = 1;
-  let inString = false;
-  let escaping = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (inString) {
-      if (escaping) {
-        escaping = false;
-        continue;
-      }
-
-      if (char === '\\') {
-        escaping = true;
-        continue;
-      }
-
-      if (char === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (char === '"') {
-      inString = true;
-      continue;
-    }
-
-    if (char === '\n') {
-      line += 1;
-      lineStarts.push(index + 1);
-      continue;
-    }
-
-    if (char === '{') {
-      stack.push({ close: '}', startLine: line, kind: 'object' });
-      continue;
-    }
-
-    if (char === '[') {
-      stack.push({ close: ']', startLine: line, kind: 'array' });
-      continue;
-    }
-
-    if (char === '}' || char === ']') {
-      const current = stack.pop();
-      if (!current || current.close !== char) {
-        continue;
-      }
-
-      if (current.startLine < line) {
-        regions.push({
-          startLine: current.startLine,
-          endLine: line,
-          kind: current.kind,
-        });
-      }
-    }
-  }
-
-  if (lineStarts.length <= DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD) {
+function getDirectLocateRange(cached, offset) {
+  if (
+    !cached
+    || !cached.directLocate
+    || !cached.viewerData
+    || !(cached.viewerData.lineStarts instanceof Uint32Array)
+  ) {
     return null;
   }
 
-  regions.sort((left, right) => {
-    if (left.startLine !== right.startLine) {
-      return left.startLine - right.startLine;
-    }
-
-    return right.endLine - left.endLine;
-  });
+  const lineStarts = cached.viewerData.lineStarts;
+  const lineIndex = binarySearchLineStarts(lineStarts, offset);
+  const lineStartOffset = lineStarts[lineIndex] ?? 0;
+  const nextLineStart = lineStarts[lineIndex + 1];
+  const lineEndOffset = typeof nextLineStart === 'number'
+    ? Math.max(lineStartOffset + 1, nextLineStart - 1)
+    : Math.max(lineStartOffset + 1, offset + 1);
 
   return {
-    lineStarts: Uint32Array.from(lineStarts),
-    regions,
-    lineCount: lineStarts.length,
+    startOffset: lineStartOffset,
+    endOffset: lineEndOffset,
   };
-}
-
-function binarySearchLineStarts(lineStarts, offset) {
-  let low = 0;
-  let high = lineStarts.length - 1;
-  let result = 0;
-
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const value = lineStarts[mid];
-
-    if (value <= offset) {
-      result = mid;
-      low = mid + 1;
-      continue;
-    }
-
-    high = mid - 1;
-  }
-
-  return result;
-}
-
-function findSearchMatchesInLargeJson(text, lineStarts, lineCount, searchTerm) {
-  const normalizedTerm = searchTerm.trim().toLowerCase();
-  if (!normalizedTerm) {
-    return [];
-  }
-
-  const normalizedText = text.toLowerCase();
-  const matches = [];
-  let fromIndex = 0;
-
-  while (fromIndex < normalizedText.length) {
-    const matchIndex = normalizedText.indexOf(normalizedTerm, fromIndex);
-    if (matchIndex === -1) {
-      break;
-    }
-
-    const lineIndex = binarySearchLineStarts(lineStarts, matchIndex);
-    const lineNumber = lineIndex + 1;
-    const lineStartOffset = lineStarts[lineIndex] ?? 0;
-    const lineEndOffset = lineNumber < lineCount
-      ? Math.max(lineStartOffset, (lineStarts[lineNumber] ?? text.length) - 1)
-      : text.length;
-    const localStart = matchIndex - lineStartOffset;
-    const localEnd = Math.min(matchIndex + normalizedTerm.length, lineEndOffset) - lineStartOffset;
-
-    matches.push({
-      start: matchIndex,
-      end: matchIndex + normalizedTerm.length,
-      lineNumber,
-      lineStartOffset,
-      localStart,
-      localEnd,
-    });
-
-    fromIndex = matchIndex + Math.max(normalizedTerm.length, 1);
-  }
-
-  return matches;
 }
 
 function getDirectValueTree(tabId, requestId, text) {
@@ -185,7 +69,6 @@ function getDirectValueTree(tabId, requestId, text) {
   if (
     cachedTree
     && cachedTree.requestId === requestId
-    && cachedTree.text === text
   ) {
     return cachedTree.formattedTree;
   }
@@ -193,7 +76,6 @@ function getDirectValueTree(tabId, requestId, text) {
   const formattedTree = parseTree(text);
   directValueTreeCache.set(tabId, {
     requestId,
-    text,
     formattedTree,
   });
   return formattedTree;
@@ -206,11 +88,20 @@ self.onmessage = (event) => {
     structureCache.delete(message.tabId);
     viewerCache.delete(message.tabId);
     directValueTreeCache.delete(message.tabId);
+    latestFormatRequestByTab.delete(message.tabId);
     return;
   }
 
   if (message.type === 'format') {
-    const { requestId, tabId, text, enableStructure, buildViewer } = message;
+    const {
+      requestId,
+      tabId,
+      text,
+      enableStructure,
+      enableDirectLocate,
+      buildViewer,
+    } = message;
+    latestFormatRequestByTab.set(tabId, requestId);
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
 
@@ -226,6 +117,10 @@ self.onmessage = (event) => {
 
       if (buildViewer) {
         setTimeout(() => {
+          if (latestFormatRequestByTab.get(tabId) !== requestId) {
+            return;
+          }
+
           const viewerData = buildLargeViewerData(formatted);
           if (viewerData) {
             viewerCache.set(tabId, {
@@ -236,6 +131,31 @@ self.onmessage = (event) => {
           } else {
             viewerCache.delete(tabId);
           }
+
+          if (!enableStructure && enableDirectLocate) {
+            if (viewerData && text === formatted) {
+              structureCache.set(tabId, {
+                requestId,
+                directLocate: true,
+                viewerData,
+              });
+              postMessage({
+                type: 'structure-ready',
+                requestId,
+                tabId,
+                ready: true,
+              });
+            } else {
+              structureCache.delete(tabId);
+              postMessage({
+                type: 'structure-ready',
+                requestId,
+                tabId,
+                ready: false,
+              });
+            }
+          }
+
           postMessage({
             type: 'viewer-ready',
             requestId,
@@ -254,7 +174,22 @@ self.onmessage = (event) => {
         });
       }
 
+      if (!enableStructure && enableDirectLocate && !buildViewer) {
+        structureCache.delete(tabId);
+        postMessage({
+          type: 'structure-ready',
+          requestId,
+          tabId,
+          ready: false,
+        });
+        return;
+      }
+
       if (!enableStructure) {
+        if (enableDirectLocate) {
+          return;
+        }
+
         structureCache.delete(tabId);
         postMessage({
           type: 'structure-ready',
@@ -319,6 +254,19 @@ self.onmessage = (event) => {
   if (message.type === 'locate') {
     const { requestId, tabId, offset } = message;
     const cached = structureCache.get(tabId);
+    const directRange = getDirectLocateRange(cached, offset);
+
+    if (directRange) {
+      postMessage({
+        type: 'locate-result',
+        requestId,
+        tabId,
+        found: true,
+        startOffset: directRange.startOffset,
+        endOffset: directRange.endOffset,
+      });
+      return;
+    }
 
     const resolvedNodes = getResolvedNodes(cached, offset);
 

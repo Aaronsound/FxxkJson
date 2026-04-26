@@ -66,4 +66,34 @@ describe('largeJsonViewerData', () => {
       localEnd: 9,
     });
   });
+
+  it('finds matches case-insensitively without changing line offsets', () => {
+    const text = [
+      '{',
+      '  "name": "HanJson",',
+      '  "label": "hanjson viewer"',
+      '}',
+    ].join('\n');
+    const viewerData = buildLargeViewerData(text, 1);
+    expect(viewerData).not.toBeNull();
+
+    const matches = findSearchMatchesInLargeJson(
+      text,
+      viewerData!.lineStarts,
+      viewerData!.lineCount,
+      'HANJSON'
+    );
+
+    expect(matches).toHaveLength(2);
+    expect(matches[0]).toMatchObject({
+      lineNumber: 2,
+      localStart: 11,
+      localEnd: 18,
+    });
+    expect(matches[1]).toMatchObject({
+      lineNumber: 3,
+      localStart: 12,
+      localEnd: 19,
+    });
+  });
 });

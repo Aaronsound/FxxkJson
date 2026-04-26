@@ -7,6 +7,7 @@ import {
   LARGE_FILE_THRESHOLD,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
+  PerformanceTrigger,
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
@@ -17,8 +18,8 @@ import {
   getLeftModelPath,
   getRightModelPath,
   getUtf8ByteLength,
-  isLargeDocument,
   shouldBuildWorkerStructure,
+  shouldUseLargeMode,
 } from '../utils/jsonToolModels';
 
 interface UseJsonFormattingWorkerArgs {
@@ -34,7 +35,7 @@ interface UseJsonFormattingWorkerArgs {
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
   beginPerformanceSession: (
     tabId: string,
-    trigger: 'import' | 'manual-format' | 'edit-save',
+    trigger: PerformanceTrigger,
     sourceLabel: string,
     fileSizeBytes: number | null,
     rawBytes: number,
@@ -286,27 +287,31 @@ export function useJsonFormattingWorker({
       return;
     }
 
-    const largeMode = largeModeRef.current[tabId] || isLargeDocument(text);
-    const workerStructureEnabled = shouldBuildWorkerStructure(
+    const textByteLength = getUtf8ByteLength(text);
+    const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
+    const largeMode = shouldUseLargeMode(text);
+    const shouldBuildStructureIndex = shouldBuildWorkerStructure(
       text,
-      Boolean(largeFileLocateEnabledRef.current[tabId])
+      locateRequested
     );
+    const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
+    const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
 
     if (largeModeRef.current[tabId] !== largeMode) {
       callbacksRef.current.setTabLargeMode(tabId, largeMode);
     }
 
-    const shouldBuildLargeViewer = getUtf8ByteLength(text) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
+    const shouldBuildLargeViewer = textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
     callbacksRef.current.setTabFormatting(tabId, true);
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeViewerStatus(
       tabId,
       shouldBuildLargeViewer ? 'building' : 'idle'
     );
-    workerStructureEnabledRef.current[tabId] = workerStructureEnabled;
+    workerStructureEnabledRef.current[tabId] = workerLocateEnabled;
     callbacksRef.current.setStructureStatus(
       tabId,
-      workerStructureEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+      workerLocateEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
     );
 
     const requestId = ++requestCounterRef.current;
@@ -319,7 +324,7 @@ export function useJsonFormattingWorker({
       session.pendingFormat = false;
       session.requestId = requestId;
       session.largeMode = largeMode;
-      session.structureEnabled = workerStructureEnabled;
+      session.structureEnabled = workerLocateEnabled;
       session.formatQueuedAt = performance.now();
       session.formatStartedAt = undefined;
       session.formatCompletedAt = undefined;
@@ -333,10 +338,11 @@ export function useJsonFormattingWorker({
     callbacksRef.current.logEvent('format-queued', {
       tabId,
       requestId,
-      textLength: getUtf8ByteLength(text),
+      textLength: textByteLength,
       immediate,
       largeMode,
-      workerStructureEnabled,
+      workerStructureEnabled: shouldBuildStructureIndex,
+      workerDirectLocateEnabled: shouldAttemptDirectLocate,
     });
 
     const run = () => {
@@ -357,7 +363,8 @@ export function useJsonFormattingWorker({
         requestId,
         tabId,
         text,
-        enableStructure: workerStructureEnabled,
+        enableStructure: shouldBuildStructureIndex,
+        enableDirectLocate: shouldAttemptDirectLocate,
         buildViewer: shouldBuildLargeViewer,
       });
     };
@@ -474,16 +481,19 @@ export function useJsonFormattingWorker({
         fileName: file.name,
         rawLength: rawBytes,
       });
-      const largeMode = isLargeDocument(content) || presumedLargeMode;
-      const workerStructureEnabled = shouldBuildWorkerStructure(
+      const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
+      const largeMode = shouldUseLargeMode(content);
+      const shouldBuildStructureIndex = shouldBuildWorkerStructure(
         content,
-        Boolean(largeFileLocateEnabledRef.current[tabId])
+        locateRequested
       );
+      const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
+      const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
 
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
         session.leftModelStartedAt = performance.now();
         session.largeMode = largeMode;
-        session.structureEnabled = workerStructureEnabled;
+        session.structureEnabled = workerLocateEnabled;
       });
       callbacksRef.current.updateTabContent(tabId, content, true);
       callbacksRef.current.updateFormattedContent(tabId, '', true);
@@ -493,10 +503,10 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setTabLargeMode(tabId, largeMode);
       callbacksRef.current.setTabFormatting(tabId, true);
       callbacksRef.current.setTabImporting(tabId, null);
-      workerStructureEnabledRef.current[tabId] = workerStructureEnabled;
+      workerStructureEnabledRef.current[tabId] = workerLocateEnabled;
       callbacksRef.current.setStructureStatus(
         tabId,
-        workerStructureEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+        workerLocateEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
       );
       queueFormatAfterImport(tabId, content);
     } catch (error) {
@@ -550,7 +560,8 @@ export function useJsonFormattingWorker({
         }
 
         if (success && data) {
-          const largeMode = isLargeDocument(data) || Boolean(largeModeRef.current[tabId]);
+          const rawText = rawTextByTabRef.current[tabId] ?? '';
+          const largeMode = shouldUseLargeMode(rawText, data);
           const formatCompletedAt = performance.now();
           callbacksRef.current.logEvent('format-success', {
             tabId,

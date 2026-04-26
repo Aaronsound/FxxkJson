@@ -19,13 +19,14 @@ const fixtureText = [
 ].join('\n');
 
 function renderViewer(overrides: Partial<React.ComponentProps<typeof LargeJsonReadonlyViewer>> = {}) {
-  const data = buildLargeViewerData(fixtureText, 1);
+  const text = overrides.text ?? fixtureText;
+  const data = overrides.data ?? buildLargeViewerData(text, 1);
   if (!data) {
     throw new Error('Expected large viewer fixture data');
   }
 
   const props: React.ComponentProps<typeof LargeJsonReadonlyViewer> = {
-    text: fixtureText,
+    text,
     data,
     isDarkMode: false,
     wrapLongLines: false,
@@ -166,6 +167,79 @@ describe('LargeJsonReadonlyViewer', () => {
 
     expect(clipboardData.setData).toHaveBeenCalledWith('text/plain', fixtureText);
     selection?.removeAllRanges();
+  });
+
+  it('does not copy a hidden trailing comma when a collapsed array item is selected', () => {
+    const arrayText = [
+      '[',
+      '  {',
+      '    "id": 0,',
+      '    "name": "first"',
+      '  },',
+      '  {',
+      '    "id": 1,',
+      '    "name": "second"',
+      '  }',
+      ']',
+    ].join('\n');
+
+    renderViewer({
+      text: arrayText,
+      collapsedLines: [2],
+    });
+
+    const line = document.querySelector('.large-json-line-text[data-line-number="2"][data-collapsed="true"]');
+    expect(line).not.toBeNull();
+    if (!line) {
+      throw new Error('Expected a collapsed array item');
+    }
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const clipboardData = { setData: vi.fn() };
+    fireEvent.copy(line, { clipboardData });
+
+    const copied = clipboardData.setData.mock.calls[0]?.[1];
+    expect(copied).toBeTypeOf('string');
+    expect(copied.trim().endsWith(',')).toBe(false);
+    expect(JSON.parse(copied)).toEqual({ id: 0, name: 'first' });
+    selection?.removeAllRanges();
+  });
+
+  it('keeps select-all and copy scoped to the large JSON viewer text', () => {
+    renderViewer();
+
+    const viewer = document.querySelector('.large-json-viewer');
+    expect(viewer).not.toBeNull();
+    if (!viewer) {
+      throw new Error('Expected large viewer');
+    }
+
+    fireEvent.keyDown(viewer, { key: 'a', ctrlKey: true });
+    const clipboardData = { setData: vi.fn() };
+    fireEvent.copy(viewer, { clipboardData });
+
+    expect(clipboardData.setData).toHaveBeenCalledWith('text/plain', fixtureText);
+  });
+
+  it('also scopes Alt+A copy to the large JSON viewer text', () => {
+    renderViewer();
+
+    const viewer = document.querySelector('.large-json-viewer');
+    expect(viewer).not.toBeNull();
+    if (!viewer) {
+      throw new Error('Expected large viewer');
+    }
+
+    fireEvent.keyDown(viewer, { key: 'a', altKey: true });
+    const clipboardData = { setData: vi.fn() };
+    fireEvent.copy(viewer, { clipboardData });
+
+    expect(clipboardData.setData).toHaveBeenCalledWith('text/plain', fixtureText);
   });
 
   it('auto-expands collapsed regions when the active match falls inside them', async () => {
