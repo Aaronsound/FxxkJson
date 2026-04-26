@@ -1,6 +1,6 @@
 {
   "name": "my-json-tool-new",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -40,7 +40,7 @@
   },
   "build": {
     "appId": "com.aaronsound.hanjson",
-    "productName": "FuckJson",
+    "productName": "HanJson",
     "directories": {
       "output": "release"
     },
