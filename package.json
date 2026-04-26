@@ -51,6 +51,7 @@
     "files": [
       "dist-renderer/**",
       "dist-electron/**",
+      "build/icons/mac/icon.icns",
       "build/icons/win/icon.ico",
       "package.json"
     ],
@@ -62,7 +63,7 @@
       ]
     },
     "mac": {
-      "icon": "build/icons/win/icon.ico",
+      "icon": "build/icons/mac/icon.icns",
       "target": [
         "dmg",
         "zip"
