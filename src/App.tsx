@@ -1,754 +1,1518 @@
-// src/App.tsx
-import React, { useRef, useState, useEffect } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import Split from 'react-split';
 import Editor, { OnMount } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import JsonEditModal from './components/JsonEditModal';
+import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
+import JsonPerformancePanel from './components/JsonPerformancePanel';
+import JsonToolTabBar from './components/JsonToolTabBar';
+import JsonToolToolbar from './components/JsonToolToolbar';
+import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
+import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
+import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import {
-  parseTree,
-  getLocation,
-  findNodeAtLocation,
-  Node as JsonNode
-} from 'jsonc-parser';
+  DEFAULT_TAB_TITLE,
+  EMPTY_DOCUMENT_META,
+  INITIAL_TAB_ID,
+  LARGE_FILE_THRESHOLD,
+  LargeJsonSearchMatch,
+  LargeJsonViewerData,
+  SEARCH_HIGHLIGHT_DURATION,
+  StructureStatus,
+  STRUCTURE_SYNC_THRESHOLD,
+} from './types/jsonTool';
+import {
+  createTab,
+  getEditorLanguageByLength,
+  getLeftModelPath,
+  getOrCreateModel,
+  getRightModelPath,
+  getUtf8ByteLength,
+  isLargeDocument,
+  recreateModel,
+  selectionCoversModel,
+  shouldUseLargeMode,
+} from './utils/jsonToolModels';
 import './App.css';
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      selectJsonFile: () => Promise<string | null>;
-      readJsonFile: (filePath: string) => Promise<string>;
-    };
+const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
+
+function formatBytes(value: number) {
+  if (value <= 0) {
+    return '0 B';
   }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  const precision = size >= 100 || unitIndex === 0 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[unitIndex]}`;
 }
 
-const jsonWorker = new Worker(
-  new URL('./workers/jsonParser.worker.js', import.meta.url),
-  { type: 'module' }
-);
+function formatDuration(value: number | null | undefined) {
+  if (typeof value !== 'number') {
+    return null;
+  }
+
+  return `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
+}
 
 const App: React.FC = () => {
-  // —— 编辑器 & 模型 引用 —— 
-  const leftEditor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const rightEditor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const workerRef = useRef<Worker>(jsonWorker);
-
-  // —— JSON 树 引用 —— 
-  const leftTreeRef = useRef<JsonNode | undefined>(undefined);
-  const rightTreeRef = useRef<JsonNode | undefined>(undefined);
-
-  // —— UI 状态 —— 
-  const [error, setError] = useState<string | null>(null);
+  const {
+    activeTabId,
+    cancelRenaming,
+    documentMetaByTab,
+    errorsByTab,
+    finishRenaming,
+    handleRenamingChange,
+    importingByTab,
+    initializeTabState,
+    isFormattingByTab,
+    largeFileLocateEnabledByTab,
+    largeModeByTab,
+    removeTabState,
+    renameTab,
+    renamingTab,
+    setActiveTabId,
+    setDocumentMeta,
+    setTabError,
+    setTabFormatting,
+    setTabImporting,
+    setTabLargeModeState,
+    setLargeFileLocateEnabledState,
+    setStructureStatusState,
+    setTabs,
+    startRenamingTab,
+    structureStatusByTab,
+    tabs,
+  } = useJsonToolTabsState({
+    initialTabId: INITIAL_TAB_ID,
+    initialTabTitle: 'HelloJson',
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [rightMatches, setRightMatches] = useState<monaco.editor.FindMatch[]>([]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [rightDecs, setRightDecs] = useState<string[]>([]);
-  const [leftDecs, setLeftDecs] = useState<string[]>([]);
-
-  // —— 深色模式 & 自动换行 & 左侧内容 & 右侧内容—— 
+  const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
+  const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [wrapLongLines, setWrapLongLines] = useState(false);
-  const [leftValue, setLeftValue] = useState('');
-  const [rightValue, setRightValue] = useState(''); // 格式化后文本
+  const [showPerformancePanel, setShowPerformancePanel] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
 
-  // —— 新增：多标签页状态 —— 
-  interface Tab {
-    id: string;
-    title: string;
-    content: string;
-  }
-  const [tabs, setTabs] = useState<Tab[]>([{
-    id: 'tab-1',
-    title: 'HelloJson',
-    content: ''
-  }]);
-  const [activeTabId, setActiveTabId] = useState('tab-1');
+    return window.localStorage.getItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY) !== 'false';
+  });
+  const [editJsonSession, setEditJsonSession] = useState<{ key: number; initialValue: string } | null>(null);
+  const [editJsonError, setEditJsonError] = useState<string | null>(null);
+  const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
+  const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
+  const [largeViewerStatusByTab, setLargeViewerStatusByTab] = useState<Record<string, 'idle' | 'building' | 'ready'>>({
+    [INITIAL_TAB_ID]: 'idle',
+  });
+  const [largeViewerCollapsedLinesByTab, setLargeViewerCollapsedLinesByTab] = useState<Record<string, number[]>>({
+    [INITIAL_TAB_ID]: [],
+  });
 
-  const addTab = () => {
-    const id = `tab-${Date.now()}`;
-    setTabs(ts => {
-      setActiveTabId(id);
-      return [...ts, { id, title: 'newTab', content: '' }];
-    });
-  };
+  const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const largeViewerRef = useRef<LargeJsonReadonlyViewerHandle | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const rawTextByTabRef = useRef<Record<string, string>>({
+    [INITIAL_TAB_ID]: '',
+  });
+  const formattedTextByTabRef = useRef<Record<string, string>>({
+    [INITIAL_TAB_ID]: '',
+  });
+  const suppressLeftChangeRef = useRef<Record<string, boolean>>({});
+  const activeTabIdRef = useRef(INITIAL_TAB_ID);
+  const largeModeRef = useRef<Record<string, boolean>>({
+    [INITIAL_TAB_ID]: false,
+  });
+  const largeFileLocateEnabledRef = useRef<Record<string, boolean>>({
+    [INITIAL_TAB_ID]: false,
+  });
+  const structureStatusRef = useRef<Record<string, StructureStatus>>({
+    [INITIAL_TAB_ID]: 'ready',
+  });
+  const workerStructureEnabledRef = useRef<Record<string, boolean>>({
+    [INITIAL_TAB_ID]: false,
+  });
+  const leftDecorationIdsRef = useRef<string[]>([]);
+  const rightDecorationIdsRef = useRef<string[]>([]);
+  const highlightTimeoutRef = useRef<number | null>(null);
+  const editJsonValueRef = useRef('');
+  const copyLiteralTimeoutRef = useRef<number | null>(null);
+  const leftViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
+  const rightViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
+  const previousActiveTabIdRef = useRef(INITIAL_TAB_ID);
+  const {
+    beginPerformanceSession,
+    clearPerformanceState,
+    logEvent,
+    mutatePerformanceSession,
+    performanceByTab,
+    performanceSessionsRef,
+    setPerformanceByTab,
+    syncPerformanceSnapshot,
+  } = useJsonPerformanceTracking({
+    activeTabIdRef,
+    initialTabId: INITIAL_TAB_ID,
+  });
 
-  const closeTab = (id: string) => {
-    setTabs(ts => ts.filter(t => t.id !== id));
-    if (activeTabId === id && tabs.length > 1) {
-      const idx = tabs.findIndex(t => t.id === id);
-      const next = tabs[idx - 1 >= 0 ? idx - 1 : idx + 1];
-      setActiveTabId(next.id);
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+  const activeDocumentMeta = activeTab
+    ? documentMetaByTab[activeTab.id] ?? EMPTY_DOCUMENT_META
+    : EMPTY_DOCUMENT_META;
+  const activeRawText = activeTab
+    ? rawTextByTabRef.current[activeTab.id] ?? ''
+    : '';
+  const currentError = activeTab ? errorsByTab[activeTab.id] ?? null : null;
+  const importingFileName = activeTab
+    ? importingByTab[activeTab.id] ?? null
+    : null;
+  const isImportingActiveTab = Boolean(importingFileName);
+  const formattedValue = activeTab ? formattedTextByTabRef.current[activeTab.id] ?? '' : '';
+  const isFormattingActiveTab = activeTab
+    ? Boolean(isFormattingByTab[activeTab.id])
+    : false;
+  const isLargeFileMode = activeTab
+    ? Boolean(
+      largeModeByTab[activeTab.id]
+      || activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD
+      || activeDocumentMeta.formattedLength >= LARGE_FILE_THRESHOLD
+    )
+    : false;
+  const currentStructureStatus = activeTab
+    ? structureStatusByTab[activeTab.id] ?? 'ready'
+    : 'ready';
+  const isLargeFileLocateEnabled = activeTab
+    ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
+    : false;
+  const canEnableLargeFileLocate = activeTab
+    ? activeDocumentMeta.rawLength > 0
+    : false;
+  const canEditJson = Boolean(activeRawText.trim());
+  const canUseRightPaneFolding = activeTab
+    ? activeDocumentMeta.rawLength > 0 && activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
+    : false;
+  const shouldEnableRightPaneFolding = activeTab
+    ? activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
+    : true;
+  const activePerformanceSnapshot = activeTab
+    ? performanceByTab[activeTab.id] ?? null
+    : null;
+  const activeLargeViewerData = activeTab
+    ? largeViewerDataByTab[activeTab.id] ?? null
+    : null;
+  const activeLargeViewerStatus = activeTab
+    ? largeViewerStatusByTab[activeTab.id] ?? 'idle'
+    : 'idle';
+  const activeLargeViewerCollapsedLines = activeTab
+    ? largeViewerCollapsedLinesByTab[activeTab.id] ?? []
+    : [];
+  const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
+  const isBuildingDedicatedRightViewer = Boolean(
+    formattedValue
+    && !shouldUseDedicatedRightViewer
+    && activeLargeViewerStatus === 'building'
+  );
+  const canControlRightPaneFolding = Boolean(
+    formattedValue
+    && !isBuildingDedicatedRightViewer
+    && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
+  );
+  const activeRightMatchCount = shouldUseDedicatedRightViewer
+    ? largeViewerMatchCount
+    : rightMatches.length;
+  const leftPaneMetaText = [
+    activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
+    formatDuration(activePerformanceSnapshot?.readFileMs)
+      ? `导入 ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
+      : null,
+  ].filter(Boolean).join(' · ');
+  const rightPaneStatusText = (() => {
+    if (!isLargeFileMode) {
+      return canUseRightPaneFolding ? '支持折叠' : null;
+    }
+
+    if (!canEnableLargeFileLocate) {
+      return '定位已关闭';
+    }
+
+    if (!isLargeFileLocateEnabled) {
+      return '定位未启用';
+    }
+
+    if (currentStructureStatus === 'building') {
+      return '定位索引中';
+    }
+
+    if (currentStructureStatus === 'ready') {
+      return '定位已启用';
+    }
+
+    return '定位已关闭';
+  })();
+  const rightPaneMetaText = [
+    activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
+    formatDuration(activePerformanceSnapshot?.formatWorkerMs)
+      ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
+      : null,
+    rightPaneStatusText,
+  ].filter(Boolean).join(' · ');
+
+  const clearLeftHighlights = () => {
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+
+    if (leftEditorRef.current && leftDecorationIdsRef.current.length > 0) {
+      leftEditorRef.current.deltaDecorations(leftDecorationIdsRef.current, []);
+      leftDecorationIdsRef.current = [];
     }
   };
 
-  const updateTabContent = (id: string, content: string) => {
-    setTabs(ts => ts.map(t => t.id === id ? { ...t, content } : t));
+  const clearRightHighlights = () => {
+    if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
+      rightEditorRef.current.deltaDecorations(rightDecorationIdsRef.current, []);
+      rightDecorationIdsRef.current = [];
+    }
   };
 
-  // 通用：给指定 Tab 重命名
-  const renameTab = (id: string, newTitle: string) => {
-    setTabs(ts =>
-      ts.map(t =>
-        t.id === id
-          ? { ...t, title: newTitle }
-          : t
+  const clearCopyLiteralNotice = () => {
+    if (copyLiteralTimeoutRef.current !== null) {
+      window.clearTimeout(copyLiteralTimeoutRef.current);
+      copyLiteralTimeoutRef.current = null;
+    }
+    setHasCopiedLiteral(false);
+  };
+
+  const copyValueAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
+    const valueToCopy = await requestWorkerValue(tabId, offset, preferCachedText);
+    if (valueToCopy === null) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(valueToCopy);
+  };
+
+  const logRightEditorState = (
+    event: string,
+    tabId: string,
+    extra: Record<string, unknown> = {}
+  ) => {
+    const editor = rightEditorRef.current;
+    const model = editor?.getModel();
+    const rawText = rawTextByTabRef.current[tabId] ?? '';
+    const formattedText = formattedTextByTabRef.current[tabId] ?? '';
+    const payload = {
+      tabId,
+      rawBytes: getUtf8ByteLength(rawText),
+      formattedBytes: getUtf8ByteLength(formattedText),
+      isActiveTab: activeTabIdRef.current === tabId,
+      modelLanguageId: model?.getLanguageId() ?? null,
+      modelLineCount: model?.getLineCount() ?? 0,
+      modelValueLength: model?.getValueLength() ?? 0,
+      largeMode: Boolean(largeModeRef.current[tabId]),
+      locateEnabled: Boolean(largeFileLocateEnabledRef.current[tabId]),
+      structureStatus: structureStatusRef.current[tabId] ?? null,
+      withinStructureThreshold: getUtf8ByteLength(rawText) <= STRUCTURE_SYNC_THRESHOLD,
+      ...extra,
+    };
+
+    console.info(`[HanJson][${event}]`, payload);
+    logEvent(event, payload);
+  };
+
+  const resetSearchState = () => {
+    setSearchTerm('');
+    setRightMatches([]);
+    setLargeViewerMatches([]);
+    setLargeViewerMatchCount(0);
+    setCurrentMatchIndex(0);
+    clearLeftHighlights();
+    clearRightHighlights();
+  };
+
+  const setTabLargeMode = (tabId: string, enabled: boolean) => {
+    largeModeRef.current[tabId] = enabled;
+    setTabLargeModeState(tabId, enabled);
+  };
+
+  const setLargeFileLocateEnabled = (tabId: string, enabled: boolean) => {
+    largeFileLocateEnabledRef.current[tabId] = enabled;
+    setLargeFileLocateEnabledState(tabId, enabled);
+  };
+
+  const setStructureStatus = (tabId: string, status: StructureStatus) => {
+    structureStatusRef.current[tabId] = status;
+    setStructureStatusState(tabId, status);
+  };
+
+  const setLargeViewerData = (tabId: string, data: LargeJsonViewerData | null) => {
+    setLargeViewerDataByTab((current) => ({ ...current, [tabId]: data }));
+    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [tabId]: [] }));
+    if (tabId === activeTabIdRef.current) {
+      setLargeViewerMatches([]);
+      setLargeViewerMatchCount(0);
+    }
+  };
+
+  const setLargeViewerStatus = (tabId: string, status: 'idle' | 'building' | 'ready') => {
+    setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: status }));
+  };
+
+  const setLargeViewerSearchResults = (tabId: string, matches: LargeJsonSearchMatch[]) => {
+    if (tabId !== activeTabIdRef.current) {
+      return;
+    }
+
+    setLargeViewerMatches(matches);
+    setLargeViewerMatchCount(matches.length);
+  };
+
+  const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
+
+  const updateTabContent = (tabId: string, content: string, syncModel = false) => {
+    const byteLength = getUtf8ByteLength(content);
+    rawTextByTabRef.current[tabId] = content;
+    setDocumentMeta(tabId, (current) => ({
+      ...current,
+      rawLength: byteLength,
+    }));
+
+    if (syncModel) {
+      syncLeftModel(tabId, content, true);
+    }
+  };
+
+  const updateFormattedContent = (tabId: string, content: string, syncModel = false) => {
+    const byteLength = getUtf8ByteLength(content);
+    formattedTextByTabRef.current[tabId] = content;
+    setDocumentMeta(tabId, (current) => ({
+      ...current,
+      formattedLength: byteLength,
+      formattedRevision: current.formattedRevision + 1,
+    }));
+
+    if (syncModel) {
+      syncRightModel(tabId, content, true);
+    }
+  };
+
+  const attachEditorModel = (
+    editor: monaco.editor.IStandaloneCodeEditor | null,
+    model: monaco.editor.ITextModel,
+    viewState: monaco.editor.ICodeEditorViewState | null | undefined,
+    event: string,
+    details: Record<string, unknown>
+  ) => {
+    if (!editor) {
+      return;
+    }
+
+    const shouldSwitchModel = editor.getModel() !== model;
+
+    if (shouldSwitchModel) {
+      editor.setModel(model);
+      logEvent(event, details);
+
+      if (viewState) {
+        editor.restoreViewState(viewState);
+      }
+    }
+
+    editor.layout();
+  };
+
+  const syncLeftModel = (tabId: string, content: string, forceValue = false) => {
+    const path = getLeftModelPath(tabId);
+    const byteLength = getUtf8ByteLength(content);
+    const language = getEditorLanguageByLength(byteLength);
+    let model = getOrCreateModel(path, language);
+
+    if (
+      forceValue
+      || model.getValueLength() !== content.length
+      || model.getLanguageId() !== language
+    ) {
+      if (activeTabIdRef.current === tabId) {
+        leftViewStateByTabRef.current[tabId] = leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[tabId] ?? null;
+      }
+      suppressLeftChangeRef.current[tabId] = true;
+      model = recreateModel(
+        path,
+        language,
+        content,
+        activeTabIdRef.current === tabId ? leftEditorRef.current : null
+      );
+      suppressLeftChangeRef.current[tabId] = false;
+      logEvent(forceValue ? 'left-model-value-written' : 'left-model-value-synced', {
+        tabId,
+        rawLength: byteLength,
+      });
+    }
+
+    if (activeTabIdRef.current === tabId) {
+      attachEditorModel(leftEditorRef.current, model, leftViewStateByTabRef.current[tabId], 'left-model-attached', {
+        tabId,
+        path,
+        rawLength: byteLength,
+      });
+    }
+  };
+
+  const syncRightModel = (tabId: string, content: string, forceValue = false) => {
+    const path = getRightModelPath(tabId);
+    const byteLength = getUtf8ByteLength(content);
+    const rawText = rawTextByTabRef.current[tabId] ?? '';
+    const rawByteLength = getUtf8ByteLength(rawText);
+    const shouldPreferDedicatedViewer = Boolean(largeViewerDataByTab[tabId])
+      || largeViewerStatusByTab[tabId] === 'building';
+
+    if (shouldPreferDedicatedViewer) {
+      const existingModel = monaco.editor.getModel(monaco.Uri.parse(path));
+      if (existingModel) {
+        if (rightEditorRef.current?.getModel() === existingModel) {
+          rightEditorRef.current.setModel(null);
+        }
+        existingModel.dispose();
+      }
+      return;
+    }
+
+    const enableStructuralFolding = rawByteLength <= STRUCTURE_SYNC_THRESHOLD;
+    const effectiveLargeMode = largeModeRef.current[tabId] || isLargeDocument(rawText);
+    const language = rawByteLength > 0 && rawByteLength <= STRUCTURE_SYNC_THRESHOLD
+      ? 'json'
+      : getEditorLanguageByLength(byteLength);
+    let model = getOrCreateModel(path, language);
+
+    if (
+      forceValue
+      || model.getValueLength() !== content.length
+      || model.getLanguageId() !== language
+    ) {
+      if (activeTabIdRef.current === tabId) {
+        rightViewStateByTabRef.current[tabId] = rightEditorRef.current?.saveViewState() ?? rightViewStateByTabRef.current[tabId] ?? null;
+      }
+      model = recreateModel(
+        path,
+        language,
+        content,
+        activeTabIdRef.current === tabId ? rightEditorRef.current : null
+      );
+      logEvent(forceValue ? 'right-model-value-written' : 'right-model-value-synced', {
+        tabId,
+        formattedLength: byteLength,
+      });
+    }
+
+    if (activeTabIdRef.current === tabId) {
+      attachEditorModel(rightEditorRef.current, model, rightViewStateByTabRef.current[tabId], 'right-model-attached', {
+        tabId,
+        path,
+        formattedLength: byteLength,
+        language,
+        largeMode: effectiveLargeMode,
+        enableStructuralFolding,
+      });
+      rightEditorRef.current?.updateOptions(
+        getMonacoOptions(effectiveLargeMode, true, enableStructuralFolding)
+      );
+      rightEditorRef.current?.layout();
+      logRightEditorState('right-editor-state', tabId, {
+        context: forceValue ? 'sync-force' : 'sync',
+        language,
+        enableStructuralFolding,
+        effectiveLargeMode,
+      });
+    }
+  };
+
+  const revealLeftRange = (startOffset: number, endOffset: number) => {
+    const leftEditor = leftEditorRef.current;
+    const leftModel = leftEditor?.getModel();
+
+    if (!leftEditor || !leftModel) {
+      return;
+    }
+
+    const start = leftModel.getPositionAt(startOffset);
+    const end = leftModel.getPositionAt(endOffset);
+    const range = new monaco.Range(
+      start.lineNumber,
+      start.column,
+      end.lineNumber,
+      end.column
+    );
+
+    leftEditor.revealRangeInCenter(range);
+    leftEditor.setSelection(
+      new monaco.Selection(
+        start.lineNumber,
+        start.column,
+        end.lineNumber,
+        end.column
       )
+    );
+
+    leftDecorationIdsRef.current = leftEditor.deltaDecorations(
+      leftDecorationIdsRef.current,
+      [{
+        range,
+        options: { inlineClassName: 'currentSearchHighlight' },
+      }]
+    );
+
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      clearLeftHighlights();
+    }, SEARCH_HIGHLIGHT_DURATION);
+  };
+
+  const {
+    clearTabStructure,
+    importJsonFile,
+    queueFormat,
+    removeTabArtifacts,
+    requestWorkerSearch,
+    requestWorkerLocate,
+    requestWorkerValue,
+    resetTabArtifacts,
+  } = useJsonFormattingWorker({
+    activeTabIdRef,
+    largeModeRef,
+    largeFileLocateEnabledRef,
+    leftViewStateByTabRef,
+    rightViewStateByTabRef,
+    structureStatusRef,
+    workerStructureEnabledRef,
+    rawTextByTabRef,
+    formattedTextByTabRef,
+    performanceSessionsRef,
+    beginPerformanceSession,
+    clearPerformanceState,
+    logEvent,
+    mutatePerformanceSession,
+    syncPerformanceSnapshot,
+    renameTab,
+    removeTabState,
+    setTabError,
+    setTabImporting,
+    setTabFormatting,
+    setTabLargeMode,
+    setStructureStatus,
+    setLargeViewerData,
+    setLargeViewerStatus,
+    setLargeViewerSearchResults,
+    updateTabContent,
+    updateFormattedContent,
+    resetSearchState,
+    revealLeftRange,
+    clearLeftHighlights,
+    clearRightHighlights,
+  });
+
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
+  useEffect(() => {
+    const previousTabId = previousActiveTabIdRef.current;
+
+    if (previousTabId && previousTabId !== activeTabId) {
+      leftViewStateByTabRef.current[previousTabId] = leftEditorRef.current?.saveViewState() ?? null;
+      rightViewStateByTabRef.current[previousTabId] = rightEditorRef.current?.saveViewState() ?? null;
+    }
+
+    previousActiveTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY,
+      String(showPerformancePanel)
+    );
+  }, [showPerformancePanel]);
+
+  useEffect(() => {
+    if (!activeTab) {
+      return;
+    }
+
+    const currentRaw = getTabContent(activeTab.id);
+    const currentFormatted = formattedTextByTabRef.current[activeTab.id] ?? '';
+    syncLeftModel(activeTab.id, currentRaw);
+    syncRightModel(activeTab.id, currentFormatted);
+  }, [
+    activeLargeViewerData,
+    activeLargeViewerStatus,
+    activeTab,
+    activeDocumentMeta.formattedLength,
+    activeDocumentMeta.rawLength,
+  ]);
+
+  useEffect(() => {
+    leftEditorRef.current?.updateOptions(getMonacoOptions(isLargeFileMode));
+    leftEditorRef.current?.layout();
+    if (!shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
+      rightEditorRef.current?.updateOptions(
+        getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)
+      );
+      rightEditorRef.current?.layout();
+    }
+    if (activeTab && !shouldUseDedicatedRightViewer) {
+      logRightEditorState(activeTab.id === activeTabId ? 'right-editor-options-refreshed' : 'right-editor-options-skipped', activeTab.id, {
+        isLargeFileMode,
+        shouldEnableRightPaneFolding,
+        wrapLongLines,
+      });
+    }
+  }, [
+    activeTab,
+    activeTabId,
+    isBuildingDedicatedRightViewer,
+    isLargeFileMode,
+    shouldEnableRightPaneFolding,
+    shouldUseDedicatedRightViewer,
+    wrapLongLines,
+  ]);
+
+  useEffect(() => (
+    () => {
+      if (copyLiteralTimeoutRef.current !== null) {
+        window.clearTimeout(copyLiteralTimeoutRef.current);
+      }
+    }
+  ), []);
+
+  useEffect(() => {
+    resetSearchState();
+  }, [activeTabId]);
+
+  useEffect(() => {
+    if (!activeTab || !shouldUseDedicatedRightViewer) {
+      setLargeViewerMatches([]);
+      setLargeViewerMatchCount(0);
+      return;
+    }
+
+    requestWorkerSearch(activeTab.id, searchTerm);
+  }, [
+    activeDocumentMeta.formattedRevision,
+    activeLargeViewerData,
+    activeTab,
+    searchTerm,
+    shouldUseDedicatedRightViewer,
+  ]);
+
+  useEffect(() => {
+    const editor = rightEditorRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !model || !searchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
+      setRightMatches([]);
+      clearRightHighlights();
+      return;
+    }
+
+    const matches = model.findMatches(searchTerm, true, true, false, null, true);
+    setRightMatches(matches);
+
+    const nextDecorations = matches.map((match, index) => ({
+      range: match.range,
+      options: {
+        inlineClassName:
+          index === currentMatchIndex ? 'currentSearchHighlight' : 'searchHighlight',
+      },
+    }));
+
+    rightDecorationIdsRef.current = editor.deltaDecorations(
+      rightDecorationIdsRef.current,
+      nextDecorations
+    );
+
+    if (matches.length === 0) {
+      return;
+    }
+
+    const activeMatch = matches[currentMatchIndex % matches.length];
+    editor.revealRangeInCenter(activeMatch.range);
+
+    const leftEditor = leftEditorRef.current;
+    const leftModel = leftEditor?.getModel();
+    if (!leftEditor || !leftModel) {
+      return;
+    }
+
+    const snippet = model.getValueInRange(activeMatch.range);
+    const leftMatch = leftModel.findNextMatch(
+      snippet,
+      new monaco.Position(1, 1),
+      false,
+      false,
+      null,
+      false
+    );
+
+    if (!leftMatch) {
+      clearLeftHighlights();
+      return;
+    }
+
+    leftEditor.revealRangeInCenter(leftMatch.range);
+    leftEditor.setSelection(
+      new monaco.Selection(
+        leftMatch.range.startLineNumber,
+        leftMatch.range.startColumn,
+        leftMatch.range.endLineNumber,
+        leftMatch.range.endColumn
+      )
+    );
+
+    leftDecorationIdsRef.current = leftEditor.deltaDecorations(
+      leftDecorationIdsRef.current,
+      [{
+        range: leftMatch.range,
+        options: { inlineClassName: 'currentSearchHighlight' },
+      }]
+    );
+
+    if (highlightTimeoutRef.current !== null) {
+      window.clearTimeout(highlightTimeoutRef.current);
+    }
+
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      clearLeftHighlights();
+    }, SEARCH_HIGHLIGHT_DURATION);
+  }, [
+    activeTabId,
+    activeDocumentMeta.formattedRevision,
+    currentMatchIndex,
+    isBuildingDedicatedRightViewer,
+    searchTerm,
+    shouldUseDedicatedRightViewer,
+  ]);
+
+  const getMonacoOptions = (
+    largeMode: boolean,
+    readOnly = false,
+    enableStructuralFolding = !largeMode
+  ): monaco.editor.IStandaloneEditorConstructionOptions => {
+    const preserveFoldingForLargeReadonly = readOnly && enableStructuralFolding;
+
+    return {
+      automaticLayout: true,
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      largeFileOptimizations: preserveFoldingForLargeReadonly ? false : true,
+      wordWrap: wrapLongLines ? 'on' : 'off',
+      folding: enableStructuralFolding,
+      showFoldingControls: enableStructuralFolding ? 'always' : 'never',
+      foldingStrategy: 'indentation',
+      foldingMaximumRegions: preserveFoldingForLargeReadonly ? 50000 : 5000,
+      foldingHighlight: enableStructuralFolding,
+      glyphMargin: false,
+      occurrencesHighlight: 'off',
+      selectionHighlight: false,
+      renderWhitespace: 'none',
+      renderValidationDecorations: 'off',
+      matchBrackets: 'never',
+      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontSize: 12,
+      fontWeight: 'normal',
+      lineHeight: 18,
+      fontLigatures: false,
+      letterSpacing: 0,
+      codeLens: false,
+      lineDecorationsWidth: enableStructuralFolding ? 16 : 0,
+      lineNumbersMinChars: 3,
+      maxTokenizationLineLength: largeMode ? 2000 : 1000000,
+      unicodeHighlight: {
+        ambiguousCharacters: false,
+        invisibleCharacters: false,
+        nonBasicASCII: false,
+      },
+      quickSuggestions: false,
+      suggestOnTriggerCharacters: false,
+      scrollbar: {
+        alwaysConsumeMouseWheel: true,
+      },
+      wordBasedSuggestions: largeMode ? 'off' : 'currentDocument',
+      hover: {
+        enabled: !largeMode,
+      },
+      links: !largeMode,
+      readOnly,
+      guides: {
+        indentation: false,
+      },
+    };
+  };
+
+  const beginPastePerformanceSession = (tabId: string, nextContent: string) => {
+    beginPerformanceSession(
+      tabId,
+      'paste',
+      '剪贴板粘贴',
+      null,
+      getUtf8ByteLength(nextContent),
+      shouldUseLargeMode(nextContent)
     );
   };
 
-
-  // 1. 记录当前要重命名的 tab id 和输入值
-  const [renamingTab, setRenamingTab] = useState<{
-    id: string;
-    value: string;
-  } | null>(null);
-
-  const startRenaming = (id: string, currentTitle: string) => {
-    setRenamingTab({ id, value: currentTitle });
+  const getContentAfterSelectionReplace = (
+    model: monaco.editor.ITextModel,
+    selection: monaco.Selection,
+    text: string
+  ) => {
+    const startOffset = model.getOffsetAt(selection.getStartPosition());
+    const endOffset = model.getOffsetAt(selection.getEndPosition());
+    const currentText = model.getValue();
+    return `${currentText.slice(0, startOffset)}${text}${currentText.slice(endOffset)}`;
   };
 
-  const finishRenaming = () => {
-    if (renamingTab) {
-      renameTab(renamingTab.id, renamingTab.value);
-      setRenamingTab(null);
-    }
-  };
+  const handleLeftMount: OnMount = (editor) => {
+    leftEditorRef.current = editor;
+    const currentTabId = activeTabIdRef.current;
+    syncLeftModel(currentTabId, getTabContent(currentTabId), true);
 
-
-
-
-  // —— 自定义右键菜单 状态（保留复制值功能，如果已不需要可删除） —— 
-  const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    toCopy: string;
-  }>({
-    visible: false,
-    x: 0,
-    y: 0,
-    toCopy: ''
-  });
-
-  // —— 点击页面其他地方时，隐藏右键菜单 —— 
-  useEffect(() => {
-    const handleWindowClick = () => {
-      setContextMenu(prev => (prev.visible ? { ...prev, visible: false } : prev));
-    };
-    window.addEventListener('click', handleWindowClick);
-    return () => {
-      window.removeEventListener('click', handleWindowClick);
-    };
-  }, []);
-
-
-  // —— per‐tab 格式化结果存储 —— 
-  const [rightValues, setRightValues] = useState<Record<string, string>>({
-    'tab-1': ''
-  });
-
-  // —— Monaco 编辑器的公共配置 —— 
-  const getMonacoOptions = (): monaco.editor.IStandaloneEditorConstructionOptions => ({
-    automaticLayout: true,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    largeFileOptimizations: true,
-    wordWrap: wrapLongLines ? 'on' : 'off',
-    // ========= 启用折叠功能 =========
-    folding: true,
-    showFoldingControls: 'always',
-    foldingStrategy: 'indentation',
-    foldingHighlight: true,
-    glyphMargin: true,
-    // =================================
-    occurrencesHighlight: 'off',
-    renderWhitespace: 'none',
-    matchBrackets: 'never',
-    fontLigatures: false,
-    codeLens: false,
-    lineDecorationsWidth: 0,
-    lineNumbersMinChars: 3,
-    maxTokenizationLineLength: 1000000,
-    unicodeHighlight: {
-      ambiguousCharacters: false,
-      invisibleCharacters: false,
-      nonBasicASCII: false,
-    },
-    // 关闭缩进辅助线（新 API）
-    guides: {
-      indentation: false
-    }
-  });
-
-  /** 左侧挂载 */
-  const onLeftMount: OnMount = (editor) => {
-
-
-    leftEditor.current = editor;
-
-    // 当 editor 被 dispose 时，清空引用
     editor.onDidDispose(() => {
-      if (leftEditor.current === editor) {
-        leftEditor.current = null;
+      if (leftEditorRef.current === editor) {
+        leftEditorRef.current = null;
       }
     });
 
-    // —— 覆盖 Delete 命令 —— //
     editor.addCommand(monaco.KeyCode.Delete, () => {
-      const model = editor.getModel()!;
-      const sel = editor.getSelection()!;
+      const currentTabId = activeTabIdRef.current;
 
-      // 如果选区覆盖了整个文本，就走清空逻辑
-      if (sel.equalsRange(model.getFullModelRange())) {
-        handleClear();
-      } else {
-        // 否则执行 Monaco 默认的“删除右侧”命令
-        editor.trigger('', 'deleteRight', null);
+      if (selectionCoversModel(editor) && currentTabId) {
+        renameTab(currentTabId, DEFAULT_TAB_TITLE);
+        resetTabArtifacts(currentTabId);
+        resetSearchState();
+        return;
       }
+
+      editor.trigger('', 'deleteRight', null);
     });
 
-    // 覆盖 Backspace
     editor.addCommand(monaco.KeyCode.Backspace, () => {
-      const model = editor.getModel()!;
-      const sel = editor.getSelection()!;
-      if (sel.equalsRange(model.getFullModelRange())) {
-        handleClear();
-      } else {
-        editor.trigger('', 'deleteLeft', null);
+      const currentTabId = activeTabIdRef.current;
+
+      if (selectionCoversModel(editor) && currentTabId) {
+        renameTab(currentTabId, DEFAULT_TAB_TITLE);
+        resetTabArtifacts(currentTabId);
+        resetSearchState();
+        return;
       }
+
+      editor.trigger('', 'deleteLeft', null);
     });
 
-    editor.onDidChangeModelContent(() => {
-      const txt = editor.getValue();
-      // 直接用当前激活的 activeTabId
-      updateTabContent(activeTabId, txt);
-      formatInWorker(txt, activeTabId);
-    });
-
-
-
-    // —— 拦截“粘贴”命令（键盘 + 右键菜单） —— //
     editor.addAction({
       id: 'custom.clipboardPasteAction',
       label: 'Custom Paste',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
       contextMenuGroupId: '9_cutcopypaste',
       contextMenuOrder: 1,
-      run: (ed) => {
-        navigator.clipboard.readText().then((text) => {
-          const model = ed.getModel()!;
-          const sel = ed.getSelection()!;
-          if (sel.equalsRange(model.getFullModelRange())) {
-            // **全文粘贴**：直接替换编辑器内容
-            ed.setValue(text);
-            // 同步到 tabs[].content
-            updateTabContent(activeTabId, text);
-            // 触发格式化
-            formatInWorker(text, activeTabId);
-          } else {
-            // **部分粘贴**：按选区插入
-            ed.executeEdits('paste', [{
-              range: sel,
-              text,
-              forceMoveMarkers: true
-            }]);
-          }
-        });
-      }
+      run: async (mountedEditor) => {
+        const currentTabId = activeTabIdRef.current;
+        const text = await navigator.clipboard.readText();
+        const selection = mountedEditor.getSelection();
+        const model = mountedEditor.getModel();
+
+        if (!selection || !currentTabId || !model) {
+          return;
+        }
+
+        const nextContent = selectionCoversModel(mountedEditor)
+          ? text
+          : getContentAfterSelectionReplace(model, selection, text);
+        beginPastePerformanceSession(currentTabId, nextContent);
+
+        if (selectionCoversModel(mountedEditor)) {
+          const largeMode = shouldUseLargeMode(text);
+
+          updateTabContent(currentTabId, text, true);
+          setTabLargeMode(currentTabId, largeMode);
+          resetSearchState();
+          queueFormat(currentTabId, text, true);
+          return;
+        }
+
+        mountedEditor.executeEdits('paste', [{
+          range: selection,
+          text,
+          forceMoveMarkers: true,
+        }]);
+      },
     });
-
-
   };
 
-  /** 右侧挂载：同步高亮 + 自定义右键菜单 “复制值” */
-  const onRightMount: OnMount = (editor) => {
-    rightEditor.current = editor;
+  const handleRightMount: OnMount = (editor) => {
+    rightEditorRef.current = editor;
+    const currentTabId = activeTabIdRef.current;
+    syncRightModel(currentTabId, formattedTextByTabRef.current[currentTabId] ?? '', true);
+    logRightEditorState('right-editor-mounted', currentTabId, {
+      wrapLongLines,
+    });
 
-    // 当 editor 被 dispose 时，清空引用
     editor.onDidDispose(() => {
-      if (rightEditor.current === editor) {
-        rightEditor.current = null;
+      if (rightEditorRef.current === editor) {
+        rightEditorRef.current = null;
       }
     });
 
-    // —— (1) 光标同步左右侧高亮 逻辑不变 —— 
-    editor.onDidChangeCursorPosition((e) => {
-      if (e.position.lineNumber === 1 && e.position.column === 1) return;
-      const model = editor.getModel();
-      if (!model) return;
-      const offset = model.getOffsetAt(e.position);
-      const formattedText = model.getValue();
-      const loc = getLocation(formattedText, offset);
-      const path = loc.path;
-      if (!rightTreeRef.current) return;
-      const rightNode = findNodeAtLocation(rightTreeRef.current, path);
-      if (!rightNode) return;
-      if (!leftTreeRef.current) return;
-      const leftNode = findNodeAtLocation(leftTreeRef.current, path);
-      if (!leftNode) return;
-      const rawModel = leftEditor.current?.getModel();
-      if (!rawModel) return;
-      const startPos = rawModel.getPositionAt(leftNode.offset);
-      const endPos = rawModel.getPositionAt(leftNode.offset + leftNode.length);
-      leftEditor.current?.revealRangeInCenter(
-        new monaco.Range(
-          startPos.lineNumber, startPos.column,
-          endPos.lineNumber, endPos.column
-        )
-      );
-      leftEditor.current?.setSelection(
-        new monaco.Selection(
-          startPos.lineNumber, startPos.column,
-          endPos.lineNumber, endPos.column
-        )
-      );
-      const decs = [{
-        range: new monaco.Range(
-          startPos.lineNumber, startPos.column,
-          endPos.lineNumber, endPos.column
-        ),
-        options: { inlineClassName: 'currentSearchHighlight' }
-      }];
-      const newIds = leftEditor.current!.deltaDecorations(leftDecs, decs);
-      setLeftDecs(newIds);
-      setTimeout(() => {
-        leftEditor.current?.deltaDecorations(newIds, []);
-        setLeftDecs([]);
-      }, 1500);
+    editor.onDidChangeCursorPosition((event) => {
+      const currentTabId = activeTabIdRef.current;
+
+      if (
+        largeModeRef.current[currentTabId]
+        || !workerStructureEnabledRef.current[currentTabId]
+        || structureStatusRef.current[currentTabId] !== 'ready'
+      ) {
+        return;
+      }
+
+      const rightModel = editor.getModel();
+
+      if (
+        !rightModel ||
+        (event.position.lineNumber === 1 && event.position.column === 1)
+      ) {
+        return;
+      }
+
+      requestWorkerLocate(currentTabId, rightModel.getOffsetAt(event.position));
     });
 
-    // —— (2) 在 Monaco 自带右键菜单里挂 “复制值” (如需复制值功能) —— 
+    editor.onMouseUp(() => {
+      const currentTabId = activeTabIdRef.current;
+
+      if (!largeModeRef.current[currentTabId] || !workerStructureEnabledRef.current[currentTabId]) {
+        return;
+      }
+
+      if (structureStatusRef.current[currentTabId] !== 'ready') {
+        return;
+      }
+
+      const model = editor.getModel();
+      const position = editor.getPosition();
+      if (!model || !position) {
+        return;
+      }
+
+      requestWorkerLocate(currentTabId, model.getOffsetAt(position));
+    });
+
+    editor.onDidChangeHiddenAreas(() => {
+      const currentTabId = activeTabIdRef.current;
+      rightViewStateByTabRef.current[currentTabId] = editor.saveViewState() ?? null;
+    });
+
     editor.addAction({
       id: 'copyValueAction',
       label: '复制值',
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 1,
-      run: (ed) => {
-        const model = ed.getModel();
-        const pos = ed.getPosition();
-        if (!model || !pos) return;
-        const offset = model.getOffsetAt(pos);
-        const formattedText = model.getValue();
-        const loc = getLocation(formattedText, offset);
-        const path = loc.path;
-        if (!rightTreeRef.current) return;
-        const node = findNodeAtLocation(rightTreeRef.current, path);
-        if (!node) return;
-        let toCopy = '';
-        if (node.type === 'string') {
-          toCopy = node.value as string;
-        } else {
-          toCopy = formattedText.slice(node.offset, node.offset + node.length);
+      run: async (mountedEditor) => {
+        const currentTabId = activeTabIdRef.current;
+        const model = mountedEditor.getModel();
+        const position = mountedEditor.getPosition();
+
+        if (!model || !position) {
+          return;
         }
-        navigator.clipboard.writeText(toCopy).catch(console.error);
-      }
+
+        const offset = model.getOffsetAt(position);
+        await copyValueAtOffset(currentTabId, offset);
+      },
     });
   };
 
-
-
-
-
-
-  /** 导入 JSON */
-  // —— 导入 JSON，不再 dispose 或新建 model —— 
-  const handleImport = async () => {
-    try {
-      const filePath = await window.electronAPI!.selectJsonFile();
-      if (!filePath) return;
-      const content = await window.electronAPI!.readJsonFile(filePath);
-
-      // 更新标签名称
-      const fileName = filePath.split(/[\\/]/).pop() || 'Untitled';
-      renameTab(activeTabId, fileName);
-
-      // 只更新 tabs[].content，不要再操作 model
-      updateTabContent(activeTabId, content);
-
-      // 更新 AST 并触发格式化
-      leftTreeRef.current = parseTree(content);
-      formatInWorker(content, activeTabId);
-
-      // 重置搜索/高亮状态
-      setSearchTerm('');
-      setRightMatches([]);
-      setRightDecs([]);
-      setCurrentIdx(0);
-
-    } catch (e: any) {
-      setError('导入失败：' + e.message);
+  const handleLeftChange = (value?: string) => {
+    if (!activeTab) {
+      return;
     }
+
+    if (suppressLeftChangeRef.current[activeTab.id]) {
+      return;
+    }
+
+    const nextContent = value ?? '';
+    const largeMode = isLargeDocument(nextContent);
+    updateTabContent(activeTab.id, nextContent);
+    setTabLargeMode(activeTab.id, largeMode);
+    queueFormat(activeTab.id, nextContent);
   };
 
-
-
-
-  /** 格式化 JSON → 更新 state */
-  const formatInWorker = (text: string, tabId: string) => {
-    setError(null);
-    // —— 如果是空内容，就不走 Worker 了，直接清空右侧
-  if (!text) {
-    setRightValues(rv => ({ ...rv, [tabId]: '' }));
-    return;
-  }
-    workerRef.current.onmessage = (e: MessageEvent) => {
-      const { success, data, error: msg } = e.data;
-      if (success) {
-        setRightValues(rv => ({ ...rv, [tabId]: data }));
-        rightTreeRef.current = parseTree(data);
-      } else {
-        setError(msg);
-      }
-    };
-    workerRef.current.postMessage(text);
+  const handleImport = () => {
+    fileInputRef.current?.click();
   };
 
+  const handleFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
 
-  /** 点击格式化 （先更新左侧 AST，再格式化右侧） */
+    if (!file || !activeTab) {
+      return;
+    }
+
+    await importJsonFile(activeTab.id, file);
+  };
+
   const handleFormat = () => {
-    const txt = leftEditor.current?.getValue() || '';
-    if (txt !== '') {
-      leftTreeRef.current = parseTree(txt);
-    } else {
-      leftTreeRef.current = undefined;
+    if (!activeTab) {
+      return;
     }
-    formatInWorker(txt, activeTabId);
-  };
 
-  /** 清除 两侧 */
-  // —— 清除内容，也不 dispose model —— 
-  const handleClear = () => {
-    // 1. 只更新 tabs[].content，不再操作 model
-    updateTabContent(activeTabId, '');
-
-      // 2. 重置标签标题为默认
-+  renameTab(activeTabId, 'newTab');
-
-    // 3. 清空 AST 和格式化结果
-    leftTreeRef.current = undefined;
-    rightTreeRef.current = undefined;
-    setRightValues(rv => ({ ...rv, [activeTabId]: '' }));
-
-    // 4. 重置搜索/高亮/报错等状态
-    setError(null);
-    setSearchTerm('');
-    setRightMatches([]);
-    setRightDecs([]);
-    setCurrentIdx(0);
-  };
-
-
-
-
-
-  /** 折叠全部 */
-  const handleFoldAll = () => {
-    if (!rightEditor.current) return;
-    const action = rightEditor.current.getAction('editor.foldAll');
-    if (action) {
-      action.run();
+    const currentText = getTabContent(activeTab.id);
+    if (!currentText.trim()) {
+      clearPerformanceState(activeTab.id);
+      queueFormat(activeTab.id, currentText, true);
+      return;
     }
+
+    const largeMode = isLargeDocument(currentText);
+    beginPerformanceSession(
+      activeTab.id,
+      'manual-format',
+      activeTab.title,
+      null,
+      getUtf8ByteLength(currentText),
+      largeMode
+    );
+    setTabLargeMode(activeTab.id, largeMode);
+    queueFormat(activeTab.id, currentText, true);
   };
 
-  /** 展开全部 */
-  const handleUnfoldAll = () => {
-    if (!rightEditor.current) return;
-    const action = rightEditor.current.getAction('editor.unfoldAll');
-    if (action) {
-      action.run();
+  const handleOpenEditJson = () => {
+    if (!activeTab) {
+      return;
     }
-  };
 
-  /** 右侧搜索 & 左侧高亮 */
-  const runRightSearch = (term: string) => {
-    const ed = rightEditor.current;
-    if (!ed) return;
-    const model = ed.getModel();
-    if (!model) return;
-    const allMatches = term
-      ? model.findMatches(term, true, true, false, null, true)
-      : [];
-    setRightMatches(allMatches);
-    const decs = allMatches.map((m, i) => ({
-      range: m.range,
-      options: {
-        inlineClassName:
-          i === currentIdx ? 'currentSearchHighlight' : 'searchHighlight'
-      }
-    }));
-    const ids = ed.deltaDecorations(rightDecs, decs);
-    setRightDecs(ids);
-    if (allMatches.length > 0) {
-      const match = allMatches[currentIdx % allMatches.length];
-      ed.revealRangeInCenter(match.range);
-      const snippetText = model.getValueInRange(match.range);
-      const leftEd = leftEditor.current;
-      if (!leftEd) return;
-      const lm = leftEd.getModel();
-      if (!lm) return;
-      const leftMatch = lm.findNextMatch(
-        snippetText,
-        new monaco.Position(1, 1),
-        false,
-        false,
-        null,
-        false
+    try {
+      const raw = getTabContent(activeTab.id);
+      const formatted = JSON.stringify(JSON.parse(raw), null, 2);
+      editJsonValueRef.current = formatted;
+      setEditJsonError(null);
+      clearCopyLiteralNotice();
+      setEditJsonSession({
+        key: Date.now(),
+        initialValue: formatted,
+      });
+    } catch (error) {
+      setTabError(
+        activeTab.id,
+        error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败'
       );
-      if (leftMatch) {
-        leftEd.revealRangeInCenter(leftMatch.range);
-        const s = leftMatch.range.getStartPosition();
-        const e = leftMatch.range.getEndPosition();
-        leftEd.setSelection(
-          new monaco.Selection(
-            s.lineNumber, s.column,
-            e.lineNumber, e.column
-          )
-        );
-        const dec2 = [{
-          range: leftMatch.range,
-          options: { inlineClassName: 'currentSearchHighlight' }
-        }];
-        const newIds2 = leftEd.deltaDecorations(leftDecs, dec2);
-        setLeftDecs(newIds2);
-        setTimeout(() => {
-          leftEd.deltaDecorations(newIds2, []);
-          setLeftDecs([]);
-        }, 1500);
+    }
+  };
+
+  const closeEditJson = () => {
+    setEditJsonSession(null);
+    setEditJsonError(null);
+    clearCopyLiteralNotice();
+  };
+
+  const handleSaveEditJson = () => {
+    if (!activeTab) {
+      return;
+    }
+
+    try {
+      const updated = JSON.stringify(JSON.parse(editJsonValueRef.current), null, 2);
+      const largeMode = isLargeDocument(updated);
+      beginPerformanceSession(
+        activeTab.id,
+        'edit-save',
+        activeTab.title,
+        null,
+        getUtf8ByteLength(updated),
+        largeMode
+      );
+
+      mutatePerformanceSession(activeTab.id, (session) => {
+        session.leftModelStartedAt = performance.now();
+      });
+      updateTabContent(activeTab.id, updated, true);
+      mutatePerformanceSession(activeTab.id, (session) => {
+        session.leftModelCompletedAt = performance.now();
+      });
+      setTabLargeMode(activeTab.id, largeMode);
+      setEditJsonError(null);
+      closeEditJson();
+      resetSearchState();
+      queueFormat(activeTab.id, updated, true);
+    } catch (error) {
+      setEditJsonError(
+        error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败'
+      );
+    }
+  };
+
+  const handleCopyEscapedJson = async () => {
+    try {
+      const jsonText = JSON.stringify(JSON.parse(editJsonValueRef.current));
+      const literal = JSON.stringify(jsonText);
+      await navigator.clipboard.writeText(literal);
+      setEditJsonError(null);
+      setHasCopiedLiteral(true);
+      if (copyLiteralTimeoutRef.current !== null) {
+        window.clearTimeout(copyLiteralTimeoutRef.current);
       }
+      copyLiteralTimeoutRef.current = window.setTimeout(() => {
+        setHasCopiedLiteral(false);
+        copyLiteralTimeoutRef.current = null;
+      }, 2000);
+    } catch (error) {
+      setEditJsonError(
+        error instanceof Error ? `复制字符串字面量失败：${error.message}` : '复制字符串字面量失败'
+      );
+    }
+  };
+
+  const handleLargeFileLocateToggle = (enabled: boolean) => {
+    if (!activeTab) {
+      return;
+    }
+
+    const currentText = getTabContent(activeTab.id);
+    const largeMode = isLargeDocument(currentText);
+    setLargeFileLocateEnabled(activeTab.id, enabled);
+
+    if (!largeMode) {
+      setStructureStatus(activeTab.id, 'ready');
+      return;
+    }
+
+    if (!enabled) {
+      clearTabStructure(activeTab.id, 'disabled');
+      return;
+    }
+
+    queueFormat(activeTab.id, currentText, true);
+  };
+
+  const handleClear = () => {
+    if (!activeTab) {
+      return;
+    }
+
+    renameTab(activeTab.id, DEFAULT_TAB_TITLE);
+    resetTabArtifacts(activeTab.id);
+    resetSearchState();
+  };
+
+  const addTab = () => {
+    const nextId = `tab-${Date.now()}`;
+    const currentTabId = activeTabIdRef.current;
+
+    if (currentTabId) {
+      leftViewStateByTabRef.current[currentTabId] = leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[currentTabId] ?? null;
+      rightViewStateByTabRef.current[currentTabId] = rightEditorRef.current?.saveViewState() ?? rightViewStateByTabRef.current[currentTabId] ?? null;
+    }
+
+    rawTextByTabRef.current[nextId] = '';
+    formattedTextByTabRef.current[nextId] = '';
+    initializeTabState(nextId);
+    setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
+    setLargeViewerDataByTab((current) => ({ ...current, [nextId]: null }));
+    setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
+    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
+    largeModeRef.current[nextId] = false;
+    largeFileLocateEnabledRef.current[nextId] = false;
+    structureStatusRef.current[nextId] = 'ready';
+    workerStructureEnabledRef.current[nextId] = false;
+    setTabs((currentTabs) => [...currentTabs, createTab(nextId)]);
+    setActiveTabId(nextId);
+  };
+
+  const closeTab = (tabId: string) => {
+    if (tabs.length === 1) {
+      handleClear();
+      return;
+    }
+
+    const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
+    const fallbackTab = tabs[closingIndex === 0 ? 1 : closingIndex - 1];
+
+    setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
+    removeTabArtifacts(tabId);
+    setLargeViewerDataByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setLargeViewerStatusByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setLargeViewerCollapsedLinesByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+
+    if (activeTabId === tabId) {
+      setActiveTabId(fallbackTab.id);
     }
   };
 
   const gotoNext = () => {
-    if (!rightMatches.length) return;
-    setCurrentIdx(i => (i + 1) % rightMatches.length);
+    if (activeRightMatchCount === 0) {
+      return;
+    }
+
+    setCurrentMatchIndex((current) => (current + 1) % activeRightMatchCount);
   };
+
   const gotoPrev = () => {
-    if (!rightMatches.length) return;
-    setCurrentIdx(i => (i - 1 + rightMatches.length) % rightMatches.length);
+    if (activeRightMatchCount === 0) {
+      return;
+    }
+
+    setCurrentMatchIndex((current) => (current - 1 + activeRightMatchCount) % activeRightMatchCount);
   };
 
-  useEffect(() => {
-    runRightSearch(searchTerm);
-  }, [searchTerm, currentIdx]);
-
-  const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
+  const handleSearchTermChange = (value: string) => {
+    setSearchTerm(value);
+    setLargeViewerMatches([]);
+    setLargeViewerMatchCount(0);
+    setCurrentMatchIndex(0);
   };
+
+  if (!activeTab) {
+    return null;
+  }
 
   return (
     <div
       className={isDarkMode ? 'app-container dark-mode' : 'app-container'}
-      style={{ 
-        height: '100vh', 
+      style={{
+        height: '100vh',
         width: '100vw',
-              /* 禁止整个页面滚动 */
-      overflow: 'hidden',
-           display: 'flex',           // 新增：Flex 容器
-    flexDirection: 'column'    // 新增：纵向排列
-}}
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
     >
-      {/* —— 统一顶部菜单栏 —— */}
-      <div className="toolbar">
-        <div className="toolbar-group">
-          <button onClick={handleImport}>导入 JSON</button>
-          <button onClick={handleFormat}>格式化</button>
-          <button onClick={handleClear}>清除</button>
-          <button onClick={handleFoldAll}>折叠全部</button>
-          <button onClick={handleUnfoldAll}>展开全部</button>
-        </div>
-
-        <div className="toolbar-group toolbar-search">
-          <input
-            className="toolbar-input"
-            placeholder="搜索格式化结果…"
-            value={searchTerm}
-            onChange={e => {
-              setSearchTerm(e.target.value);
-              setCurrentIdx(0);
-            }}
-          />
-          <button onClick={gotoPrev} disabled={!rightMatches.length}>上一处</button>
-          <button onClick={gotoNext} disabled={!rightMatches.length}>下一处</button>
-        </div>
-
-        <div className="toolbar-group toolbar-options">
-          <label className="toolbar-checkbox">
-            <input
-              type="checkbox"
-              checked={wrapLongLines}
-              onChange={e => setWrapLongLines(e.target.checked)}
-            />
-            自动换行
-          </label>
-          <button onClick={toggleDarkMode} className="toolbar-toggle">
-            {isDarkMode ? '切回浅色' : '切换深色'}
-          </button>
-        </div>
-
-        <div className="toolbar-more">
-          <select
-            onChange={e => {
-              if (e.target.value === 'wrap') {
-                setWrapLongLines(prev => !prev);
-              } else if (e.target.value === 'theme') {
-                setIsDarkMode(prev => !prev);
-              }
-              e.target.value = '';
-            }}
-          >
-            <option value="" hidden>更多</option>
-            <option value="wrap">{wrapLongLines ? '关闭自动换行' : '开启自动换行'}</option>
-            <option value="theme">{isDarkMode ? '切回浅色' : '切换深色'}</option>
-          </select>
-        </div>
-
-        {error && <span className="toolbar-error">{error}</span>}
-      </div>
-
-      {/* —— 多标签页栏 —— */}
-      <div className="tab-bar">
-        {tabs.map(tab => {
-          const isRenaming = renamingTab?.id === tab.id;
-          return (
-            <div
-              key={tab.id}
-              className={tab.id === activeTabId ? 'tab active' : 'tab'}
-              onClick={() => setActiveTabId(tab.id)}
-              // 双击或右键都触发 startRenaming
-              onDoubleClick={() => startRenaming(tab.id, tab.title)}
-              onContextMenu={e => { e.preventDefault(); startRenaming(tab.id, tab.title); }}
-            >
-              {isRenaming ? (
-                // 2. 正在重命名，显示 <input>
-                <input
-                  autoFocus
-                  value={renamingTab.value}
-                  onChange={e => setRenamingTab({ ...renamingTab, value: e.target.value })}
-                  onBlur={finishRenaming}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      finishRenaming();
-                    } else if (e.key === 'Escape') {
-                      setRenamingTab(null);
-                    }
-                  }}
-                  style={{
-                    width: '80px',
-                    fontSize: 'inherit',
-                    fontFamily: 'inherit',
-                  }}
-                />
-              ) : (
-                // 3. 正常模式，显示 title
-                <>
-                  {tab.title}
-                  <span
-                    onClick={e => { e.stopPropagation(); closeTab(tab.id); }}
-                  >
-                    ×
-                  </span>
-                </>
-              )}
-            </div>
-          );
-        })}
-        <button className="add-tab" onClick={addTab}>＋</button>
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.txt,application/json,text/plain"
+        style={{ display: 'none' }}
+        onChange={handleFileSelection}
+      />
 
 
-      {/* —— 根据 activeTabId 渲染当前标签面板 —— */}
-      {tabs.map(tab =>
-        tab.id === activeTabId && (
-          <Split
-            key={tab.id}
-            sizes={[50, 50]}
-            minSize={200}
-            gutterSize={6}
-            style={{
-              display: 'flex',
-              flex: 1,        // 填满父容器剩余空间
-              height: 'calc(100% - 48px)'
-            }}
-          >
-            {/* —— 左侧编辑器，绑定到 tab.content —— */}
-            <div style={{
-              flex: 1,
-              position: 'relative',
-              borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd',
-              /* Monaco 自身滚动生效 */
-              overflow: 'auto'
-            }}>
-              <Editor
-                key={tab.id}
-                onMount={onLeftMount}
-                language="json"
-                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-                options={getMonacoOptions()}
-                path={tab.id}                                   // 唯一标识
-                value={tab.content}
-                onChange={v => {
-                  const txt = v || '';
-                  updateTabContent(tab.id, txt);                // 同步到 tabs[].content
-                  formatInWorker(txt, tab.id);                  // 触发右侧格式化
-                }}
-                height="100%"
-                loading={null}
-              />
-              {tab.content === '' && (
-                <div className="editor-center-placeholder">原始 JSON</div>
-              )}
-            </div>
+      <JsonToolToolbar
+        onImport={handleImport}
+        onFormat={handleFormat}
+        onClear={handleClear}
+        onEditJson={handleOpenEditJson}
+        onFoldAll={() => {
+          if (shouldUseDedicatedRightViewer) {
+            largeViewerRef.current?.foldAll();
+            return;
+          }
+          rightEditorRef.current?.getAction('editor.foldAll')?.run();
+        }}
+        onUnfoldAll={() => {
+          if (shouldUseDedicatedRightViewer) {
+            largeViewerRef.current?.unfoldAll();
+            return;
+          }
+          rightEditorRef.current?.getAction('editor.unfoldAll')?.run();
+        }}
+        canControlRightPaneFolding={canControlRightPaneFolding}
+        isLargeFileMode={isLargeFileMode}
+        canEditJson={canEditJson}
+        searchTerm={searchTerm}
+        onSearchTermChange={handleSearchTermChange}
+        onPrevMatch={gotoPrev}
+        onNextMatch={gotoNext}
+        hasSearchMatches={activeRightMatchCount > 0}
+        wrapLongLines={wrapLongLines}
+        onWrapLongLinesChange={setWrapLongLines}
+        isDarkMode={isDarkMode}
+        onToggleDarkMode={() => setIsDarkMode((current) => !current)}
+        isLargeFileLocateEnabled={isLargeFileLocateEnabled}
+        onLargeFileLocateToggle={handleLargeFileLocateToggle}
+        showPerformancePanel={showPerformancePanel}
+        onShowPerformancePanelChange={setShowPerformancePanel}
+        importingFileName={importingFileName}
+        canEnableLargeFileLocate={canEnableLargeFileLocate}
+        currentStructureStatus={currentStructureStatus}
+        currentError={currentError}
+      />
 
-            {/* —— 右侧编辑器，使用 per-tab 格式化结果 —— */}
-            <div style={{
-              flex: 1,
-              position: 'relative',
-              /* Monaco 自身滚动生效 */
-              overflow: 'auto'
-            }}>
-              <Editor
-                onMount={onRightMount}
-                language="json"
-                value={rightValues[tab.id] || ''}
-                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-                options={{ ...getMonacoOptions(), readOnly: true }}
-                height="100%"
-                loading={null}
-              />
-              {!rightValues[tab.id] && (
-                <div className="editor-center-placeholder">格式化结果</div>
-              )}
-            </div>
-          </Split>
-        )
+      {showPerformancePanel && (
+        <JsonPerformancePanel
+          snapshot={activePerformanceSnapshot}
+          isDarkMode={isDarkMode}
+        />
       )}
 
+      <JsonToolTabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        renamingTab={renamingTab}
+        onSelectTab={setActiveTabId}
+        onStartRenaming={startRenamingTab}
+        onRenamingChange={handleRenamingChange}
+        onFinishRenaming={finishRenaming}
+        onCancelRenaming={cancelRenaming}
+        onCloseTab={closeTab}
+        onAddTab={addTab}
+      />
 
+      {editJsonSession && (
+        <JsonEditModal
+          sessionKey={editJsonSession.key}
+          initialValue={editJsonSession.initialValue}
+          isDarkMode={isDarkMode}
+          error={editJsonError}
+          hasCopiedLiteral={hasCopiedLiteral}
+          onValueChange={(value) => {
+            editJsonValueRef.current = value;
+          }}
+          onSave={handleSaveEditJson}
+          onCopyLiteral={handleCopyEscapedJson}
+          onClose={closeEditJson}
+        />
+      )}
 
-
-
-      {/* —— 自定义 “复制值” 右键菜单 —— */}
-      {contextMenu.visible && (
+      <Split
+        sizes={[50, 50]}
+        minSize={200}
+        gutterSize={6}
+        style={{
+          display: 'flex',
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
         <div
+          className="editor-pane"
           style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            background: '#fff',
-            border: '1px solid #ccc',
-            zIndex: 10000,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain',
           }}
         >
-          <div
-            style={{ padding: '6px 12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-            onClick={() => {
-              navigator.clipboard.writeText(contextMenu.toCopy).catch(console.error);
-              setContextMenu(prev => ({ ...prev, visible: false }));
-            }}
-          >
-            复制值
+          <div className={`editor-pane-header editor-pane-header-subtle ${isDarkMode ? 'dark' : ''}`}>
+            <span className="editor-pane-header-text">{leftPaneMetaText}</span>
+          </div>
+          <div className="editor-pane-body">
+            <Editor
+              onMount={handleLeftMount}
+              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+              options={getMonacoOptions(isLargeFileMode)}
+              onChange={handleLeftChange}
+              height="100%"
+              loading={null}
+            />
+            {activeDocumentMeta.rawLength === 0 && !isImportingActiveTab && (
+              <div className="editor-center-placeholder">原始 JSON</div>
+            )}
+            {isImportingActiveTab && (
+              <div className="editor-loading-overlay">
+                {`正在导入 ${importingFileName}...`}
+              </div>
+            )}
           </div>
         </div>
-      )}
+
+        <div
+          className="editor-pane"
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            overscrollBehavior: 'contain',
+          }}
+        >
+          <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
+            <span className="editor-pane-header-text">{rightPaneMetaText}</span>
+            <div className="editor-pane-header-flags">
+              <span className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}>
+                大文件查看模式
+              </span>
+              <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
+                轻量模式
+              </span>
+            </div>
+          </div>
+          <div className="editor-pane-body">
+            {shouldUseDedicatedRightViewer ? (
+              <LargeJsonReadonlyViewer
+                ref={largeViewerRef}
+                text={formattedValue}
+                data={activeLargeViewerData}
+                isDarkMode={isDarkMode}
+                wrapLongLines={wrapLongLines}
+                collapsedLines={activeLargeViewerCollapsedLines}
+                searchTerm={searchTerm}
+                searchMatches={largeViewerMatches}
+                activeMatchIndex={currentMatchIndex}
+                onCollapsedLinesChange={(lines) => {
+                  if (!activeTab) {
+                    return;
+                  }
+
+                  setLargeViewerCollapsedLinesByTab((current) => ({
+                    ...current,
+                    [activeTab.id]: lines,
+                  }));
+                }}
+                onMatchCountChange={setLargeViewerMatchCount}
+                onLocateOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
+                onCopyValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
+              />
+            ) : !isBuildingDedicatedRightViewer ? (
+              <Editor
+                onMount={handleRightMount}
+                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+                options={getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)}
+                height="100%"
+                loading={null}
+              />
+            ) : null}
+            {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
+              <div className="editor-center-placeholder">
+                {isFormattingActiveTab ? '正在格式化...' : '格式化结果'}
+              </div>
+            )}
+            {isBuildingDedicatedRightViewer && !isImportingActiveTab && (
+              <div className="editor-loading-overlay">正在构建大文件查看模式...</div>
+            )}
+            {isImportingActiveTab && (
+              <div className="editor-loading-overlay">正在读取文件...</div>
+            )}
+          </div>
+        </div>
+      </Split>
     </div>
   );
 };

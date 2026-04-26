@@ -1,19 +1,22 @@
 {
   "name": "my-json-tool-new",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev:electron": "tsc -p tsconfig.electron.json",
-    "start:electron": "wait-on http://localhost:5173 && electron ./dist-electron/main.js",
-    "dev:renderer": "vite",
-    "dev": "npm-run-all -s dev:electron --parallel dev:renderer start:electron",
-    "build": "vite build && tsc -p tsconfig.electron.json",
+    "dev": "vite",
+    "build": "vite build",
     "start": "electron ./dist-electron/main.js",
-    "dist": "electron-builder"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "node ./scripts/bench-json.mjs",
+    "samples": "node ./scripts/generate-json-samples.mjs",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:zip": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
-    "axios": "^1.10.0",
     "jsonc-parser": "^3.3.1",
     "monaco-editor": "^0.52.2",
     "react": "^18.2.0",
@@ -21,16 +24,57 @@
     "react-split": "^2.0.14"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20.11.30",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.1.0",
     "electron": "^35.5.0",
     "electron-builder": "^26.0.12",
-    "npm-run-all": "^4.1.5",
+    "jsdom": "^28.1.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.0",
     "vite-plugin-electron": "^0.12.0",
-    "wait-on": "^8.0.3"
+    "vitest": "^4.1.5"
+  },
+  "build": {
+    "appId": "com.aaronsound.hanjson",
+    "productName": "HanJson",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "dist-electron/preload.js"
+    ],
+    "files": [
+      "dist-renderer/**",
+      "dist-electron/**",
+      "build/icons/mac/icon.icns",
+      "build/icons/win/icon.ico",
+      "package.json"
+    ],
+    "win": {
+      "icon": "build/icons/win/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "mac": {
+      "icon": "build/icons/mac/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
