@@ -15,6 +15,7 @@ import {
   EMPTY_DOCUMENT_META,
   INITIAL_TAB_ID,
   LARGE_FILE_THRESHOLD,
+  LargeJsonSearchMatch,
   LargeJsonViewerData,
   SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
@@ -97,6 +98,7 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [rightMatches, setRightMatches] = useState<monaco.editor.FindMatch[]>([]);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
+  const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [wrapLongLines, setWrapLongLines] = useState(false);
@@ -295,8 +297,8 @@ const App: React.FC = () => {
     setHasCopiedLiteral(false);
   };
 
-  const copyValueAtOffset = async (tabId: string, offset: number) => {
-    const valueToCopy = await requestWorkerValue(tabId, offset);
+  const copyValueAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
+    const valueToCopy = await requestWorkerValue(tabId, offset, preferCachedText);
     if (valueToCopy === null) {
       return;
     }
@@ -335,6 +337,7 @@ const App: React.FC = () => {
   const resetSearchState = () => {
     setSearchTerm('');
     setRightMatches([]);
+    setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
     setCurrentMatchIndex(0);
     clearLeftHighlights();
@@ -359,10 +362,23 @@ const App: React.FC = () => {
   const setLargeViewerData = (tabId: string, data: LargeJsonViewerData | null) => {
     setLargeViewerDataByTab((current) => ({ ...current, [tabId]: data }));
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [tabId]: [] }));
+    if (tabId === activeTabIdRef.current) {
+      setLargeViewerMatches([]);
+      setLargeViewerMatchCount(0);
+    }
   };
 
   const setLargeViewerStatus = (tabId: string, status: 'idle' | 'building' | 'ready') => {
     setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: status }));
+  };
+
+  const setLargeViewerSearchResults = (tabId: string, matches: LargeJsonSearchMatch[]) => {
+    if (tabId !== activeTabIdRef.current) {
+      return;
+    }
+
+    setLargeViewerMatches(matches);
+    setLargeViewerMatchCount(matches.length);
   };
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
@@ -573,6 +589,7 @@ const App: React.FC = () => {
     importJsonFile,
     queueFormat,
     removeTabArtifacts,
+    requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,
     resetTabArtifacts,
@@ -601,6 +618,7 @@ const App: React.FC = () => {
     setStructureStatus,
     setLargeViewerData,
     setLargeViewerStatus,
+    setLargeViewerSearchResults,
     updateTabContent,
     updateFormattedContent,
     resetSearchState,
@@ -685,6 +703,22 @@ const App: React.FC = () => {
   useEffect(() => {
     resetSearchState();
   }, [activeTabId]);
+
+  useEffect(() => {
+    if (!activeTab || !shouldUseDedicatedRightViewer) {
+      setLargeViewerMatches([]);
+      setLargeViewerMatchCount(0);
+      return;
+    }
+
+    requestWorkerSearch(activeTab.id, searchTerm);
+  }, [
+    activeDocumentMeta.formattedRevision,
+    activeLargeViewerData,
+    activeTab,
+    searchTerm,
+    shouldUseDedicatedRightViewer,
+  ]);
 
   useEffect(() => {
     const editor = rightEditorRef.current;
@@ -786,42 +820,47 @@ const App: React.FC = () => {
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       largeFileOptimizations: preserveFoldingForLargeReadonly ? false : true,
-    wordWrap: wrapLongLines ? 'on' : 'off',
-    folding: enableStructuralFolding,
-    showFoldingControls: enableStructuralFolding ? 'always' : 'never',
-    foldingStrategy: 'indentation',
-    foldingMaximumRegions: preserveFoldingForLargeReadonly ? 50000 : 5000,
-    foldingHighlight: enableStructuralFolding,
-    glyphMargin: enableStructuralFolding,
-    occurrencesHighlight: 'off',
-    selectionHighlight: false,
-    renderWhitespace: 'none',
-    renderValidationDecorations: 'off',
-    matchBrackets: 'never',
-    fontLigatures: false,
-    codeLens: false,
-    lineDecorationsWidth: enableStructuralFolding ? 16 : 0,
-    lineNumbersMinChars: 3,
-    maxTokenizationLineLength: largeMode ? 2000 : 1000000,
-    unicodeHighlight: {
-      ambiguousCharacters: false,
-      invisibleCharacters: false,
-      nonBasicASCII: false,
-    },
-    quickSuggestions: false,
-    suggestOnTriggerCharacters: false,
-    scrollbar: {
-      alwaysConsumeMouseWheel: true,
-    },
-    wordBasedSuggestions: largeMode ? 'off' : 'currentDocument',
-    hover: {
-      enabled: !largeMode,
-    },
-    links: !largeMode,
-    readOnly,
-    guides: {
-      indentation: false,
-    },
+      wordWrap: wrapLongLines ? 'on' : 'off',
+      folding: enableStructuralFolding,
+      showFoldingControls: enableStructuralFolding ? 'always' : 'never',
+      foldingStrategy: 'indentation',
+      foldingMaximumRegions: preserveFoldingForLargeReadonly ? 50000 : 5000,
+      foldingHighlight: enableStructuralFolding,
+      glyphMargin: false,
+      occurrencesHighlight: 'off',
+      selectionHighlight: false,
+      renderWhitespace: 'none',
+      renderValidationDecorations: 'off',
+      matchBrackets: 'never',
+      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontSize: 12,
+      fontWeight: 'normal',
+      lineHeight: 18,
+      fontLigatures: false,
+      letterSpacing: 0,
+      codeLens: false,
+      lineDecorationsWidth: enableStructuralFolding ? 16 : 0,
+      lineNumbersMinChars: 3,
+      maxTokenizationLineLength: largeMode ? 2000 : 1000000,
+      unicodeHighlight: {
+        ambiguousCharacters: false,
+        invisibleCharacters: false,
+        nonBasicASCII: false,
+      },
+      quickSuggestions: false,
+      suggestOnTriggerCharacters: false,
+      scrollbar: {
+        alwaysConsumeMouseWheel: true,
+      },
+      wordBasedSuggestions: largeMode ? 'off' : 'currentDocument',
+      hover: {
+        enabled: !largeMode,
+      },
+      links: !largeMode,
+      readOnly,
+      guides: {
+        indentation: false,
+      },
     };
   };
 
@@ -1231,6 +1270,8 @@ const App: React.FC = () => {
 
   const handleSearchTermChange = (value: string) => {
     setSearchTerm(value);
+    setLargeViewerMatches([]);
+    setLargeViewerMatchCount(0);
     setCurrentMatchIndex(0);
   };
 
@@ -1410,6 +1451,7 @@ const App: React.FC = () => {
                 wrapLongLines={wrapLongLines}
                 collapsedLines={activeLargeViewerCollapsedLines}
                 searchTerm={searchTerm}
+                searchMatches={largeViewerMatches}
                 activeMatchIndex={currentMatchIndex}
                 onCollapsedLinesChange={(lines) => {
                   if (!activeTab) {
@@ -1423,7 +1465,7 @@ const App: React.FC = () => {
                 }}
                 onMatchCountChange={setLargeViewerMatchCount}
                 onLocateOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
-                onCopyValue={(offset) => copyValueAtOffset(activeTab.id, offset)}
+                onCopyValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
               />
             ) : !isBuildingDedicatedRightViewer ? (
               <Editor
@@ -1453,4 +1495,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-

@@ -25,14 +25,25 @@ npm.cmd run test
 Expected result:
 - All tests pass
 - Current smoke coverage includes:
-  - 5MB sample stays on the Monaco path
-  - 10MB and 20MB samples enter the large-file viewer path
+  - generated line-threshold sample stays on the Monaco path
+  - generated high-line sample enters the large-file viewer path
   - large-file viewer search
   - fold all / unfold all
   - click-to-locate-left
   - copy value
 
-### Step 3: Quick Manual Check
+### Step 3: Generate Manual Samples
+
+```powershell
+cd "C:\Users\Alosan\Documents\New project"
+npm.cmd run samples
+```
+
+Expected result:
+- Creates local ignored files in `json/`
+- Default files are `sample-5mb.json`, `sample-10mb.json`, `sample-15mb.json`, and `sample-20mb.json`
+
+### Step 4: Quick Manual Check
 
 ```powershell
 cd "C:\Users\Alosan\Documents\New project"
@@ -42,21 +53,21 @@ npm.cmd run dev
 Use these sample files in `json/`:
 - `sample-5mb.json`
 - `sample-10mb.json`
+- `sample-15mb.json`
 - `sample-20mb.json`
 
 Manual flow:
 1. Import `sample-5mb.json`
-2. Confirm the right pane still uses Monaco and supports fold / unfold arrows
-3. Import `sample-10mb.json`
-4. Confirm the right pane enters large-file viewer mode
+2. Confirm the right pane enters large-file viewer mode and supports fold / unfold arrows
+3. Import `sample-6mb.json`, `sample-7mb.json`, and `sample-10mb.json`
+4. Confirm the right pane keeps the same large-file viewer layout and controls
 5. Fold one object or array in the right pane
 6. Search for a known key or value and use `上一项 / 下一项`
 7. Right-click a value and use `复制值`
 8. Click a node or matched content on the right and confirm the left pane locates correctly
 
 Expected result:
-- 5MB path behaves like the normal editor path
-- 10MB path behaves like the dedicated large-file viewer path
+- 5MB and larger JSON files use the same dedicated large-file viewer path
 - Search, fold, copy, and locate all still work
 
 ## 2. Release Candidate Check
@@ -69,8 +80,10 @@ Use this checklist before pushing a release branch, creating a tag, or asking fo
 cd "C:\Users\Alosan\Documents\New project"
 npm.cmd run build
 npm.cmd run test
+npm.cmd run samples
 npm.cmd run bench -- .\json\sample-5mb.json
 npm.cmd run bench -- .\json\sample-10mb.json
+npm.cmd run bench -- .\json\sample-15mb.json
 npm.cmd run bench -- .\json\sample-20mb.json
 ```
 
@@ -114,7 +127,7 @@ Expected result:
 
 - Automated tests reduce repeated manual work, but they do not fully replace opening the app.
 - The most important manual path is still:
-  - import `10MB`
+  - import `5MB`, `6MB`, `7MB`, and `10MB`
   - fold
   - search
   - copy value

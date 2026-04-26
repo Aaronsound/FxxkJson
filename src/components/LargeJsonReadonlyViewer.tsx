@@ -1,4 +1,5 @@
 import React, {
+  ClipboardEvent as ReactClipboardEvent,
   forwardRef,
   MouseEvent as ReactMouseEvent,
   useCallback,
@@ -8,13 +9,16 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { LargeJsonViewerData, LargeJsonViewerRegion } from '../types/jsonTool';
+import {
+  LargeJsonSearchMatch,
+  LargeJsonViewerData,
+  LargeJsonViewerRegion,
+} from '../types/jsonTool';
 import {
   findSearchMatchesInLargeJson,
-  LargeJsonSearchMatch,
 } from '../utils/largeJsonViewerData';
 
-const LINE_HEIGHT = 22;
+const LINE_HEIGHT = 18;
 const OVERSCAN = 30;
 
 interface LargeJsonReadonlyViewerProps {
@@ -24,6 +28,7 @@ interface LargeJsonReadonlyViewerProps {
   wrapLongLines: boolean;
   collapsedLines: number[];
   searchTerm: string;
+  searchMatches?: LargeJsonSearchMatch[];
   activeMatchIndex: number;
   onCollapsedLinesChange: (lines: number[]) => void;
   onMatchCountChange: (count: number) => void;
@@ -43,10 +48,15 @@ interface VisibleSegment {
   visibleEnd: number;
 }
 
+interface JsonSyntaxToken {
+  start: number;
+  end: number;
+  className?: string;
+}
+
 function getCollapsedPreview(lineText: string, region: LargeJsonViewerRegion) {
   const trimmedEnd = lineText.replace(/\s+$/, '');
-  const closing = region.kind === 'array' ? ']' : '}';
-  return `${trimmedEnd} ... ${closing}`;
+  return `${trimmedEnd} ...`;
 }
 
 function binarySearchSegment(segments: VisibleSegment[], visibleIndex: number) {
@@ -73,6 +83,142 @@ function binarySearchSegment(segments: VisibleSegment[], visibleIndex: number) {
   return null;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(value, max));
+}
+
+function getTextOffsetWithin(root: HTMLElement, node: Node, offset: number, fallbackLength: number) {
+  const range = document.createRange();
+
+  try {
+    range.selectNodeContents(root);
+    range.setEnd(node, offset);
+    return clamp(range.toString().length, 0, fallbackLength);
+  } catch {
+    return fallbackLength;
+  } finally {
+    range.detach();
+  }
+}
+
+function getLineTextElementFromNode(node: Node, container: HTMLElement) {
+  const element = node instanceof Element ? node : node.parentElement;
+  const lineElement = element?.closest<HTMLElement>('.large-json-line-text') ?? null;
+
+  if (!lineElement || !container.contains(lineElement)) {
+    return null;
+  }
+
+  return lineElement;
+}
+
+function getLineNumberFromElement(element: HTMLElement) {
+  const lineNumber = Number(element.dataset.lineNumber);
+  return Number.isFinite(lineNumber) ? lineNumber : null;
+}
+
+function getJsonStringEnd(lineText: string, start: number) {
+  let index = start + 1;
+  let escaped = false;
+
+  while (index < lineText.length) {
+    const char = lineText[index];
+
+    if (escaped) {
+      escaped = false;
+    } else if (char === '\\') {
+      escaped = true;
+    } else if (char === '"') {
+      return index + 1;
+    }
+
+    index += 1;
+  }
+
+  return lineText.length;
+}
+
+function getNextNonWhitespaceIndex(lineText: string, start: number) {
+  let index = start;
+
+  while (index < lineText.length && /\s/.test(lineText[index])) {
+    index += 1;
+  }
+
+  return index;
+}
+
+function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
+  const tokens: JsonSyntaxToken[] = [];
+  let index = 0;
+
+  const pushToken = (start: number, end: number, className?: string) => {
+    if (end > start) {
+      tokens.push({ start, end, className });
+    }
+  };
+
+  while (index < lineText.length) {
+    const char = lineText[index];
+
+    if (/\s/.test(char)) {
+      const start = index;
+      while (index < lineText.length && /\s/.test(lineText[index])) {
+        index += 1;
+      }
+      pushToken(start, index);
+      continue;
+    }
+
+    if (char === '"') {
+      const end = getJsonStringEnd(lineText, index);
+      const nextNonWhitespace = getNextNonWhitespaceIndex(lineText, end);
+      const className = lineText[nextNonWhitespace] === ':'
+        ? 'large-json-token large-json-token-key'
+        : 'large-json-token large-json-token-value large-json-token-string';
+
+      pushToken(index, end, className);
+      index = end;
+      continue;
+    }
+
+    if (char === '-' || /\d/.test(char)) {
+      const match = lineText.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
+      if (match) {
+        pushToken(
+          index,
+          index + match[0].length,
+          'large-json-token large-json-token-value large-json-token-number'
+        );
+        index += match[0].length;
+        continue;
+      }
+    }
+
+    const literal = ['true', 'false', 'null'].find((candidate) => lineText.startsWith(candidate, index));
+    if (literal) {
+      pushToken(
+        index,
+        index + literal.length,
+        'large-json-token large-json-token-value large-json-token-literal'
+      );
+      index += literal.length;
+      continue;
+    }
+
+    if ('{}[]:,.'.includes(char)) {
+      pushToken(index, index + 1, 'large-json-token large-json-token-punctuation');
+      index += 1;
+      continue;
+    }
+
+    pushToken(index, index + 1);
+    index += 1;
+  }
+
+  return tokens;
+}
+
 const LargeJsonReadonlyViewer = forwardRef<
   LargeJsonReadonlyViewerHandle,
   LargeJsonReadonlyViewerProps
@@ -83,18 +229,18 @@ const LargeJsonReadonlyViewer = forwardRef<
   wrapLongLines,
   collapsedLines,
   searchTerm,
+  searchMatches: searchMatchesFromWorker,
   activeMatchIndex,
   onCollapsedLinesChange,
   onMatchCountChange,
   onLocateOffset,
   onCopyValue,
 }, ref) => {
-  void wrapLongLines;
-
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; offset: number } | null>(null);
+  const rowHeight = wrapLongLines ? LINE_HEIGHT * 4 : LINE_HEIGHT;
 
   const regionsByStartLine = useMemo(() => {
     const map = new Map<number, LargeJsonViewerRegion>();
@@ -128,7 +274,7 @@ const LargeJsonReadonlyViewer = forwardRef<
 
       const interval = {
         start: startLine + 1,
-        end: region.endLine,
+        end: region.endLine - 1,
         triggerLine: startLine,
       };
 
@@ -248,11 +394,21 @@ const LargeJsonReadonlyViewer = forwardRef<
 
     const caretPosition = doc.caretPositionFromPoint?.(event.clientX, event.clientY);
     if (caretPosition && currentTarget.contains(caretPosition.offsetNode)) {
-      charOffset = caretPosition.offset;
+      charOffset = getTextOffsetWithin(
+        currentTarget,
+        caretPosition.offsetNode,
+        caretPosition.offset,
+        lineText.length
+      );
     } else {
       const caretRange = doc.caretRangeFromPoint?.(event.clientX, event.clientY);
       if (caretRange && currentTarget.contains(caretRange.startContainer)) {
-        charOffset = caretRange.startOffset;
+        charOffset = getTextOffsetWithin(
+          currentTarget,
+          caretRange.startContainer,
+          caretRange.startOffset,
+          lineText.length
+        );
       } else if (
         event.target instanceof HTMLElement
         && event.target.classList.contains('large-json-line-text')
@@ -279,9 +435,141 @@ const LargeJsonReadonlyViewer = forwardRef<
     onCollapsedLinesChange(Array.from(next).sort((left, right) => left - right));
   }, [collapsedLineSet, onCollapsedLinesChange, regionsByStartLine]);
 
+  const getLineRangeText = useCallback((startLine: number, endLine: number) => {
+    const lines: string[] = [];
+    for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+      lines.push(getLineText(lineNumber));
+    }
+    return lines.join('\n');
+  }, [getLineText]);
+
+  const getCollapsedSelectionText = useCallback((lineNumber: number, startOffset: number) => {
+    const region = regionsByStartLine.get(lineNumber);
+    if (!region) {
+      return getLineText(lineNumber);
+    }
+
+    const openChar = region.kind === 'array' ? '[' : '{';
+    const closeChar = region.kind === 'array' ? ']' : '}';
+    const firstLine = getLineText(lineNumber);
+    const openIndex = firstLine.lastIndexOf(openChar);
+
+    if (openIndex >= 0 && startOffset >= openIndex) {
+      const lines = [firstLine.slice(openIndex)];
+      for (let currentLine = lineNumber + 1; currentLine < region.endLine; currentLine += 1) {
+        lines.push(getLineText(currentLine));
+      }
+
+      const closingLine = getLineText(region.endLine);
+      const closeIndex = closingLine.lastIndexOf(closeChar);
+      lines.push(closeIndex >= 0 ? closingLine.slice(0, closeIndex + 1) : closingLine);
+      return lines.join('\n');
+    }
+
+    return getLineRangeText(lineNumber, region.endLine);
+  }, [getLineRangeText, getLineText, regionsByStartLine]);
+
+  const getCopyTextForCollapsedSelection = useCallback((
+    startLine: number,
+    endLine: number,
+    startOffset: number,
+    endOffset: number
+  ) => {
+    let includesCollapsedLine = false;
+    for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+      if (collapsedLineSet.has(lineNumber)) {
+        includesCollapsedLine = true;
+        break;
+      }
+    }
+
+    if (!includesCollapsedLine) {
+      return null;
+    }
+
+    if (startLine === endLine && collapsedLineSet.has(startLine)) {
+      return getCollapsedSelectionText(startLine, startOffset);
+    }
+
+    const parts: string[] = [];
+    let lineNumber = startLine;
+
+    while (lineNumber <= endLine) {
+      if (collapsedLineSet.has(lineNumber)) {
+        const region = regionsByStartLine.get(lineNumber);
+        if (region) {
+          parts.push(getLineRangeText(lineNumber, region.endLine));
+          lineNumber = region.endLine + 1;
+          continue;
+        }
+      }
+
+      let lineText = getLineText(lineNumber);
+      if (lineNumber === startLine) {
+        lineText = lineText.slice(startOffset);
+      }
+      if (lineNumber === endLine) {
+        lineText = lineText.slice(0, endOffset);
+      }
+      parts.push(lineText);
+      lineNumber += 1;
+    }
+
+    return parts.join('\n');
+  }, [
+    collapsedLineSet,
+    getCollapsedSelectionText,
+    getLineRangeText,
+    getLineText,
+    regionsByStartLine,
+  ]);
+
+  const handleCopy = useCallback((event: ReactClipboardEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    const selection = window.getSelection();
+    if (!container || !selection || selection.isCollapsed || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const startElement = getLineTextElementFromNode(range.startContainer, container);
+    const endElement = getLineTextElementFromNode(range.endContainer, container);
+    if (!startElement || !endElement) {
+      return;
+    }
+
+    const startLine = getLineNumberFromElement(startElement);
+    const endLine = getLineNumberFromElement(endElement);
+    if (startLine === null || endLine === null || startLine > endLine) {
+      return;
+    }
+
+    const startOffset = getTextOffsetWithin(
+      startElement,
+      range.startContainer,
+      range.startOffset,
+      startElement.textContent?.length ?? 0
+    );
+    const endOffset = getTextOffsetWithin(
+      endElement,
+      range.endContainer,
+      range.endOffset,
+      endElement.textContent?.length ?? 0
+    );
+    const copyText = getCopyTextForCollapsedSelection(startLine, endLine, startOffset, endOffset);
+
+    if (copyText === null) {
+      return;
+    }
+
+    event.preventDefault();
+    event.clipboardData.setData('text/plain', copyText);
+  }, [getCopyTextForCollapsedSelection]);
+
   const searchMatches = useMemo(() => (
-    findSearchMatchesInLargeJson(text, data.lineStarts, data.lineCount, searchTerm)
-  ), [data.lineCount, data.lineStarts, searchTerm, text]);
+    searchMatchesFromWorker
+      ?? findSearchMatchesInLargeJson(text, data.lineStarts, data.lineCount, searchTerm)
+  ), [data.lineCount, data.lineStarts, searchMatchesFromWorker, searchTerm, text]);
 
   const matchesByLine = useMemo(() => {
     const map = new Map<number, Array<LargeJsonSearchMatch & { matchIndex: number }>>();
@@ -337,7 +625,7 @@ const LargeJsonReadonlyViewer = forwardRef<
 
     const visibleIndex = getVisibleIndexForActualLine(activeMatch.lineNumber);
     if (visibleIndex !== null && containerRef.current) {
-      containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * LINE_HEIGHT);
+      containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
     }
 
     onLocateOffset(activeMatch.start);
@@ -348,6 +636,7 @@ const LargeJsonReadonlyViewer = forwardRef<
     normalizedCollapsedLines,
     onCollapsedLinesChange,
     onLocateOffset,
+    rowHeight,
   ]);
 
   useEffect(() => {
@@ -382,50 +671,96 @@ const LargeJsonReadonlyViewer = forwardRef<
     return () => observer.disconnect();
   }, []);
 
-  const startVisibleIndex = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN);
+  const startVisibleIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN);
   const endVisibleIndex = Math.min(
     Math.max(0, visibleLineCount - 1),
-    Math.ceil((scrollTop + viewportHeight) / LINE_HEIGHT) + OVERSCAN
+    Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN
   );
+  const lineNumberWidth = `${Math.max(3, String(data.lineCount).length)}ch`;
 
   const renderLineText = useCallback((lineNumber: number, lineText: string) => {
-    const lineMatches = matchesByLine.get(lineNumber);
-    if (!lineMatches || lineMatches.length === 0) {
-      return lineText;
-    }
-
+    const lineMatches = (matchesByLine.get(lineNumber) ?? [])
+      .map((match) => ({
+        ...match,
+        localStart: clamp(match.localStart, 0, lineText.length),
+        localEnd: clamp(match.localEnd, 0, lineText.length),
+      }))
+      .filter((match) => match.localEnd > match.localStart)
+      .sort((left, right) => left.localStart - right.localStart);
+    const syntaxTokens = tokenizeJsonLine(lineText);
     const children: React.ReactNode[] = [];
-    let cursor = 0;
+    let matchCursor = 0;
+    let partIndex = 0;
 
-    lineMatches.forEach((match) => {
-      const localStart = Math.max(0, Math.min(match.localStart, lineText.length));
-      const localEnd = Math.max(localStart, Math.min(match.localEnd, lineText.length));
+    const pushSegment = (
+      start: number,
+      end: number,
+      className?: string,
+      match?: LargeJsonSearchMatch & { matchIndex: number }
+    ) => {
+      if (end <= start) {
+        return;
+      }
 
-      if (cursor < localStart) {
+      const segmentText = lineText.slice(start, end);
+      const key = `${lineNumber}-${partIndex}`;
+      partIndex += 1;
+      const content = className ? (
+        <span className={className}>{segmentText}</span>
+      ) : (
+        <React.Fragment>{segmentText}</React.Fragment>
+      );
+
+      if (!match) {
         children.push(
-          <React.Fragment key={`plain-${lineNumber}-${cursor}`}>
-            {lineText.slice(cursor, localStart)}
-          </React.Fragment>
+          className ? (
+            <span key={key} className={className}>{segmentText}</span>
+          ) : (
+            <React.Fragment key={key}>{segmentText}</React.Fragment>
+          )
         );
+        return;
       }
 
       children.push(
         <mark
-          key={`match-${lineNumber}-${match.matchIndex}`}
+          key={key}
           className={`large-json-search-match ${match.matchIndex === effectiveMatchIndex ? 'active' : ''}`}
         >
-          {lineText.slice(localStart, localEnd)}
+          {content}
         </mark>
       );
-      cursor = localEnd;
+    };
+
+    syntaxTokens.forEach((token) => {
+      let cursor = token.start;
+
+      while (cursor < token.end) {
+        while (matchCursor < lineMatches.length && lineMatches[matchCursor].localEnd <= cursor) {
+          matchCursor += 1;
+        }
+
+        const match = lineMatches[matchCursor];
+        if (!match || match.localStart >= token.end) {
+          pushSegment(cursor, token.end, token.className);
+          break;
+        }
+
+        if (cursor < match.localStart) {
+          const segmentEnd = Math.min(match.localStart, token.end);
+          pushSegment(cursor, segmentEnd, token.className);
+          cursor = segmentEnd;
+          continue;
+        }
+
+        const segmentEnd = Math.min(match.localEnd, token.end);
+        pushSegment(cursor, segmentEnd, token.className, match);
+        cursor = segmentEnd;
+      }
     });
 
-    if (cursor < lineText.length) {
-      children.push(
-        <React.Fragment key={`tail-${lineNumber}-${cursor}`}>
-          {lineText.slice(cursor)}
-        </React.Fragment>
-      );
+    if (children.length === 0) {
+      return lineText;
     }
 
     return children;
@@ -449,25 +784,30 @@ const LargeJsonReadonlyViewer = forwardRef<
     renderedRows.push(
       <div
         key={`${lineNumber}-${visibleIndex}`}
-        className="large-json-row"
+        className={`large-json-row ${wrapLongLines ? 'wrap' : ''}`}
         style={{
-          top: `${visibleIndex * LINE_HEIGHT}px`,
-          height: `${LINE_HEIGHT}px`,
+          top: `${visibleIndex * rowHeight}px`,
+          height: `${rowHeight}px`,
         }}
       >
+        <span
+          className="large-json-line-number"
+          style={{ width: lineNumberWidth }}
+        >
+          {lineNumber}
+        </span>
         <button
           type="button"
-          className={`large-json-fold-button ${region ? 'visible' : ''}`}
+          className={`large-json-fold-button ${region ? 'visible' : ''} ${isCollapsed ? 'collapsed' : 'expanded'}`}
           onClick={() => toggleLine(lineNumber)}
           onMouseDown={(event) => event.preventDefault()}
           disabled={!region}
           aria-label={isCollapsed ? 'Expand node' : 'Collapse node'}
-        >
-          {region ? (isCollapsed ? '▶' : '▼') : ''}
-        </button>
-        <span className="large-json-line-number">{lineNumber}</span>
+        />
         <span
-          className="large-json-line-text"
+          className={`large-json-line-text ${wrapLongLines ? 'wrap' : ''}`}
+          data-line-number={lineNumber}
+          data-collapsed={isCollapsed ? 'true' : undefined}
           title={lineText}
           onMouseUp={(event) => {
             if (event.button !== 0) {
@@ -498,10 +838,11 @@ const LargeJsonReadonlyViewer = forwardRef<
       ref={containerRef}
       className={`large-json-viewer ${isDarkMode ? 'dark' : ''}`}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      onCopy={handleCopy}
     >
       <div
         className="large-json-spacer"
-        style={{ height: `${Math.max(visibleLineCount, 1) * LINE_HEIGHT}px` }}
+        style={{ height: `${Math.max(visibleLineCount, 1) * rowHeight}px` }}
       >
         {renderedRows}
       </div>

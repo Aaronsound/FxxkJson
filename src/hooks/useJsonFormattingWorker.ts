@@ -5,6 +5,7 @@ import {
   FORMAT_DEBOUNCE_MS,
   LARGE_FILE_FORMAT_DEBOUNCE_MS,
   LARGE_FILE_THRESHOLD,
+  LargeJsonSearchMatch,
   LargeJsonViewerData,
   StructureStatus,
   WorkerMessage,
@@ -56,6 +57,7 @@ interface UseJsonFormattingWorkerArgs {
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
   setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
   setLargeViewerStatus: (tabId: string, status: 'idle' | 'building' | 'ready') => void;
+  setLargeViewerSearchResults: (tabId: string, matches: LargeJsonSearchMatch[]) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
   updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
   resetSearchState: () => void;
@@ -89,6 +91,7 @@ export function useJsonFormattingWorker({
   setStructureStatus,
   setLargeViewerData,
   setLargeViewerStatus,
+  setLargeViewerSearchResults,
   updateTabContent,
   updateFormattedContent,
   resetSearchState,
@@ -102,6 +105,8 @@ export function useJsonFormattingWorker({
   const requestCounterRef = useRef(0);
   const locateRequestCounterRef = useRef(0);
   const latestLocateRequestRef = useRef<Record<string, number>>({});
+  const searchRequestCounterRef = useRef(0);
+  const latestSearchRequestRef = useRef<Record<string, number>>({});
   const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
   const callbacksRef = useRef({
     beginPerformanceSession,
@@ -120,6 +125,7 @@ export function useJsonFormattingWorker({
     setTabImporting,
     setTabLargeMode,
     setLargeViewerData,
+    setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
     updateFormattedContent,
@@ -143,6 +149,7 @@ export function useJsonFormattingWorker({
     setTabImporting,
     setTabLargeMode,
     setLargeViewerData,
+    setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
     updateFormattedContent,
@@ -160,6 +167,7 @@ export function useJsonFormattingWorker({
   const clearTabStructure = (tabId: string, status: StructureStatus = 'ready') => {
     workerStructureEnabledRef.current[tabId] = false;
     delete latestLocateRequestRef.current[tabId];
+    delete latestSearchRequestRef.current[tabId];
     workerRef.current?.postMessage({
       type: 'clear-structure',
       tabId,
@@ -186,7 +194,27 @@ export function useJsonFormattingWorker({
     });
   };
 
-  const requestWorkerValue = (tabId: string, offset: number) => new Promise<string | null>((resolve) => {
+  const requestWorkerSearch = (tabId: string, query: string) => {
+    if (!workerRef.current) {
+      callbacksRef.current.setLargeViewerSearchResults(tabId, []);
+      return;
+    }
+
+    const requestId = ++searchRequestCounterRef.current;
+    latestSearchRequestRef.current[tabId] = requestId;
+    workerRef.current.postMessage({
+      type: 'search',
+      requestId,
+      tabId,
+      query,
+    });
+  };
+
+  const requestWorkerValue = (
+    tabId: string,
+    offset: number,
+    preferCachedText = false
+  ) => new Promise<string | null>((resolve) => {
     if (!workerRef.current) {
       resolve(null);
       return;
@@ -201,6 +229,16 @@ export function useJsonFormattingWorker({
     ) {
       workerRef.current.postMessage({
         type: 'read-value',
+        requestId,
+        tabId,
+        offset,
+      });
+      return;
+    }
+
+    if (preferCachedText) {
+      workerRef.current.postMessage({
+        type: 'read-value-direct',
         requestId,
         tabId,
         offset,
@@ -368,6 +406,7 @@ export function useJsonFormattingWorker({
     delete formatTimersRef.current[tabId];
     delete latestRequestRef.current[tabId];
     delete latestLocateRequestRef.current[tabId];
+    delete latestSearchRequestRef.current[tabId];
     delete largeModeRef.current[tabId];
     delete largeFileLocateEnabledRef.current[tabId];
     delete structureStatusRef.current[tabId];
@@ -593,6 +632,18 @@ export function useJsonFormattingWorker({
         return;
       }
 
+      if (type === 'search-result') {
+        if (
+          tabId !== activeTabIdRef.current
+          || latestSearchRequestRef.current[tabId] !== requestId
+        ) {
+          return;
+        }
+
+        callbacksRef.current.setLargeViewerSearchResults(tabId, event.data.matches ?? []);
+        return;
+      }
+
       if (type === 'locate-result') {
         if (
           tabId !== activeTabIdRef.current
@@ -636,6 +687,7 @@ export function useJsonFormattingWorker({
     importJsonFile,
     queueFormat,
     removeTabArtifacts,
+    requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,
     resetTabArtifacts,
