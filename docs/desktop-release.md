@@ -27,8 +27,8 @@ The workflow in `.github/workflows/desktop-release.yml` packages macOS and Windo
 ```bash
 git checkout dev-codex
 git pull origin dev-codex
-git tag -a v1.0.5-dev-codex -m "HanJson desktop release v1.0.5-dev-codex"
-git push origin v1.0.5-dev-codex
+git tag -a v1.0.6-dev-codex -m "HanJson desktop release v1.0.6-dev-codex"
+git push origin v1.0.6-dev-codex
 ```
 
 After the workflow finishes, open the GitHub repository and go to **Releases**. The generated `.dmg`, `.exe`, and `.zip` files will be attached to that release.
@@ -37,4 +37,4 @@ After the workflow finishes, open the GitHub repository and go to **Releases**. 
 
 - The current release artifacts are unsigned. macOS Gatekeeper and Windows SmartScreen may warn users on first install.
 - For public distribution, use Apple Developer ID signing and notarization for macOS, and a code-signing certificate for Windows.
-- If the product name should be public-facing, update `build.productName` in `package.json` before creating the release tag.
+- The public product name is configured by `build.productName` in `package.json`.
