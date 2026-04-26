@@ -65,7 +65,11 @@ function getToolbarHintMessage({
   }
 
   if (currentStructureStatus === 'building') {
-    return '大文件轻量模式已开启：正在后台建立定位索引，完成后可从右侧点击定位到左侧。';
+    return '大文件轻量模式已开启：正在后台建立定位能力，完成后可从右侧点击定位到左侧。';
+  }
+
+  if (currentStructureStatus === 'disabled') {
+    return '大文件轻量模式已开启：当前内容未能建立定位能力，仅保留轻量浏览与格式化。';
   }
 
   return '大文件轻量模式已开启：已保留右侧点击定位左侧的能力，并优先保证滚动和交互流畅。';

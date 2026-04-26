@@ -8,6 +8,7 @@ import {
   getUtf8ByteLength,
   isLargeDocument,
   shouldBuildWorkerStructure,
+  shouldUseLargeMode,
 } from './jsonToolModels';
 
 describe('jsonToolModels', () => {
@@ -25,6 +26,15 @@ describe('jsonToolModels', () => {
     expect(isLargeDocument(atThreshold)).toBe(true);
     expect(canUseStructureSync(atThreshold)).toBe(true);
     expect(canUseStructureSync(aboveStructureThreshold)).toBe(false);
+  });
+
+  it('derives large mode from the current raw and formatted content only', () => {
+    const small = '{"ok":true}';
+    const large = 'a'.repeat(LARGE_FILE_THRESHOLD);
+
+    expect(shouldUseLargeMode(small, small)).toBe(false);
+    expect(shouldUseLargeMode(large, small)).toBe(true);
+    expect(shouldUseLargeMode(small, large)).toBe(true);
   });
 
   it('only builds worker structure for supported document sizes', () => {

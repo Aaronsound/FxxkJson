@@ -24,6 +24,10 @@ export function isLargeDocument(text: string) {
   return getUtf8ByteLength(text) >= LARGE_FILE_THRESHOLD;
 }
 
+export function shouldUseLargeMode(rawText: string, formattedText = '') {
+  return isLargeDocument(rawText) || isLargeDocument(formattedText);
+}
+
 export function canUseStructureSync(text: string) {
   const byteLength = getUtf8ByteLength(text);
   return byteLength >= LARGE_FILE_THRESHOLD && byteLength <= STRUCTURE_SYNC_THRESHOLD;

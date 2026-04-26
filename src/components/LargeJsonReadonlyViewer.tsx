@@ -1,6 +1,7 @@
 import React, {
   ClipboardEvent as ReactClipboardEvent,
   forwardRef,
+  KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
@@ -17,6 +18,16 @@ import {
 import {
   findSearchMatchesInLargeJson,
 } from '../utils/largeJsonViewerData';
+import {
+  binarySearchSegment,
+  buildVisibleSegments,
+  clamp,
+  getCollapsedPreview,
+  tokenizeJsonLine,
+} from '../utils/largeJsonViewerRender';
+import type {
+  CollapsedInterval,
+} from '../utils/largeJsonViewerRender';
 
 const LINE_HEIGHT = 18;
 const OVERSCAN = 30;
@@ -39,52 +50,6 @@ interface LargeJsonReadonlyViewerProps {
 export interface LargeJsonReadonlyViewerHandle {
   foldAll: () => void;
   unfoldAll: () => void;
-}
-
-interface VisibleSegment {
-  actualStart: number;
-  actualEnd: number;
-  visibleStart: number;
-  visibleEnd: number;
-}
-
-interface JsonSyntaxToken {
-  start: number;
-  end: number;
-  className?: string;
-}
-
-function getCollapsedPreview(lineText: string, region: LargeJsonViewerRegion) {
-  const trimmedEnd = lineText.replace(/\s+$/, '');
-  return `${trimmedEnd} ...`;
-}
-
-function binarySearchSegment(segments: VisibleSegment[], visibleIndex: number) {
-  let low = 0;
-  let high = segments.length - 1;
-
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const current = segments[mid];
-
-    if (visibleIndex < current.visibleStart) {
-      high = mid - 1;
-      continue;
-    }
-
-    if (visibleIndex > current.visibleEnd) {
-      low = mid + 1;
-      continue;
-    }
-
-    return current;
-  }
-
-  return null;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(value, max));
 }
 
 function getTextOffsetWithin(root: HTMLElement, node: Node, offset: number, fallbackLength: number) {
@@ -117,108 +82,6 @@ function getLineNumberFromElement(element: HTMLElement) {
   return Number.isFinite(lineNumber) ? lineNumber : null;
 }
 
-function getJsonStringEnd(lineText: string, start: number) {
-  let index = start + 1;
-  let escaped = false;
-
-  while (index < lineText.length) {
-    const char = lineText[index];
-
-    if (escaped) {
-      escaped = false;
-    } else if (char === '\\') {
-      escaped = true;
-    } else if (char === '"') {
-      return index + 1;
-    }
-
-    index += 1;
-  }
-
-  return lineText.length;
-}
-
-function getNextNonWhitespaceIndex(lineText: string, start: number) {
-  let index = start;
-
-  while (index < lineText.length && /\s/.test(lineText[index])) {
-    index += 1;
-  }
-
-  return index;
-}
-
-function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
-  const tokens: JsonSyntaxToken[] = [];
-  let index = 0;
-
-  const pushToken = (start: number, end: number, className?: string) => {
-    if (end > start) {
-      tokens.push({ start, end, className });
-    }
-  };
-
-  while (index < lineText.length) {
-    const char = lineText[index];
-
-    if (/\s/.test(char)) {
-      const start = index;
-      while (index < lineText.length && /\s/.test(lineText[index])) {
-        index += 1;
-      }
-      pushToken(start, index);
-      continue;
-    }
-
-    if (char === '"') {
-      const end = getJsonStringEnd(lineText, index);
-      const nextNonWhitespace = getNextNonWhitespaceIndex(lineText, end);
-      const className = lineText[nextNonWhitespace] === ':'
-        ? 'large-json-token large-json-token-key'
-        : 'large-json-token large-json-token-value large-json-token-string';
-
-      pushToken(index, end, className);
-      index = end;
-      continue;
-    }
-
-    if (char === '-' || /\d/.test(char)) {
-      const match = lineText.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
-      if (match) {
-        pushToken(
-          index,
-          index + match[0].length,
-          'large-json-token large-json-token-value large-json-token-number'
-        );
-        index += match[0].length;
-        continue;
-      }
-    }
-
-    const literal = ['true', 'false', 'null'].find((candidate) => lineText.startsWith(candidate, index));
-    if (literal) {
-      pushToken(
-        index,
-        index + literal.length,
-        'large-json-token large-json-token-value large-json-token-literal'
-      );
-      index += literal.length;
-      continue;
-    }
-
-    if ('{}[]:,.'.includes(char)) {
-      pushToken(index, index + 1, 'large-json-token large-json-token-punctuation');
-      index += 1;
-      continue;
-    }
-
-    pushToken(index, index + 1);
-    index += 1;
-  }
-
-  return tokens;
-}
-
 const LargeJsonReadonlyViewer = forwardRef<
   LargeJsonReadonlyViewerHandle,
   LargeJsonReadonlyViewerProps
@@ -237,6 +100,7 @@ const LargeJsonReadonlyViewer = forwardRef<
   onCopyValue,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const fullDocumentSelectedRef = useRef(false);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; offset: number } | null>(null);
@@ -263,8 +127,8 @@ const LargeJsonReadonlyViewer = forwardRef<
     return Array.from(uniqueLines).sort((left, right) => left - right);
   }, [collapsedLines, regionsByStartLine]);
 
-  const collapsedIntervals = useMemo(() => {
-    const intervals: Array<{ start: number; end: number; triggerLine: number }> = [];
+  const collapsedIntervals = useMemo<CollapsedInterval[]>(() => {
+    const intervals: CollapsedInterval[] = [];
 
     normalizedCollapsedLines.forEach((startLine) => {
       const region = regionsByStartLine.get(startLine);
@@ -299,41 +163,10 @@ const LargeJsonReadonlyViewer = forwardRef<
     return intervals;
   }, [normalizedCollapsedLines, regionsByStartLine]);
 
-  const visibleSegments = useMemo(() => {
-    const segments: VisibleSegment[] = [];
-    let actualLine = 1;
-    let visibleLine = 0;
-
-    collapsedIntervals.forEach((interval) => {
-      if (actualLine <= interval.start - 1) {
-        const actualStart = actualLine;
-        const actualEnd = interval.start - 1;
-        const length = actualEnd - actualStart + 1;
-
-        segments.push({
-          actualStart,
-          actualEnd,
-          visibleStart: visibleLine,
-          visibleEnd: visibleLine + length - 1,
-        });
-        visibleLine += length;
-      }
-
-      actualLine = Math.max(actualLine, interval.end + 1);
-    });
-
-    if (actualLine <= data.lineCount) {
-      const length = data.lineCount - actualLine + 1;
-      segments.push({
-        actualStart: actualLine,
-        actualEnd: data.lineCount,
-        visibleStart: visibleLine,
-        visibleEnd: visibleLine + length - 1,
-      });
-    }
-
-    return segments;
-  }, [collapsedIntervals, data.lineCount]);
+  const visibleSegments = useMemo(
+    () => buildVisibleSegments(data.lineCount, collapsedIntervals),
+    [collapsedIntervals, data.lineCount]
+  );
 
   const visibleLineCount = useMemo(() => (
     visibleSegments.length === 0
@@ -435,14 +268,6 @@ const LargeJsonReadonlyViewer = forwardRef<
     onCollapsedLinesChange(Array.from(next).sort((left, right) => left - right));
   }, [collapsedLineSet, onCollapsedLinesChange, regionsByStartLine]);
 
-  const getLineRangeText = useCallback((startLine: number, endLine: number) => {
-    const lines: string[] = [];
-    for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
-      lines.push(getLineText(lineNumber));
-    }
-    return lines.join('\n');
-  }, [getLineText]);
-
   const getCollapsedSelectionText = useCallback((lineNumber: number, startOffset: number) => {
     const region = regionsByStartLine.get(lineNumber);
     if (!region) {
@@ -453,21 +278,29 @@ const LargeJsonReadonlyViewer = forwardRef<
     const closeChar = region.kind === 'array' ? ']' : '}';
     const firstLine = getLineText(lineNumber);
     const openIndex = firstLine.lastIndexOf(openChar);
+    const closingLine = getLineText(region.endLine);
+    const closeIndex = closingLine.lastIndexOf(closeChar);
+    const normalizedClosingLine = closeIndex >= 0
+      ? closingLine.slice(0, closeIndex + 1)
+      : closingLine.replace(/,\s*$/, '');
 
-    if (openIndex >= 0 && startOffset >= openIndex) {
+    if (openIndex >= 0 && (startOffset >= openIndex || firstLine.slice(0, openIndex).trim() === '')) {
       const lines = [firstLine.slice(openIndex)];
       for (let currentLine = lineNumber + 1; currentLine < region.endLine; currentLine += 1) {
         lines.push(getLineText(currentLine));
       }
 
-      const closingLine = getLineText(region.endLine);
-      const closeIndex = closingLine.lastIndexOf(closeChar);
-      lines.push(closeIndex >= 0 ? closingLine.slice(0, closeIndex + 1) : closingLine);
+      lines.push(normalizedClosingLine);
       return lines.join('\n');
     }
 
-    return getLineRangeText(lineNumber, region.endLine);
-  }, [getLineRangeText, getLineText, regionsByStartLine]);
+    const lines = [firstLine];
+    for (let currentLine = lineNumber + 1; currentLine < region.endLine; currentLine += 1) {
+      lines.push(getLineText(currentLine));
+    }
+    lines.push(normalizedClosingLine);
+    return lines.join('\n');
+  }, [getLineText, regionsByStartLine]);
 
   const getCopyTextForCollapsedSelection = useCallback((
     startLine: number,
@@ -498,7 +331,7 @@ const LargeJsonReadonlyViewer = forwardRef<
       if (collapsedLineSet.has(lineNumber)) {
         const region = regionsByStartLine.get(lineNumber);
         if (region) {
-          parts.push(getLineRangeText(lineNumber, region.endLine));
+          parts.push(getCollapsedSelectionText(lineNumber, lineNumber === startLine ? startOffset : 0));
           lineNumber = region.endLine + 1;
           continue;
         }
@@ -519,12 +352,42 @@ const LargeJsonReadonlyViewer = forwardRef<
   }, [
     collapsedLineSet,
     getCollapsedSelectionText,
-    getLineRangeText,
     getLineText,
     regionsByStartLine,
   ]);
 
+  const handleSelectAll = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const isSelectAll = event.key.toLowerCase() === 'a'
+      && (event.metaKey || event.ctrlKey || event.altKey)
+      && !event.shiftKey;
+
+    if (!isSelectAll) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    fullDocumentSelectedRef.current = true;
+
+    const spacer = containerRef.current?.querySelector('.large-json-spacer');
+    const selection = window.getSelection();
+    if (!spacer || !selection) {
+      return;
+    }
+
+    const range = document.createRange();
+    range.selectNodeContents(spacer);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, []);
+
   const handleCopy = useCallback((event: ReactClipboardEvent<HTMLDivElement>) => {
+    if (fullDocumentSelectedRef.current) {
+      event.preventDefault();
+      event.clipboardData.setData('text/plain', text);
+      return;
+    }
+
     const container = containerRef.current;
     const selection = window.getSelection();
     if (!container || !selection || selection.isCollapsed || selection.rangeCount === 0) {
@@ -564,7 +427,7 @@ const LargeJsonReadonlyViewer = forwardRef<
 
     event.preventDefault();
     event.clipboardData.setData('text/plain', copyText);
-  }, [getCopyTextForCollapsedSelection]);
+  }, [getCopyTextForCollapsedSelection, text]);
 
   const searchMatches = useMemo(() => (
     searchMatchesFromWorker
@@ -778,7 +641,7 @@ const LargeJsonReadonlyViewer = forwardRef<
     const isCollapsed = collapsedLineSet.has(lineNumber);
     const baseLineText = getLineText(lineNumber);
     const lineText = region && isCollapsed
-      ? getCollapsedPreview(baseLineText, region)
+      ? getCollapsedPreview(baseLineText)
       : baseLineText;
 
     renderedRows.push(
@@ -837,6 +700,12 @@ const LargeJsonReadonlyViewer = forwardRef<
     <div
       ref={containerRef}
       className={`large-json-viewer ${isDarkMode ? 'dark' : ''}`}
+      tabIndex={0}
+      onKeyDown={handleSelectAll}
+      onPointerDown={() => {
+        fullDocumentSelectedRef.current = false;
+        containerRef.current?.focus({ preventScroll: true });
+      }}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       onCopy={handleCopy}
     >

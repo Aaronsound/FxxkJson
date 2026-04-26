@@ -25,8 +25,8 @@ npm.cmd run test
 Expected result:
 - All tests pass
 - Current smoke coverage includes:
-  - generated line-threshold sample stays on the Monaco path
-  - generated high-line sample enters the large-file viewer path
+  - byte-based large-file mode decisions
+  - generated samples at and above 5MB enter the large-file viewer path
   - large-file viewer search
   - fold all / unfold all
   - click-to-locate-left
@@ -41,7 +41,7 @@ npm.cmd run samples
 
 Expected result:
 - Creates local ignored files in `json/`
-- Default files are `sample-5mb.json`, `sample-10mb.json`, `sample-15mb.json`, and `sample-20mb.json`
+- Default files are `sample-5mb.json`, `sample-6mb.json`, `sample-7mb.json`, `sample-10mb.json`, `sample-15mb.json`, and `sample-20mb.json`
 
 ### Step 4: Quick Manual Check
 
@@ -52,6 +52,8 @@ npm.cmd run dev
 
 Use these sample files in `json/`:
 - `sample-5mb.json`
+- `sample-6mb.json`
+- `sample-7mb.json`
 - `sample-10mb.json`
 - `sample-15mb.json`
 - `sample-20mb.json`
@@ -82,6 +84,8 @@ npm.cmd run build
 npm.cmd run test
 npm.cmd run samples
 npm.cmd run bench -- .\json\sample-5mb.json
+npm.cmd run bench -- .\json\sample-6mb.json
+npm.cmd run bench -- .\json\sample-7mb.json
 npm.cmd run bench -- .\json\sample-10mb.json
 npm.cmd run bench -- .\json\sample-15mb.json
 npm.cmd run bench -- .\json\sample-20mb.json
@@ -97,19 +101,21 @@ Expected result:
 
 1. Start the app with `npm.cmd run dev`
 2. Import `sample-5mb.json`
-3. Import `sample-10mb.json`
-4. Import `sample-20mb.json`
-5. For each file, confirm:
+3. Import `sample-6mb.json`
+4. Import `sample-7mb.json`
+5. Import `sample-10mb.json`
+6. Import `sample-20mb.json`
+7. For each file, confirm:
    - left pane displays raw JSON
    - right pane displays formatted output
    - fold / unfold still works
    - search still works
    - right-side click can still locate left side when the feature is enabled
-6. Create a second tab, import another sample, and switch back and forth
-7. Confirm fold state and content state stay stable after tab switching
-8. Copy a value from the right pane, open a new tab, paste it into the left pane, and confirm it remains valid JSON
-9. Toggle full screen and restore window size
-10. Confirm the toolbar, tab titles, and performance panel still render correctly
+8. Create a second tab, import another sample, and switch back and forth
+9. Confirm fold state and content state stay stable after tab switching
+10. Copy a value from the right pane, open a new tab, paste it into the left pane, and confirm it remains valid JSON
+11. Toggle full screen and restore window size
+12. Confirm the toolbar, tab titles, and performance panel still render correctly
 
 ## 3. When To Run Which Checklist
 

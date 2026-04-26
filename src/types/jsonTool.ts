@@ -33,7 +33,7 @@ export interface WorkerMessage {
 }
 
 export type StructureStatus = 'ready' | 'building' | 'disabled';
-export type PerformanceTrigger = 'import' | 'manual-format' | 'edit-save';
+export type PerformanceTrigger = 'import' | 'manual-format' | 'edit-save' | 'paste';
 export type PerformanceSnapshotStatus = 'running' | 'ready' | 'failed';
 export type LargeViewerStatus = 'idle' | 'building' | 'ready';
 

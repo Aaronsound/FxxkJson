@@ -22,7 +22,6 @@ import {
   STRUCTURE_SYNC_THRESHOLD,
 } from './types/jsonTool';
 import {
-  canUseStructureSync,
   createTab,
   getEditorLanguageByLength,
   getLeftModelPath,
@@ -32,6 +31,7 @@ import {
   isLargeDocument,
   recreateModel,
   selectionCoversModel,
+  shouldUseLargeMode,
 } from './utils/jsonToolModels';
 import './App.css';
 
@@ -198,7 +198,7 @@ const App: React.FC = () => {
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
     : false;
   const canEnableLargeFileLocate = activeTab
-    ? canUseStructureSync(activeRawText)
+    ? activeDocumentMeta.rawLength > 0
     : false;
   const canEditJson = Boolean(activeRawText.trim());
   const canUseRightPaneFolding = activeTab
@@ -864,6 +864,28 @@ const App: React.FC = () => {
     };
   };
 
+  const beginPastePerformanceSession = (tabId: string, nextContent: string) => {
+    beginPerformanceSession(
+      tabId,
+      'paste',
+      '剪贴板粘贴',
+      null,
+      getUtf8ByteLength(nextContent),
+      shouldUseLargeMode(nextContent)
+    );
+  };
+
+  const getContentAfterSelectionReplace = (
+    model: monaco.editor.ITextModel,
+    selection: monaco.Selection,
+    text: string
+  ) => {
+    const startOffset = model.getOffsetAt(selection.getStartPosition());
+    const endOffset = model.getOffsetAt(selection.getEndPosition());
+    const currentText = model.getValue();
+    return `${currentText.slice(0, startOffset)}${text}${currentText.slice(endOffset)}`;
+  };
+
   const handleLeftMount: OnMount = (editor) => {
     leftEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
@@ -911,13 +933,19 @@ const App: React.FC = () => {
         const currentTabId = activeTabIdRef.current;
         const text = await navigator.clipboard.readText();
         const selection = mountedEditor.getSelection();
+        const model = mountedEditor.getModel();
 
-        if (!selection || !currentTabId) {
+        if (!selection || !currentTabId || !model) {
           return;
         }
 
+        const nextContent = selectionCoversModel(mountedEditor)
+          ? text
+          : getContentAfterSelectionReplace(model, selection, text);
+        beginPastePerformanceSession(currentTabId, nextContent);
+
         if (selectionCoversModel(mountedEditor)) {
-          const largeMode = isLargeDocument(text);
+          const largeMode = shouldUseLargeMode(text);
 
           updateTabContent(currentTabId, text, true);
           setTabLargeMode(currentTabId, largeMode);
@@ -1175,11 +1203,6 @@ const App: React.FC = () => {
 
     if (!enabled) {
       clearTabStructure(activeTab.id, 'disabled');
-      return;
-    }
-
-    if (!canUseStructureSync(currentText)) {
-      setStructureStatus(activeTab.id, 'disabled');
       return;
     }
 
