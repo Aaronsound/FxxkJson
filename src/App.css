@@ -346,13 +346,17 @@ button:disabled {
   height: 100%;
   overflow: auto;
   background: #ffffff;
-  color: #1f1f1f;
-  font: 13px/1.6 Consolas, "SFMono-Regular", "Courier New", monospace;
+  color: #000000;
+  font-family: Menlo, Monaco, "Courier New", monospace;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 18px;
+  text-rendering: auto;
 }
 
 .large-json-viewer.dark {
   background: #1e1e1e;
-  color: #e8e8e8;
+  color: #d4d4d4;
 }
 
 .large-json-spacer {
@@ -366,14 +370,19 @@ button:disabled {
   right: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px 0 10px;
+  gap: 0;
+  padding: 0 14px 0 0;
   box-sizing: border-box;
   white-space: nowrap;
 }
 
+.large-json-row.wrap {
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
 .large-json-fold-button {
-  width: 18px;
+  width: 16px;
   height: 18px;
   padding: 0;
   border: none;
@@ -384,12 +393,30 @@ button:disabled {
   opacity: 0;
   pointer-events: none;
   box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  margin-right: 4px;
 }
 
 .large-json-fold-button.visible {
   opacity: 1;
   cursor: pointer;
   pointer-events: auto;
+}
+
+.large-json-fold-button.visible::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
+.large-json-fold-button.visible.collapsed::before {
+  transform: rotate(-45deg);
 }
 
 .large-json-fold-button.visible:hover:not(:disabled) {
@@ -405,15 +432,21 @@ button:disabled {
 }
 
 .large-json-line-number {
-  width: 60px;
-  flex-shrink: 0;
-  color: rgba(126, 126, 126, 0.88);
+  flex: 0 0 auto;
+  box-sizing: content-box;
+  padding-right: 6px;
+  color: #237893;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: inherit;
   text-align: right;
   user-select: none;
 }
 
 .large-json-viewer.dark .large-json-line-number {
-  color: rgba(158, 158, 158, 0.88);
+  color: #858585;
 }
 
 .large-json-line-text {
@@ -425,8 +458,35 @@ button:disabled {
 }
 
 .large-json-line-text.wrap {
+  display: block;
+  max-height: 72px;
+  overflow: hidden;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.large-json-token-key {
+  color: #a31515;
+}
+
+.large-json-token-value {
+  color: #0451a5;
+}
+
+.large-json-token-punctuation {
+  color: #000000;
+}
+
+.large-json-viewer.dark .large-json-token-key {
+  color: #ff8f8f;
+}
+
+.large-json-viewer.dark .large-json-token-value {
+  color: #75beff;
+}
+
+.large-json-viewer.dark .large-json-token-punctuation {
+  color: #d4d4d4;
 }
 
 .large-json-search-match {
@@ -1159,24 +1219,22 @@ button:disabled {
 }
 
 .tab-bar .tab {
-  flex: 1 1 180px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  flex: 0 0 auto;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 1;
-  min-width: 132px;
-  max-width: 280px;
+  gap: 6px;
+  min-width: 0;
+  max-width: 220px;
   margin-right: 0;
-  padding: 7px 12px 8px;
+  padding: 7px 10px 8px;
   overflow: hidden;
 }
 
 .tab-title {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   display: block;
   min-width: 0;
-  max-width: 100%;
+  max-width: 160px;
   color: inherit;
   opacity: 1;
   visibility: visible;
@@ -1227,7 +1285,3 @@ button:disabled {
   align-self: center;
   margin-left: 0;
 }
-
-
-
-

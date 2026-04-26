@@ -1,41 +1,37 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD } from '../types/jsonTool';
 import {
   buildLargeViewerData,
   findSearchMatchesInLargeJson,
 } from './largeJsonViewerData';
 
-const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(currentDir, '..', '..');
+function buildLineRichFormattedSample(lineCount: number) {
+  const itemLines = Math.max(0, lineCount - 2);
+  const lines = new Array<string>(lineCount);
+  lines[0] = '[';
 
-function readFormattedSample(fileName: string) {
-  const filePath = path.join(repoRoot, 'json', fileName);
-  const raw = readFileSync(filePath, 'utf8');
-  return JSON.stringify(JSON.parse(raw), null, 2);
+  for (let index = 0; index < itemLines; index += 1) {
+    const comma = index === itemLines - 1 ? '' : ',';
+    lines[index + 1] = `  {"id":${index},"name":"HanJson","payload":"sample"}${comma}`;
+  }
+
+  lines[lineCount - 1] = ']';
+  return lines.join('\n');
 }
 
 describe('largeJsonViewerData', () => {
-  it('keeps 5MB samples on the Monaco path', () => {
-    const formatted = readFormattedSample('sample-5mb.json');
-    expect(buildLargeViewerData(formatted)).toBeNull();
+  it('builds viewer data without a line-count gate by default', () => {
+    const formatted = buildLineRichFormattedSample(10);
+    const viewer = buildLargeViewerData(formatted);
+
+    expect(viewer).not.toBeNull();
+    expect(viewer?.lineCount).toBe(10);
   });
 
-  it('routes 10MB and 20MB samples into the dedicated large viewer path', () => {
-    const formatted10 = readFormattedSample('sample-10mb.json');
-    const formatted20 = readFormattedSample('sample-20mb.json');
+  it('still supports an explicit line threshold when needed', () => {
+    const formatted = buildLineRichFormattedSample(10);
 
-    const viewer10 = buildLargeViewerData(formatted10);
-    const viewer20 = buildLargeViewerData(formatted20);
-
-    expect(viewer10).not.toBeNull();
-    expect(viewer20).not.toBeNull();
-    expect(viewer10?.lineCount).toBeGreaterThan(DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD);
-    expect(viewer20?.lineCount).toBeGreaterThan(DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD);
-    expect(viewer10?.regions.length).toBeGreaterThan(0);
-    expect(viewer20?.regions.length).toBeGreaterThan(0);
+    expect(buildLargeViewerData(formatted, 10)).toBeNull();
+    expect(buildLargeViewerData(formatted, 9)?.lineCount).toBe(10);
   });
 
   it('builds stable search matches with line offsets', () => {

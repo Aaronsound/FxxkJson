@@ -1,17 +1,9 @@
 import {
   DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
+  LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeJsonViewerRegion,
 } from '../types/jsonTool';
-
-export interface LargeJsonSearchMatch {
-  start: number;
-  end: number;
-  lineNumber: number;
-  lineStartOffset: number;
-  localStart: number;
-  localEnd: number;
-}
 
 export function buildLargeViewerData(
   text: string,

@@ -66,6 +66,21 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(document.querySelectorAll('.large-json-search-match')).toHaveLength(1);
   });
 
+  it('syntax highlights JSON keys and values in the virtualized viewer', () => {
+    renderViewer();
+
+    expect(document.querySelector('.large-json-token-key')?.textContent).toBe('"outer"');
+    expect(document.querySelector('.large-json-token-value')?.textContent).toBe('1');
+  });
+
+  it('keeps the gutter order aligned with Monaco: line number before fold control', () => {
+    renderViewer();
+
+    const row = document.querySelector('.large-json-row');
+    expect(row?.children[0]).toHaveClass('large-json-line-number');
+    expect(row?.children[1]).toHaveClass('large-json-fold-button');
+  });
+
   it('preserves fold all and unfold all commands through the ref API', () => {
     const ref = createRef<LargeJsonReadonlyViewerHandle>();
     const onCollapsedLinesChange = vi.fn();
@@ -124,6 +139,33 @@ describe('LargeJsonReadonlyViewer', () => {
       expect(onCopyValue).toHaveBeenCalledTimes(1);
     });
     expect(onCopyValue).toHaveBeenLastCalledWith(expect.any(Number));
+  });
+
+  it('copies the underlying JSON text instead of the collapsed preview', () => {
+    renderViewer({
+      collapsedLines: [1],
+    });
+
+    const line = document.querySelector('.large-json-line-text[data-collapsed="true"]');
+    expect(line).not.toBeNull();
+    if (!line) {
+      throw new Error('Expected a collapsed line');
+    }
+    expect(line.textContent).toContain('...');
+    expect(line.textContent).not.toContain('... }');
+    expect(document.querySelector('.large-json-line-text[data-line-number="9"]')?.textContent).toBe('}');
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const clipboardData = { setData: vi.fn() };
+    fireEvent.copy(line, { clipboardData });
+
+    expect(clipboardData.setData).toHaveBeenCalledWith('text/plain', fixtureText);
+    selection?.removeAllRanges();
   });
 
   it('auto-expands collapsed regions when the active match falls inside them', async () => {

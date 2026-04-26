@@ -2,7 +2,9 @@
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 
 const structureCache = new Map();
-const DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD = 300000;
+const viewerCache = new Map();
+const directValueTreeCache = new Map();
+const DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD = 0;
 
 function getResolvedNodes(cached, offset) {
   if (
@@ -117,16 +119,100 @@ function buildLargeViewerData(text) {
   };
 }
 
+function binarySearchLineStarts(lineStarts, offset) {
+  let low = 0;
+  let high = lineStarts.length - 1;
+  let result = 0;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const value = lineStarts[mid];
+
+    if (value <= offset) {
+      result = mid;
+      low = mid + 1;
+      continue;
+    }
+
+    high = mid - 1;
+  }
+
+  return result;
+}
+
+function findSearchMatchesInLargeJson(text, lineStarts, lineCount, searchTerm) {
+  const normalizedTerm = searchTerm.trim().toLowerCase();
+  if (!normalizedTerm) {
+    return [];
+  }
+
+  const normalizedText = text.toLowerCase();
+  const matches = [];
+  let fromIndex = 0;
+
+  while (fromIndex < normalizedText.length) {
+    const matchIndex = normalizedText.indexOf(normalizedTerm, fromIndex);
+    if (matchIndex === -1) {
+      break;
+    }
+
+    const lineIndex = binarySearchLineStarts(lineStarts, matchIndex);
+    const lineNumber = lineIndex + 1;
+    const lineStartOffset = lineStarts[lineIndex] ?? 0;
+    const lineEndOffset = lineNumber < lineCount
+      ? Math.max(lineStartOffset, (lineStarts[lineNumber] ?? text.length) - 1)
+      : text.length;
+    const localStart = matchIndex - lineStartOffset;
+    const localEnd = Math.min(matchIndex + normalizedTerm.length, lineEndOffset) - lineStartOffset;
+
+    matches.push({
+      start: matchIndex,
+      end: matchIndex + normalizedTerm.length,
+      lineNumber,
+      lineStartOffset,
+      localStart,
+      localEnd,
+    });
+
+    fromIndex = matchIndex + Math.max(normalizedTerm.length, 1);
+  }
+
+  return matches;
+}
+
+function getDirectValueTree(tabId, requestId, text) {
+  const cachedTree = directValueTreeCache.get(tabId);
+  if (
+    cachedTree
+    && cachedTree.requestId === requestId
+    && cachedTree.text === text
+  ) {
+    return cachedTree.formattedTree;
+  }
+
+  const formattedTree = parseTree(text);
+  directValueTreeCache.set(tabId, {
+    requestId,
+    text,
+    formattedTree,
+  });
+  return formattedTree;
+}
+
 self.onmessage = (event) => {
   const message = event.data;
 
   if (message.type === 'clear-structure') {
     structureCache.delete(message.tabId);
+    viewerCache.delete(message.tabId);
+    directValueTreeCache.delete(message.tabId);
     return;
   }
 
   if (message.type === 'format') {
     const { requestId, tabId, text, enableStructure, buildViewer } = message;
+    viewerCache.delete(tabId);
+    directValueTreeCache.delete(tabId);
 
     try {
       const formatted = JSON.stringify(JSON.parse(text), null, 2);
@@ -141,6 +227,15 @@ self.onmessage = (event) => {
       if (buildViewer) {
         setTimeout(() => {
           const viewerData = buildLargeViewerData(formatted);
+          if (viewerData) {
+            viewerCache.set(tabId, {
+              requestId,
+              formattedText: formatted,
+              viewerData,
+            });
+          } else {
+            viewerCache.delete(tabId);
+          }
           postMessage({
             type: 'viewer-ready',
             requestId,
@@ -150,6 +245,7 @@ self.onmessage = (event) => {
         }, 0);
       }
       else {
+        viewerCache.delete(tabId);
         postMessage({
           type: 'viewer-ready',
           requestId,
@@ -206,6 +302,8 @@ self.onmessage = (event) => {
       }, 0);
     } catch (err) {
       structureCache.delete(tabId);
+      viewerCache.delete(tabId);
+      directValueTreeCache.delete(tabId);
       postMessage({
         type: 'format-result',
         requestId,
@@ -281,8 +379,13 @@ self.onmessage = (event) => {
 
   if (message.type === 'read-value-direct') {
     const { requestId, tabId, offset, text } = message;
+    const cachedViewer = viewerCache.get(tabId);
+    const sourceText = typeof text === 'string' && text
+      ? text
+      : cachedViewer?.formattedText;
+    const sourceRequestId = cachedViewer?.requestId ?? requestId;
 
-    if (typeof text !== 'string' || !text) {
+    if (typeof sourceText !== 'string' || !sourceText) {
       postMessage({
         type: 'value-result',
         requestId,
@@ -294,7 +397,7 @@ self.onmessage = (event) => {
     }
 
     try {
-      const formattedTree = parseTree(text);
+      const formattedTree = getDirectValueTree(tabId, sourceRequestId, sourceText);
       if (!formattedTree) {
         postMessage({
           type: 'value-result',
@@ -306,7 +409,7 @@ self.onmessage = (event) => {
         return;
       }
 
-      const location = getLocation(text, offset);
+      const location = getLocation(sourceText, offset);
       const rightNode = findNodeAtLocation(formattedTree, location.path);
 
       if (!rightNode) {
@@ -325,7 +428,7 @@ self.onmessage = (event) => {
         requestId,
         tabId,
         found: true,
-        value: text.slice(rightNode.offset, rightNode.offset + rightNode.length),
+        value: sourceText.slice(rightNode.offset, rightNode.offset + rightNode.length),
       });
     } catch {
       postMessage({
@@ -334,6 +437,53 @@ self.onmessage = (event) => {
         tabId,
         found: false,
         value: null,
+      });
+    }
+
+    return;
+  }
+
+  if (message.type === 'search') {
+    const { requestId, tabId, query } = message;
+    const cachedViewer = viewerCache.get(tabId);
+
+    if (
+      !cachedViewer
+      || typeof cachedViewer.formattedText !== 'string'
+      || !cachedViewer.viewerData
+    ) {
+      postMessage({
+        type: 'search-result',
+        requestId,
+        tabId,
+        query,
+        matches: [],
+      });
+      return;
+    }
+
+    try {
+      const matches = findSearchMatchesInLargeJson(
+        cachedViewer.formattedText,
+        cachedViewer.viewerData.lineStarts,
+        cachedViewer.viewerData.lineCount,
+        typeof query === 'string' ? query : ''
+      );
+
+      postMessage({
+        type: 'search-result',
+        requestId,
+        tabId,
+        query,
+        matches,
+      });
+    } catch {
+      postMessage({
+        type: 'search-result',
+        requestId,
+        tabId,
+        query,
+        matches: [],
       });
     }
   }
