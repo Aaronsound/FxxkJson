@@ -5,6 +5,7 @@ import {
   buildLargeViewerData,
   findSearchMatchesInLargeJson,
 } from '../utils/largeJsonViewerData';
+import { formatJsonText } from '../utils/jsonFormat';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -106,7 +107,7 @@ self.onmessage = (event) => {
     directValueTreeCache.delete(tabId);
 
     try {
-      const formatted = JSON.stringify(JSON.parse(text), null, 2);
+      const { formatted, normalizedNestedString } = formatJsonText(text);
       postMessage({
         type: 'format-result',
         requestId,
@@ -172,6 +173,17 @@ self.onmessage = (event) => {
           tabId,
           viewerData: null,
         });
+      }
+
+      if (normalizedNestedString) {
+        structureCache.delete(tabId);
+        postMessage({
+          type: 'structure-ready',
+          requestId,
+          tabId,
+          ready: false,
+        });
+        return;
       }
 
       if (!enableStructure && enableDirectLocate && !buildViewer) {

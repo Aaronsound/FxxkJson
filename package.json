@@ -1,6 +1,6 @@
 {
   "name": "my-json-tool-new",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",

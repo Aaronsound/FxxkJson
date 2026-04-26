@@ -27,8 +27,8 @@ The workflow in `.github/workflows/desktop-release.yml` packages macOS and Windo
 ```bash
 git checkout main
 git pull origin main
-git tag -a v1.0.7 -m "HanJson desktop release v1.0.7"
-git push origin v1.0.7
+git tag -a v1.0.8 -m "HanJson desktop release v1.0.8"
+git push origin v1.0.8
 ```
 
 After the workflow finishes, open the GitHub repository and go to **Releases**. The generated `.dmg`, `.exe`, and `.zip` files will be attached to that release.
