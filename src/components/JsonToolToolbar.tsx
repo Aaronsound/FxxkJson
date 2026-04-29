@@ -11,11 +11,6 @@ interface JsonToolToolbarProps {
   canControlRightPaneFolding: boolean;
   isLargeFileMode: boolean;
   canEditJson: boolean;
-  searchTerm: string;
-  onSearchTermChange: (value: string) => void;
-  onPrevMatch: () => void;
-  onNextMatch: () => void;
-  hasSearchMatches: boolean;
   wrapLongLines: boolean;
   onWrapLongLinesChange: (checked: boolean) => void;
   isDarkMode: boolean;
@@ -85,11 +80,6 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   canControlRightPaneFolding,
   isLargeFileMode,
   canEditJson,
-  searchTerm,
-  onSearchTermChange,
-  onPrevMatch,
-  onNextMatch,
-  hasSearchMatches,
   wrapLongLines,
   onWrapLongLinesChange,
   isDarkMode,
@@ -141,28 +131,6 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
             </div>
           </section>
 
-          <section className="toolbar-section toolbar-section-search">
-            <span className="toolbar-section-label">搜索</span>
-            <div className="toolbar-section-body toolbar-search-row">
-              <input
-                className="toolbar-input"
-                placeholder="搜索格式化结果..."
-                value={searchTerm}
-                onChange={(event) => onSearchTermChange(event.target.value)}
-              />
-              <div className="toolbar-search-buttons">
-                <button onClick={onPrevMatch} disabled={!hasSearchMatches}>
-                  上一个
-                </button>
-                <button onClick={onNextMatch} disabled={!hasSearchMatches}>
-                  下一个
-                </button>
-                <button onClick={() => onSearchTermChange('')} disabled={!searchTerm}>
-                  清空搜索
-                </button>
-              </div>
-            </div>
-          </section>
         </div>
 
         <div className="toolbar-bottom-row">

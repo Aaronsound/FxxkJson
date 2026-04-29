@@ -101,7 +101,9 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
 
     const container = containerRef.current;
     const observer = container ? new ResizeObserver(scheduleEnsureActiveTabVisible) : null;
-    observer?.observe(container);
+    if (container) {
+      observer?.observe(container);
+    }
 
     const frameId = window.requestAnimationFrame(scheduleEnsureActiveTabVisible);
     window.addEventListener('resize', scheduleEnsureActiveTabVisible);

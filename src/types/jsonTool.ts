@@ -7,6 +7,7 @@ export interface TabDocumentMeta {
   // Stored as UTF-8 byte lengths so imported file sizes and in-app thresholds match.
   rawLength: number;
   formattedLength: number;
+  rawRevision: number;
   formattedRevision: number;
 }
 
@@ -58,6 +59,18 @@ export interface LargeJsonSearchMatch {
   localEnd: number;
 }
 
+export interface JsonSearchOptions {
+  matchCase: boolean;
+  wholeWord: boolean;
+  useRegex: boolean;
+}
+
+export const DEFAULT_SEARCH_OPTIONS: JsonSearchOptions = {
+  matchCase: false,
+  wholeWord: false,
+  useRegex: false,
+};
+
 export interface PerformanceSnapshot {
   trigger: PerformanceTrigger;
   sourceLabel: string;
@@ -91,5 +104,6 @@ export const LARGE_FILE_FORMAT_DEBOUNCE_MS = 1200;
 export const EMPTY_DOCUMENT_META: TabDocumentMeta = {
   rawLength: 0,
   formattedLength: 0,
+  rawRevision: 0,
   formattedRevision: 0,
 };

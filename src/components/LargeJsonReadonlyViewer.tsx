@@ -11,10 +11,12 @@ import React, {
   useState,
 } from 'react';
 import {
+  DEFAULT_SEARCH_OPTIONS,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeJsonViewerRegion,
 } from '../types/jsonTool';
+import type { JsonSearchOptions } from '../types/jsonTool';
 import {
   findSearchMatchesInLargeJson,
 } from '../utils/largeJsonViewerData';
@@ -39,17 +41,20 @@ interface LargeJsonReadonlyViewerProps {
   wrapLongLines: boolean;
   collapsedLines: number[];
   searchTerm: string;
+  searchOptions?: JsonSearchOptions;
   searchMatches?: LargeJsonSearchMatch[];
   activeMatchIndex: number;
   onCollapsedLinesChange: (lines: number[]) => void;
   onMatchCountChange: (count: number) => void;
   onLocateOffset: (offset: number) => void;
   onCopyValue: (offset: number) => void | Promise<void>;
+  onOpenFind: () => void;
 }
 
 export interface LargeJsonReadonlyViewerHandle {
   foldAll: () => void;
   unfoldAll: () => void;
+  focus: () => void;
 }
 
 function getTextOffsetWithin(root: HTMLElement, node: Node, offset: number, fallbackLength: number) {
@@ -92,12 +97,14 @@ const LargeJsonReadonlyViewer = forwardRef<
   wrapLongLines,
   collapsedLines,
   searchTerm,
+  searchOptions = DEFAULT_SEARCH_OPTIONS,
   searchMatches: searchMatchesFromWorker,
   activeMatchIndex,
   onCollapsedLinesChange,
   onMatchCountChange,
   onLocateOffset,
   onCopyValue,
+  onOpenFind,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fullDocumentSelectedRef = useRef(false);
@@ -381,6 +388,23 @@ const LargeJsonReadonlyViewer = forwardRef<
     selection.addRange(range);
   }, []);
 
+  const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const isPrimaryShortcut = event.metaKey || event.ctrlKey;
+    const isFind = event.key.toLowerCase() === 'f'
+      && isPrimaryShortcut
+      && !event.shiftKey
+      && !event.altKey;
+
+    if (isFind) {
+      event.preventDefault();
+      event.stopPropagation();
+      onOpenFind();
+      return;
+    }
+
+    handleSelectAll(event);
+  }, [handleSelectAll, onOpenFind]);
+
   const handleCopy = useCallback((event: ReactClipboardEvent<HTMLDivElement>) => {
     if (fullDocumentSelectedRef.current) {
       event.preventDefault();
@@ -431,8 +455,8 @@ const LargeJsonReadonlyViewer = forwardRef<
 
   const searchMatches = useMemo(() => (
     searchMatchesFromWorker
-      ?? findSearchMatchesInLargeJson(text, data.lineStarts, data.lineCount, searchTerm)
-  ), [data.lineCount, data.lineStarts, searchMatchesFromWorker, searchTerm, text]);
+      ?? findSearchMatchesInLargeJson(text, data.lineStarts, data.lineCount, searchTerm, searchOptions)
+  ), [data.lineCount, data.lineStarts, searchMatchesFromWorker, searchOptions, searchTerm, text]);
 
   const matchesByLine = useMemo(() => {
     const map = new Map<number, Array<LargeJsonSearchMatch & { matchIndex: number }>>();
@@ -460,6 +484,9 @@ const LargeJsonReadonlyViewer = forwardRef<
     },
     unfoldAll() {
       onCollapsedLinesChange([]);
+    },
+    focus() {
+      containerRef.current?.focus({ preventScroll: true });
     },
   }), [data.regions, onCollapsedLinesChange]);
 
@@ -701,7 +728,7 @@ const LargeJsonReadonlyViewer = forwardRef<
       ref={containerRef}
       className={`large-json-viewer ${isDarkMode ? 'dark' : ''}`}
       tabIndex={0}
-      onKeyDown={handleSelectAll}
+      onKeyDown={handleKeyDown}
       onPointerDown={() => {
         fullDocumentSelectedRef.current = false;
         containerRef.current?.focus({ preventScroll: true });

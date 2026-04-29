@@ -2,10 +2,12 @@ import {
   DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
 } from '../types/jsonTool';
 import type {
+  JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeJsonViewerRegion,
 } from '../types/jsonTool';
+import { findTextSearchMatches } from './searchText';
 
 export function buildLargeViewerData(
   text: string,
@@ -115,85 +117,12 @@ export function binarySearchLineStarts(lineStarts: Uint32Array, offset: number) 
   return result;
 }
 
-function equalsNormalizedChar(text: string, index: number, normalizedChar: string) {
-  const sourceCode = text.charCodeAt(index);
-  const normalizedCode = normalizedChar.charCodeAt(0);
-
-  if (sourceCode <= 0x7f && normalizedCode <= 0x7f) {
-    const lowerSourceCode = sourceCode >= 65 && sourceCode <= 90
-      ? sourceCode + 32
-      : sourceCode;
-    return lowerSourceCode === normalizedCode;
-  }
-
-  return text[index].toLowerCase() === normalizedChar;
-}
-
-function matchesNormalizedTermAt(text: string, index: number, normalizedTerm: string) {
-  for (let termIndex = 0; termIndex < normalizedTerm.length; termIndex += 1) {
-    if (!equalsNormalizedChar(text, index + termIndex, normalizedTerm[termIndex])) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function findNormalizedTerm(text: string, normalizedTerm: string, fromIndex: number) {
-  const lastStart = text.length - normalizedTerm.length;
-
-  for (let index = fromIndex; index <= lastStart; index += 1) {
-    if (
-      equalsNormalizedChar(text, index, normalizedTerm[0])
-      && matchesNormalizedTermAt(text, index, normalizedTerm)
-    ) {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
 export function findSearchMatchesInLargeJson(
   text: string,
   lineStarts: Uint32Array,
   lineCount: number,
-  searchTerm: string
+  searchTerm: string,
+  options: JsonSearchOptions
 ): LargeJsonSearchMatch[] {
-  const normalizedTerm = searchTerm.trim().toLowerCase();
-  if (!normalizedTerm) {
-    return [];
-  }
-
-  const matches: LargeJsonSearchMatch[] = [];
-  let fromIndex = 0;
-
-  while (fromIndex < text.length) {
-    const matchIndex = findNormalizedTerm(text, normalizedTerm, fromIndex);
-    if (matchIndex === -1) {
-      break;
-    }
-
-    const lineIndex = binarySearchLineStarts(lineStarts, matchIndex);
-    const lineNumber = lineIndex + 1;
-    const lineStartOffset = lineStarts[lineIndex] ?? 0;
-    const lineEndOffset = lineNumber < lineCount
-      ? Math.max(lineStartOffset, (lineStarts[lineNumber] ?? text.length) - 1)
-      : text.length;
-    const localStart = matchIndex - lineStartOffset;
-    const localEnd = Math.min(matchIndex + normalizedTerm.length, lineEndOffset) - lineStartOffset;
-
-    matches.push({
-      start: matchIndex,
-      end: matchIndex + normalizedTerm.length,
-      lineNumber,
-      lineStartOffset,
-      localStart,
-      localEnd,
-    });
-
-    fromIndex = matchIndex + Math.max(normalizedTerm.length, 1);
-  }
-
-  return matches;
+  return findTextSearchMatches(text, lineStarts, lineCount, searchTerm, options);
 }

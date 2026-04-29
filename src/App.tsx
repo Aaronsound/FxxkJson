@@ -7,11 +7,13 @@ import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './compon
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
+import PaneFindWidget from './components/PaneFindWidget';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import {
   DEFAULT_TAB_TITLE,
+  DEFAULT_SEARCH_OPTIONS,
   EMPTY_DOCUMENT_META,
   INITIAL_TAB_ID,
   LARGE_FILE_THRESHOLD,
@@ -21,6 +23,7 @@ import {
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
 } from './types/jsonTool';
+import type { JsonSearchOptions } from './types/jsonTool';
 import {
   createTab,
   getEditorLanguageByLength,
@@ -33,6 +36,10 @@ import {
   selectionCoversModel,
   shouldUseLargeMode,
 } from './utils/jsonToolModels';
+import {
+  buildLineStarts,
+  findTextSearchMatches,
+} from './utils/searchText';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
@@ -61,6 +68,52 @@ function formatDuration(value: number | null | undefined) {
   }
 
   return `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
+}
+
+function getMonacoSearchRanges(
+  model: monaco.editor.ITextModel,
+  searchTerm: string,
+  searchOptions: JsonSearchOptions
+) {
+  const text = model.getValue();
+  return findTextSearchMatches(
+    text,
+    buildLineStarts(text),
+    model.getLineCount(),
+    searchTerm,
+    searchOptions
+  ).map((match) => {
+    const start = model.getPositionAt(match.start);
+    const end = model.getPositionAt(match.end);
+    return new monaco.Range(
+      start.lineNumber,
+      start.column,
+      end.lineNumber,
+      end.column
+    );
+  });
+}
+
+function getReplacementText(
+  model: monaco.editor.ITextModel,
+  range: monaco.Range,
+  searchTerm: string,
+  searchOptions: JsonSearchOptions,
+  replaceText: string
+) {
+  if (!searchOptions.useRegex) {
+    return replaceText;
+  }
+
+  try {
+    const source = model.getValueInRange(range);
+    return source.replace(
+      new RegExp(searchTerm, searchOptions.matchCase ? '' : 'i'),
+      replaceText
+    );
+  } catch {
+    return replaceText;
+  }
 }
 
 const App: React.FC = () => {
@@ -95,11 +148,19 @@ const App: React.FC = () => {
     initialTabId: INITIAL_TAB_ID,
     initialTabTitle: 'HelloJson',
   });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [rightMatches, setRightMatches] = useState<monaco.editor.FindMatch[]>([]);
+  const [leftSearchTerm, setLeftSearchTerm] = useState('');
+  const [rightSearchTerm, setRightSearchTerm] = useState('');
+  const [leftSearchOptions, setLeftSearchOptions] = useState<JsonSearchOptions>(DEFAULT_SEARCH_OPTIONS);
+  const [rightSearchOptions, setRightSearchOptions] = useState<JsonSearchOptions>(DEFAULT_SEARCH_OPTIONS);
+  const [leftReplaceText, setLeftReplaceText] = useState('');
+  const [leftMatches, setLeftMatches] = useState<monaco.Range[]>([]);
+  const [rightMatches, setRightMatches] = useState<monaco.Range[]>([]);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [leftMatchIndex, setLeftMatchIndex] = useState(0);
+  const [rightMatchIndex, setRightMatchIndex] = useState(0);
+  const [isLeftFindOpen, setIsLeftFindOpen] = useState(false);
+  const [isRightFindOpen, setIsRightFindOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [wrapLongLines, setWrapLongLines] = useState(false);
   const [showPerformancePanel, setShowPerformancePanel] = useState(() => {
@@ -233,6 +294,13 @@ const App: React.FC = () => {
   const activeRightMatchCount = shouldUseDedicatedRightViewer
     ? largeViewerMatchCount
     : rightMatches.length;
+  const activeLeftMatchCount = leftMatches.length;
+  const normalizedLeftMatchIndex = activeLeftMatchCount > 0
+    ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
+    : 0;
+  const normalizedRightMatchIndex = activeRightMatchCount > 0
+    ? ((rightMatchIndex % activeRightMatchCount) + activeRightMatchCount) % activeRightMatchCount
+    : 0;
   const leftPaneMetaText = [
     activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
     formatDuration(activePerformanceSnapshot?.readFileMs)
@@ -335,11 +403,17 @@ const App: React.FC = () => {
   };
 
   const resetSearchState = () => {
-    setSearchTerm('');
+    setLeftSearchTerm('');
+    setRightSearchTerm('');
+    setLeftReplaceText('');
+    setLeftMatches([]);
     setRightMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
-    setCurrentMatchIndex(0);
+    setLeftMatchIndex(0);
+    setRightMatchIndex(0);
+    setIsLeftFindOpen(false);
+    setIsRightFindOpen(false);
     clearLeftHighlights();
     clearRightHighlights();
   };
@@ -389,6 +463,7 @@ const App: React.FC = () => {
     setDocumentMeta(tabId, (current) => ({
       ...current,
       rawLength: byteLength,
+      rawRevision: current.rawRevision + 1,
     }));
 
     if (syncModel) {
@@ -711,33 +786,88 @@ const App: React.FC = () => {
       return;
     }
 
-    requestWorkerSearch(activeTab.id, searchTerm);
+    requestWorkerSearch(activeTab.id, rightSearchTerm, rightSearchOptions);
   }, [
     activeDocumentMeta.formattedRevision,
     activeLargeViewerData,
     activeTab,
-    searchTerm,
+    rightSearchOptions,
+    rightSearchTerm,
     shouldUseDedicatedRightViewer,
+  ]);
+
+  useEffect(() => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !model || !leftSearchTerm) {
+      setLeftMatches([]);
+      clearLeftHighlights();
+      return;
+    }
+
+    const matches = getMonacoSearchRanges(model, leftSearchTerm, leftSearchOptions);
+    setLeftMatches(matches);
+
+    const activeIndex = matches.length > 0
+      ? ((leftMatchIndex % matches.length) + matches.length) % matches.length
+      : 0;
+    const nextDecorations = matches.map((range, index) => ({
+      range,
+      options: {
+        inlineClassName:
+          index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
+      },
+    }));
+
+    leftDecorationIdsRef.current = editor.deltaDecorations(
+      leftDecorationIdsRef.current,
+      nextDecorations
+    );
+
+    if (matches.length === 0) {
+      return;
+    }
+
+    const activeMatch = matches[activeIndex];
+    editor.revealRangeInCenter(activeMatch);
+    editor.setSelection(
+      new monaco.Selection(
+        activeMatch.startLineNumber,
+        activeMatch.startColumn,
+        activeMatch.endLineNumber,
+        activeMatch.endColumn
+      )
+    );
+  }, [
+    activeTabId,
+    activeDocumentMeta.rawRevision,
+    leftMatchIndex,
+    leftSearchOptions,
+    leftSearchTerm,
   ]);
 
   useEffect(() => {
     const editor = rightEditorRef.current;
     const model = editor?.getModel();
 
-    if (!editor || !model || !searchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
+    if (!editor || !model || !rightSearchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
       setRightMatches([]);
       clearRightHighlights();
       return;
     }
 
-    const matches = model.findMatches(searchTerm, true, true, false, null, true);
+    const matches = getMonacoSearchRanges(model, rightSearchTerm, rightSearchOptions);
     setRightMatches(matches);
+    const activeIndex = matches.length > 0
+      ? ((rightMatchIndex % matches.length) + matches.length) % matches.length
+      : 0;
 
-    const nextDecorations = matches.map((match, index) => ({
-      range: match.range,
+    const nextDecorations = matches.map((range, index) => ({
+      range,
       options: {
         inlineClassName:
-          index === currentMatchIndex ? 'currentSearchHighlight' : 'searchHighlight',
+          index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
       },
     }));
 
@@ -750,61 +880,23 @@ const App: React.FC = () => {
       return;
     }
 
-    const activeMatch = matches[currentMatchIndex % matches.length];
-    editor.revealRangeInCenter(activeMatch.range);
-
-    const leftEditor = leftEditorRef.current;
-    const leftModel = leftEditor?.getModel();
-    if (!leftEditor || !leftModel) {
-      return;
-    }
-
-    const snippet = model.getValueInRange(activeMatch.range);
-    const leftMatch = leftModel.findNextMatch(
-      snippet,
-      new monaco.Position(1, 1),
-      false,
-      false,
-      null,
-      false
-    );
-
-    if (!leftMatch) {
-      clearLeftHighlights();
-      return;
-    }
-
-    leftEditor.revealRangeInCenter(leftMatch.range);
-    leftEditor.setSelection(
+    const activeMatch = matches[activeIndex];
+    editor.revealRangeInCenter(activeMatch);
+    editor.setSelection(
       new monaco.Selection(
-        leftMatch.range.startLineNumber,
-        leftMatch.range.startColumn,
-        leftMatch.range.endLineNumber,
-        leftMatch.range.endColumn
+        activeMatch.startLineNumber,
+        activeMatch.startColumn,
+        activeMatch.endLineNumber,
+        activeMatch.endColumn
       )
     );
-
-    leftDecorationIdsRef.current = leftEditor.deltaDecorations(
-      leftDecorationIdsRef.current,
-      [{
-        range: leftMatch.range,
-        options: { inlineClassName: 'currentSearchHighlight' },
-      }]
-    );
-
-    if (highlightTimeoutRef.current !== null) {
-      window.clearTimeout(highlightTimeoutRef.current);
-    }
-
-    highlightTimeoutRef.current = window.setTimeout(() => {
-      clearLeftHighlights();
-    }, SEARCH_HIGHLIGHT_DURATION);
   }, [
     activeTabId,
     activeDocumentMeta.formattedRevision,
-    currentMatchIndex,
     isBuildingDedicatedRightViewer,
-    searchTerm,
+    rightMatchIndex,
+    rightSearchOptions,
+    rightSearchTerm,
     shouldUseDedicatedRightViewer,
   ]);
 
@@ -924,6 +1016,15 @@ const App: React.FC = () => {
     });
 
     editor.addAction({
+      id: 'openLeftPaneFind',
+      label: '搜索原始 JSON',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF],
+      run: () => {
+        openLeftFind();
+      },
+    });
+
+    editor.addAction({
       id: 'custom.clipboardPasteAction',
       label: 'Custom Paste',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
@@ -939,12 +1040,13 @@ const App: React.FC = () => {
           return;
         }
 
-        const nextContent = selectionCoversModel(mountedEditor)
+        const coversModel = selectionCoversModel(editor);
+        const nextContent = coversModel
           ? text
           : getContentAfterSelectionReplace(model, selection, text);
         beginPastePerformanceSession(currentTabId, nextContent);
 
-        if (selectionCoversModel(mountedEditor)) {
+        if (coversModel) {
           const largeMode = shouldUseLargeMode(text);
 
           updateTabContent(currentTabId, text, true);
@@ -1023,6 +1125,15 @@ const App: React.FC = () => {
     editor.onDidChangeHiddenAreas(() => {
       const currentTabId = activeTabIdRef.current;
       rightViewStateByTabRef.current[currentTabId] = editor.saveViewState() ?? null;
+    });
+
+    editor.addAction({
+      id: 'openRightPaneFind',
+      label: '搜索格式化结果',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF],
+      run: () => {
+        openRightFind();
+      },
     });
 
     editor.addAction({
@@ -1275,27 +1386,151 @@ const App: React.FC = () => {
     }
   };
 
-  const gotoNext = () => {
-    if (activeRightMatchCount === 0) {
-      return;
-    }
-
-    setCurrentMatchIndex((current) => (current + 1) % activeRightMatchCount);
+  const openLeftFind = () => {
+    setIsLeftFindOpen(true);
   };
 
-  const gotoPrev = () => {
-    if (activeRightMatchCount === 0) {
-      return;
-    }
-
-    setCurrentMatchIndex((current) => (current - 1 + activeRightMatchCount) % activeRightMatchCount);
+  const openRightFind = () => {
+    setIsRightFindOpen(true);
   };
 
-  const handleSearchTermChange = (value: string) => {
-    setSearchTerm(value);
+  const closeLeftFind = () => {
+    setIsLeftFindOpen(false);
+    setLeftSearchTerm('');
+    setLeftMatches([]);
+    setLeftMatchIndex(0);
+    clearLeftHighlights();
+    leftEditorRef.current?.focus();
+  };
+
+  const closeRightFind = () => {
+    setIsRightFindOpen(false);
+    setRightSearchTerm('');
+    setRightMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
-    setCurrentMatchIndex(0);
+    setRightMatchIndex(0);
+    clearRightHighlights();
+    if (shouldUseDedicatedRightViewer) {
+      largeViewerRef.current?.focus();
+    } else {
+      rightEditorRef.current?.focus();
+    }
+  };
+
+  const handleLeftSearchOptionsChange = (value: JsonSearchOptions) => {
+    setLeftSearchOptions(value);
+    setLeftMatchIndex(0);
+  };
+
+  const handleRightSearchOptionsChange = (value: JsonSearchOptions) => {
+    setRightSearchOptions(value);
+    setLargeViewerMatches([]);
+    setLargeViewerMatchCount(0);
+    setRightMatchIndex(0);
+  };
+
+  const replaceLeftMatch = () => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+    const range = leftMatches[normalizedLeftMatchIndex];
+
+    if (!editor || !model || !range) {
+      return;
+    }
+
+    editor.executeEdits('pane-find-replace', [{
+      range,
+      text: getReplacementText(
+        model,
+        range,
+        leftSearchTerm,
+        leftSearchOptions,
+        leftReplaceText
+      ),
+      forceMoveMarkers: true,
+    }]);
+    editor.focus();
+  };
+
+  const replaceAllLeftMatches = () => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !model || leftMatches.length === 0) {
+      return;
+    }
+
+    const sortedRanges = [...leftMatches].sort((left, right) => (
+      model.getOffsetAt({
+        lineNumber: right.startLineNumber,
+        column: right.startColumn,
+      }) - model.getOffsetAt({
+        lineNumber: left.startLineNumber,
+        column: left.startColumn,
+      })
+    ));
+
+    editor.executeEdits(
+      'pane-find-replace-all',
+      sortedRanges.map((range) => ({
+        range,
+        text: getReplacementText(
+          model,
+          range,
+          leftSearchTerm,
+          leftSearchOptions,
+          leftReplaceText
+        ),
+        forceMoveMarkers: true,
+      }))
+    );
+    setLeftMatchIndex(0);
+    editor.focus();
+  };
+
+  const gotoNextLeft = () => {
+    if (activeLeftMatchCount === 0) {
+      return;
+    }
+
+    setLeftMatchIndex((current) => (current + 1) % activeLeftMatchCount);
+  };
+
+  const gotoPrevLeft = () => {
+    if (activeLeftMatchCount === 0) {
+      return;
+    }
+
+    setLeftMatchIndex((current) => (current - 1 + activeLeftMatchCount) % activeLeftMatchCount);
+  };
+
+  const gotoNextRight = () => {
+    if (activeRightMatchCount === 0) {
+      return;
+    }
+
+    setRightMatchIndex((current) => (current + 1) % activeRightMatchCount);
+  };
+
+  const gotoPrevRight = () => {
+    if (activeRightMatchCount === 0) {
+      return;
+    }
+
+    setRightMatchIndex((current) => (current - 1 + activeRightMatchCount) % activeRightMatchCount);
+  };
+
+  const handleLeftSearchTermChange = (value: string) => {
+    setLeftSearchTerm(value);
+    setLeftMatchIndex(0);
+  };
+
+  const handleRightSearchTermChange = (value: string) => {
+    setRightSearchTerm(value);
+    setLargeViewerMatches([]);
+    setLargeViewerMatchCount(0);
+    setRightMatchIndex(0);
   };
 
   if (!activeTab) {
@@ -1344,11 +1579,6 @@ const App: React.FC = () => {
         canControlRightPaneFolding={canControlRightPaneFolding}
         isLargeFileMode={isLargeFileMode}
         canEditJson={canEditJson}
-        searchTerm={searchTerm}
-        onSearchTermChange={handleSearchTermChange}
-        onPrevMatch={gotoPrev}
-        onNextMatch={gotoNext}
-        hasSearchMatches={activeRightMatchCount > 0}
         wrapLongLines={wrapLongLines}
         onWrapLongLinesChange={setWrapLongLines}
         isDarkMode={isDarkMode}
@@ -1424,6 +1654,26 @@ const App: React.FC = () => {
             <span className="editor-pane-header-text">{leftPaneMetaText}</span>
           </div>
           <div className="editor-pane-body">
+            {isLeftFindOpen && (
+              <PaneFindWidget
+                value={leftSearchTerm}
+                currentIndex={activeLeftMatchCount > 0 ? normalizedLeftMatchIndex + 1 : 0}
+                matchCount={activeLeftMatchCount}
+                isDarkMode={isDarkMode}
+                placeholder="搜索原始 JSON"
+                searchOptions={leftSearchOptions}
+                canReplace
+                replaceValue={leftReplaceText}
+                onChange={handleLeftSearchTermChange}
+                onSearchOptionsChange={handleLeftSearchOptionsChange}
+                onReplaceValueChange={setLeftReplaceText}
+                onReplace={replaceLeftMatch}
+                onReplaceAll={replaceAllLeftMatches}
+                onPrev={gotoPrevLeft}
+                onNext={gotoNextLeft}
+                onClose={closeLeftFind}
+              />
+            )}
             <Editor
               onMount={handleLeftMount}
               theme={isDarkMode ? 'vs-dark' : 'vs-light'}
@@ -1465,17 +1715,33 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="editor-pane-body">
+            {isRightFindOpen && (
+              <PaneFindWidget
+                value={rightSearchTerm}
+                currentIndex={activeRightMatchCount > 0 ? normalizedRightMatchIndex + 1 : 0}
+                matchCount={activeRightMatchCount}
+                isDarkMode={isDarkMode}
+                placeholder="搜索格式化结果"
+                searchOptions={rightSearchOptions}
+                onChange={handleRightSearchTermChange}
+                onSearchOptionsChange={handleRightSearchOptionsChange}
+                onPrev={gotoPrevRight}
+                onNext={gotoNextRight}
+                onClose={closeRightFind}
+              />
+            )}
             {shouldUseDedicatedRightViewer ? (
               <LargeJsonReadonlyViewer
                 ref={largeViewerRef}
                 text={formattedValue}
-                data={activeLargeViewerData}
+                data={activeLargeViewerData!}
                 isDarkMode={isDarkMode}
                 wrapLongLines={wrapLongLines}
                 collapsedLines={activeLargeViewerCollapsedLines}
-                searchTerm={searchTerm}
+                searchTerm={rightSearchTerm}
+                searchOptions={rightSearchOptions}
                 searchMatches={largeViewerMatches}
-                activeMatchIndex={currentMatchIndex}
+                activeMatchIndex={rightMatchIndex}
                 onCollapsedLinesChange={(lines) => {
                   if (!activeTab) {
                     return;
@@ -1489,6 +1755,7 @@ const App: React.FC = () => {
                 onMatchCountChange={setLargeViewerMatchCount}
                 onLocateOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
                 onCopyValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
+                onOpenFind={openRightFind}
               />
             ) : !isBuildingDedicatedRightViewer ? (
               <Editor

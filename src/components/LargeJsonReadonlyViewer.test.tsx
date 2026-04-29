@@ -37,6 +37,7 @@ function renderViewer(overrides: Partial<React.ComponentProps<typeof LargeJsonRe
     onMatchCountChange: vi.fn(),
     onLocateOffset: vi.fn(),
     onCopyValue: vi.fn(),
+    onOpenFind: vi.fn(),
     ...overrides,
   };
 
@@ -104,6 +105,7 @@ describe('LargeJsonReadonlyViewer', () => {
         onMatchCountChange={vi.fn()}
         onLocateOffset={vi.fn()}
         onCopyValue={vi.fn()}
+        onOpenFind={vi.fn()}
       />
     );
 
@@ -224,6 +226,21 @@ describe('LargeJsonReadonlyViewer', () => {
     fireEvent.copy(viewer, { clipboardData });
 
     expect(clipboardData.setData).toHaveBeenCalledWith('text/plain', fixtureText);
+  });
+
+  it('opens the pane search from the find shortcut', () => {
+    const onOpenFind = vi.fn();
+    renderViewer({ onOpenFind });
+
+    const viewer = document.querySelector('.large-json-viewer');
+    expect(viewer).not.toBeNull();
+    if (!viewer) {
+      throw new Error('Expected large viewer');
+    }
+
+    fireEvent.keyDown(viewer, { key: 'f', ctrlKey: true });
+
+    expect(onOpenFind).toHaveBeenCalledTimes(1);
   });
 
   it('also scopes Alt+A copy to the large JSON viewer text', () => {

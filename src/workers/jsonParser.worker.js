@@ -6,6 +6,7 @@ import {
   findSearchMatchesInLargeJson,
 } from '../utils/largeJsonViewerData';
 import { formatJsonText } from '../utils/jsonFormat';
+import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -404,7 +405,7 @@ self.onmessage = (event) => {
   }
 
   if (message.type === 'search') {
-    const { requestId, tabId, query } = message;
+    const { requestId, tabId, query, searchOptions } = message;
     const cachedViewer = viewerCache.get(tabId);
 
     if (
@@ -427,7 +428,8 @@ self.onmessage = (event) => {
         cachedViewer.formattedText,
         cachedViewer.viewerData.lineStarts,
         cachedViewer.viewerData.lineCount,
-        typeof query === 'string' ? query : ''
+        typeof query === 'string' ? query : '',
+        searchOptions ?? DEFAULT_SEARCH_OPTIONS
       );
 
       postMessage({

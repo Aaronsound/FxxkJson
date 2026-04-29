@@ -11,6 +11,7 @@ import {
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
+import type { JsonSearchOptions } from '../types/jsonTool';
 import { PerformanceSession } from './useJsonPerformanceTracking';
 import {
   disposeModel,
@@ -195,7 +196,11 @@ export function useJsonFormattingWorker({
     });
   };
 
-  const requestWorkerSearch = (tabId: string, query: string) => {
+  const requestWorkerSearch = (
+    tabId: string,
+    query: string,
+    searchOptions: JsonSearchOptions
+  ) => {
     if (!workerRef.current) {
       callbacksRef.current.setLargeViewerSearchResults(tabId, []);
       return;
@@ -208,6 +213,7 @@ export function useJsonFormattingWorker({
       requestId,
       tabId,
       query,
+      searchOptions,
     });
   };
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import {
   buildLargeViewerData,
   findSearchMatchesInLargeJson,
@@ -51,7 +52,8 @@ describe('largeJsonViewerData', () => {
       text,
       viewerData!.lineStarts,
       viewerData!.lineCount,
-      'name'
+      'name',
+      DEFAULT_SEARCH_OPTIONS
     );
 
     expect(matches).toHaveLength(2);
@@ -81,7 +83,8 @@ describe('largeJsonViewerData', () => {
       text,
       viewerData!.lineStarts,
       viewerData!.lineCount,
-      'HANJSON'
+      'HANJSON',
+      DEFAULT_SEARCH_OPTIONS
     );
 
     expect(matches).toHaveLength(2);
@@ -94,6 +97,44 @@ describe('largeJsonViewerData', () => {
       lineNumber: 3,
       localStart: 12,
       localEnd: 19,
+    });
+  });
+
+  it('applies whole-word and regex search options in the large viewer data helper', () => {
+    const text = [
+      '{',
+      '  "id": "abc",',
+      '  "requestId": "abc-001"',
+      '}',
+    ].join('\n');
+    const viewerData = buildLargeViewerData(text, 1);
+    expect(viewerData).not.toBeNull();
+
+    const wholeWordMatches = findSearchMatchesInLargeJson(
+      text,
+      viewerData!.lineStarts,
+      viewerData!.lineCount,
+      'id',
+      {
+        ...DEFAULT_SEARCH_OPTIONS,
+        wholeWord: true,
+      }
+    );
+    expect(wholeWordMatches).toHaveLength(1);
+
+    const regexMatches = findSearchMatchesInLargeJson(
+      text,
+      viewerData!.lineStarts,
+      viewerData!.lineCount,
+      'abc-\\d+',
+      {
+        ...DEFAULT_SEARCH_OPTIONS,
+        useRegex: true,
+      }
+    );
+    expect(regexMatches).toHaveLength(1);
+    expect(regexMatches[0]).toMatchObject({
+      lineNumber: 3,
     });
   });
 });
