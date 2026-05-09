@@ -6,6 +6,7 @@ interface JsonToolToolbarProps {
   onFormat: () => void;
   onClear: () => void;
   onEditJson: () => void;
+  onOpenDiagnosticsLog: () => void;
   onFoldAll: () => void;
   onUnfoldAll: () => void;
   canControlRightPaneFolding: boolean;
@@ -76,6 +77,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onFormat,
   onClear,
   onEditJson,
+  onOpenDiagnosticsLog,
   onFoldAll,
   onUnfoldAll,
   canControlRightPaneFolding,
@@ -121,6 +123,9 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
               <div className="toolbar-actions-secondary">
                 <button className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
                   编辑 JSON
+                </button>
+                <button className="toolbar-button-secondary" onClick={onOpenDiagnosticsLog}>
+                  诊断日志
                 </button>
                 <button onClick={onClear}>清空</button>
                 <button onClick={onFoldAll} disabled={!canControlRightPaneFolding}>

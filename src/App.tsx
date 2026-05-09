@@ -5,6 +5,7 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonEditModal from './components/JsonEditModal';
 import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
 import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
+import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
@@ -158,6 +159,7 @@ const App: React.FC = () => {
   const [editJsonBusyLabel, setEditJsonBusyLabel] = useState<string | null>(null);
   const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
   const [isDragImportActive, setIsDragImportActive] = useState(false);
+  const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
   const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
     [INITIAL_TAB_ID]: null,
   });
@@ -1913,6 +1915,7 @@ const App: React.FC = () => {
         onFormat={handleFormat}
         onClear={handleClear}
         onEditJson={handleOpenEditJson}
+        onOpenDiagnosticsLog={() => setIsDiagnosticsLogOpen(true)}
         onFoldAll={() => {
           if (shouldUseDedicatedRightViewer) {
             largeViewerRef.current?.foldAll();
@@ -1980,6 +1983,13 @@ const App: React.FC = () => {
           onSave={handleSaveEditJson}
           onCopyLiteral={handleCopyEscapedJson}
           onClose={closeEditJson}
+        />
+      )}
+
+      {isDiagnosticsLogOpen && (
+        <DiagnosticsLogPanel
+          isDarkMode={isDarkMode}
+          onClose={() => setIsDiagnosticsLogOpen(false)}
         />
       )}
 

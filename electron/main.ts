@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -9,6 +9,39 @@ const logFilePath = path.join(logDir, 'runtime.log');
 async function appendRuntimeLog(entry: string) {
   await fs.mkdir(logDir, { recursive: true });
   await fs.appendFile(logFilePath, `[${new Date().toISOString()}] ${entry}\n`, 'utf8');
+}
+
+async function readRecentRuntimeLog(maxBytes = 160 * 1024) {
+  await fs.mkdir(logDir, { recursive: true });
+
+  try {
+    const stats = await fs.stat(logFilePath);
+    const byteLength = Math.max(0, Math.min(stats.size, Math.floor(maxBytes)));
+    const start = Math.max(0, stats.size - byteLength);
+    const file = await fs.open(logFilePath, 'r');
+
+    try {
+      const buffer = Buffer.alloc(byteLength);
+      await file.read(buffer, 0, byteLength, start);
+      return {
+        path: logFilePath,
+        content: buffer.toString('utf8'),
+        truncated: start > 0,
+      };
+    } finally {
+      await file.close();
+    }
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      return {
+        path: logFilePath,
+        content: '',
+        truncated: false,
+      };
+    }
+
+    throw error;
+  }
 }
 
 function logRuntimeEvent(event: string, details: object = {}) {
@@ -111,5 +144,16 @@ process.on('unhandledRejection', (reason) => {
 
 ipcMain.handle('log:append', async (_event, payload: string) => {
   await appendRuntimeLog(payload);
+  return logFilePath;
+});
+
+ipcMain.handle('log:readRecent', async (_event, maxBytes?: number) => (
+  readRecentRuntimeLog(maxBytes)
+));
+
+ipcMain.handle('log:showInFolder', async () => {
+  await fs.mkdir(logDir, { recursive: true });
+  await fs.appendFile(logFilePath, '', 'utf8');
+  shell.showItemInFolder(logFilePath);
   return logFilePath;
 });
