@@ -19,7 +19,6 @@ import {
   LARGE_FILE_THRESHOLD,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
-  SEARCH_BATCH_SIZE,
   SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
@@ -38,93 +37,15 @@ import {
   shouldUseLargeMode,
 } from './utils/jsonToolModels';
 import {
-  buildLineStarts,
-  findTextSearchBatch,
-} from './utils/searchText';
+  formatBytes,
+  formatDuration,
+  getMonacoOptions,
+  getMonacoSearchBatch,
+  getReplacementText,
+} from './utils/jsonEditorInteractions';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
-
-function formatBytes(value: number) {
-  if (value <= 0) {
-    return '0 B';
-  }
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let size = value;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  const precision = size >= 100 || unitIndex === 0 ? 0 : 1;
-  return `${size.toFixed(precision)} ${units[unitIndex]}`;
-}
-
-function formatDuration(value: number | null | undefined) {
-  if (typeof value !== 'number') {
-    return null;
-  }
-
-  return `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
-}
-
-function getMonacoSearchBatch(
-  model: monaco.editor.ITextModel,
-  searchTerm: string,
-  searchOptions: JsonSearchOptions,
-  startOffset = 0,
-  maxResults = SEARCH_BATCH_SIZE
-) {
-  const text = model.getValue();
-  const result = findTextSearchBatch(
-    text,
-    buildLineStarts(text),
-    model.getLineCount(),
-    searchTerm,
-    searchOptions,
-    startOffset,
-    maxResults
-  );
-
-  return {
-    ...result,
-    ranges: result.matches.map((match) => {
-      const start = model.getPositionAt(match.start);
-      const end = model.getPositionAt(match.end);
-      return new monaco.Range(
-        start.lineNumber,
-        start.column,
-        end.lineNumber,
-        end.column
-      );
-    }),
-  };
-}
-
-function getReplacementText(
-  model: monaco.editor.ITextModel,
-  range: monaco.Range,
-  searchTerm: string,
-  searchOptions: JsonSearchOptions,
-  replaceText: string
-) {
-  if (!searchOptions.useRegex) {
-    return replaceText;
-  }
-
-  try {
-    const source = model.getValueInRange(range);
-    return source.replace(
-      new RegExp(searchTerm, searchOptions.matchCase ? '' : 'i'),
-      replaceText
-    );
-  } catch {
-    return replaceText;
-  }
-}
 
 const App: React.FC = () => {
   const {
@@ -674,7 +595,12 @@ const App: React.FC = () => {
         enableStructuralFolding,
       });
       rightEditorRef.current?.updateOptions(
-        getMonacoOptions(effectiveLargeMode, true, enableStructuralFolding)
+        getMonacoOptions({
+          largeMode: effectiveLargeMode,
+          wrapLongLines,
+          readOnly: true,
+          enableStructuralFolding,
+        })
       );
       rightEditorRef.current?.layout();
       logRightEditorState('right-editor-state', tabId, {
@@ -815,11 +741,19 @@ const App: React.FC = () => {
   ]);
 
   useEffect(() => {
-    leftEditorRef.current?.updateOptions(getMonacoOptions(isLargeFileMode));
+    leftEditorRef.current?.updateOptions(getMonacoOptions({
+      largeMode: isLargeFileMode,
+      wrapLongLines,
+    }));
     leftEditorRef.current?.layout();
     if (!shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
       rightEditorRef.current?.updateOptions(
-        getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)
+        getMonacoOptions({
+          largeMode: isLargeFileMode,
+          wrapLongLines,
+          readOnly: true,
+          enableStructuralFolding: shouldEnableRightPaneFolding,
+        })
       );
       rightEditorRef.current?.layout();
     }
@@ -1023,62 +957,6 @@ const App: React.FC = () => {
     rightSearchTerm,
     shouldUseDedicatedRightViewer,
   ]);
-
-  const getMonacoOptions = (
-    largeMode: boolean,
-    readOnly = false,
-    enableStructuralFolding = !largeMode
-  ): monaco.editor.IStandaloneEditorConstructionOptions => {
-    const preserveFoldingForLargeReadonly = readOnly && enableStructuralFolding;
-
-    return {
-      automaticLayout: true,
-      minimap: { enabled: false },
-      scrollBeyondLastLine: false,
-      largeFileOptimizations: preserveFoldingForLargeReadonly ? false : true,
-      wordWrap: wrapLongLines ? 'on' : 'off',
-      folding: enableStructuralFolding,
-      showFoldingControls: enableStructuralFolding ? 'always' : 'never',
-      foldingStrategy: 'indentation',
-      foldingMaximumRegions: preserveFoldingForLargeReadonly ? 50000 : 5000,
-      foldingHighlight: enableStructuralFolding,
-      glyphMargin: false,
-      occurrencesHighlight: 'off',
-      selectionHighlight: false,
-      renderWhitespace: 'none',
-      renderValidationDecorations: 'off',
-      matchBrackets: 'never',
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      fontSize: 12,
-      fontWeight: 'normal',
-      lineHeight: 18,
-      fontLigatures: false,
-      letterSpacing: 0,
-      codeLens: false,
-      lineDecorationsWidth: enableStructuralFolding ? 16 : 0,
-      lineNumbersMinChars: 3,
-      maxTokenizationLineLength: largeMode ? 2000 : 1000000,
-      unicodeHighlight: {
-        ambiguousCharacters: false,
-        invisibleCharacters: false,
-        nonBasicASCII: false,
-      },
-      quickSuggestions: false,
-      suggestOnTriggerCharacters: false,
-      scrollbar: {
-        alwaysConsumeMouseWheel: true,
-      },
-      wordBasedSuggestions: largeMode ? 'off' : 'currentDocument',
-      hover: {
-        enabled: !largeMode,
-      },
-      links: !largeMode,
-      readOnly,
-      guides: {
-        indentation: false,
-      },
-    };
-  };
 
   const beginPastePerformanceSession = (tabId: string, nextContent: string) => {
     beginPerformanceSession(
@@ -1934,7 +1812,10 @@ const App: React.FC = () => {
             <Editor
               onMount={handleLeftMount}
               theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-              options={getMonacoOptions(isLargeFileMode)}
+              options={getMonacoOptions({
+                largeMode: isLargeFileMode,
+                wrapLongLines,
+              })}
               onChange={handleLeftChange}
               height="100%"
               loading={null}
@@ -2021,7 +1902,12 @@ const App: React.FC = () => {
               <Editor
                 onMount={handleRightMount}
                 theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-                options={getMonacoOptions(isLargeFileMode, true, shouldEnableRightPaneFolding)}
+                options={getMonacoOptions({
+                  largeMode: isLargeFileMode,
+                  wrapLongLines,
+                  readOnly: true,
+                  enableStructuralFolding: shouldEnableRightPaneFolding,
+                })}
                 height="100%"
                 loading={null}
               />
