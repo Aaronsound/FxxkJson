@@ -6,6 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "start": "electron ./dist-electron/main.js",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "check": "npm run typecheck && npm test && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "node ./scripts/bench-json.mjs",

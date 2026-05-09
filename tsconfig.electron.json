@@ -8,8 +8,8 @@
     "esModuleInterop": true,
     "moduleResolution": "node",
     "skipLibCheck": true,
-       "lib": ["es2020", "dom"],
-   "types": ["node", "electron"]
+    "lib": ["es2020", "dom"],
+    "types": ["node", "electron"]
   },
   "include": ["electron"]
 }

@@ -11,7 +11,7 @@ async function appendRuntimeLog(entry: string) {
   await fs.appendFile(logFilePath, `[${new Date().toISOString()}] ${entry}\n`, 'utf8');
 }
 
-function logRuntimeEvent(event: string, details: Record<string, unknown> = {}) {
+function logRuntimeEvent(event: string, details: object = {}) {
   appendRuntimeLog(JSON.stringify({
     event,
     ...details,
