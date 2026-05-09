@@ -1,141 +1,73 @@
 # HanJson Validation Checklist
 
+Use this checklist after routine changes and before handing a build to someone else. The commands below work from the repository root.
+
 ## 1. Daily Regression
 
-Use this checklist after routine code changes.
-
-### Step 1: Build
-
-```powershell
-cd "C:\Users\Alosan\Documents\New project"
-npm.cmd run build
+```bash
+npm run check
 ```
 
 Expected result:
-- Build completes successfully
-- No new TypeScript or Vite build errors
 
-### Step 2: Run Automated Smoke Tests
+- Renderer and Electron type checks pass.
+- Vitest passes.
+- Production build completes.
+- No Vite deprecation, sourcemap, or oversized chunk warnings are introduced.
 
-```powershell
-cd "C:\Users\Alosan\Documents\New project"
-npm.cmd run test
+## 2. Large JSON Samples
+
+```bash
+npm run samples
+npm run bench -- --samples
 ```
 
 Expected result:
-- All tests pass
-- Current smoke coverage includes:
-  - byte-based large-file mode decisions
-  - generated samples at and above 5MB enter the large-file viewer path
-  - large-file viewer search
-  - fold all / unfold all
-  - click-to-locate-left
-  - copy value
 
-### Step 3: Generate Manual Samples
+- Local ignored files are created in `json/`.
+- Default samples include `sample-5mb.json`, `sample-6mb.json`, `sample-7mb.json`, `sample-10mb.json`, `sample-15mb.json`, and `sample-20mb.json`.
+- Bench output completes without crashes.
+- Parse, stringify, viewer-index, and tree timings do not show obvious regressions against recent local baselines.
 
-```powershell
-cd "C:\Users\Alosan\Documents\New project"
-npm.cmd run samples
+## 3. Manual Desktop Smoke Test
+
+```bash
+npm run dev
 ```
 
-Expected result:
-- Creates local ignored files in `json/`
-- Default files are `sample-5mb.json`, `sample-6mb.json`, `sample-7mb.json`, `sample-10mb.json`, `sample-15mb.json`, and `sample-20mb.json`
-
-### Step 4: Quick Manual Check
-
-```powershell
-cd "C:\Users\Alosan\Documents\New project"
-npm.cmd run dev
-```
-
-Use these sample files in `json/`:
-- `sample-5mb.json`
-- `sample-6mb.json`
-- `sample-7mb.json`
-- `sample-10mb.json`
-- `sample-15mb.json`
-- `sample-20mb.json`
+Use the desktop app window opened by Electron, not a browser-based JSON formatter.
 
 Manual flow:
-1. Import `sample-5mb.json`
-2. Confirm the right pane enters large-file viewer mode and supports fold / unfold arrows
-3. Import `sample-6mb.json`, `sample-7mb.json`, and `sample-10mb.json`
-4. Confirm the right pane keeps the same large-file viewer layout and controls
-5. Fold one object or array in the right pane
-6. Search for a known key or value and use `上一项 / 下一项`
-7. Right-click a value and use `复制值`
-8. Click a node or matched content on the right and confirm the left pane locates correctly
+
+1. Import `json/sample-5mb.json`.
+2. Confirm the right pane enters large-file viewer mode.
+3. Fold and unfold nodes from the toolbar and from row-level fold controls.
+4. Open right-pane search with `Cmd/Ctrl+F`, search for `HanJson`, then navigate next and previous matches.
+5. Right-click a value in the large viewer and choose `Copy value`; paste it into a new tab and confirm it remains valid JSON.
+6. Enable `大文件启用右侧定位`, click content in the right pane, and confirm the left pane locates the corresponding raw JSON value.
+7. Repeat import smoke checks with `sample-10mb.json` and `sample-20mb.json`.
+8. Create a second tab, import another sample, switch tabs, and confirm content, fold state, and search state stay stable.
+9. Toggle dark mode, long-line wrapping, and the performance panel.
 
 Expected result:
-- 5MB and larger JSON files use the same dedicated large-file viewer path
-- Search, fold, copy, and locate all still work
 
-## 2. Release Candidate Check
+- 5MB and larger JSON files use the dedicated large-file viewer.
+- Search, fold/unfold, copy value, optional locate, tab switching, and performance panel interactions remain stable.
 
-Use this checklist before pushing a release branch, creating a tag, or asking for final acceptance.
+## 4. Release Candidate Check
 
-### Commands
+Run this before creating a release branch, version tag, or distributable package:
 
-```powershell
-cd "C:\Users\Alosan\Documents\New project"
-npm.cmd run build
-npm.cmd run test
-npm.cmd run samples
-npm.cmd run bench -- .\json\sample-5mb.json
-npm.cmd run bench -- .\json\sample-6mb.json
-npm.cmd run bench -- .\json\sample-7mb.json
-npm.cmd run bench -- .\json\sample-10mb.json
-npm.cmd run bench -- .\json\sample-15mb.json
-npm.cmd run bench -- .\json\sample-20mb.json
+```bash
+npm run check
+npm run samples
+npm run bench -- --samples
 ```
 
-Expected result:
-- Build passes
-- Tests pass
-- Bench output completes without crashing
-- No obvious performance regression compared with recent baselines
+Then run the full manual desktop smoke test above.
 
-### Manual Release Flow
+## 5. Notes
 
-1. Start the app with `npm.cmd run dev`
-2. Import `sample-5mb.json`
-3. Import `sample-6mb.json`
-4. Import `sample-7mb.json`
-5. Import `sample-10mb.json`
-6. Import `sample-20mb.json`
-7. For each file, confirm:
-   - left pane displays raw JSON
-   - right pane displays formatted output
-   - fold / unfold still works
-   - search still works
-   - right-side click can still locate left side when the feature is enabled
-8. Create a second tab, import another sample, and switch back and forth
-9. Confirm fold state and content state stay stable after tab switching
-10. Copy a value from the right pane, open a new tab, paste it into the left pane, and confirm it remains valid JSON
-11. Toggle full screen and restore window size
-12. Confirm the toolbar, tab titles, and performance panel still render correctly
-
-## 3. When To Run Which Checklist
-
-- Small UI or wording change:
-  - Run `build`
-  - Run `test`
-
-- Logic change in formatting, tabs, search, copy, locate, or large-file viewer:
-  - Run the full `Daily Regression`
-
-- Before tagging or pushing a stable milestone:
-  - Run the full `Release Candidate Check`
-
-## 4. Notes
-
-- Automated tests reduce repeated manual work, but they do not fully replace opening the app.
-- The most important manual path is still:
-  - import `5MB`, `6MB`, `7MB`, and `10MB`
-  - fold
-  - search
-  - copy value
-  - locate left
-  - switch tabs and come back
+- Automated tests reduce repeated manual work, but they do not fully replace opening the Electron desktop app.
+- The most important manual path is still: import 5MB+ JSON, fold, search, copy value, locate left, switch tabs, and return.
+- `json/`, `dist-renderer/`, `dist-electron/`, and `release/` are local/generated artifacts and should stay out of git.
