@@ -88,6 +88,11 @@ function getLineNumberFromElement(element: HTMLElement) {
   return Number.isFinite(lineNumber) ? lineNumber : null;
 }
 
+function getFirstMeaningfulOffset(lineText: string) {
+  const match = lineText.match(/\S/);
+  return match?.index ?? 0;
+}
+
 const LargeJsonReadonlyViewer = forwardRef<
   LargeJsonReadonlyViewerHandle,
   LargeJsonReadonlyViewerProps
@@ -231,7 +236,7 @@ const LargeJsonReadonlyViewer = forwardRef<
     };
 
     const currentTarget = event.currentTarget;
-    let charOffset = 0;
+    let charOffset = getFirstMeaningfulOffset(lineText);
 
     const caretPosition = doc.caretPositionFromPoint?.(event.clientX, event.clientY);
     if (caretPosition && currentTarget.contains(caretPosition.offsetNode)) {
@@ -250,11 +255,6 @@ const LargeJsonReadonlyViewer = forwardRef<
           caretRange.startOffset,
           lineText.length
         );
-      } else if (
-        event.target instanceof HTMLElement
-        && event.target.classList.contains('large-json-line-text')
-      ) {
-        charOffset = lineText.length;
       }
     }
 
@@ -683,6 +683,21 @@ const LargeJsonReadonlyViewer = forwardRef<
       <div
         key={`${lineNumber}-${visibleIndex}`}
         className={`large-json-row ${wrapLongLines ? 'wrap' : ''}`}
+        onMouseUp={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+
+          if (
+            event.target instanceof HTMLElement
+            && event.target.closest('.large-json-fold-button')
+          ) {
+            return;
+          }
+
+          const offset = (data.lineStarts[lineNumber - 1] ?? 0) + getFirstMeaningfulOffset(baseLineText);
+          onLocateOffset(offset);
+        }}
         style={{
           top: `${visibleIndex * rowHeight}px`,
           height: `${rowHeight}px`,
@@ -713,10 +728,12 @@ const LargeJsonReadonlyViewer = forwardRef<
             }
 
             const offset = resolveOffsetFromPoint(event, lineNumber, baseLineText);
+            event.stopPropagation();
             onLocateOffset(offset);
           }}
           onContextMenu={(event) => {
             event.preventDefault();
+            event.stopPropagation();
             const offset = resolveOffsetFromPoint(event, lineNumber, baseLineText);
             setContextMenu({
               x: event.clientX,

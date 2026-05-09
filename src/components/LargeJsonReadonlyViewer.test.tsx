@@ -134,6 +134,18 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(onLocateOffset).toHaveBeenCalledTimes(1);
     expect(onLocateOffset).toHaveBeenLastCalledWith(expect.any(Number));
 
+    const keyToken = document.querySelector('.large-json-line-text[title*="alpha"] .large-json-token-key');
+    expect(keyToken).not.toBeNull();
+    if (!keyToken) {
+      throw new Error('Expected a key token in the alpha line');
+    }
+
+    const alphaLineStart = fixtureText.indexOf('  "name"');
+    fireEvent.mouseUp(keyToken, { button: 0 });
+    expect(onLocateOffset).toHaveBeenCalledTimes(2);
+    expect(onLocateOffset).toHaveBeenLastCalledWith(expect.any(Number));
+    expect(onLocateOffset.mock.calls[1][0]).toBeGreaterThan(alphaLineStart);
+
     fireEvent.contextMenu(line);
     const menuItem = await screen.findByRole('button', { name: 'Copy value' });
     fireEvent.click(menuItem);
