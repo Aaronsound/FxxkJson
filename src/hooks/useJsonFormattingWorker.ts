@@ -11,6 +11,7 @@ import type {
   JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
+  LocateFeedback,
   PerformanceTrigger,
   ProcessingStage,
   SearchTarget,
@@ -62,6 +63,7 @@ interface UseJsonFormattingWorkerArgs {
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   setProcessingStage: (tabId: string, stage: ProcessingStage) => void;
+  setLocateFeedback: (tabId: string, feedback: LocateFeedback | null) => void;
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
   setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
   setLargeViewerStatus: (tabId: string, status: 'idle' | 'building' | 'ready') => void;
@@ -110,6 +112,7 @@ export function useJsonFormattingWorker({
   setTabFormatting,
   setTabLargeMode,
   setProcessingStage,
+  setLocateFeedback,
   setStructureStatus,
   setLargeViewerData,
   setLargeViewerStatus,
@@ -152,6 +155,7 @@ export function useJsonFormattingWorker({
     setTabImporting,
     setTabLargeMode,
     setProcessingStage,
+    setLocateFeedback,
     setLargeViewerData,
     setLeftSearchResults,
     setLargeViewerSearchResults,
@@ -178,6 +182,7 @@ export function useJsonFormattingWorker({
     setTabImporting,
     setTabLargeMode,
     setProcessingStage,
+    setLocateFeedback,
     setLargeViewerData,
     setLeftSearchResults,
     setLargeViewerSearchResults,
@@ -214,6 +219,13 @@ export function useJsonFormattingWorker({
       || !workerStructureEnabledRef.current[tabId]
       || structureStatusRef.current[tabId] !== 'ready'
     ) {
+      callbacksRef.current.setLocateFeedback(tabId, {
+        status: 'failed',
+        message: structureStatusRef.current[tabId] === 'building'
+          ? '定位索引中'
+          : '当前位置无法映射',
+        updatedAt: Date.now(),
+      });
       return;
     }
 
@@ -221,6 +233,11 @@ export function useJsonFormattingWorker({
     latestLocateRequestRef.current[tabId] = requestId;
     callbacksRef.current.setStructureStatus(tabId, 'building');
     callbacksRef.current.setProcessingStage(tabId, 'building-index');
+    callbacksRef.current.setLocateFeedback(tabId, {
+      status: 'pending',
+      message: `正在定位 offset ${Math.max(0, Math.floor(offset)).toLocaleString()}`,
+      updatedAt: Date.now(),
+    });
     workerRef.current.postMessage({
       type: 'locate',
       requestId,
@@ -356,6 +373,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setTabFormatting(tabId, false);
       callbacksRef.current.setTabLargeMode(tabId, false);
       callbacksRef.current.setProcessingStage(tabId, 'idle');
+      callbacksRef.current.setLocateFeedback(tabId, null);
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       clearTabStructure(tabId, 'ready');
@@ -381,6 +399,7 @@ export function useJsonFormattingWorker({
     const shouldBuildLargeViewer = textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
     callbacksRef.current.setTabFormatting(tabId, true);
     callbacksRef.current.setProcessingStage(tabId, 'formatting');
+    callbacksRef.current.setLocateFeedback(tabId, null);
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeViewerStatus(
       tabId,
@@ -477,6 +496,7 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setTabFormatting(tabId, false);
     callbacksRef.current.setTabLargeMode(tabId, false);
     callbacksRef.current.setProcessingStage(tabId, 'idle');
+    callbacksRef.current.setLocateFeedback(tabId, null);
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     clearTabStructure(tabId, 'ready');
@@ -506,6 +526,7 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setProcessingStage(tabId, 'idle');
+    callbacksRef.current.setLocateFeedback(tabId, null);
     delete rawTextByTabRef.current[tabId];
     delete formattedTextByTabRef.current[tabId];
     delete leftViewStateByTabRef.current[tabId];
@@ -536,6 +557,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setTabImporting(tabId, file.name);
       callbacksRef.current.setTabFormatting(tabId, false);
       callbacksRef.current.setProcessingStage(tabId, 'reading');
+      callbacksRef.current.setLocateFeedback(tabId, null);
       callbacksRef.current.renameTab(tabId, getFileName(file.name));
       callbacksRef.current.setTabLargeMode(tabId, presumedLargeMode);
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
@@ -608,9 +630,10 @@ export function useJsonFormattingWorker({
         error: error instanceof Error ? error.message : String(error),
       });
       callbacksRef.current.setTabImporting(tabId, null);
-      callbacksRef.current.setTabFormatting(tabId, false);
-      callbacksRef.current.setProcessingStage(tabId, 'idle');
-      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+        callbacksRef.current.setTabFormatting(tabId, false);
+        callbacksRef.current.setProcessingStage(tabId, 'idle');
+        callbacksRef.current.setLocateFeedback(tabId, null);
+        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setTabError(
         tabId,
@@ -681,9 +704,10 @@ export function useJsonFormattingWorker({
           return;
         }
 
-        callbacksRef.current.setTabFormatting(tabId, false);
-        callbacksRef.current.setProcessingStage(tabId, 'idle');
-        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+      callbacksRef.current.setTabFormatting(tabId, false);
+      callbacksRef.current.setProcessingStage(tabId, 'idle');
+      callbacksRef.current.setLocateFeedback(tabId, null);
+      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
         callbacksRef.current.setLargeViewerData(tabId, null);
         callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
           if (session.requestId !== requestId) {
@@ -796,7 +820,20 @@ export function useJsonFormattingWorker({
         callbacksRef.current.setProcessingStage(tabId, 'idle');
 
         if (event.data.found && typeof event.data.startOffset === 'number' && typeof event.data.endOffset === 'number') {
+          callbacksRef.current.setLocateFeedback(tabId, {
+            status: 'success',
+            message: `已定位到 offset ${event.data.startOffset.toLocaleString()}`,
+            startOffset: event.data.startOffset,
+            endOffset: event.data.endOffset,
+            updatedAt: Date.now(),
+          });
           callbacksRef.current.revealLeftRange(event.data.startOffset, event.data.endOffset);
+        } else {
+          callbacksRef.current.setLocateFeedback(tabId, {
+            status: 'failed',
+            message: '该位置无法映射',
+            updatedAt: Date.now(),
+          });
         }
         return;
       }

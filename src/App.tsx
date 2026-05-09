@@ -20,6 +20,7 @@ import {
   LARGE_FILE_THRESHOLD,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
+  LocateFeedback,
   ProcessingStage,
   SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
@@ -145,6 +146,9 @@ const App: React.FC = () => {
   const [processingStageByTab, setProcessingStageByTab] = useState<Record<string, ProcessingStage>>({
     [INITIAL_TAB_ID]: 'idle',
   });
+  const [locateFeedbackByTab, setLocateFeedbackByTab] = useState<Record<string, LocateFeedback | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
 
   const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -224,6 +228,9 @@ const App: React.FC = () => {
   const activeProcessingStage = activeTab
     ? processingStageByTab[activeTab.id] ?? 'idle'
     : 'idle';
+  const activeLocateFeedback = activeTab
+    ? locateFeedbackByTab[activeTab.id] ?? null
+    : null;
   const isLargeFileLocateEnabled = activeTab
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
     : false;
@@ -277,6 +284,7 @@ const App: React.FC = () => {
     formatDuration(activePerformanceSnapshot?.readFileMs)
       ? `导入 ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
       : null,
+    activeLocateFeedback?.message ?? null,
   ].filter(Boolean).join(' · ');
   const rightPaneStatusText = (() => {
     if (!isLargeFileMode) {
@@ -405,6 +413,10 @@ const App: React.FC = () => {
 
   const setProcessingStage = (tabId: string, stage: ProcessingStage) => {
     setProcessingStageByTab((current) => ({ ...current, [tabId]: stage }));
+  };
+
+  const setLocateFeedback = (tabId: string, feedback: LocateFeedback | null) => {
+    setLocateFeedbackByTab((current) => ({ ...current, [tabId]: feedback }));
   };
 
   const setLargeFileLocateEnabled = (tabId: string, enabled: boolean) => {
@@ -754,6 +766,7 @@ const App: React.FC = () => {
     setTabFormatting,
     setTabLargeMode,
     setProcessingStage,
+    setLocateFeedback,
     setStructureStatus,
     setLargeViewerData,
     setLargeViewerStatus,
@@ -1455,6 +1468,7 @@ const App: React.FC = () => {
     setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
     setProcessingStageByTab((current) => ({ ...current, [nextId]: 'idle' }));
+    setLocateFeedbackByTab((current) => ({ ...current, [nextId]: null }));
     largeModeRef.current[nextId] = false;
     largeFileLocateEnabledRef.current[nextId] = false;
     structureStatusRef.current[nextId] = 'ready';
@@ -1486,6 +1500,11 @@ const App: React.FC = () => {
       return next;
     });
     setProcessingStageByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setLocateFeedbackByTab((current) => {
       const next = { ...current };
       delete next[tabId];
       return next;

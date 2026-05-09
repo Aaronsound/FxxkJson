@@ -74,6 +74,14 @@ export interface JsonSearchOptions {
   useRegex: boolean;
 }
 
+export interface LocateFeedback {
+  status: 'pending' | 'success' | 'failed';
+  message: string;
+  startOffset?: number;
+  endOffset?: number;
+  updatedAt: number;
+}
+
 export const DEFAULT_SEARCH_OPTIONS: JsonSearchOptions = {
   matchCase: false,
   wholeWord: false,
