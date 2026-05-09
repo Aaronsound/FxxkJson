@@ -116,10 +116,17 @@ const LargeJsonReadonlyViewer = forwardRef<
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fullDocumentSelectedRef = useRef(false);
+  const onCollapsedLinesChangeRef = useRef(onCollapsedLinesChange);
+  const onLocateOffsetRef = useRef(onLocateOffset);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; offset: number } | null>(null);
   const rowHeight = wrapLongLines ? LINE_HEIGHT * 4 : LINE_HEIGHT;
+
+  useEffect(() => {
+    onCollapsedLinesChangeRef.current = onCollapsedLinesChange;
+    onLocateOffsetRef.current = onLocateOffset;
+  }, [onCollapsedLinesChange, onLocateOffset]);
 
   const regionsByStartLine = useMemo(() => {
     const map = new Map<number, LargeJsonViewerRegion>();
@@ -519,7 +526,7 @@ const LargeJsonReadonlyViewer = forwardRef<
 
     if (containingCollapsedRegion) {
       const next = normalizedCollapsedLines.filter((line) => line !== containingCollapsedRegion.triggerLine);
-      onCollapsedLinesChange(next);
+      onCollapsedLinesChangeRef.current(next);
       return;
     }
 
@@ -528,14 +535,12 @@ const LargeJsonReadonlyViewer = forwardRef<
       containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
     }
 
-    onLocateOffset(activeMatch.start);
+    onLocateOffsetRef.current(activeMatch.start);
   }, [
     activeMatch,
     collapsedIntervals,
     getVisibleIndexForActualLine,
     normalizedCollapsedLines,
-    onCollapsedLinesChange,
-    onLocateOffset,
     rowHeight,
   ]);
 

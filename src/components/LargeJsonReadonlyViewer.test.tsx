@@ -69,6 +69,51 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(document.querySelectorAll('.large-json-search-match')).toHaveLength(1);
   });
 
+  it('does not repeat locate for the same active search match after callback props refresh', async () => {
+    const data = buildLargeViewerData(fixtureText, 1);
+    if (!data) {
+      throw new Error('Expected large viewer fixture data');
+    }
+    const firstLocate = vi.fn();
+    const refreshedLocate = vi.fn();
+    const firstCollapsedChange = vi.fn();
+    const refreshedCollapsedChange = vi.fn();
+    const baseProps: React.ComponentProps<typeof LargeJsonReadonlyViewer> = {
+      text: fixtureText,
+      data,
+      isDarkMode: false,
+      wrapLongLines: false,
+      collapsedLines: [],
+      searchTerm: 'name',
+      activeMatchIndex: 0,
+      onCollapsedLinesChange: firstCollapsedChange,
+      onMatchCountChange: vi.fn(),
+      onLocateOffset: firstLocate,
+      onCopyValue: vi.fn(),
+      onEditValue: vi.fn(),
+      onOpenFind: vi.fn(),
+    };
+
+    const { rerender } = render(<LargeJsonReadonlyViewer {...baseProps} />);
+
+    await waitFor(() => {
+      expect(firstLocate).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <LargeJsonReadonlyViewer
+        {...baseProps}
+        onCollapsedLinesChange={refreshedCollapsedChange}
+        onLocateOffset={refreshedLocate}
+      />
+    );
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
+    expect(refreshedLocate).not.toHaveBeenCalled();
+  });
+
   it('syntax highlights JSON keys and values in the virtualized viewer', () => {
     renderViewer();
 
