@@ -213,6 +213,7 @@ export function useJsonFormattingWorker({
 
     const requestId = ++locateRequestCounterRef.current;
     latestLocateRequestRef.current[tabId] = requestId;
+    callbacksRef.current.setStructureStatus(tabId, 'building');
     workerRef.current.postMessage({
       type: 'locate',
       requestId,
@@ -758,6 +759,10 @@ export function useJsonFormattingWorker({
           || latestLocateRequestRef.current[tabId] !== requestId
         ) {
           return;
+        }
+
+        if (workerStructureEnabledRef.current[tabId]) {
+          callbacksRef.current.setStructureStatus(tabId, 'ready');
         }
 
         if (event.data.found && typeof event.data.startOffset === 'number' && typeof event.data.endOffset === 'number') {

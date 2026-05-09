@@ -4,6 +4,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonEditModal from './components/JsonEditModal';
 import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
+import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
@@ -32,6 +33,7 @@ import {
   getRightModelPath,
   getUtf8ByteLength,
   isLargeDocument,
+  disposeModel,
   recreateModel,
   selectionCoversModel,
   shouldUseLargeMode,
@@ -86,6 +88,7 @@ const App: React.FC = () => {
   const [leftReplaceText, setLeftReplaceText] = useState('');
   const [leftMatches, setLeftMatches] = useState<monaco.Range[]>([]);
   const [rightMatches, setRightMatches] = useState<monaco.Range[]>([]);
+  const [leftRawHighlightRange, setLeftRawHighlightRange] = useState<{ start: number; end: number } | null>(null);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const [leftSearchHasMore, setLeftSearchHasMore] = useState(false);
@@ -123,6 +126,7 @@ const App: React.FC = () => {
 
   const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const largeRawViewerRef = useRef<LargeRawReadonlyViewerHandle | null>(null);
   const largeViewerRef = useRef<LargeJsonReadonlyViewerHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const rawTextByTabRef = useRef<Record<string, string>>({
@@ -221,6 +225,7 @@ const App: React.FC = () => {
     ? largeViewerCollapsedLinesByTab[activeTab.id] ?? []
     : [];
   const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
+  const shouldUseDedicatedLeftViewer = Boolean(activeRawText && activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD);
   const isBuildingDedicatedRightViewer = Boolean(
     formattedValue
     && !shouldUseDedicatedRightViewer
@@ -283,6 +288,8 @@ const App: React.FC = () => {
       window.clearTimeout(highlightTimeoutRef.current);
       highlightTimeoutRef.current = null;
     }
+
+    setLeftRawHighlightRange(null);
 
     if (leftEditorRef.current && leftDecorationIdsRef.current.length > 0) {
       leftEditorRef.current.deltaDecorations(leftDecorationIdsRef.current, []);
@@ -350,6 +357,7 @@ const App: React.FC = () => {
     setRightMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
+    setLeftRawHighlightRange(null);
     setLeftSearchHasMore(false);
     setRightSearchHasMore(false);
     setLeftSearchNextOffset(0);
@@ -505,6 +513,20 @@ const App: React.FC = () => {
   const syncLeftModel = (tabId: string, content: string, forceValue = false) => {
     const path = getLeftModelPath(tabId);
     const byteLength = getUtf8ByteLength(content);
+
+    if (byteLength >= LARGE_FILE_THRESHOLD) {
+      if (activeTabIdRef.current === tabId) {
+        leftViewStateByTabRef.current[tabId] = leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[tabId] ?? null;
+        leftEditorRef.current?.setModel(null);
+      }
+      disposeModel(path);
+      logEvent('left-model-dedicated-viewer', {
+        tabId,
+        rawLength: byteLength,
+      });
+      return;
+    }
+
     const language = getEditorLanguageByLength(byteLength);
     let model = getOrCreateModel(path, language);
 
@@ -613,6 +635,19 @@ const App: React.FC = () => {
   };
 
   const revealLeftRange = (startOffset: number, endOffset: number) => {
+    if (shouldUseDedicatedLeftViewer) {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+
+      setLeftRawHighlightRange({ start: startOffset, end: endOffset });
+      largeRawViewerRef.current?.revealRange(startOffset, endOffset);
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        clearLeftHighlights();
+      }, SEARCH_HIGHLIGHT_DURATION);
+      return;
+    }
+
     const leftEditor = leftEditorRef.current;
     const leftModel = leftEditor?.getModel();
 
@@ -741,11 +776,13 @@ const App: React.FC = () => {
   ]);
 
   useEffect(() => {
-    leftEditorRef.current?.updateOptions(getMonacoOptions({
-      largeMode: isLargeFileMode,
-      wrapLongLines,
-    }));
-    leftEditorRef.current?.layout();
+    if (!shouldUseDedicatedLeftViewer) {
+      leftEditorRef.current?.updateOptions(getMonacoOptions({
+        largeMode: isLargeFileMode,
+        wrapLongLines,
+      }));
+      leftEditorRef.current?.layout();
+    }
     if (!shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
       rightEditorRef.current?.updateOptions(
         getMonacoOptions({
@@ -769,6 +806,7 @@ const App: React.FC = () => {
     activeTabId,
     isBuildingDedicatedRightViewer,
     isLargeFileMode,
+    shouldUseDedicatedLeftViewer,
     shouldEnableRightPaneFolding,
     shouldUseDedicatedRightViewer,
     wrapLongLines,
@@ -1427,6 +1465,10 @@ const App: React.FC = () => {
   };
 
   const openLeftFind = () => {
+    if (shouldUseDedicatedLeftViewer) {
+      return;
+    }
+
     setIsLeftFindOpen(true);
   };
 
@@ -1786,7 +1828,7 @@ const App: React.FC = () => {
             <span className="editor-pane-header-text">{leftPaneMetaText}</span>
           </div>
           <div className="editor-pane-body">
-            {isLeftFindOpen && (
+            {isLeftFindOpen && !shouldUseDedicatedLeftViewer && (
               <PaneFindWidget
                 value={leftSearchTerm}
                 currentIndex={activeLeftMatchCount > 0 ? normalizedLeftMatchIndex + 1 : 0}
@@ -1809,17 +1851,26 @@ const App: React.FC = () => {
                 onClose={closeLeftFind}
               />
             )}
-            <Editor
-              onMount={handleLeftMount}
-              theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-              options={getMonacoOptions({
-                largeMode: isLargeFileMode,
-                wrapLongLines,
-              })}
-              onChange={handleLeftChange}
-              height="100%"
-              loading={null}
-            />
+            {shouldUseDedicatedLeftViewer ? (
+              <LargeRawReadonlyViewer
+                ref={largeRawViewerRef}
+                text={activeRawText}
+                isDarkMode={isDarkMode}
+                highlightRange={leftRawHighlightRange}
+              />
+            ) : (
+              <Editor
+                onMount={handleLeftMount}
+                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+                options={getMonacoOptions({
+                  largeMode: isLargeFileMode,
+                  wrapLongLines,
+                })}
+                onChange={handleLeftChange}
+                height="100%"
+                loading={null}
+              />
+            )}
             {activeDocumentMeta.rawLength === 0 && !isImportingActiveTab && (
               <div className="editor-center-placeholder">原始 JSON</div>
             )}
