@@ -20,6 +20,7 @@ import {
   LARGE_FILE_THRESHOLD,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
+  ProcessingStage,
   SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
@@ -48,6 +49,24 @@ import {
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
+
+function getProcessingStageText(stage: ProcessingStage, fileName: string | null) {
+  switch (stage) {
+    case 'reading':
+      return fileName ? `正在读取 ${fileName}` : '正在读取文件';
+    case 'syncing-left':
+      return '正在准备原始视图';
+    case 'formatting':
+      return '正在格式化 JSON';
+    case 'building-viewer':
+      return '正在构建右侧大文件视图';
+    case 'building-index':
+      return '正在建立定位索引';
+    case 'idle':
+    default:
+      return null;
+  }
+}
 
 const App: React.FC = () => {
   const {
@@ -122,6 +141,9 @@ const App: React.FC = () => {
   });
   const [largeViewerCollapsedLinesByTab, setLargeViewerCollapsedLinesByTab] = useState<Record<string, number[]>>({
     [INITIAL_TAB_ID]: [],
+  });
+  const [processingStageByTab, setProcessingStageByTab] = useState<Record<string, ProcessingStage>>({
+    [INITIAL_TAB_ID]: 'idle',
   });
 
   const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -199,6 +221,9 @@ const App: React.FC = () => {
   const currentStructureStatus = activeTab
     ? structureStatusByTab[activeTab.id] ?? 'ready'
     : 'ready';
+  const activeProcessingStage = activeTab
+    ? processingStageByTab[activeTab.id] ?? 'idle'
+    : 'idle';
   const isLargeFileLocateEnabled = activeTab
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
     : false;
@@ -246,6 +271,7 @@ const App: React.FC = () => {
   const normalizedRightMatchIndex = activeRightMatchCount > 0
     ? ((rightMatchIndex % activeRightMatchCount) + activeRightMatchCount) % activeRightMatchCount
     : 0;
+  const processingStageText = getProcessingStageText(activeProcessingStage, importingFileName);
   const leftPaneMetaText = [
     activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
     formatDuration(activePerformanceSnapshot?.readFileMs)
@@ -375,6 +401,10 @@ const App: React.FC = () => {
   const setTabLargeMode = (tabId: string, enabled: boolean) => {
     largeModeRef.current[tabId] = enabled;
     setTabLargeModeState(tabId, enabled);
+  };
+
+  const setProcessingStage = (tabId: string, stage: ProcessingStage) => {
+    setProcessingStageByTab((current) => ({ ...current, [tabId]: stage }));
   };
 
   const setLargeFileLocateEnabled = (tabId: string, enabled: boolean) => {
@@ -723,6 +753,7 @@ const App: React.FC = () => {
     setTabImporting,
     setTabFormatting,
     setTabLargeMode,
+    setProcessingStage,
     setStructureStatus,
     setLargeViewerData,
     setLargeViewerStatus,
@@ -1423,6 +1454,7 @@ const App: React.FC = () => {
     setLargeViewerDataByTab((current) => ({ ...current, [nextId]: null }));
     setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
+    setProcessingStageByTab((current) => ({ ...current, [nextId]: 'idle' }));
     largeModeRef.current[nextId] = false;
     largeFileLocateEnabledRef.current[nextId] = false;
     structureStatusRef.current[nextId] = 'ready';
@@ -1449,6 +1481,11 @@ const App: React.FC = () => {
       return next;
     });
     setLargeViewerStatusByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setProcessingStageByTab((current) => {
       const next = { ...current };
       delete next[tabId];
       return next;
@@ -1762,6 +1799,7 @@ const App: React.FC = () => {
         importingFileName={importingFileName}
         canEnableLargeFileLocate={canEnableLargeFileLocate}
         currentStructureStatus={currentStructureStatus}
+        processingStageText={processingStageText}
         currentError={currentError}
       />
 
@@ -1874,9 +1912,9 @@ const App: React.FC = () => {
             {activeDocumentMeta.rawLength === 0 && !isImportingActiveTab && (
               <div className="editor-center-placeholder">原始 JSON</div>
             )}
-            {isImportingActiveTab && (
+            {processingStageText && (
               <div className="editor-loading-overlay">
-                {`正在导入 ${importingFileName}...`}
+                {processingStageText}
               </div>
             )}
           </div>
@@ -1965,14 +2003,14 @@ const App: React.FC = () => {
             ) : null}
             {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
               <div className="editor-center-placeholder">
-                {isFormattingActiveTab ? '正在格式化...' : '格式化结果'}
+                {processingStageText ?? (isFormattingActiveTab ? '正在格式化...' : '格式化结果')}
               </div>
             )}
             {isBuildingDedicatedRightViewer && !isImportingActiveTab && (
-              <div className="editor-loading-overlay">正在构建大文件查看模式...</div>
+              <div className="editor-loading-overlay">{processingStageText ?? '正在构建大文件查看模式...'}</div>
             )}
-            {isImportingActiveTab && (
-              <div className="editor-loading-overlay">正在读取文件...</div>
+            {processingStageText && !isBuildingDedicatedRightViewer && (
+              <div className="editor-loading-overlay">{processingStageText}</div>
             )}
           </div>
         </div>

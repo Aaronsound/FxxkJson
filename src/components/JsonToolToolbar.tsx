@@ -22,6 +22,7 @@ interface JsonToolToolbarProps {
   importingFileName: string | null;
   canEnableLargeFileLocate: boolean;
   currentStructureStatus: StructureStatus;
+  processingStageText: string | null;
   currentError: string | null;
 }
 
@@ -91,6 +92,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   importingFileName,
   canEnableLargeFileLocate,
   currentStructureStatus,
+  processingStageText,
   currentError,
 }) => {
   const hintMessage = getToolbarHintMessage({
@@ -170,8 +172,9 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
         </div>
       </div>
 
-      {(hintMessage || currentError) && (
+      {(processingStageText || hintMessage || currentError) && (
         <div className="toolbar-feedback">
+          {processingStageText && <span className="toolbar-hint">{processingStageText}</span>}
           {hintMessage && <span className="toolbar-hint">{hintMessage}</span>}
           {currentError && <span className="toolbar-error">{currentError}</span>}
         </div>
