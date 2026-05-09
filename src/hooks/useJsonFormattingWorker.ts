@@ -820,7 +820,12 @@ export function useJsonFormattingWorker({
           tabId,
           event.data.viewerData ? 'ready' : 'idle'
         );
-        callbacksRef.current.setProcessingStage(tabId, 'idle');
+        callbacksRef.current.setProcessingStage(
+          tabId,
+          performanceSession?.structureEnabled && structureStatusRef.current[tabId] === 'building'
+            ? 'building-index'
+            : 'idle'
+        );
         return;
       }
 

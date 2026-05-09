@@ -1609,9 +1609,11 @@ const App: React.FC = () => {
         setLargeViewerStatus(currentTabId, saveResult.viewerData ? 'ready' : 'idle');
         setStructureStatus(
           currentTabId,
-          workerStructureEnabledRef.current[currentTabId] ? 'ready' : (largeMode ? 'disabled' : 'ready')
+          saveResult.structureWarming
+            ? 'building'
+            : (workerStructureEnabledRef.current[currentTabId] ? 'ready' : (largeMode ? 'disabled' : 'ready'))
         );
-        setProcessingStage(currentTabId, 'idle');
+        setProcessingStage(currentTabId, saveResult.structureWarming ? 'building-index' : 'idle');
         setTabFormatting(currentTabId, false);
         mutatePerformanceSession(currentTabId, (session) => {
           session.pendingFormat = false;

@@ -20,6 +20,7 @@ const structureCache = new Map();
 const viewerCache = new Map();
 const directValueTreeCache = new Map();
 const directValueWarmupTimers = new Map();
+const deferredStructureWarmupTimers = new Map();
 const editJsonCache = new Map();
 const nodeEditCache = new Map();
 const rawSearchCache = new Map();
@@ -124,6 +125,7 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
   if (typeof formattedText !== 'string') {
     return {
       formattedText: null,
+      structureWarming: false,
       viewerData: null,
       viewerIndexMs: null,
     };
@@ -134,6 +136,7 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
   const viewerData = buildLargeViewerData(nextFormattedText);
   const viewerIndexMs = performance.now() - viewerIndexStartedAt;
   const requestId = latestFormatRequestByTab.get(tabId) ?? 0;
+  let structureWarming = false;
 
   if (viewerData) {
     viewerCache.set(tabId, {
@@ -147,6 +150,7 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
 
   directValueTreeCache.delete(tabId);
   clearDirectValueWarmup(tabId);
+  clearDeferredStructureWarmup(tabId);
 
   const cachedStructure = structureCache.get(tabId);
   if (cachedStructure) {
@@ -171,11 +175,14 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
         rawTree: undefined,
         formattedTree: undefined,
       });
+      scheduleDeferredStructureWarmup(tabId, requestId, 150);
+      structureWarming = true;
     }
   }
 
   return {
     formattedText: nextFormattedText,
+    structureWarming,
     viewerData,
     viewerIndexMs,
   };
@@ -366,6 +373,55 @@ function clearDirectValueWarmup(tabId) {
   }
 }
 
+function clearDeferredStructureWarmup(tabId) {
+  const timerId = deferredStructureWarmupTimers.get(tabId);
+  if (timerId) {
+    clearTimeout(timerId);
+    deferredStructureWarmupTimers.delete(tabId);
+  }
+}
+
+function scheduleDeferredStructureWarmup(tabId, requestId, delayMs = 350) {
+  clearDeferredStructureWarmup(tabId);
+
+  const timerId = setTimeout(() => {
+    deferredStructureWarmupTimers.delete(tabId);
+    const current = structureCache.get(tabId);
+
+    if (
+      latestFormatRequestByTab.get(tabId) !== requestId
+      || !current
+      || current.requestId !== requestId
+    ) {
+      return;
+    }
+
+    let ready = false;
+    try {
+      ready = ensureStructureTrees(tabId, current);
+    } catch {
+      structureCache.delete(tabId);
+    }
+
+    const latest = structureCache.get(tabId);
+    if (
+      latestFormatRequestByTab.get(tabId) !== requestId
+      || (latest && latest.requestId !== requestId)
+    ) {
+      return;
+    }
+
+    postMessage({
+      type: 'structure-ready',
+      requestId,
+      tabId,
+      ready,
+    });
+  }, delayMs);
+
+  deferredStructureWarmupTimers.set(tabId, timerId);
+}
+
 function scheduleDirectValueTreeWarmup(tabId, requestId, text) {
   clearDirectValueWarmup(tabId);
 
@@ -401,6 +457,7 @@ self.onmessage = (event) => {
 
   if (message.type === 'clear-structure') {
     clearDirectValueWarmup(message.tabId);
+    clearDeferredStructureWarmup(message.tabId);
     structureCache.delete(message.tabId);
     viewerCache.delete(message.tabId);
     directValueTreeCache.delete(message.tabId);
@@ -435,6 +492,7 @@ self.onmessage = (event) => {
             success: true,
             data: result.rawText,
             formattedText: result.formattedText,
+            structureWarming: result.structureWarming,
             viewerData: result.viewerData,
             viewerIndexMs: result.viewerIndexMs,
           });
@@ -486,6 +544,7 @@ self.onmessage = (event) => {
     } = message;
     latestFormatRequestByTab.set(tabId, requestId);
     clearDirectValueWarmup(tabId);
+    clearDeferredStructureWarmup(tabId);
     const cachedEditJson = editJsonCache.get(tabId);
     if (cachedEditJson?.originalText !== text) {
       editJsonCache.delete(tabId);
@@ -619,12 +678,7 @@ self.onmessage = (event) => {
       });
 
       if (deferStructure) {
-        postMessage({
-          type: 'structure-ready',
-          requestId,
-          tabId,
-          ready: true,
-        });
+        scheduleDeferredStructureWarmup(tabId, requestId);
         return;
       }
 
@@ -651,6 +705,7 @@ self.onmessage = (event) => {
       structureCache.delete(tabId);
       viewerCache.delete(tabId);
       directValueTreeCache.delete(tabId);
+      clearDeferredStructureWarmup(tabId);
       postMessage({
         type: 'format-result',
         requestId,
