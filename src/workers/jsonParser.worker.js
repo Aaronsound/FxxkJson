@@ -11,6 +11,7 @@ import {
   getIdentityLocateRange,
   getLightweightTokenLocateRange,
 } from '../utils/lightweightLocate';
+import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -22,6 +23,14 @@ const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
 
 function formatJsonForEdit(text) {
   return formatJsonText(text).formatted;
+}
+
+function saveJsonForEdit(text, originalText) {
+  if (typeof originalText === 'string') {
+    return saveJsonPreservingOriginalFormat(originalText, text);
+  }
+
+  return formatJsonForEdit(text);
 }
 
 function copyJsonAsStringLiteral(text) {
@@ -237,12 +246,20 @@ self.onmessage = (event) => {
   }
 
   if (message.type === 'edit-json') {
-    const { requestId, tabId, operation, text } = message;
+    const { requestId, tabId, operation, text, originalText } = message;
 
     try {
-      const data = operation === 'copy-literal'
-        ? copyJsonAsStringLiteral(text)
-        : formatJsonForEdit(text);
+      const data = (() => {
+        if (operation === 'copy-literal') {
+          return copyJsonAsStringLiteral(text);
+        }
+
+        if (operation === 'save') {
+          return saveJsonForEdit(text, originalText);
+        }
+
+        return formatJsonForEdit(text);
+      })();
 
       postMessage({
         type: 'edit-json-result',

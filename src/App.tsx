@@ -1490,7 +1490,13 @@ const App: React.FC = () => {
 
     setEditJsonBusyLabel('正在更新原始 JSON...');
     try {
-      const updated = await requestWorkerEditJson(activeTab.id, 'save', editJsonValueRef.current);
+      const original = getTabContent(activeTab.id);
+      const updated = await requestWorkerEditJson(
+        activeTab.id,
+        'save',
+        editJsonValueRef.current,
+        original
+      );
       const largeMode = isLargeDocument(updated);
       beginPerformanceSession(
         activeTab.id,

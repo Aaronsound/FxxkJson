@@ -343,7 +343,8 @@ export function useJsonFormattingWorker({
   const requestWorkerEditJson = (
     tabId: string,
     operation: EditJsonWorkerOperation,
-    text: string
+    text: string,
+    originalText?: string
   ) => new Promise<string>((resolve, reject) => {
     if (!workerRef.current) {
       reject(new Error('JSON worker is not ready'));
@@ -358,6 +359,7 @@ export function useJsonFormattingWorker({
       tabId,
       operation,
       text,
+      originalText,
     });
   });
 
