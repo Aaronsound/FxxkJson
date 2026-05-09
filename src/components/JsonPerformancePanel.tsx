@@ -3,6 +3,7 @@ import { PerformanceSnapshot } from '../types/jsonTool';
 
 interface JsonPerformancePanelProps {
   snapshot: PerformanceSnapshot | null;
+  history?: PerformanceSnapshot[];
   isDarkMode: boolean;
 }
 
@@ -127,6 +128,7 @@ function readStoredPosition() {
 
 const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
   snapshot,
+  history = [],
   isDarkMode,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -348,6 +350,20 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
               </div>
             ))}
           </div>
+
+          {history.length > 0 && (
+            <div className="performance-history">
+              <div className="performance-history-title">最近记录</div>
+              {history.slice(0, 6).map((item) => (
+                <div key={item.runId} className="performance-history-row">
+                  <span>{item.sourceLabel}</span>
+                  <strong>{formatBytes(item.rawBytes)}</strong>
+                  <strong>{formatDuration(item.totalToFormattedMs)}</strong>
+                  <strong>{formatDuration(item.totalToViewerReadyMs)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="performance-meta-row">
             <span>文件大小：{snapshot.fileSizeBytes ? formatBytes(snapshot.fileSizeBytes) : '--'}</span>

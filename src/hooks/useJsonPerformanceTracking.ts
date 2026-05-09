@@ -6,6 +6,7 @@ import {
 } from '../types/jsonTool';
 
 export type PerformanceSession = {
+  runId: string;
   requestId: number | null;
   pendingFormat: boolean;
   trigger: PerformanceTrigger;
@@ -50,6 +51,7 @@ export function useJsonPerformanceTracking({
   const [performanceByTab, setPerformanceByTab] = useState<Record<string, PerformanceSnapshot | null>>({
     [initialTabId]: null,
   });
+  const [performanceHistory, setPerformanceHistory] = useState<PerformanceSnapshot[]>([]);
   const performanceSessionsRef = useRef<Record<string, PerformanceSession>>({});
 
   const logEvent = (event: string, details: Record<string, unknown> = {}) => {
@@ -69,6 +71,7 @@ export function useJsonPerformanceTracking({
     }
 
     const snapshot: PerformanceSnapshot = {
+      runId: session.runId,
       trigger: session.trigger,
       sourceLabel: session.sourceLabel,
       fileSizeBytes: session.fileSizeBytes,
@@ -95,6 +98,13 @@ export function useJsonPerformanceTracking({
     setPerformanceByTab((current) => ({ ...current, [tabId]: snapshot }));
 
     if (shouldLog) {
+      if (snapshot.status !== 'running') {
+        setPerformanceHistory((current) => [
+          snapshot,
+          ...current.filter((item) => item.runId !== snapshot.runId),
+        ].slice(0, 12));
+      }
+
       logEvent('performance-snapshot', {
         tabId,
         snapshot,
@@ -111,6 +121,7 @@ export function useJsonPerformanceTracking({
     largeMode: boolean
   ) => {
     performanceSessionsRef.current[tabId] = {
+      runId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       requestId: null,
       pendingFormat: true,
       trigger,
@@ -192,6 +203,7 @@ export function useJsonPerformanceTracking({
     logEvent,
     mutatePerformanceSession,
     performanceByTab,
+    performanceHistory,
     performanceSessionsRef,
     setPerformanceByTab,
     syncPerformanceSnapshot,

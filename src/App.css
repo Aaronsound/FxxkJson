@@ -814,6 +814,38 @@ button:disabled {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.performance-history {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+}
+
+.performance-panel-dark .performance-history {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.performance-history-title {
+  font-weight: 700;
+  opacity: 0.82;
+}
+
+.performance-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.performance-history-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .performance-meta-row {
   display: flex;
   flex-wrap: wrap;

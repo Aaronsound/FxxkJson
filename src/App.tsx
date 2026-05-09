@@ -239,6 +239,7 @@ const App: React.FC = () => {
     logEvent,
     mutatePerformanceSession,
     performanceByTab,
+    performanceHistory,
     performanceSessionsRef,
     setPerformanceByTab,
     syncPerformanceSnapshot,
@@ -1823,6 +1824,7 @@ const App: React.FC = () => {
       {showPerformancePanel && (
         <JsonPerformancePanel
           snapshot={activePerformanceSnapshot}
+          history={performanceHistory}
           isDarkMode={isDarkMode}
         />
       )}

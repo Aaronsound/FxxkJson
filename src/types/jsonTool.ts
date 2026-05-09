@@ -80,6 +80,7 @@ export const DEFAULT_SEARCH_OPTIONS: JsonSearchOptions = {
 };
 
 export interface PerformanceSnapshot {
+  runId: string;
   trigger: PerformanceTrigger;
   sourceLabel: string;
   fileSizeBytes: number | null;
