@@ -34,6 +34,7 @@ export interface WorkerMessage {
   startOffset?: number;
   endOffset?: number;
   viewerData?: LargeJsonViewerData | null;
+  rawViewerData?: LargeRawViewerData | null;
   viewerIndexMs?: number | null;
   query?: string;
   matches?: LargeJsonSearchMatch[];
@@ -61,6 +62,12 @@ export interface LargeJsonViewerData {
   lineStarts: Uint32Array;
   regions: LargeJsonViewerRegion[];
   lineCount: number;
+}
+
+export interface LargeRawViewerData {
+  starts: Uint32Array;
+  ends: Uint32Array;
+  rowCount: number;
 }
 
 export interface LargeJsonSearchMatch {

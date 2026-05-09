@@ -13,6 +13,7 @@ import type {
   JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
+  LargeRawViewerData,
   LocateFeedback,
   PerformanceTrigger,
   ProcessingStage,
@@ -74,6 +75,7 @@ interface UseJsonFormattingWorkerArgs {
   setLocateFeedback: (tabId: string, feedback: LocateFeedback | null) => void;
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
   setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
+  setLargeRawViewerData: (tabId: string, data: LargeRawViewerData | null) => void;
   setLargeViewerStatus: (tabId: string, status: 'idle' | 'building' | 'ready') => void;
   setLargeViewerSearchResults: (
     tabId: string,
@@ -123,6 +125,7 @@ export function useJsonFormattingWorker({
   setLocateFeedback,
   setStructureStatus,
   setLargeViewerData,
+  setLargeRawViewerData,
   setLargeViewerStatus,
   setLargeViewerSearchResults,
   setLeftSearchResults,
@@ -167,6 +170,7 @@ export function useJsonFormattingWorker({
     setProcessingStage,
     setLocateFeedback,
     setLargeViewerData,
+    setLargeRawViewerData,
     setLeftSearchResults,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
@@ -194,6 +198,7 @@ export function useJsonFormattingWorker({
     setProcessingStage,
     setLocateFeedback,
     setLargeViewerData,
+    setLargeRawViewerData,
     setLeftSearchResults,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
@@ -458,6 +463,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLocateFeedback(tabId, null);
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
+      callbacksRef.current.setLargeRawViewerData(tabId, null);
       clearTabStructure(tabId, 'ready');
       callbacksRef.current.updateFormattedContent(tabId, '', true);
       return;
@@ -483,6 +489,7 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setProcessingStage(tabId, 'formatting');
     callbacksRef.current.setLocateFeedback(tabId, null);
     callbacksRef.current.setLargeViewerData(tabId, null);
+    callbacksRef.current.setLargeRawViewerData(tabId, null);
     callbacksRef.current.setLargeViewerStatus(
       tabId,
       shouldBuildLargeViewer ? 'building' : 'idle'
@@ -594,6 +601,7 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLocateFeedback(tabId, null);
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
+    callbacksRef.current.setLargeRawViewerData(tabId, null);
     clearTabStructure(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
     callbacksRef.current.updateTabContent(tabId, '', true);
@@ -620,6 +628,7 @@ export function useJsonFormattingWorker({
 
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
+    callbacksRef.current.setLargeRawViewerData(tabId, null);
     callbacksRef.current.setProcessingStage(tabId, 'idle');
     callbacksRef.current.setLocateFeedback(tabId, null);
     delete rawTextByTabRef.current[tabId];
@@ -657,6 +666,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setTabLargeMode(tabId, presumedLargeMode);
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
+      callbacksRef.current.setLargeRawViewerData(tabId, null);
       callbacksRef.current.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
       delete latestLocateRequestRef.current[tabId];
@@ -730,6 +740,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLocateFeedback(tabId, null);
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
+      callbacksRef.current.setLargeRawViewerData(tabId, null);
       callbacksRef.current.setTabError(
         tabId,
         error instanceof Error ? `导入失败：${error.message}` : '导入失败'
@@ -799,6 +810,7 @@ export function useJsonFormattingWorker({
           });
           callbacksRef.current.setTabFormatting(tabId, false);
           callbacksRef.current.setTabLargeMode(tabId, largeMode);
+          callbacksRef.current.setLargeRawViewerData(tabId, event.data.rawViewerData ?? null);
           const shouldBuildLargeViewer = getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
           callbacksRef.current.setProcessingStage(
             tabId,
@@ -826,6 +838,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLocateFeedback(tabId, null);
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
         callbacksRef.current.setLargeViewerData(tabId, null);
+        callbacksRef.current.setLargeRawViewerData(tabId, null);
         callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
           if (session.requestId !== requestId) {
             return;

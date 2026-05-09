@@ -6,8 +6,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import type { LargeRawViewerData } from '../types/jsonTool';
+import {
+  buildLargeRawViewerData,
+  findRawSegmentIndex,
+} from '../utils/largeRawViewerData';
 
-const CHUNK_SIZE = 2000;
 const LINE_HEIGHT = 18;
 const OVERSCAN = 20;
 const APPROX_CHAR_WIDTH = 7.25;
@@ -20,6 +24,7 @@ interface RawHighlightRange {
 
 interface LargeRawReadonlyViewerProps {
   text: string;
+  data?: LargeRawViewerData | null;
   isDarkMode: boolean;
   highlightRange: RawHighlightRange | null;
 }
@@ -31,78 +36,6 @@ export interface LargeRawReadonlyViewerHandle {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
-}
-
-function buildRawViewerSegments(text: string) {
-  if (!text) {
-    return {
-      starts: Uint32Array.from([0]),
-      ends: Uint32Array.from([0]),
-    };
-  }
-
-  const starts: number[] = [];
-  const ends: number[] = [];
-  let lineStart = 0;
-
-  while (lineStart <= text.length) {
-    const newlineIndex = text.indexOf('\n', lineStart);
-    const lineEnd = newlineIndex === -1 ? text.length : newlineIndex;
-
-    if (lineStart === lineEnd) {
-      starts.push(lineStart);
-      ends.push(lineEnd);
-    } else {
-      let segmentStart = lineStart;
-      while (segmentStart < lineEnd) {
-        const segmentEnd = Math.min(lineEnd, segmentStart + CHUNK_SIZE);
-        starts.push(segmentStart);
-        ends.push(segmentEnd);
-        segmentStart = segmentEnd;
-      }
-    }
-
-    if (newlineIndex === -1) {
-      break;
-    }
-
-    lineStart = newlineIndex + 1;
-    if (lineStart === text.length) {
-      starts.push(lineStart);
-      ends.push(lineStart);
-      break;
-    }
-  }
-
-  return {
-    starts: Uint32Array.from(starts),
-    ends: Uint32Array.from(ends),
-  };
-}
-
-function findSegmentIndex(starts: Uint32Array, ends: Uint32Array, offset: number) {
-  let low = 0;
-  let high = starts.length - 1;
-  let result = 0;
-
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const value = starts[mid];
-
-    if (value <= offset) {
-      result = mid;
-      low = mid + 1;
-      continue;
-    }
-
-    high = mid - 1;
-  }
-
-  if (offset > (ends[result] ?? 0) && result < starts.length - 1) {
-    return result + 1;
-  }
-
-  return result;
 }
 
 function renderChunkText(
@@ -137,12 +70,12 @@ function renderChunkText(
 const LargeRawReadonlyViewer = forwardRef<
   LargeRawReadonlyViewerHandle,
   LargeRawReadonlyViewerProps
->(({ text, isDarkMode, highlightRange }, ref) => {
+>(({ text, data, isDarkMode, highlightRange }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const segments = useMemo(() => buildRawViewerSegments(text), [text]);
-  const rowCount = segments.starts.length;
+  const segments = useMemo(() => data ?? buildLargeRawViewerData(text), [data, text]);
+  const rowCount = segments.rowCount;
 
   useImperativeHandle(ref, () => ({
     focus() {
@@ -150,7 +83,7 @@ const LargeRawReadonlyViewer = forwardRef<
     },
     revealRange(startOffset) {
       const safeOffset = clamp(startOffset, 0, text.length);
-      const rowIndex = findSegmentIndex(segments.starts, segments.ends, safeOffset);
+      const rowIndex = findRawSegmentIndex(segments, safeOffset);
       const rowStart = segments.starts[rowIndex] ?? 0;
       const rowEnd = segments.ends[rowIndex] ?? rowStart;
       const localStart = clamp(safeOffset - rowStart, 0, Math.max(0, rowEnd - rowStart));
@@ -169,7 +102,7 @@ const LargeRawReadonlyViewer = forwardRef<
       revealHorizontal();
       window.requestAnimationFrame(revealHorizontal);
     },
-  }), [segments.ends, segments.starts, text.length]);
+  }), [segments, text.length]);
 
   useEffect(() => {
     const container = containerRef.current;

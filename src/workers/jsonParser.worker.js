@@ -4,6 +4,7 @@ import {
   buildLargeViewerData,
   findSearchMatchesBatchInLargeJson,
 } from '../utils/largeJsonViewerData';
+import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { formatJsonText, parseJsonForFormatting } from '../utils/jsonFormat';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatch } from '../utils/searchText';
@@ -241,12 +242,16 @@ function saveJsonNodeForEdit(tabId, text, originalText, path) {
   }
 
   const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text);
+  const rawViewerData = rawText.length >= LARGE_FILE_THRESHOLD
+    ? buildLargeRawViewerData(rawText)
+    : null;
   const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText);
 
   nodeEditCache.delete(tabId);
 
   return {
     rawText,
+    rawViewerData,
     ...formattedPatch,
   };
 }
@@ -540,6 +545,7 @@ self.onmessage = (event) => {
             data: result.rawText,
             formattedText: result.formattedText,
             structureWarming: result.structureWarming,
+            rawViewerData: result.rawViewerData,
             viewerData: result.viewerData,
             viewerIndexMs: result.viewerIndexMs,
           });
@@ -600,12 +606,16 @@ self.onmessage = (event) => {
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
     try {
+      const rawViewerData = text.length >= LARGE_FILE_THRESHOLD
+        ? buildLargeRawViewerData(text)
+        : null;
       const { formatted, normalizedNestedString } = formatJsonText(text);
       postTextResult({
         type: 'format-result',
         requestId,
         tabId,
         success: true,
+        rawViewerData,
       }, formatted);
 
       if (buildViewer) {

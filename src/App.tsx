@@ -21,6 +21,7 @@ import {
   LARGE_FILE_THRESHOLD,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
+  LargeRawViewerData,
   LocateFeedback,
   ProcessingStage,
   SEARCH_HIGHLIGHT_DURATION,
@@ -170,6 +171,9 @@ const App: React.FC = () => {
   const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
     [INITIAL_TAB_ID]: null,
   });
+  const [largeRawViewerDataByTab, setLargeRawViewerDataByTab] = useState<Record<string, LargeRawViewerData | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
   const [largeViewerStatusByTab, setLargeViewerStatusByTab] = useState<Record<string, 'idle' | 'building' | 'ready'>>({
     [INITIAL_TAB_ID]: 'idle',
   });
@@ -286,6 +290,9 @@ const App: React.FC = () => {
     : null;
   const activeLargeViewerData = activeTab
     ? largeViewerDataByTab[activeTab.id] ?? null
+    : null;
+  const activeLargeRawViewerData = activeTab
+    ? largeRawViewerDataByTab[activeTab.id] ?? null
     : null;
   const activeLargeViewerStatus = activeTab
     ? largeViewerStatusByTab[activeTab.id] ?? 'idle'
@@ -488,6 +495,10 @@ const App: React.FC = () => {
     }
   };
 
+  const setLargeRawViewerData = (tabId: string, data: LargeRawViewerData | null) => {
+    setLargeRawViewerDataByTab((current) => ({ ...current, [tabId]: data }));
+  };
+
   const setLargeViewerStatus = (tabId: string, status: 'idle' | 'building' | 'ready') => {
     setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: status }));
   };
@@ -549,6 +560,7 @@ const App: React.FC = () => {
   const updateTabContent = (tabId: string, content: string, syncModel = false) => {
     const byteLength = getUtf8ByteLength(content);
     rawTextByTabRef.current[tabId] = content;
+    setLargeRawViewerData(tabId, null);
     setDocumentMeta(tabId, (current) => ({
       ...current,
       rawLength: byteLength,
@@ -819,6 +831,7 @@ const App: React.FC = () => {
     setLocateFeedback,
     setStructureStatus,
     setLargeViewerData,
+    setLargeRawViewerData,
     setLargeViewerStatus,
     setLargeViewerSearchResults,
     setLeftSearchResults,
@@ -1605,6 +1618,7 @@ const App: React.FC = () => {
         const rightModelStartedAt = performance.now();
         updateFormattedContent(currentTabId, saveResult.formattedText, true);
         const rightModelCompletedAt = performance.now();
+        setLargeRawViewerData(currentTabId, saveResult.rawViewerData ?? null);
         setLargeViewerData(currentTabId, saveResult.viewerData ?? null);
         setLargeViewerStatus(currentTabId, saveResult.viewerData ? 'ready' : 'idle');
         setStructureStatus(
@@ -1718,6 +1732,7 @@ const App: React.FC = () => {
     initializeTabState(nextId);
     setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
     setLargeViewerDataByTab((current) => ({ ...current, [nextId]: null }));
+    setLargeRawViewerDataByTab((current) => ({ ...current, [nextId]: null }));
     setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
     setProcessingStageByTab((current) => ({ ...current, [nextId]: 'idle' }));
@@ -1743,6 +1758,11 @@ const App: React.FC = () => {
     delete leftSearchWorkerRevisionRef.current[tabId];
     removeTabArtifacts(tabId);
     setLargeViewerDataByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setLargeRawViewerDataByTab((current) => {
       const next = { ...current };
       delete next[tabId];
       return next;
@@ -2196,6 +2216,7 @@ const App: React.FC = () => {
               <LargeRawReadonlyViewer
                 ref={largeRawViewerRef}
                 text={activeRawText}
+                data={activeLargeRawViewerData}
                 isDarkMode={isDarkMode}
                 highlightRange={leftRawHighlightRange}
               />
