@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   LARGE_FILE_THRESHOLD,
   STRUCTURE_SYNC_THRESHOLD,
@@ -10,6 +10,17 @@ import {
   shouldBuildWorkerStructure,
   shouldUseLargeMode,
 } from './jsonToolModels';
+
+vi.mock('monaco-editor/esm/vs/editor/editor.api', () => ({
+  editor: {
+    createModel: vi.fn(),
+    getModel: vi.fn(),
+    setModelLanguage: vi.fn(),
+  },
+  Uri: {
+    parse: vi.fn((value: string) => value),
+  },
+}));
 
 describe('jsonToolModels', () => {
   it('measures UTF-8 byte length instead of string length', () => {
