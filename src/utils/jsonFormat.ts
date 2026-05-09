@@ -1,8 +1,14 @@
+import { jsonrepair } from 'jsonrepair';
+
 const MAX_NESTED_JSON_STRING_DEPTH = 3;
 
 export interface JsonFormatResult {
   formatted: string;
   normalizedNestedString: boolean;
+}
+
+export interface JsonRepairResult extends JsonFormatResult {
+  repaired: string;
 }
 
 function looksLikeJsonContainer(text: string) {
@@ -65,6 +71,17 @@ export function formatJsonText(text: string): JsonFormatResult {
 
   return {
     formatted: JSON.stringify(value, null, 2),
+    normalizedNestedString,
+  };
+}
+
+export function repairJsonText(text: string): JsonRepairResult {
+  const repaired = jsonrepair(text);
+  const { formatted, normalizedNestedString } = formatJsonText(repaired);
+
+  return {
+    repaired,
+    formatted,
     normalizedNestedString,
   };
 }

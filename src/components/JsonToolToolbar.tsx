@@ -4,6 +4,7 @@ import { StructureStatus } from '../types/jsonTool';
 interface JsonToolToolbarProps {
   onImport: () => void;
   onFormat: () => void;
+  onRepairJson: () => void;
   onClear: () => void;
   onEditJson: () => void;
   onOpenDiagnosticsLog: () => void;
@@ -94,6 +95,7 @@ function getToolbarHintMessage({
 const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onImport,
   onFormat,
+  onRepairJson,
   onClear,
   onEditJson,
   onOpenDiagnosticsLog,
@@ -139,6 +141,9 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 </button>
                 <button className="toolbar-button-primary" onClick={onFormat}>
                   格式化
+                </button>
+                <button className="toolbar-button-primary" onClick={onRepairJson} disabled={!canEditJson}>
+                  修复 JSON
                 </button>
               </div>
               <div className="toolbar-actions-secondary">

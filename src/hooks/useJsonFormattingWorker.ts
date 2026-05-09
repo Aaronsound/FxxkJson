@@ -260,17 +260,25 @@ export function useJsonFormattingWorker({
     };
   };
 
-  const readWorkerText = (message: WorkerMessage) => {
-    if (typeof message.data === 'string') {
-      return message.data;
+  const readWorkerTextField = (
+    message: WorkerMessage,
+    stringKey: 'data' | 'repairedText',
+    bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+  ) => {
+    if (typeof message[stringKey] === 'string') {
+      return message[stringKey];
     }
 
-    if (message.dataBuffer instanceof ArrayBuffer) {
-      return getTextDecoder().decode(new Uint8Array(message.dataBuffer));
+    if (message[bufferKey] instanceof ArrayBuffer) {
+      return getTextDecoder().decode(new Uint8Array(message[bufferKey]));
     }
 
     return null;
   };
+
+  const readWorkerText = (message: WorkerMessage) => (
+    readWorkerTextField(message, 'data', 'dataBuffer')
+  );
 
   const requestWorkerLocate = (tabId: string, offset: number) => {
     if (
@@ -574,6 +582,90 @@ export function useJsonFormattingWorker({
     );
   };
 
+  const queueRepair = (tabId: string, text: string) => {
+    clearPendingFormat(tabId);
+    callbacksRef.current.setTabError(tabId, null);
+    delete latestLocateRequestRef.current[tabId];
+    delete latestSearchRequestRef.current[`left:${tabId}`];
+    delete latestSearchRequestRef.current[`right:${tabId}`];
+
+    if (!text.trim()) {
+      callbacksRef.current.setTabError(tabId, '没有可修复的 JSON 内容');
+      return;
+    }
+
+    const textByteLength = getUtf8ByteLength(text);
+    const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
+    const largeMode = shouldUseLargeMode(text);
+    const shouldBuildStructureIndex = shouldBuildWorkerStructure(
+      text,
+      locateRequested
+    );
+    const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
+    const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
+    const shouldDeferStructureIndex = largeMode && shouldBuildStructureIndex;
+    const shouldBuildLargeViewer = textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
+    const requestId = ++requestCounterRef.current;
+
+    latestRequestRef.current[tabId] = requestId;
+    callbacksRef.current.setTabFormatting(tabId, true);
+    callbacksRef.current.setProcessingStage(tabId, 'repairing');
+    callbacksRef.current.setLocateFeedback(tabId, null);
+    callbacksRef.current.setLargeViewerData(tabId, null);
+    callbacksRef.current.setLargeRawViewerData(tabId, null);
+    callbacksRef.current.setLargeViewerStatus(
+      tabId,
+      shouldBuildLargeViewer ? 'building' : 'idle'
+    );
+    workerStructureEnabledRef.current[tabId] = workerLocateEnabled;
+    callbacksRef.current.setStructureStatus(
+      tabId,
+      workerLocateEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+    );
+    callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+      if (!session.pendingFormat) {
+        return;
+      }
+
+      session.pendingFormat = false;
+      session.requestId = requestId;
+      session.largeMode = largeMode;
+      session.structureEnabled = workerLocateEnabled;
+      session.formatQueuedAt = performance.now();
+      session.formatStartedAt = performance.now();
+      session.formatCompletedAt = undefined;
+      session.rightModelStartedAt = undefined;
+      session.rightModelCompletedAt = undefined;
+      session.viewerIndexMs = null;
+      session.viewerReadyAt = undefined;
+      session.structureCompletedAt = undefined;
+      session.formattedBytes = 0;
+      session.status = 'running';
+      session.error = null;
+    });
+    callbacksRef.current.logEvent('repair-start', {
+      tabId,
+      requestId,
+      textLength: textByteLength,
+      largeMode,
+      workerStructureEnabled: shouldBuildStructureIndex,
+      workerStructureDeferred: shouldDeferStructureIndex,
+      workerDirectLocateEnabled: shouldAttemptDirectLocate,
+    });
+
+    const textPayload = createWorkerTextPayload(text, textByteLength);
+    workerRef.current?.postMessage({
+      type: 'repair',
+      requestId,
+      tabId,
+      enableStructure: shouldBuildStructureIndex,
+      enableDirectLocate: shouldAttemptDirectLocate,
+      deferStructure: shouldDeferStructureIndex,
+      buildViewer: shouldBuildLargeViewer,
+      ...textPayload.message,
+    }, textPayload.transfer);
+  };
+
   const queueFormatAfterUiUpdate = (tabId: string, text: string, delayMs = 0) => {
     clearPendingFormat(tabId);
     formatTimersRef.current[tabId] = window.setTimeout(() => {
@@ -862,6 +954,80 @@ export function useJsonFormattingWorker({
         return;
       }
 
+      if (type === 'repair-result') {
+        const { success, error } = event.data;
+        const formattedText = readWorkerText(event.data);
+        const repairedText = readWorkerTextField(event.data, 'repairedText', 'repairedTextBuffer');
+        const performanceSession = performanceSessionsRef.current[tabId];
+
+        if (latestRequestRef.current[tabId] !== requestId) {
+          return;
+        }
+
+        if (success && typeof formattedText === 'string' && typeof repairedText === 'string') {
+          const largeMode = shouldUseLargeMode(repairedText, formattedText);
+          const now = performance.now();
+          callbacksRef.current.logEvent('repair-success', {
+            tabId,
+            requestId,
+            repairedLength: getUtf8ByteLength(repairedText),
+            formattedLength: getUtf8ByteLength(formattedText),
+          });
+          callbacksRef.current.setTabFormatting(tabId, false);
+          callbacksRef.current.setTabLargeMode(tabId, largeMode);
+          const shouldBuildLargeViewer = getUtf8ByteLength(repairedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
+          callbacksRef.current.setProcessingStage(
+            tabId,
+            shouldBuildLargeViewer ? 'building-viewer' : (performanceSession?.structureEnabled ? 'building-index' : 'idle')
+          );
+          if (performanceSession?.requestId === requestId) {
+            performanceSession.leftModelStartedAt = now;
+            performanceSession.leftModelCompletedAt = now;
+            performanceSession.formatCompletedAt = now;
+            performanceSession.rightModelStartedAt = performance.now();
+            performanceSession.rawBytes = getUtf8ByteLength(repairedText);
+            performanceSession.formattedBytes = getUtf8ByteLength(formattedText);
+            performanceSession.largeMode = largeMode;
+          }
+          callbacksRef.current.updateTabContent(tabId, repairedText, true);
+          callbacksRef.current.setLargeRawViewerData(tabId, event.data.rawViewerData ?? null);
+          callbacksRef.current.updateFormattedContent(tabId, formattedText, true);
+          callbacksRef.current.resetSearchState();
+          if (performanceSession?.requestId === requestId) {
+            performanceSession.rightModelCompletedAt = performance.now();
+            performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
+            performanceSession.error = null;
+            callbacksRef.current.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
+          }
+          callbacksRef.current.setTabError(tabId, null);
+          return;
+        }
+
+        callbacksRef.current.setTabFormatting(tabId, false);
+        callbacksRef.current.setProcessingStage(tabId, 'idle');
+        callbacksRef.current.setLocateFeedback(tabId, null);
+        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+        callbacksRef.current.setLargeViewerData(tabId, null);
+        callbacksRef.current.setLargeRawViewerData(tabId, null);
+        callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+          if (session.requestId !== requestId) {
+            return;
+          }
+
+          session.formatCompletedAt = performance.now();
+          session.status = 'failed';
+          session.error = error ?? 'JSON repair failed';
+        }, true);
+        callbacksRef.current.logEvent('repair-failed', {
+          tabId,
+          requestId,
+          error: error ?? 'JSON repair failed',
+        });
+        callbacksRef.current.setTabError(tabId, error ? `修复失败：${error}` : 'JSON 修复失败');
+        callbacksRef.current.setStructureStatus(tabId, 'disabled');
+        return;
+      }
+
       if (type === 'viewer-ready') {
         if (latestRequestRef.current[tabId] !== requestId) {
           return;
@@ -1026,6 +1192,7 @@ export function useJsonFormattingWorker({
     importJsonFile,
     importJsonText,
     queueFormat,
+    queueRepair,
     queueFormatAfterEditSave,
     removeTabArtifacts,
     requestWorkerSearch,

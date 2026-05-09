@@ -4,7 +4,7 @@ import {
   buildLargeViewerData,
 } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
-import { formatJsonText, parseJsonForFormatting } from '../utils/jsonFormat';
+import { formatJsonText, parseJsonForFormatting, repairJsonText } from '../utils/jsonFormat';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
 import {
@@ -60,21 +60,31 @@ function readMessageText(message) {
   return '';
 }
 
-function postTextResult(payload, text) {
+function appendTextPayload(message, transfer, stringKey, bufferKey, text) {
   if (typeof text === 'string' && text.length >= LARGE_FILE_THRESHOLD) {
     const bytes = getTextEncoder().encode(text);
     const buffer = bytes.buffer;
-    postMessage({
-      ...payload,
-      dataBuffer: buffer,
-    }, [buffer]);
+    message[bufferKey] = buffer;
+    transfer.push(buffer);
     return;
   }
 
-  postMessage({
-    ...payload,
-    data: text,
-  });
+  message[stringKey] = text;
+}
+
+function postTextResult(payload, text) {
+  const message = { ...payload };
+  const transfer = [];
+  appendTextPayload(message, transfer, 'data', 'dataBuffer', text);
+  postMessage(message, transfer);
+}
+
+function postRepairResult(payload, formattedText, repairedText) {
+  const message = { ...payload };
+  const transfer = [];
+  appendTextPayload(message, transfer, 'data', 'dataBuffer', formattedText);
+  appendTextPayload(message, transfer, 'repairedText', 'repairedTextBuffer', repairedText);
+  postMessage(message, transfer);
 }
 
 function formatJsonForEdit(tabId, text) {
@@ -752,6 +762,172 @@ function runLocateRequest(message) {
   });
 }
 
+function prepareFormatRequest(tabId, requestId, sourceText) {
+  latestFormatRequestByTab.set(tabId, requestId);
+  cancelInteractiveRequests(tabId);
+  clearDirectValueWarmup(tabId);
+  clearDeferredStructureWarmup(tabId);
+  const cachedEditJson = editJsonCache.get(tabId);
+  if (cachedEditJson?.originalText !== sourceText) {
+    editJsonCache.delete(tabId);
+  }
+  nodeEditCache.delete(tabId);
+  viewerCache.delete(tabId);
+  directValueTreeCache.delete(tabId);
+}
+
+function buildFormatArtifacts({
+  requestId,
+  tabId,
+  sourceText,
+  formatted,
+  normalizedNestedString,
+  enableStructure,
+  enableDirectLocate,
+  deferStructure,
+  buildViewer,
+}) {
+  if (buildViewer) {
+    setTimeout(() => {
+      if (latestFormatRequestByTab.get(tabId) !== requestId) {
+        return;
+      }
+
+      const viewerIndexStartedAt = performance.now();
+      const viewerData = buildLargeViewerData(formatted);
+      const viewerIndexMs = performance.now() - viewerIndexStartedAt;
+      if (viewerData) {
+        viewerCache.set(tabId, {
+          requestId,
+          formattedText: formatted,
+          viewerData,
+        });
+      } else {
+        viewerCache.delete(tabId);
+      }
+
+      if (!enableStructure && enableDirectLocate && !normalizedNestedString) {
+        if (viewerData) {
+          structureCache.set(tabId, {
+            requestId,
+            directLocate: true,
+            directLocateMode: sourceText === formatted ? 'identity' : 'token-search',
+            rawText: sourceText === formatted ? undefined : sourceText,
+            formattedText: formatted,
+            viewerData,
+            tokenLocateCache: { tokenOffsetsByToken: new Map() },
+          });
+          postMessage({
+            type: 'structure-ready',
+            requestId,
+            tabId,
+            ready: true,
+          });
+        } else {
+          structureCache.delete(tabId);
+          postMessage({
+            type: 'structure-ready',
+            requestId,
+            tabId,
+            ready: false,
+          });
+        }
+      }
+
+      postMessage({
+        type: 'viewer-ready',
+        requestId,
+        tabId,
+        viewerData,
+        viewerIndexMs,
+      });
+
+      if (viewerData && !deferStructure) {
+        scheduleDirectValueTreeWarmup(tabId, requestId, formatted);
+      }
+    }, 0);
+  } else {
+    viewerCache.delete(tabId);
+    postMessage({
+      type: 'viewer-ready',
+      requestId,
+      tabId,
+      viewerData: null,
+      viewerIndexMs: null,
+    });
+  }
+
+  if (normalizedNestedString) {
+    structureCache.delete(tabId);
+    postMessage({
+      type: 'structure-ready',
+      requestId,
+      tabId,
+      ready: false,
+    });
+    return;
+  }
+
+  if (!enableStructure && enableDirectLocate && !buildViewer) {
+    structureCache.delete(tabId);
+    postMessage({
+      type: 'structure-ready',
+      requestId,
+      tabId,
+      ready: false,
+    });
+    return;
+  }
+
+  if (!enableStructure) {
+    if (enableDirectLocate) {
+      return;
+    }
+
+    structureCache.delete(tabId);
+    postMessage({
+      type: 'structure-ready',
+      requestId,
+      tabId,
+      ready: false,
+    });
+    return;
+  }
+
+  structureCache.set(tabId, {
+    requestId,
+    rawText: sourceText,
+    formattedText: formatted,
+    rawTree: undefined,
+    formattedTree: undefined,
+  });
+
+  if (deferStructure) {
+    scheduleDeferredStructureWarmup(tabId, requestId);
+    return;
+  }
+
+  setTimeout(() => {
+    const current = structureCache.get(tabId);
+    if (!current || current.requestId !== requestId) {
+      return;
+    }
+
+    const ready = ensureStructureTrees(tabId, current);
+    const latest = structureCache.get(tabId);
+    if (!latest || latest.requestId !== requestId) {
+      return;
+    }
+
+    postMessage({
+      type: 'structure-ready',
+      requestId,
+      tabId,
+      ready,
+    });
+  }, 0);
+}
+
 self.onmessage = (event) => {
   const message = event.data;
 
@@ -844,17 +1020,7 @@ self.onmessage = (event) => {
       buildViewer,
     } = message;
     const text = readMessageText(message);
-    latestFormatRequestByTab.set(tabId, requestId);
-    cancelInteractiveRequests(tabId);
-    clearDirectValueWarmup(tabId);
-    clearDeferredStructureWarmup(tabId);
-    const cachedEditJson = editJsonCache.get(tabId);
-    if (cachedEditJson?.originalText !== text) {
-      editJsonCache.delete(tabId);
-    }
-    nodeEditCache.delete(tabId);
-    viewerCache.delete(tabId);
-    directValueTreeCache.delete(tabId);
+    prepareFormatRequest(tabId, requestId, text);
     try {
       const rawViewerData = text.length >= LARGE_FILE_THRESHOLD
         ? buildLargeRawViewerData(text)
@@ -868,146 +1034,17 @@ self.onmessage = (event) => {
         rawViewerData,
       }, formatted);
 
-      if (buildViewer) {
-        setTimeout(() => {
-          if (latestFormatRequestByTab.get(tabId) !== requestId) {
-            return;
-          }
-
-          const viewerIndexStartedAt = performance.now();
-          const viewerData = buildLargeViewerData(formatted);
-          const viewerIndexMs = performance.now() - viewerIndexStartedAt;
-          if (viewerData) {
-            viewerCache.set(tabId, {
-              requestId,
-              formattedText: formatted,
-              viewerData,
-            });
-          } else {
-            viewerCache.delete(tabId);
-          }
-
-          if (!enableStructure && enableDirectLocate && !normalizedNestedString) {
-            if (viewerData) {
-              structureCache.set(tabId, {
-                requestId,
-                directLocate: true,
-                directLocateMode: text === formatted ? 'identity' : 'token-search',
-                rawText: text === formatted ? undefined : text,
-                formattedText: formatted,
-                viewerData,
-                tokenLocateCache: { tokenOffsetsByToken: new Map() },
-              });
-              postMessage({
-                type: 'structure-ready',
-                requestId,
-                tabId,
-                ready: true,
-              });
-            } else {
-              structureCache.delete(tabId);
-              postMessage({
-                type: 'structure-ready',
-                requestId,
-                tabId,
-                ready: false,
-              });
-            }
-          }
-
-          postMessage({
-            type: 'viewer-ready',
-            requestId,
-            tabId,
-            viewerData,
-            viewerIndexMs,
-          });
-
-          if (viewerData && !deferStructure) {
-            scheduleDirectValueTreeWarmup(tabId, requestId, formatted);
-          }
-        }, 0);
-      }
-      else {
-        viewerCache.delete(tabId);
-        postMessage({
-          type: 'viewer-ready',
-          requestId,
-          tabId,
-          viewerData: null,
-          viewerIndexMs: null,
-        });
-      }
-
-      if (normalizedNestedString) {
-        structureCache.delete(tabId);
-        postMessage({
-          type: 'structure-ready',
-          requestId,
-          tabId,
-          ready: false,
-        });
-        return;
-      }
-
-      if (!enableStructure && enableDirectLocate && !buildViewer) {
-        structureCache.delete(tabId);
-        postMessage({
-          type: 'structure-ready',
-          requestId,
-          tabId,
-          ready: false,
-        });
-        return;
-      }
-
-      if (!enableStructure) {
-        if (enableDirectLocate) {
-          return;
-        }
-
-        structureCache.delete(tabId);
-        postMessage({
-          type: 'structure-ready',
-          requestId,
-          tabId,
-          ready: false,
-        });
-        return;
-      }
-
-      structureCache.set(tabId, {
+      buildFormatArtifacts({
         requestId,
-        rawText: text,
-        formattedText: formatted,
-        rawTree: undefined,
-        formattedTree: undefined,
+        tabId,
+        sourceText: text,
+        formatted,
+        normalizedNestedString,
+        enableStructure,
+        enableDirectLocate,
+        deferStructure,
+        buildViewer,
       });
-
-      if (deferStructure) {
-        scheduleDeferredStructureWarmup(tabId, requestId);
-        return;
-      }
-
-      setTimeout(() => {
-        const current = structureCache.get(tabId);
-        if (!current || current.requestId !== requestId) {
-          return;
-        }
-
-        const ready = ensureStructureTrees(tabId, current);
-        const latest = structureCache.get(tabId);
-        if (!latest || latest.requestId !== requestId) {
-          return;
-        }
-
-        postMessage({
-          type: 'structure-ready',
-          requestId,
-          tabId,
-          ready,
-        });
-      }, 0);
     } catch (err) {
       structureCache.delete(tabId);
       viewerCache.delete(tabId);
@@ -1019,6 +1056,59 @@ self.onmessage = (event) => {
         tabId,
         success: false,
         error: err instanceof Error ? err.message : 'JSON 解析失败',
+      });
+    }
+
+    return;
+  }
+
+  if (message.type === 'repair') {
+    const {
+      requestId,
+      tabId,
+      enableStructure,
+      enableDirectLocate,
+      deferStructure = false,
+      buildViewer,
+    } = message;
+    const text = readMessageText(message);
+    prepareFormatRequest(tabId, requestId, text);
+    try {
+      const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
+      const rawViewerData = repaired.length >= LARGE_FILE_THRESHOLD
+        ? buildLargeRawViewerData(repaired)
+        : null;
+
+      postRepairResult({
+        type: 'repair-result',
+        requestId,
+        tabId,
+        success: true,
+        rawViewerData,
+      }, formatted, repaired);
+
+      buildFormatArtifacts({
+        requestId,
+        tabId,
+        sourceText: repaired,
+        formatted,
+        normalizedNestedString,
+        enableStructure,
+        enableDirectLocate,
+        deferStructure,
+        buildViewer,
+      });
+    } catch (err) {
+      structureCache.delete(tabId);
+      viewerCache.delete(tabId);
+      directValueTreeCache.delete(tabId);
+      clearDeferredStructureWarmup(tabId);
+      postMessage({
+        type: 'repair-result',
+        requestId,
+        tabId,
+        success: false,
+        error: err instanceof Error ? err.message : 'JSON 修复失败',
       });
     }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatJsonText } from './jsonFormat';
+import { formatJsonText, repairJsonText } from './jsonFormat';
 
 describe('jsonFormat', () => {
   it('formats regular JSON objects', () => {
@@ -35,6 +35,18 @@ describe('jsonFormat', () => {
   it('keeps root strings when their contents only look like JSON', () => {
     expect(formatJsonText('"{not valid json}"')).toEqual({
       formatted: '"{not valid json}"',
+      normalizedNestedString: false,
+    });
+  });
+
+  it('does not auto-repair during regular formatting', () => {
+    expect(() => formatJsonText("{ok: true,}")).toThrow();
+  });
+
+  it('repairs common invalid JSON before formatting', () => {
+    expect(repairJsonText("{ok: true,}")).toEqual({
+      repaired: '{"ok": true}',
+      formatted: '{\n  "ok": true\n}',
       normalizedNestedString: false,
     });
   });
