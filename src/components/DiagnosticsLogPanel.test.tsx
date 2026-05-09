@@ -19,6 +19,7 @@ describe('DiagnosticsLogPanel', () => {
         truncated: false,
       }),
       showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      openJsonFile: vi.fn().mockResolvedValue(null),
     };
 
     render(<DiagnosticsLogPanel isDarkMode={false} onClose={vi.fn()} />);

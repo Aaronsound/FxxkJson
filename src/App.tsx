@@ -776,6 +776,7 @@ const App: React.FC = () => {
   const {
     clearTabStructure,
     importJsonFile,
+    importJsonText,
     queueFormat,
     removeTabArtifacts,
     requestWorkerSearch,
@@ -1320,7 +1321,28 @@ const App: React.FC = () => {
     queueFormat(activeTab.id, nextContent);
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
+    if (!activeTab) {
+      return;
+    }
+
+    if (window.electronAPI?.openJsonFile) {
+      try {
+        const file = await window.electronAPI.openJsonFile();
+        if (!file) {
+          return;
+        }
+
+        await importJsonText(activeTab.id, file.name, file.size, file.content);
+      } catch (error) {
+        setTabError(
+          activeTab.id,
+          error instanceof Error ? `导入失败：${error.message}` : '导入失败'
+        );
+      }
+      return;
+    }
+
     fileInputRef.current?.click();
   };
 

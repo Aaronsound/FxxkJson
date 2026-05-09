@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import type { OpenDialogOptions } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -156,4 +157,37 @@ ipcMain.handle('log:showInFolder', async () => {
   await fs.appendFile(logFilePath, '', 'utf8');
   shell.showItemInFolder(logFilePath);
   return logFilePath;
+});
+
+ipcMain.handle('file:openJson', async () => {
+  const dialogOptions: OpenDialogOptions = {
+    properties: ['openFile'],
+    filters: [
+      { name: 'JSON / Text', extensions: ['json', 'txt'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  };
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  const filePath = result.filePaths[0];
+  const stats = await fs.stat(filePath);
+  const content = await fs.readFile(filePath, 'utf8');
+
+  logRuntimeEvent('native-file-opened', {
+    fileName: path.basename(filePath),
+    fileSize: stats.size,
+  });
+
+  return {
+    path: filePath,
+    name: path.basename(filePath),
+    size: stats.size,
+    content,
+  };
 });

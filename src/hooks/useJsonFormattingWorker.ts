@@ -29,6 +29,12 @@ import {
   shouldUseLargeMode,
 } from '../utils/jsonToolModels';
 
+interface JsonImportSource {
+  name: string;
+  size: number;
+  readText: () => Promise<string>;
+}
+
 interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
   largeModeRef: MutableRefObject<Record<string, boolean>>;
@@ -536,29 +542,29 @@ export function useJsonFormattingWorker({
     callbacksRef.current.removeTabState(tabId);
   };
 
-  const importJsonFile = async (tabId: string, file: File) => {
-    const presumedLargeMode = file.size >= LARGE_FILE_THRESHOLD;
+  const importJsonSource = async (tabId: string, source: JsonImportSource) => {
+    const presumedLargeMode = source.size >= LARGE_FILE_THRESHOLD;
 
     try {
       callbacksRef.current.beginPerformanceSession(
         tabId,
         'import',
-        file.name,
-        file.size,
-        file.size,
+        source.name,
+        source.size,
+        source.size,
         presumedLargeMode
       );
       callbacksRef.current.logEvent('import-start', {
         tabId,
-        fileName: file.name,
-        fileSize: file.size,
+        fileName: source.name,
+        fileSize: source.size,
       });
       callbacksRef.current.setTabError(tabId, null);
-      callbacksRef.current.setTabImporting(tabId, file.name);
+      callbacksRef.current.setTabImporting(tabId, source.name);
       callbacksRef.current.setTabFormatting(tabId, false);
       callbacksRef.current.setProcessingStage(tabId, 'reading');
       callbacksRef.current.setLocateFeedback(tabId, null);
-      callbacksRef.current.renameTab(tabId, getFileName(file.name));
+      callbacksRef.current.renameTab(tabId, getFileName(source.name));
       callbacksRef.current.setTabLargeMode(tabId, presumedLargeMode);
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
@@ -572,13 +578,13 @@ export function useJsonFormattingWorker({
       callbacksRef.current.resetSearchState();
 
       await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
+        window.setTimeout(resolve, 0);
       });
 
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
         session.readStartedAt = performance.now();
       });
-      const content = await file.text();
+      const content = await source.readText();
       const rawBytes = getUtf8ByteLength(content);
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
         session.readCompletedAt = performance.now();
@@ -586,7 +592,7 @@ export function useJsonFormattingWorker({
       });
       callbacksRef.current.logEvent('import-read-complete', {
         tabId,
-        fileName: file.name,
+        fileName: source.name,
         rawLength: rawBytes,
       });
       const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
@@ -626,7 +632,7 @@ export function useJsonFormattingWorker({
       }, true);
       callbacksRef.current.logEvent('import-failed', {
         tabId,
-        fileName: file.name,
+        fileName: source.name,
         error: error instanceof Error ? error.message : String(error),
       });
       callbacksRef.current.setTabImporting(tabId, null);
@@ -641,6 +647,27 @@ export function useJsonFormattingWorker({
       );
     }
   };
+
+  const importJsonFile = async (tabId: string, file: File) => (
+    importJsonSource(tabId, {
+      name: file.name,
+      size: file.size,
+      readText: () => file.text(),
+    })
+  );
+
+  const importJsonText = async (
+    tabId: string,
+    name: string,
+    size: number,
+    content: string
+  ) => (
+    importJsonSource(tabId, {
+      name,
+      size,
+      readText: async () => content,
+    })
+  );
 
   useEffect(() => {
     const worker = new Worker(
@@ -884,6 +911,7 @@ export function useJsonFormattingWorker({
   return {
     clearTabStructure,
     importJsonFile,
+    importJsonText,
     queueFormat,
     removeTabArtifacts,
     requestWorkerSearch,
