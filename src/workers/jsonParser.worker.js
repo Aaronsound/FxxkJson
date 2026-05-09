@@ -21,6 +21,7 @@ const viewerCache = new Map();
 const directValueTreeCache = new Map();
 const directValueWarmupTimers = new Map();
 const editJsonCache = new Map();
+const nodeEditCache = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
@@ -103,6 +104,10 @@ function readJsonNodeForEdit(tabId, text, offset) {
         structureCache.set(tabId, cachedStructure);
       }
 
+      nodeEditCache.set(tabId, {
+        formattedText: sourceText,
+      });
+
       return JSON.stringify({
         path: location.path,
         value: sourceText.slice(node.offset, node.offset + node.length),
@@ -113,12 +118,83 @@ function readJsonNodeForEdit(tabId, text, offset) {
   throw new Error('当前节点无法编辑');
 }
 
-function saveJsonNodeForEdit(text, originalText, path) {
+function patchCachedFormattedNode(tabId, text, path, rawText) {
+  const formattedText = getCachedFormattedText(tabId) ?? nodeEditCache.get(tabId)?.formattedText;
+
+  if (typeof formattedText !== 'string') {
+    return {
+      formattedText: null,
+      viewerData: null,
+      viewerIndexMs: null,
+    };
+  }
+
+  const nextFormattedText = saveJsonNodePreservingOriginalFormat(formattedText, path, text);
+  const viewerIndexStartedAt = performance.now();
+  const viewerData = buildLargeViewerData(nextFormattedText);
+  const viewerIndexMs = performance.now() - viewerIndexStartedAt;
+  const requestId = latestFormatRequestByTab.get(tabId) ?? 0;
+
+  if (viewerData) {
+    viewerCache.set(tabId, {
+      requestId,
+      formattedText: nextFormattedText,
+      viewerData,
+    });
+  } else {
+    viewerCache.delete(tabId);
+  }
+
+  directValueTreeCache.delete(tabId);
+  clearDirectValueWarmup(tabId);
+
+  const cachedStructure = structureCache.get(tabId);
+  if (cachedStructure) {
+    if (cachedStructure.directLocate) {
+      if (viewerData) {
+        structureCache.set(tabId, {
+          requestId,
+          directLocate: true,
+          directLocateMode: rawText === nextFormattedText ? 'identity' : 'token-search',
+          rawText: rawText === nextFormattedText ? undefined : rawText,
+          formattedText: nextFormattedText,
+          viewerData,
+        });
+      } else {
+        structureCache.delete(tabId);
+      }
+    } else {
+      structureCache.set(tabId, {
+        requestId,
+        rawText,
+        formattedText: nextFormattedText,
+        rawTree: undefined,
+        formattedTree: undefined,
+      });
+    }
+  }
+
+  return {
+    formattedText: nextFormattedText,
+    viewerData,
+    viewerIndexMs,
+  };
+}
+
+function saveJsonNodeForEdit(tabId, text, originalText, path) {
   if (typeof originalText !== 'string' || !Array.isArray(path)) {
     throw new Error('当前节点无法保存');
   }
 
-  return saveJsonNodePreservingOriginalFormat(originalText, path, text);
+  const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text);
+  const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText);
+
+  nodeEditCache.delete(tabId);
+
+  return {
+    rawText,
+    ...formattedPatch,
+  };
 }
 
 function copyJsonAsStringLiteral(text) {
@@ -329,6 +405,7 @@ self.onmessage = (event) => {
     viewerCache.delete(message.tabId);
     directValueTreeCache.delete(message.tabId);
     editJsonCache.delete(message.tabId);
+    nodeEditCache.delete(message.tabId);
     rawSearchCache.delete(message.tabId);
     latestFormatRequestByTab.delete(message.tabId);
     return;
@@ -348,7 +425,20 @@ self.onmessage = (event) => {
         }
 
         if (operation === 'save-node') {
-          return saveJsonNodeForEdit(text, originalText, path);
+          const result = saveJsonNodeForEdit(tabId, text, originalText, path);
+
+          postMessage({
+            type: 'edit-json-result',
+            requestId,
+            tabId,
+            operation,
+            success: true,
+            data: result.rawText,
+            formattedText: result.formattedText,
+            viewerData: result.viewerData,
+            viewerIndexMs: result.viewerIndexMs,
+          });
+          return null;
         }
 
         if (operation === 'save') {
@@ -357,6 +447,10 @@ self.onmessage = (event) => {
 
         return formatJsonForEdit(tabId, text);
       })();
+
+      if (data === null) {
+        return;
+      }
 
       postMessage({
         type: 'edit-json-result',
@@ -396,6 +490,7 @@ self.onmessage = (event) => {
     if (cachedEditJson?.originalText !== text) {
       editJsonCache.delete(tabId);
     }
+    nodeEditCache.delete(tabId);
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
     try {

@@ -26,6 +26,7 @@ export interface WorkerMessage {
   ready?: boolean;
   found?: boolean;
   data?: string;
+  formattedText?: string;
   value?: string | null;
   error?: string;
   startOffset?: number;

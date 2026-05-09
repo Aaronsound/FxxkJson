@@ -791,6 +791,7 @@ const App: React.FC = () => {
     requestWorkerLocate,
     requestWorkerValue,
     requestWorkerEditJson,
+    requestWorkerEditJsonResult,
     resetTabArtifacts,
   } = useJsonFormattingWorker({
     activeTabIdRef,
@@ -1568,13 +1569,17 @@ const App: React.FC = () => {
     setEditJsonBusyLabel(isNodeEdit ? '正在更新当前节点...' : '正在更新原始 JSON...');
     try {
       const original = getTabContent(currentTabId);
-      const updated = await requestWorkerEditJson(
+      const saveResult = await requestWorkerEditJsonResult(
         currentTabId,
         isNodeEdit ? 'save-node' : 'save',
         editJsonValueRef.current,
         original,
         editJsonSession?.path
       );
+      const updated = saveResult.data;
+      if (typeof updated !== 'string') {
+        throw new Error('JSON worker returned an empty result');
+      }
       const largeMode = isLargeDocument(updated);
       beginPerformanceSession(
         currentTabId,
@@ -1596,7 +1601,39 @@ const App: React.FC = () => {
       setEditJsonError(null);
       closeEditJson();
       resetSearchState();
-      queueFormatAfterEditSave(currentTabId, updated);
+      if (isNodeEdit && typeof saveResult.formattedText === 'string') {
+        const rightModelStartedAt = performance.now();
+        updateFormattedContent(currentTabId, saveResult.formattedText, true);
+        const rightModelCompletedAt = performance.now();
+        setLargeViewerData(currentTabId, saveResult.viewerData ?? null);
+        setLargeViewerStatus(currentTabId, saveResult.viewerData ? 'ready' : 'idle');
+        setStructureStatus(
+          currentTabId,
+          workerStructureEnabledRef.current[currentTabId] ? 'ready' : (largeMode ? 'disabled' : 'ready')
+        );
+        setProcessingStage(currentTabId, 'idle');
+        setTabFormatting(currentTabId, false);
+        mutatePerformanceSession(currentTabId, (session) => {
+          session.pendingFormat = false;
+          session.requestId = null;
+          session.formatQueuedAt = rightModelStartedAt;
+          session.formatStartedAt = rightModelStartedAt;
+          session.formatCompletedAt = rightModelStartedAt;
+          session.rightModelStartedAt = rightModelStartedAt;
+          session.rightModelCompletedAt = rightModelCompletedAt;
+          session.formattedBytes = getUtf8ByteLength(saveResult.formattedText ?? '');
+          session.viewerIndexMs = typeof saveResult.viewerIndexMs === 'number'
+            ? saveResult.viewerIndexMs
+            : null;
+          session.viewerReadyAt = rightModelCompletedAt;
+          session.structureCompletedAt = rightModelCompletedAt;
+          session.structureEnabled = Boolean(workerStructureEnabledRef.current[currentTabId]);
+          session.status = 'ready';
+          session.error = null;
+        }, true);
+      } else {
+        queueFormatAfterEditSave(currentTabId, updated);
+      }
     } catch (error) {
       setEditJsonError(
         error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败'

@@ -144,7 +144,7 @@ export function useJsonFormattingWorker({
   const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
   const pendingEditJsonRequestsRef = useRef<Record<number, {
     reject: (error: Error) => void;
-    resolve: (value: string) => void;
+    resolve: (value: WorkerMessage) => void;
   }>>({});
   const callbacksRef = useRef({
     beginPerformanceSession,
@@ -342,14 +342,14 @@ export function useJsonFormattingWorker({
     });
   });
 
-  const requestWorkerEditJson = (
+  const requestWorkerEditJsonResult = (
     tabId: string,
     operation: EditJsonWorkerOperation,
     text: string,
     originalText?: string,
     path?: JsonEditPath,
     offset?: number
-  ) => new Promise<string>((resolve, reject) => {
+  ) => new Promise<WorkerMessage>((resolve, reject) => {
     if (!workerRef.current) {
       reject(new Error('JSON worker is not ready'));
       return;
@@ -367,6 +367,28 @@ export function useJsonFormattingWorker({
       path,
       offset,
     });
+  });
+
+  const requestWorkerEditJson = (
+    tabId: string,
+    operation: EditJsonWorkerOperation,
+    text: string,
+    originalText?: string,
+    path?: JsonEditPath,
+    offset?: number
+  ) => requestWorkerEditJsonResult(
+    tabId,
+    operation,
+    text,
+    originalText,
+    path,
+    offset
+  ).then((message) => {
+    if (typeof message.data !== 'string') {
+      throw new Error('JSON worker returned an empty result');
+    }
+
+    return message.data;
   });
 
   const queueFormat = (tabId: string, text: string, immediate = false) => {
@@ -904,7 +926,7 @@ export function useJsonFormattingWorker({
 
         delete pendingEditJsonRequestsRef.current[requestId];
         if (event.data.success && typeof event.data.data === 'string') {
-          pending.resolve(event.data.data);
+          pending.resolve(event.data);
         } else {
           pending.reject(new Error(event.data.error ?? 'JSON 处理失败'));
         }
@@ -939,6 +961,7 @@ export function useJsonFormattingWorker({
     requestWorkerLocate,
     requestWorkerValue,
     requestWorkerEditJson,
+    requestWorkerEditJsonResult,
     resetTabArtifacts,
   };
 }
