@@ -2,12 +2,11 @@
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 import {
   buildLargeViewerData,
-  findSearchMatchesBatchInLargeJson,
 } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { formatJsonText, parseJsonForFormatting } from '../utils/jsonFormat';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
-import { buildLineStarts, findTextSearchBatch } from '../utils/searchText';
+import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
 import {
   getIdentityLocateRange,
   getLightweightTokenLocateRange,
@@ -26,6 +25,7 @@ const editJsonCache = new Map();
 const nodeEditCache = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
+const latestSearchRequestByKey = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
 let textDecoder = null;
 let textEncoder = null;
@@ -504,6 +504,159 @@ function scheduleDirectValueTreeWarmup(tabId, requestId, text) {
   directValueWarmupTimers.set(tabId, timerId);
 }
 
+function getSearchRequestKey(tabId, target) {
+  return `${target}:${tabId}`;
+}
+
+function isLatestSearchRequest(tabId, target, requestId) {
+  return latestSearchRequestByKey.get(getSearchRequestKey(tabId, target)) === requestId;
+}
+
+function postSearchResultIfLatest(payload) {
+  if (!isLatestSearchRequest(payload.tabId, payload.target, payload.requestId)) {
+    return;
+  }
+
+  postMessage(payload);
+}
+
+function postEmptySearchResult(message) {
+  postSearchResultIfLatest({
+    type: 'search-result',
+    requestId: message.requestId,
+    tabId: message.tabId,
+    target: message.target ?? 'right',
+    query: message.query,
+    matches: [],
+    hasMore: false,
+    nextStartOffset: 0,
+    append: Boolean(message.append),
+  });
+}
+
+async function runSearchRequest(message) {
+  const {
+    requestId,
+    tabId,
+    target = 'right',
+    query,
+    searchOptions,
+    startOffset = 0,
+    append = false,
+  } = message;
+  const shouldCancel = () => !isLatestSearchRequest(tabId, target, requestId);
+
+  if (shouldCancel()) {
+    return;
+  }
+
+  if (target === 'left') {
+    if (typeof message.text === 'string') {
+      rawSearchCache.set(tabId, {
+        rawText: message.text,
+        rawRevision: message.rawRevision ?? null,
+        lineStarts: null,
+      });
+    }
+
+    const cachedRaw = rawSearchCache.get(tabId);
+    if (
+      !cachedRaw
+      || typeof cachedRaw.rawText !== 'string'
+      || (
+        typeof message.rawRevision === 'number'
+        && cachedRaw.rawRevision !== message.rawRevision
+      )
+    ) {
+      postEmptySearchResult(message);
+      return;
+    }
+
+    try {
+      if (!(cachedRaw.lineStarts instanceof Uint32Array)) {
+        cachedRaw.lineStarts = buildLineStarts(cachedRaw.rawText);
+        rawSearchCache.set(tabId, cachedRaw);
+      }
+
+      if (shouldCancel()) {
+        return;
+      }
+
+      const result = await findTextSearchBatchAsync(
+        cachedRaw.rawText,
+        cachedRaw.lineStarts,
+        cachedRaw.lineStarts.length,
+        typeof query === 'string' ? query : '',
+        searchOptions ?? DEFAULT_SEARCH_OPTIONS,
+        startOffset,
+        SEARCH_BATCH_SIZE,
+        shouldCancel
+      );
+
+      if (result.cancelled || shouldCancel()) {
+        return;
+      }
+
+      postSearchResultIfLatest({
+        type: 'search-result',
+        requestId,
+        tabId,
+        target,
+        query,
+        matches: result.matches,
+        hasMore: result.hasMore,
+        nextStartOffset: result.nextStartOffset,
+        append,
+      });
+    } catch {
+      postEmptySearchResult(message);
+    }
+    return;
+  }
+
+  const cachedViewer = viewerCache.get(tabId);
+
+  if (
+    !cachedViewer
+    || typeof cachedViewer.formattedText !== 'string'
+    || !cachedViewer.viewerData
+  ) {
+    postEmptySearchResult(message);
+    return;
+  }
+
+  try {
+    const result = await findTextSearchBatchAsync(
+      cachedViewer.formattedText,
+      cachedViewer.viewerData.lineStarts,
+      cachedViewer.viewerData.lineCount,
+      typeof query === 'string' ? query : '',
+      searchOptions ?? DEFAULT_SEARCH_OPTIONS,
+      startOffset,
+      SEARCH_BATCH_SIZE,
+      shouldCancel
+    );
+
+    if (result.cancelled || shouldCancel()) {
+      return;
+    }
+
+    postSearchResultIfLatest({
+      type: 'search-result',
+      requestId,
+      tabId,
+      target,
+      query,
+      matches: result.matches,
+      hasMore: result.hasMore,
+      nextStartOffset: result.nextStartOffset,
+      append,
+    });
+  } catch {
+    postEmptySearchResult(message);
+  }
+}
+
 self.onmessage = (event) => {
   const message = event.data;
 
@@ -517,6 +670,8 @@ self.onmessage = (event) => {
     nodeEditCache.delete(message.tabId);
     rawSearchCache.delete(message.tabId);
     latestFormatRequestByTab.delete(message.tabId);
+    latestSearchRequestByKey.delete(getSearchRequestKey(message.tabId, 'left'));
+    latestSearchRequestByKey.delete(getSearchRequestKey(message.tabId, 'right'));
     return;
   }
 
@@ -960,146 +1115,15 @@ self.onmessage = (event) => {
   }
 
   if (message.type === 'search') {
-    const {
-      requestId,
-      tabId,
-      target = 'right',
-      query,
-      searchOptions,
-      startOffset = 0,
-      append = false,
-    } = message;
-
-    if (target === 'left') {
-      if (typeof message.text === 'string') {
-        rawSearchCache.set(tabId, {
-          rawText: message.text,
-          rawRevision: message.rawRevision ?? null,
-          lineStarts: null,
+    const target = message.target ?? 'right';
+    latestSearchRequestByKey.set(getSearchRequestKey(message.tabId, target), message.requestId);
+    setTimeout(() => {
+      if (isLatestSearchRequest(message.tabId, target, message.requestId)) {
+        void runSearchRequest({
+          ...message,
+          target,
         });
       }
-
-      const cachedRaw = rawSearchCache.get(tabId);
-      if (
-        !cachedRaw
-        || typeof cachedRaw.rawText !== 'string'
-        || (
-          typeof message.rawRevision === 'number'
-          && cachedRaw.rawRevision !== message.rawRevision
-        )
-      ) {
-        postMessage({
-          type: 'search-result',
-          requestId,
-          tabId,
-          target,
-          query,
-          matches: [],
-          hasMore: false,
-          nextStartOffset: 0,
-          append,
-        });
-        return;
-      }
-
-      try {
-        if (!(cachedRaw.lineStarts instanceof Uint32Array)) {
-          cachedRaw.lineStarts = buildLineStarts(cachedRaw.rawText);
-          rawSearchCache.set(tabId, cachedRaw);
-        }
-
-        const result = findTextSearchBatch(
-          cachedRaw.rawText,
-          cachedRaw.lineStarts,
-          cachedRaw.lineStarts.length,
-          typeof query === 'string' ? query : '',
-          searchOptions ?? DEFAULT_SEARCH_OPTIONS,
-          startOffset,
-          SEARCH_BATCH_SIZE
-        );
-
-        postMessage({
-          type: 'search-result',
-          requestId,
-          tabId,
-          target,
-          query,
-          matches: result.matches,
-          hasMore: result.hasMore,
-          nextStartOffset: result.nextStartOffset,
-          append,
-        });
-      } catch {
-        postMessage({
-          type: 'search-result',
-          requestId,
-          tabId,
-          target,
-          query,
-          matches: [],
-          hasMore: false,
-          nextStartOffset: 0,
-          append,
-        });
-      }
-      return;
-    }
-
-    const cachedViewer = viewerCache.get(tabId);
-
-    if (
-      !cachedViewer
-      || typeof cachedViewer.formattedText !== 'string'
-      || !cachedViewer.viewerData
-    ) {
-      postMessage({
-        type: 'search-result',
-        requestId,
-        tabId,
-        target,
-        query,
-        matches: [],
-        hasMore: false,
-        nextStartOffset: 0,
-        append,
-      });
-      return;
-    }
-
-    try {
-      const result = findSearchMatchesBatchInLargeJson(
-        cachedViewer.formattedText,
-        cachedViewer.viewerData.lineStarts,
-        cachedViewer.viewerData.lineCount,
-        typeof query === 'string' ? query : '',
-        searchOptions ?? DEFAULT_SEARCH_OPTIONS,
-        startOffset,
-        SEARCH_BATCH_SIZE
-      );
-
-      postMessage({
-        type: 'search-result',
-        requestId,
-        tabId,
-        target,
-        query,
-        matches: result.matches,
-        hasMore: result.hasMore,
-        nextStartOffset: result.nextStartOffset,
-        append,
-      });
-    } catch {
-      postMessage({
-        type: 'search-result',
-        requestId,
-        tabId,
-        target,
-        query,
-        matches: [],
-        hasMore: false,
-        nextStartOffset: 0,
-        append,
-      });
-    }
+    }, 0);
   }
 };

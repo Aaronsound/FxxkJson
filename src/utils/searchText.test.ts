@@ -3,6 +3,7 @@ import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import {
   buildLineStarts,
   findTextSearchBatch,
+  findTextSearchBatchAsync,
 } from './searchText';
 
 describe('searchText', () => {
@@ -51,5 +52,24 @@ describe('searchText', () => {
       ...secondBatch.matches,
       ...thirdBatch.matches,
     ]).toHaveLength(5);
+  });
+
+  it('can cancel async batched searches before returning stale results', async () => {
+    const text = Array.from({ length: 1000 }, (_, index) => `HanJson item ${index}`).join('\n');
+    const lineStarts = buildLineStarts(text);
+
+    const result = await findTextSearchBatchAsync(
+      text,
+      lineStarts,
+      lineStarts.length,
+      'HanJson',
+      DEFAULT_SEARCH_OPTIONS,
+      0,
+      500,
+      () => true
+    );
+
+    expect(result.cancelled).toBe(true);
+    expect(result.matches).toHaveLength(0);
   });
 });

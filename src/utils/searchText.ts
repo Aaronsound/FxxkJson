@@ -7,6 +7,7 @@ export interface TextSearchBatch {
   matches: LargeJsonSearchMatch[];
   hasMore: boolean;
   nextStartOffset: number;
+  cancelled?: boolean;
 }
 
 export function buildLineStarts(text: string) {
@@ -72,6 +73,29 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function cancelledSearchBatch(startOffset: number, textLength: number): TextSearchBatch {
+  return {
+    matches: [],
+    hasMore: false,
+    nextStartOffset: Math.min(Math.max(0, startOffset), textLength),
+    cancelled: true,
+  };
+}
+
+function getEmptySearchBatch(startOffset: number, textLength: number): TextSearchBatch {
+  return {
+    matches: [],
+    hasMore: false,
+    nextStartOffset: Math.min(Math.max(0, startOffset), textLength),
+  };
+}
+
+function yieldToEventLoop() {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
 export function findTextSearchMatches(
   text: string,
   lineStarts: Uint32Array,
@@ -101,11 +125,7 @@ export function findTextSearchBatch(
   maxResults = Number.POSITIVE_INFINITY
 ): TextSearchBatch {
   if (!searchTerm || maxResults <= 0) {
-    return {
-      matches: [],
-      hasMore: false,
-      nextStartOffset: Math.min(Math.max(0, startOffset), text.length),
-    };
+    return getEmptySearchBatch(startOffset, text.length);
   }
 
   const source = options.useRegex ? searchTerm : escapeRegExp(searchTerm);
@@ -114,11 +134,7 @@ export function findTextSearchBatch(
   try {
     matcher = new RegExp(source, `g${options.matchCase ? '' : 'i'}`);
   } catch {
-    return {
-      matches: [],
-      hasMore: false,
-      nextStartOffset: Math.min(Math.max(0, startOffset), text.length),
-    };
+    return getEmptySearchBatch(startOffset, text.length);
   }
 
   const matches: LargeJsonSearchMatch[] = [];
@@ -148,6 +164,84 @@ export function findTextSearchBatch(
       matches.push(getLineMatch(text, lineStarts, lineCount, start, end));
       nextStartOffset = Math.max(end, matcher.lastIndex);
     }
+  }
+
+  return {
+    matches,
+    hasMore: false,
+    nextStartOffset,
+  };
+}
+
+export async function findTextSearchBatchAsync(
+  text: string,
+  lineStarts: Uint32Array,
+  lineCount: number,
+  searchTerm: string,
+  options: JsonSearchOptions,
+  startOffset = 0,
+  maxResults = Number.POSITIVE_INFINITY,
+  shouldCancel: () => boolean = () => false
+): Promise<TextSearchBatch> {
+  if (shouldCancel()) {
+    return cancelledSearchBatch(startOffset, text.length);
+  }
+
+  if (!searchTerm || maxResults <= 0) {
+    return getEmptySearchBatch(startOffset, text.length);
+  }
+
+  if (options.useRegex) {
+    const result = findTextSearchBatch(
+      text,
+      lineStarts,
+      lineCount,
+      searchTerm,
+      options,
+      startOffset,
+      maxResults
+    );
+
+    return shouldCancel() ? cancelledSearchBatch(result.nextStartOffset, text.length) : result;
+  }
+
+  const sourceText = options.matchCase ? text : text.toLowerCase();
+  const sourceTerm = options.matchCase ? searchTerm : searchTerm.toLowerCase();
+  const matches: LargeJsonSearchMatch[] = [];
+  let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
+  let index = sourceText.indexOf(sourceTerm, nextStartOffset);
+  let iteration = 0;
+
+  while (index !== -1) {
+    if (shouldCancel()) {
+      return cancelledSearchBatch(nextStartOffset, text.length);
+    }
+
+    const start = index;
+    const end = start + sourceTerm.length;
+
+    if (!options.wholeWord || isWholeWordMatch(text, start, end)) {
+      if (matches.length >= maxResults) {
+        return {
+          matches,
+          hasMore: true,
+          nextStartOffset,
+        };
+      }
+
+      matches.push(getLineMatch(text, lineStarts, lineCount, start, end));
+      nextStartOffset = end;
+    }
+
+    iteration += 1;
+    if (iteration % 250 === 0) {
+      await yieldToEventLoop();
+      if (shouldCancel()) {
+        return cancelledSearchBatch(nextStartOffset, text.length);
+      }
+    }
+
+    index = sourceText.indexOf(sourceTerm, Math.max(end, index + 1));
   }
 
   return {
