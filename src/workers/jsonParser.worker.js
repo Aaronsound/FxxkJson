@@ -12,8 +12,10 @@ import { buildLineStarts, findTextSearchBatch } from '../utils/searchText';
 const structureCache = new Map();
 const viewerCache = new Map();
 const directValueTreeCache = new Map();
+const directValueWarmupTimers = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
+const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 40 * 1024 * 1024;
 
 function formatJsonForEdit(text) {
   return JSON.stringify(JSON.parse(text), null, 2);
@@ -93,10 +95,49 @@ function getDirectValueTree(tabId, requestId, text) {
   return formattedTree;
 }
 
+function clearDirectValueWarmup(tabId) {
+  const timerId = directValueWarmupTimers.get(tabId);
+  if (timerId) {
+    clearTimeout(timerId);
+    directValueWarmupTimers.delete(tabId);
+  }
+}
+
+function scheduleDirectValueTreeWarmup(tabId, requestId, text) {
+  clearDirectValueWarmup(tabId);
+
+  if (typeof text !== 'string' || text.length > DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH) {
+    return;
+  }
+
+  const timerId = setTimeout(() => {
+    directValueWarmupTimers.delete(tabId);
+    const cachedViewer = viewerCache.get(tabId);
+
+    if (
+      latestFormatRequestByTab.get(tabId) !== requestId
+      || !cachedViewer
+      || cachedViewer.requestId !== requestId
+      || cachedViewer.formattedText !== text
+    ) {
+      return;
+    }
+
+    try {
+      getDirectValueTree(tabId, requestId, text);
+    } catch {
+      directValueTreeCache.delete(tabId);
+    }
+  }, 250);
+
+  directValueWarmupTimers.set(tabId, timerId);
+}
+
 self.onmessage = (event) => {
   const message = event.data;
 
   if (message.type === 'clear-structure') {
+    clearDirectValueWarmup(message.tabId);
     structureCache.delete(message.tabId);
     viewerCache.delete(message.tabId);
     directValueTreeCache.delete(message.tabId);
@@ -145,6 +186,7 @@ self.onmessage = (event) => {
       buildViewer,
     } = message;
     latestFormatRequestByTab.set(tabId, requestId);
+    clearDirectValueWarmup(tabId);
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
     try {
@@ -207,6 +249,10 @@ self.onmessage = (event) => {
             viewerData,
             viewerIndexMs,
           });
+
+          if (viewerData) {
+            scheduleDirectValueTreeWarmup(tabId, requestId, formatted);
+          }
         }, 0);
       }
       else {
