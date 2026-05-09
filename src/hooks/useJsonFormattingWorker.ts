@@ -237,8 +237,8 @@ export function useJsonFormattingWorker({
 
     const requestId = ++locateRequestCounterRef.current;
     latestLocateRequestRef.current[tabId] = requestId;
-    callbacksRef.current.setStructureStatus(tabId, 'building');
-    callbacksRef.current.setProcessingStage(tabId, 'building-index');
+    // A locate request consumes the ready index. Keep the index status stable
+    // so right-side clicks do not look like they rebuild the index every time.
     callbacksRef.current.setLocateFeedback(tabId, {
       status: 'pending',
       message: `正在定位 offset ${Math.max(0, Math.floor(offset)).toLocaleString()}`,
