@@ -51,16 +51,16 @@ function createWindow() {
     mainWindow?.show();
   });
 
-  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    if (level < 2) {
+  mainWindow.webContents.on('console-message', (details) => {
+    if (details.level === 'info' || details.level === 'debug') {
       return;
     }
 
     logRuntimeEvent('renderer-console', {
-      level,
-      message,
-      line,
-      sourceId,
+      level: details.level,
+      message: details.message,
+      line: details.lineNumber,
+      sourceId: details.sourceId,
     });
   });
 
