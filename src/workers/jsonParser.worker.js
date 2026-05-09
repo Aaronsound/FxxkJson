@@ -125,7 +125,9 @@ self.onmessage = (event) => {
             return;
           }
 
+          const viewerIndexStartedAt = performance.now();
           const viewerData = buildLargeViewerData(formatted);
+          const viewerIndexMs = performance.now() - viewerIndexStartedAt;
           if (viewerData) {
             viewerCache.set(tabId, {
               requestId,
@@ -165,6 +167,7 @@ self.onmessage = (event) => {
             requestId,
             tabId,
             viewerData,
+            viewerIndexMs,
           });
         }, 0);
       }
@@ -175,6 +178,7 @@ self.onmessage = (event) => {
           requestId,
           tabId,
           viewerData: null,
+          viewerIndexMs: null,
         });
       }
 

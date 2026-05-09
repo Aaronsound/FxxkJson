@@ -371,6 +371,8 @@ export function useJsonFormattingWorker({
       session.formatCompletedAt = undefined;
       session.rightModelStartedAt = undefined;
       session.rightModelCompletedAt = undefined;
+      session.viewerIndexMs = null;
+      session.viewerReadyAt = undefined;
       session.structureCompletedAt = undefined;
       session.formattedBytes = 0;
       session.status = 'running';
@@ -655,6 +657,18 @@ export function useJsonFormattingWorker({
       if (type === 'viewer-ready') {
         if (latestRequestRef.current[tabId] !== requestId) {
           return;
+        }
+
+        const performanceSession = performanceSessionsRef.current[tabId];
+        if (performanceSession?.requestId === requestId) {
+          performanceSession.viewerIndexMs = typeof event.data.viewerIndexMs === 'number'
+            ? event.data.viewerIndexMs
+            : null;
+          performanceSession.viewerReadyAt = performance.now();
+          if (!performanceSession.structureEnabled) {
+            performanceSession.status = 'ready';
+          }
+          callbacksRef.current.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
         }
 
         callbacksRef.current.setLargeViewerData(tabId, event.data.viewerData ?? null);

@@ -25,6 +25,8 @@ export type PerformanceSession = {
   formatCompletedAt?: number;
   rightModelStartedAt?: number;
   rightModelCompletedAt?: number;
+  viewerIndexMs?: number | null;
+  viewerReadyAt?: number;
   structureCompletedAt?: number;
   status: PerformanceSnapshotStatus;
   error: string | null;
@@ -79,7 +81,11 @@ export function useJsonPerformanceTracking({
       formatQueueMs: measureDuration(session.formatQueuedAt, session.formatStartedAt),
       formatWorkerMs: measureDuration(session.formatStartedAt, session.formatCompletedAt),
       rightModelSyncMs: measureDuration(session.rightModelStartedAt, session.rightModelCompletedAt),
+      viewerIndexMs: typeof session.viewerIndexMs === 'number'
+        ? Math.round(session.viewerIndexMs * 10) / 10
+        : null,
       totalToFormattedMs: measureDuration(session.startedAt, session.rightModelCompletedAt),
+      totalToViewerReadyMs: measureDuration(session.startedAt, session.viewerReadyAt),
       structureIndexMs: measureDuration(session.formatCompletedAt, session.structureCompletedAt),
       updatedAt: Date.now(),
       status: session.status,

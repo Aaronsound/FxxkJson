@@ -12,6 +12,7 @@ type StageKey =
   | 'formatQueueMs'
   | 'formatWorkerMs'
   | 'rightModelSyncMs'
+  | 'viewerIndexMs'
   | 'structureIndexMs';
 
 type PanelPosition = {
@@ -27,6 +28,7 @@ const stageLabels: Array<{ key: StageKey; label: string }> = [
   { key: 'formatQueueMs', label: '排队等待' },
   { key: 'formatWorkerMs', label: 'Worker 格式化' },
   { key: 'rightModelSyncMs', label: '右侧挂载' },
+  { key: 'viewerIndexMs', label: 'Viewer 索引' },
   { key: 'structureIndexMs', label: '定位索引' },
 ];
 
@@ -299,6 +301,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
 
       <div className="performance-panel-compact">
         <span>{getTriggerLabel(snapshot.trigger)}</span>
+        <span>Viewer {formatDuration(snapshot.totalToViewerReadyMs)}</span>
         <span>总耗时 {formatDuration(snapshot.totalToFormattedMs)}</span>
         <span>瓶颈 {bottleneck.label}</span>
       </div>
@@ -326,6 +329,10 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
             <div className="performance-card">
               <span className="performance-card-label">总耗时</span>
               <strong>{formatDuration(snapshot.totalToFormattedMs)}</strong>
+            </div>
+            <div className="performance-card">
+              <span className="performance-card-label">Viewer</span>
+              <strong>{formatDuration(snapshot.totalToViewerReadyMs)}</strong>
             </div>
             <div className="performance-card">
               <span className="performance-card-label">主要瓶颈</span>

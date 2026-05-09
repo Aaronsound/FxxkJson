@@ -30,6 +30,7 @@ export interface WorkerMessage {
   startOffset?: number;
   endOffset?: number;
   viewerData?: LargeJsonViewerData | null;
+  viewerIndexMs?: number | null;
   query?: string;
   matches?: LargeJsonSearchMatch[];
   hasMore?: boolean;
@@ -89,7 +90,9 @@ export interface PerformanceSnapshot {
   formatQueueMs: number | null;
   formatWorkerMs: number | null;
   rightModelSyncMs: number | null;
+  viewerIndexMs: number | null;
   totalToFormattedMs: number | null;
+  totalToViewerReadyMs: number | null;
   structureIndexMs: number | null;
   updatedAt: number;
   status: PerformanceSnapshotStatus;
