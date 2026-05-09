@@ -47,6 +47,7 @@ import {
   getMonacoSearchBatch,
   getReplacementText,
 } from './utils/jsonEditorInteractions';
+import { getFirstJsonImportFile } from './utils/importFiles';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
@@ -156,6 +157,7 @@ const App: React.FC = () => {
   const [editJsonError, setEditJsonError] = useState<string | null>(null);
   const [editJsonBusyLabel, setEditJsonBusyLabel] = useState<string | null>(null);
   const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
+  const [isDragImportActive, setIsDragImportActive] = useState(false);
   const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
     [INITIAL_TAB_ID]: null,
   });
@@ -177,6 +179,7 @@ const App: React.FC = () => {
   const largeRawViewerRef = useRef<LargeRawReadonlyViewerHandle | null>(null);
   const largeViewerRef = useRef<LargeJsonReadonlyViewerHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragImportDepthRef = useRef(0);
   const rawTextByTabRef = useRef<Record<string, string>>({
     [INITIAL_TAB_ID]: '',
   });
@@ -1317,10 +1320,78 @@ const App: React.FC = () => {
   };
 
   const handleFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const selectedFiles = event.target.files;
+    const file = getFirstJsonImportFile(selectedFiles);
     event.target.value = '';
 
-    if (!file || !activeTab) {
+    if (!activeTab || !selectedFiles || selectedFiles.length === 0) {
+      return;
+    }
+
+    if (!file) {
+      setTabError(activeTab.id, '请选择 .json 或 .txt 文件');
+      return;
+    }
+
+    await importJsonFile(activeTab.id, file);
+  };
+
+  const hasDraggedFiles = (event: React.DragEvent<HTMLDivElement>) => (
+    Array.from(event.dataTransfer.types).includes('Files')
+  );
+
+  const handleImportDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+    dragImportDepthRef.current += 1;
+    setIsDragImportActive(true);
+  };
+
+  const handleImportDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleImportDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    dragImportDepthRef.current = Math.max(0, dragImportDepthRef.current - 1);
+    if (dragImportDepthRef.current === 0) {
+      setIsDragImportActive(false);
+    }
+  };
+
+  const handleImportDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    dragImportDepthRef.current = 0;
+    setIsDragImportActive(false);
+
+    if (!activeTab) {
+      return;
+    }
+
+    const file = getFirstJsonImportFile(event.dataTransfer.files);
+    if (!file) {
+      setTabError(activeTab.id, '请拖入 .json 或 .txt 文件');
       return;
     }
 
@@ -1808,6 +1879,10 @@ const App: React.FC = () => {
   return (
     <div
       className={isDarkMode ? 'app-container dark-mode' : 'app-container'}
+      onDragEnter={handleImportDragEnter}
+      onDragOver={handleImportDragOver}
+      onDragLeave={handleImportDragLeave}
+      onDrop={handleImportDrop}
       style={{
         height: '100vh',
         width: '100vw',
@@ -1824,6 +1899,14 @@ const App: React.FC = () => {
         onChange={handleFileSelection}
       />
 
+      {isDragImportActive && (
+        <div className="drag-import-overlay">
+          <div className={`drag-import-panel ${isDarkMode ? 'dark' : ''}`}>
+            <span className="drag-import-title">释放导入 JSON</span>
+            <span className="drag-import-subtitle">当前标签会读取拖入的 .json / .txt 文件</span>
+          </div>
+        </div>
+      )}
 
       <JsonToolToolbar
         onImport={handleImport}

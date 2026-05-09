@@ -42,6 +42,52 @@ body {
   background-color: #f0f0f0;  /* 整体淡灰背景 */
 }
 
+.drag-import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  background: rgba(33, 42, 55, 0.28);
+  pointer-events: none;
+}
+
+.drag-import-panel {
+  display: flex;
+  width: min(420px, calc(100vw - 48px));
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 24px;
+  border: 2px dashed rgba(79, 126, 203, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1f2937;
+  box-shadow: 0 18px 44px rgba(31, 41, 55, 0.22);
+  text-align: center;
+}
+
+.drag-import-panel.dark {
+  border-color: rgba(117, 190, 255, 0.72);
+  background: rgba(31, 31, 33, 0.96);
+  color: #eeeeee;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+}
+
+.drag-import-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.drag-import-subtitle {
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.drag-import-panel.dark .drag-import-subtitle {
+  color: #d4d4d4;
+}
+
 /* ============================================= */
 /*           深色/浅色模式配色变量定义          */
 /* ============================================= */
