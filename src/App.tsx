@@ -9,7 +9,7 @@ import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
-import PaneFindWidget, { type PaneFindResultItem } from './components/PaneFindWidget';
+import PaneFindWidget from './components/PaneFindWidget';
 import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
@@ -54,7 +54,6 @@ import { getFirstJsonImportFile } from './utils/importFiles';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
-const SEARCH_RESULT_PREVIEW_LIMIT = 120;
 
 function getProcessingStageText(stage: ProcessingStage, fileName: string | null) {
   switch (stage) {
@@ -72,27 +71,6 @@ function getProcessingStageText(stage: ProcessingStage, fileName: string | null)
     default:
       return null;
   }
-}
-
-function getLargeSearchResultPreview(
-  text: string,
-  data: LargeJsonViewerData,
-  match: LargeJsonSearchMatch
-) {
-  const lineStart = data.lineStarts[match.lineNumber - 1] ?? match.lineStartOffset;
-  const lineEnd = match.lineNumber < data.lineCount
-    ? Math.max(lineStart, (data.lineStarts[match.lineNumber] ?? text.length) - 1)
-    : text.length;
-  const lineText = text
-    .slice(lineStart, lineEnd)
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (lineText.length <= SEARCH_RESULT_PREVIEW_LIMIT) {
-    return lineText;
-  }
-
-  return `${lineText.slice(0, SEARCH_RESULT_PREVIEW_LIMIT)}...`;
 }
 
 const App: React.FC = () => {
@@ -361,16 +339,6 @@ const App: React.FC = () => {
       : null,
     rightPaneStatusText,
   ].filter(Boolean).join(' · ');
-  const rightSearchResultItems: PaneFindResultItem[] = shouldUseDedicatedRightViewer && activeLargeViewerData
-    ? largeViewerMatches.slice(0, 12).map((match, index) => ({
-        index,
-        label: `#${index + 1} · 第 ${match.lineNumber.toLocaleString()} 行`,
-        detail: getLargeSearchResultPreview(formattedValue, activeLargeViewerData, match),
-      }))
-    : [];
-  const rightSearchResultListLabel = shouldUseDedicatedRightViewer && rightSearchTerm && largeViewerMatches.length > 0
-    ? `已载入 ${largeViewerMatches.length.toLocaleString()} 条${rightSearchHasMore ? '，可继续加载更多' : ''}`
-    : undefined;
 
   const clearLeftHighlights = () => {
     if (highlightTimeoutRef.current !== null) {
@@ -1900,14 +1868,6 @@ const App: React.FC = () => {
     setRightMatchIndex((current) => (current - 1 + activeRightMatchCount) % activeRightMatchCount);
   };
 
-  const selectRightSearchResult = (index: number) => {
-    if (index < 0 || index >= activeRightMatchCount) {
-      return;
-    }
-
-    setRightMatchIndex(index);
-  };
-
   const loadMoreLeftSearch = () => {
     if (!activeTab || !leftSearchTerm || !leftSearchHasMore || isLeftSearchLoadingMore) {
       return;
@@ -2229,16 +2189,12 @@ const App: React.FC = () => {
                 matchCount={activeRightMatchCount}
                 hasMore={rightSearchHasMore}
                 isLoadingMore={isRightSearchLoadingMore}
-                resultItems={rightSearchResultItems}
-                activeResultIndex={normalizedRightMatchIndex}
-                resultListLabel={rightSearchResultListLabel}
                 isDarkMode={isDarkMode}
                 placeholder="搜索格式化结果"
                 searchOptions={rightSearchOptions}
                 onChange={handleRightSearchTermChange}
                 onSearchOptionsChange={handleRightSearchOptionsChange}
                 onLoadMore={loadMoreRightSearch}
-                onSelectResult={selectRightSearchResult}
                 onPrev={gotoPrevRight}
                 onNext={gotoNextRight}
                 onClose={closeRightFind}
