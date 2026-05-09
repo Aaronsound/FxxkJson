@@ -16,7 +16,8 @@ export function buildLargeViewerData(
 ): LargeJsonViewerData | null {
   const lineStarts = [0];
   const regions: LargeJsonViewerRegion[] = [];
-  const stack: Array<{ close: '}' | ']'; startLine: number; kind: 'object' | 'array' }> = [];
+  const stackClose: Array<'}' | ']'> = [];
+  const stackRegionIndex: number[] = [];
   let line = 1;
   let inString = false;
   let escaping = false;
@@ -53,28 +54,39 @@ export function buildLargeViewerData(
     }
 
     if (char === '{') {
-      stack.push({ close: '}', startLine: line, kind: 'object' });
+      stackClose.push('}');
+      stackRegionIndex.push(regions.length);
+      regions.push({
+        startLine: line,
+        endLine: line,
+        kind: 'object',
+      });
       continue;
     }
 
     if (char === '[') {
-      stack.push({ close: ']', startLine: line, kind: 'array' });
+      stackClose.push(']');
+      stackRegionIndex.push(regions.length);
+      regions.push({
+        startLine: line,
+        endLine: line,
+        kind: 'array',
+      });
       continue;
     }
 
     if (char === '}' || char === ']') {
-      const current = stack.pop();
-      if (!current || current.close !== char) {
+      const expectedClose = stackClose.pop();
+      const regionIndex = stackRegionIndex.pop();
+      if (
+        expectedClose !== char
+        || typeof regionIndex !== 'number'
+        || !regions[regionIndex]
+      ) {
         continue;
       }
 
-      if (current.startLine < line) {
-        regions.push({
-          startLine: current.startLine,
-          endLine: line,
-          kind: current.kind,
-        });
-      }
+      regions[regionIndex].endLine = line;
     }
   }
 
@@ -82,17 +94,9 @@ export function buildLargeViewerData(
     return null;
   }
 
-  regions.sort((left, right) => {
-    if (left.startLine !== right.startLine) {
-      return left.startLine - right.startLine;
-    }
-
-    return right.endLine - left.endLine;
-  });
-
   return {
     lineStarts: Uint32Array.from(lineStarts),
-    regions,
+    regions: regions.filter((region) => region.startLine < region.endLine),
     lineCount: lineStarts.length,
   };
 }
