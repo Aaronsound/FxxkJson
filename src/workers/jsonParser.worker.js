@@ -15,7 +15,7 @@ const directValueTreeCache = new Map();
 const directValueWarmupTimers = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
-const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 40 * 1024 * 1024;
+const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
 
 function formatJsonForEdit(text) {
   return formatJsonText(text).formatted;
@@ -76,6 +76,46 @@ function getDirectLocateRange(cached, offset) {
     startOffset: lineStartOffset,
     endOffset: lineEndOffset,
   };
+}
+
+function ensureStructureTrees(tabId, cached) {
+  if (!cached || cached.directLocate) {
+    return Boolean(cached?.directLocate);
+  }
+
+  if (!cached.rawTree) {
+    if (typeof cached.rawText !== 'string') {
+      return false;
+    }
+
+    cached.rawTree = parseTree(cached.rawText) ?? undefined;
+    cached.rawText = undefined;
+  }
+
+  if (!cached.formattedTree) {
+    const cachedDirectTree = directValueTreeCache.get(tabId);
+    if (cachedDirectTree?.requestId === cached.requestId) {
+      cached.formattedTree = cachedDirectTree.formattedTree;
+    }
+  }
+
+  if (!cached.formattedTree) {
+    if (typeof cached.formattedText !== 'string') {
+      return false;
+    }
+
+    cached.formattedTree = parseTree(cached.formattedText) ?? undefined;
+  }
+
+  if (cached.formattedTree) {
+    directValueTreeCache.set(tabId, {
+      requestId: cached.requestId,
+      formattedTree: cached.formattedTree,
+    });
+  }
+
+  structureCache.set(tabId, cached);
+  return Boolean(cached.rawTree && cached.formattedTree);
 }
 
 function getDirectValueTree(tabId, requestId, text) {
@@ -183,6 +223,7 @@ self.onmessage = (event) => {
       text,
       enableStructure,
       enableDirectLocate,
+      deferStructure = false,
       buildViewer,
     } = message;
     latestFormatRequestByTab.set(tabId, requestId);
@@ -250,7 +291,7 @@ self.onmessage = (event) => {
             viewerIndexMs,
           });
 
-          if (viewerData) {
+          if (viewerData && !deferStructure) {
             scheduleDirectValueTreeWarmup(tabId, requestId, formatted);
           }
         }, 0);
@@ -311,31 +352,33 @@ self.onmessage = (event) => {
         formattedTree: undefined,
       });
 
+      if (deferStructure) {
+        postMessage({
+          type: 'structure-ready',
+          requestId,
+          tabId,
+          ready: true,
+        });
+        return;
+      }
+
       setTimeout(() => {
         const current = structureCache.get(tabId);
         if (!current || current.requestId !== requestId) {
           return;
         }
 
-        const rawTree = parseTree(current.rawText) ?? undefined;
-        const formattedTree = parseTree(current.formattedText) ?? undefined;
+        const ready = ensureStructureTrees(tabId, current);
         const latest = structureCache.get(tabId);
         if (!latest || latest.requestId !== requestId) {
           return;
         }
 
-        // Raw text is only needed until the source tree is built.
-        // Release it as soon as indexing finishes to reduce worker memory pressure.
-        latest.rawText = undefined;
-        latest.rawTree = rawTree;
-        latest.formattedTree = formattedTree;
-        structureCache.set(tabId, latest);
-
         postMessage({
           type: 'structure-ready',
           requestId,
           tabId,
-          ready: Boolean(rawTree && formattedTree),
+          ready,
         });
       }, 0);
     } catch (err) {
@@ -371,6 +414,27 @@ self.onmessage = (event) => {
       return;
     }
 
+    try {
+      if (!ensureStructureTrees(tabId, cached)) {
+        postMessage({
+          type: 'locate-result',
+          requestId,
+          tabId,
+          found: false,
+        });
+        return;
+      }
+    } catch {
+      structureCache.delete(tabId);
+      postMessage({
+        type: 'locate-result',
+        requestId,
+        tabId,
+        found: false,
+      });
+      return;
+    }
+
     const resolvedNodes = getResolvedNodes(cached, offset);
 
     if (!resolvedNodes) {
@@ -398,6 +462,30 @@ self.onmessage = (event) => {
   if (message.type === 'read-value') {
     const { requestId, tabId, offset } = message;
     const cached = structureCache.get(tabId);
+
+    try {
+      if (!ensureStructureTrees(tabId, cached)) {
+        postMessage({
+          type: 'value-result',
+          requestId,
+          tabId,
+          found: false,
+          value: null,
+        });
+        return;
+      }
+    } catch {
+      structureCache.delete(tabId);
+      postMessage({
+        type: 'value-result',
+        requestId,
+        tabId,
+        found: false,
+        value: null,
+      });
+      return;
+    }
+
     const resolvedNodes = getResolvedNodes(cached, offset);
 
     if (!resolvedNodes || typeof cached?.formattedText !== 'string') {

@@ -363,6 +363,7 @@ export function useJsonFormattingWorker({
     );
     const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
     const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
+    const shouldDeferStructureIndex = largeMode && shouldBuildStructureIndex;
 
     if (largeModeRef.current[tabId] !== largeMode) {
       callbacksRef.current.setTabLargeMode(tabId, largeMode);
@@ -411,6 +412,7 @@ export function useJsonFormattingWorker({
       immediate,
       largeMode,
       workerStructureEnabled: shouldBuildStructureIndex,
+      workerStructureDeferred: shouldDeferStructureIndex,
       workerDirectLocateEnabled: shouldAttemptDirectLocate,
     });
 
@@ -434,6 +436,7 @@ export function useJsonFormattingWorker({
         text,
         enableStructure: shouldBuildStructureIndex,
         enableDirectLocate: shouldAttemptDirectLocate,
+        deferStructure: shouldDeferStructureIndex,
         buildViewer: shouldBuildLargeViewer,
       });
     };
