@@ -5,13 +5,16 @@ import {
   FORMAT_DEBOUNCE_MS,
   LARGE_FILE_FORMAT_DEBOUNCE_MS,
   LARGE_FILE_THRESHOLD,
+} from '../types/jsonTool';
+import type {
+  JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   PerformanceTrigger,
+  SearchTarget,
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
-import type { JsonSearchOptions } from '../types/jsonTool';
 import { PerformanceSession } from './useJsonPerformanceTracking';
 import {
   disposeModel,
@@ -66,6 +69,13 @@ interface UseJsonFormattingWorkerArgs {
     nextStartOffset?: number,
     append?: boolean
   ) => void;
+  setLeftSearchResults: (
+    tabId: string,
+    matches: LargeJsonSearchMatch[],
+    hasMore?: boolean,
+    nextStartOffset?: number,
+    append?: boolean
+  ) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
   updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
   resetSearchState: () => void;
@@ -100,6 +110,7 @@ export function useJsonFormattingWorker({
   setLargeViewerData,
   setLargeViewerStatus,
   setLargeViewerSearchResults,
+  setLeftSearchResults,
   updateTabContent,
   updateFormattedContent,
   resetSearchState,
@@ -133,6 +144,7 @@ export function useJsonFormattingWorker({
     setTabImporting,
     setTabLargeMode,
     setLargeViewerData,
+    setLeftSearchResults,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
@@ -157,6 +169,7 @@ export function useJsonFormattingWorker({
     setTabImporting,
     setTabLargeMode,
     setLargeViewerData,
+    setLeftSearchResults,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
@@ -175,7 +188,8 @@ export function useJsonFormattingWorker({
   const clearTabStructure = (tabId: string, status: StructureStatus = 'ready') => {
     workerStructureEnabledRef.current[tabId] = false;
     delete latestLocateRequestRef.current[tabId];
-    delete latestSearchRequestRef.current[tabId];
+    delete latestSearchRequestRef.current[`left:${tabId}`];
+    delete latestSearchRequestRef.current[`right:${tabId}`];
     workerRef.current?.postMessage({
       type: 'clear-structure',
       tabId,
@@ -207,23 +221,34 @@ export function useJsonFormattingWorker({
     query: string,
     searchOptions: JsonSearchOptions,
     startOffset = 0,
-    append = false
+    append = false,
+    target: SearchTarget = 'right',
+    text?: string,
+    rawRevision?: number
   ) => {
     if (!workerRef.current) {
-      callbacksRef.current.setLargeViewerSearchResults(tabId, []);
+      if (target === 'left') {
+        callbacksRef.current.setLeftSearchResults(tabId, []);
+      } else {
+        callbacksRef.current.setLargeViewerSearchResults(tabId, []);
+      }
       return;
     }
 
     const requestId = ++searchRequestCounterRef.current;
-    latestSearchRequestRef.current[tabId] = requestId;
+    const requestKey = `${target}:${tabId}`;
+    latestSearchRequestRef.current[requestKey] = requestId;
     workerRef.current.postMessage({
       type: 'search',
       requestId,
       tabId,
+      target,
       query,
       searchOptions,
       startOffset,
       append,
+      text,
+      rawRevision,
     });
   };
 
@@ -429,7 +454,8 @@ export function useJsonFormattingWorker({
     delete formatTimersRef.current[tabId];
     delete latestRequestRef.current[tabId];
     delete latestLocateRequestRef.current[tabId];
-    delete latestSearchRequestRef.current[tabId];
+    delete latestSearchRequestRef.current[`left:${tabId}`];
+    delete latestSearchRequestRef.current[`right:${tabId}`];
     delete largeModeRef.current[tabId];
     delete largeFileLocateEnabledRef.current[tabId];
     delete structureStatusRef.current[tabId];
@@ -660,14 +686,20 @@ export function useJsonFormattingWorker({
       }
 
       if (type === 'search-result') {
+        const target = event.data.target ?? 'right';
+        const requestKey = `${target}:${tabId}`;
         if (
           tabId !== activeTabIdRef.current
-          || latestSearchRequestRef.current[tabId] !== requestId
+          || latestSearchRequestRef.current[requestKey] !== requestId
         ) {
           return;
         }
 
-        callbacksRef.current.setLargeViewerSearchResults(
+        const applyResults = target === 'left'
+          ? callbacksRef.current.setLeftSearchResults
+          : callbacksRef.current.setLargeViewerSearchResults;
+
+        applyResults(
           tabId,
           event.data.matches ?? [],
           Boolean(event.data.hasMore),

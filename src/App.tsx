@@ -171,6 +171,7 @@ const App: React.FC = () => {
   const [rightSearchHasMore, setRightSearchHasMore] = useState(false);
   const [leftSearchNextOffset, setLeftSearchNextOffset] = useState(0);
   const [rightSearchNextOffset, setRightSearchNextOffset] = useState(0);
+  const [isLeftSearchLoadingMore, setIsLeftSearchLoadingMore] = useState(false);
   const [isRightSearchLoadingMore, setIsRightSearchLoadingMore] = useState(false);
   const [leftMatchIndex, setLeftMatchIndex] = useState(0);
   const [rightMatchIndex, setRightMatchIndex] = useState(0);
@@ -208,6 +209,7 @@ const App: React.FC = () => {
   const formattedTextByTabRef = useRef<Record<string, string>>({
     [INITIAL_TAB_ID]: '',
   });
+  const leftSearchWorkerRevisionRef = useRef<Record<string, number>>({});
   const suppressLeftChangeRef = useRef<Record<string, boolean>>({});
   const activeTabIdRef = useRef(INITIAL_TAB_ID);
   const largeModeRef = useRef<Record<string, boolean>>({
@@ -429,6 +431,7 @@ const App: React.FC = () => {
     setRightSearchHasMore(false);
     setLeftSearchNextOffset(0);
     setRightSearchNextOffset(0);
+    setIsLeftSearchLoadingMore(false);
     setIsRightSearchLoadingMore(false);
     setLeftMatchIndex(0);
     setRightMatchIndex(0);
@@ -486,6 +489,39 @@ const App: React.FC = () => {
     setRightSearchHasMore(hasMore);
     setRightSearchNextOffset(nextStartOffset);
     setIsRightSearchLoadingMore(false);
+  };
+
+  const setLeftSearchResults = (
+    tabId: string,
+    matches: LargeJsonSearchMatch[],
+    hasMore = false,
+    nextStartOffset = 0,
+    append = false
+  ) => {
+    if (tabId !== activeTabIdRef.current) {
+      return;
+    }
+    setIsLeftSearchLoadingMore(false);
+
+    const model = leftEditorRef.current?.getModel();
+    if (!model) {
+      return;
+    }
+
+    const ranges = matches.map((match) => {
+      const start = model.getPositionAt(match.start);
+      const end = model.getPositionAt(match.end);
+      return new monaco.Range(
+        start.lineNumber,
+        start.column,
+        end.lineNumber,
+        end.column
+      );
+    });
+
+    setLeftMatches((current) => (append ? [...current, ...ranges] : ranges));
+    setLeftSearchHasMore(hasMore);
+    setLeftSearchNextOffset(nextStartOffset);
   };
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
@@ -727,6 +763,7 @@ const App: React.FC = () => {
     setLargeViewerData,
     setLargeViewerStatus,
     setLargeViewerSearchResults,
+    setLeftSearchResults,
     updateTabContent,
     updateFormattedContent,
     resetSearchState,
@@ -843,27 +880,52 @@ const App: React.FC = () => {
   ]);
 
   useEffect(() => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-
-    if (!editor || !model || !leftSearchTerm) {
+    if (!activeTab || !leftSearchTerm) {
       setLeftMatches([]);
       setLeftSearchHasMore(false);
       setLeftSearchNextOffset(0);
+      setIsLeftSearchLoadingMore(false);
       clearLeftHighlights();
       return;
     }
 
-    const result = getMonacoSearchBatch(model, leftSearchTerm, leftSearchOptions);
-    const matches = result.ranges;
-    setLeftMatches(matches);
-    setLeftSearchHasMore(result.hasMore);
-    setLeftSearchNextOffset(result.nextStartOffset);
+    setIsLeftSearchLoadingMore(false);
+    const rawRevision = activeDocumentMeta.rawRevision;
+    const shouldSendRawText = leftSearchWorkerRevisionRef.current[activeTab.id] !== rawRevision;
 
-    const activeIndex = matches.length > 0
-      ? ((leftMatchIndex % matches.length) + matches.length) % matches.length
+    requestWorkerSearch(
+      activeTab.id,
+      leftSearchTerm,
+      leftSearchOptions,
+      0,
+      false,
+      'left',
+      shouldSendRawText ? getTabContent(activeTab.id) : undefined,
+      rawRevision
+    );
+    if (shouldSendRawText) {
+      leftSearchWorkerRevisionRef.current[activeTab.id] = rawRevision;
+    }
+  }, [
+    activeDocumentMeta.rawRevision,
+    activeTab,
+    leftSearchOptions,
+    leftSearchTerm,
+  ]);
+
+  useEffect(() => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !model || !leftSearchTerm) {
+      clearLeftHighlights();
+      return;
+    }
+
+    const activeIndex = leftMatches.length > 0
+      ? ((leftMatchIndex % leftMatches.length) + leftMatches.length) % leftMatches.length
       : 0;
-    const nextDecorations = matches.map((range, index) => ({
+    const nextDecorations = leftMatches.map((range, index) => ({
       range,
       options: {
         inlineClassName:
@@ -876,11 +938,11 @@ const App: React.FC = () => {
       nextDecorations
     );
 
-    if (matches.length === 0) {
+    if (leftMatches.length === 0) {
       return;
     }
 
-    const activeMatch = matches[activeIndex];
+    const activeMatch = leftMatches[activeIndex];
     editor.revealRangeInCenter(activeMatch);
     editor.setSelection(
       new monaco.Selection(
@@ -892,9 +954,8 @@ const App: React.FC = () => {
     );
   }, [
     activeTabId,
-    activeDocumentMeta.rawRevision,
+    leftMatches,
     leftMatchIndex,
-    leftSearchOptions,
     leftSearchTerm,
   ]);
 
@@ -1386,6 +1447,7 @@ const App: React.FC = () => {
     }
 
     renameTab(activeTab.id, DEFAULT_TAB_TITLE);
+    delete leftSearchWorkerRevisionRef.current[activeTab.id];
     resetTabArtifacts(activeTab.id);
     resetSearchState();
   };
@@ -1424,6 +1486,7 @@ const App: React.FC = () => {
     const fallbackTab = tabs[closingIndex === 0 ? 1 : closingIndex - 1];
 
     setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
+    delete leftSearchWorkerRevisionRef.current[tabId];
     removeTabArtifacts(tabId);
     setLargeViewerDataByTab((current) => {
       const next = { ...current };
@@ -1460,6 +1523,7 @@ const App: React.FC = () => {
     setLeftMatches([]);
     setLeftSearchHasMore(false);
     setLeftSearchNextOffset(0);
+    setIsLeftSearchLoadingMore(false);
     setLeftMatchIndex(0);
     clearLeftHighlights();
     leftEditorRef.current?.focus();
@@ -1487,6 +1551,7 @@ const App: React.FC = () => {
     setLeftSearchOptions(value);
     setLeftSearchHasMore(false);
     setLeftSearchNextOffset(0);
+    setIsLeftSearchLoadingMore(false);
     setLeftMatchIndex(0);
   };
 
@@ -1592,36 +1657,20 @@ const App: React.FC = () => {
   };
 
   const loadMoreLeftSearch = () => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-
-    if (!editor || !model || !leftSearchTerm || !leftSearchHasMore) {
+    if (!activeTab || !leftSearchTerm || !leftSearchHasMore || isLeftSearchLoadingMore) {
       return;
     }
 
-    const result = getMonacoSearchBatch(
-      model,
+    setIsLeftSearchLoadingMore(true);
+    requestWorkerSearch(
+      activeTab.id,
       leftSearchTerm,
       leftSearchOptions,
-      leftSearchNextOffset
-    );
-    const nextMatches = [...leftMatches, ...result.ranges];
-    const activeIndex = nextMatches.length > 0
-      ? ((leftMatchIndex % nextMatches.length) + nextMatches.length) % nextMatches.length
-      : 0;
-
-    setLeftMatches(nextMatches);
-    setLeftSearchHasMore(result.hasMore);
-    setLeftSearchNextOffset(result.nextStartOffset);
-    leftDecorationIdsRef.current = editor.deltaDecorations(
-      leftDecorationIdsRef.current,
-      nextMatches.map((range, index) => ({
-        range,
-        options: {
-          inlineClassName:
-            index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
-        },
-      }))
+      leftSearchNextOffset,
+      true,
+      'left',
+      undefined,
+      activeDocumentMeta.rawRevision
     );
   };
 
@@ -1683,6 +1732,7 @@ const App: React.FC = () => {
     setLeftSearchTerm(value);
     setLeftSearchHasMore(false);
     setLeftSearchNextOffset(0);
+    setIsLeftSearchLoadingMore(false);
     setLeftMatchIndex(0);
   };
 
@@ -1823,6 +1873,7 @@ const App: React.FC = () => {
                 currentIndex={activeLeftMatchCount > 0 ? normalizedLeftMatchIndex + 1 : 0}
                 matchCount={activeLeftMatchCount}
                 hasMore={leftSearchHasMore}
+                isLoadingMore={isLeftSearchLoadingMore}
                 isDarkMode={isDarkMode}
                 placeholder="搜索原始 JSON"
                 searchOptions={leftSearchOptions}

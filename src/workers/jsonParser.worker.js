@@ -7,10 +7,12 @@ import {
 } from '../utils/largeJsonViewerData';
 import { formatJsonText } from '../utils/jsonFormat';
 import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
+import { buildLineStarts, findTextSearchBatch } from '../utils/searchText';
 
 const structureCache = new Map();
 const viewerCache = new Map();
 const directValueTreeCache = new Map();
+const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
 
 function getResolvedNodes(cached, offset) {
@@ -90,6 +92,7 @@ self.onmessage = (event) => {
     structureCache.delete(message.tabId);
     viewerCache.delete(message.tabId);
     directValueTreeCache.delete(message.tabId);
+    rawSearchCache.delete(message.tabId);
     latestFormatRequestByTab.delete(message.tabId);
     return;
   }
@@ -106,6 +109,11 @@ self.onmessage = (event) => {
     latestFormatRequestByTab.set(tabId, requestId);
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
+    rawSearchCache.set(tabId, {
+      rawText: text,
+      rawRevision: message.rawRevision ?? null,
+      lineStarts: null,
+    });
 
     try {
       const { formatted, normalizedNestedString } = formatJsonText(text);
@@ -408,11 +416,88 @@ self.onmessage = (event) => {
     const {
       requestId,
       tabId,
+      target = 'right',
       query,
       searchOptions,
       startOffset = 0,
       append = false,
     } = message;
+
+    if (target === 'left') {
+      if (typeof message.text === 'string') {
+        rawSearchCache.set(tabId, {
+          rawText: message.text,
+          rawRevision: message.rawRevision ?? null,
+          lineStarts: null,
+        });
+      }
+
+      const cachedRaw = rawSearchCache.get(tabId);
+      if (
+        !cachedRaw
+        || typeof cachedRaw.rawText !== 'string'
+        || (
+          typeof message.rawRevision === 'number'
+          && cachedRaw.rawRevision !== message.rawRevision
+        )
+      ) {
+        postMessage({
+          type: 'search-result',
+          requestId,
+          tabId,
+          target,
+          query,
+          matches: [],
+          hasMore: false,
+          nextStartOffset: 0,
+          append,
+        });
+        return;
+      }
+
+      try {
+        if (!(cachedRaw.lineStarts instanceof Uint32Array)) {
+          cachedRaw.lineStarts = buildLineStarts(cachedRaw.rawText);
+          rawSearchCache.set(tabId, cachedRaw);
+        }
+
+        const result = findTextSearchBatch(
+          cachedRaw.rawText,
+          cachedRaw.lineStarts,
+          cachedRaw.lineStarts.length,
+          typeof query === 'string' ? query : '',
+          searchOptions ?? DEFAULT_SEARCH_OPTIONS,
+          startOffset,
+          SEARCH_BATCH_SIZE
+        );
+
+        postMessage({
+          type: 'search-result',
+          requestId,
+          tabId,
+          target,
+          query,
+          matches: result.matches,
+          hasMore: result.hasMore,
+          nextStartOffset: result.nextStartOffset,
+          append,
+        });
+      } catch {
+        postMessage({
+          type: 'search-result',
+          requestId,
+          tabId,
+          target,
+          query,
+          matches: [],
+          hasMore: false,
+          nextStartOffset: 0,
+          append,
+        });
+      }
+      return;
+    }
+
     const cachedViewer = viewerCache.get(tabId);
 
     if (
@@ -424,6 +509,7 @@ self.onmessage = (event) => {
         type: 'search-result',
         requestId,
         tabId,
+        target,
         query,
         matches: [],
         hasMore: false,
@@ -448,6 +534,7 @@ self.onmessage = (event) => {
         type: 'search-result',
         requestId,
         tabId,
+        target,
         query,
         matches: result.matches,
         hasMore: result.hasMore,
@@ -459,6 +546,7 @@ self.onmessage = (event) => {
         type: 'search-result',
         requestId,
         tabId,
+        target,
         query,
         matches: [],
         hasMore: false,

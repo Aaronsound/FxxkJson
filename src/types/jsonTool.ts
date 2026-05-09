@@ -20,6 +20,7 @@ export interface WorkerMessage {
   type: 'format-result' | 'structure-ready' | 'locate-result' | 'value-result' | 'viewer-ready' | 'search-result';
   requestId: number;
   tabId: string;
+  target?: SearchTarget;
   success?: boolean;
   ready?: boolean;
   found?: boolean;
@@ -36,6 +37,7 @@ export interface WorkerMessage {
   append?: boolean;
 }
 
+export type SearchTarget = 'left' | 'right';
 export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'edit-save' | 'paste';
 export type PerformanceSnapshotStatus = 'running' | 'ready' | 'failed';
