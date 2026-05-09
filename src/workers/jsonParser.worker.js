@@ -18,7 +18,7 @@ const latestFormatRequestByTab = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 40 * 1024 * 1024;
 
 function formatJsonForEdit(text) {
-  return JSON.stringify(JSON.parse(text), null, 2);
+  return formatJsonText(text).formatted;
 }
 
 function copyJsonAsStringLiteral(text) {

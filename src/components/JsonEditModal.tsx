@@ -1,5 +1,6 @@
-import React from 'react';
-import Editor from '@monaco-editor/react';
+import React, { useEffect, useRef } from 'react';
+import Editor, { OnMount } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
 interface JsonEditModalProps {
   sessionKey: number;
@@ -27,9 +28,54 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   onClose,
 }) => {
   const isBusy = Boolean(busyLabel);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const isBusyRef = useRef(isBusy);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    isBusyRef.current = isBusy;
+    onCloseRef.current = onClose;
+  }, [isBusy, onClose]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isBusyRef.current) {
+        return;
+      }
+
+      const target = event.target;
+      if (target instanceof Node && modalRef.current?.contains(target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape, true);
+    };
+  }, []);
+
+  const handleEditorMount: OnMount = (editor) => {
+    window.setTimeout(() => {
+      editor.focus();
+    }, 0);
+
+    editor.addCommand(monaco.KeyCode.Escape, () => {
+      if (!isBusyRef.current) {
+        onCloseRef.current();
+      }
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
+      editor.getAction('actions.find')?.run();
+    });
+  };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" ref={modalRef}>
       <div className={isDarkMode ? 'modal-card modal-card-dark' : 'modal-card'}>
         <div className="modal-header">
           <h3>编辑 JSON</h3>
@@ -40,6 +86,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           defaultLanguage="json"
           defaultValue={initialValue}
           theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+          onMount={handleEditorMount}
           onChange={(value) => onValueChange(value ?? '')}
           options={{
             automaticLayout: true,
@@ -54,7 +101,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         />
 
         <div className="modal-actions">
-          <button onClick={onSave} disabled={isBusy}>更新原始 JSON</button>
+          <button onClick={onSave} disabled={isBusy}>更新为原始 JSON</button>
           <div className="modal-copy-group">
             <button onClick={onCopyLiteral} disabled={isBusy}>复制为字符串字面量</button>
             {hasCopiedLiteral && (

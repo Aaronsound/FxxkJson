@@ -1106,11 +1106,20 @@ const App: React.FC = () => {
     leftEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncLeftModel(currentTabId, getTabContent(currentTabId), true);
+    const leftEditorFocusContext = editor.createContextKey('hanjsonLeftEditorFocused', editor.hasTextFocus());
 
     editor.onDidDispose(() => {
       if (leftEditorRef.current === editor) {
         leftEditorRef.current = null;
       }
+    });
+
+    editor.onDidFocusEditorText(() => {
+      leftEditorFocusContext.set(true);
+    });
+
+    editor.onDidBlurEditorText(() => {
+      leftEditorFocusContext.set(false);
     });
 
     editor.addCommand(monaco.KeyCode.Delete, () => {
@@ -1124,7 +1133,7 @@ const App: React.FC = () => {
       }
 
       editor.trigger('', 'deleteRight', null);
-    });
+    }, 'hanjsonLeftEditorFocused');
 
     editor.addCommand(monaco.KeyCode.Backspace, () => {
       const currentTabId = activeTabIdRef.current;
@@ -1137,12 +1146,14 @@ const App: React.FC = () => {
       }
 
       editor.trigger('', 'deleteLeft', null);
-    });
+    }, 'hanjsonLeftEditorFocused');
 
     editor.addAction({
       id: 'openLeftPaneFind',
       label: '搜索原始 JSON',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF],
+      precondition: 'hanjsonLeftEditorFocused',
+      keybindingContext: 'hanjsonLeftEditorFocused',
       run: () => {
         openLeftFind();
       },
@@ -1152,6 +1163,8 @@ const App: React.FC = () => {
       id: 'custom.clipboardPasteAction',
       label: 'Custom Paste',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
+      precondition: 'hanjsonLeftEditorFocused',
+      keybindingContext: 'hanjsonLeftEditorFocused',
       contextMenuGroupId: '9_cutcopypaste',
       contextMenuOrder: 1,
       run: async (mountedEditor) => {
@@ -1193,6 +1206,7 @@ const App: React.FC = () => {
     rightEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncRightModel(currentTabId, formattedTextByTabRef.current[currentTabId] ?? '', true);
+    const rightEditorFocusContext = editor.createContextKey('hanjsonRightEditorFocused', editor.hasTextFocus());
     logRightEditorState('right-editor-mounted', currentTabId, {
       wrapLongLines,
     });
@@ -1201,6 +1215,14 @@ const App: React.FC = () => {
       if (rightEditorRef.current === editor) {
         rightEditorRef.current = null;
       }
+    });
+
+    editor.onDidFocusEditorText(() => {
+      rightEditorFocusContext.set(true);
+    });
+
+    editor.onDidBlurEditorText(() => {
+      rightEditorFocusContext.set(false);
     });
 
     editor.onDidChangeCursorPosition((event) => {
@@ -1255,6 +1277,8 @@ const App: React.FC = () => {
       id: 'openRightPaneFind',
       label: '搜索格式化结果',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF],
+      precondition: 'hanjsonRightEditorFocused',
+      keybindingContext: 'hanjsonRightEditorFocused',
       run: () => {
         openRightFind();
       },
