@@ -49,4 +49,30 @@ describe('LargeRawReadonlyViewer', () => {
       expect(container.querySelector('.large-raw-viewer')?.scrollLeft).toBeGreaterThan(0);
     });
   });
+
+  it('splits formatted raw JSON into virtual rows without embedded newlines', () => {
+    const text = [
+      '{',
+      '  "name": "alpha",',
+      '  "items": [',
+      '    1,',
+      '    2',
+      '  ]',
+      '}',
+    ].join('\n');
+
+    render(
+      <LargeRawReadonlyViewer
+        text={text}
+        isDarkMode={false}
+        highlightRange={null}
+      />
+    );
+
+    const rowTexts = Array.from(document.querySelectorAll('.large-raw-text'));
+    expect(rowTexts.length).toBeGreaterThan(1);
+    rowTexts.forEach((rowText) => {
+      expect(rowText.textContent).not.toContain('\n');
+    });
+  });
 });
