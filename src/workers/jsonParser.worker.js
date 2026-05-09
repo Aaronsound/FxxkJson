@@ -109,12 +109,6 @@ self.onmessage = (event) => {
     latestFormatRequestByTab.set(tabId, requestId);
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
-    rawSearchCache.set(tabId, {
-      rawText: text,
-      rawRevision: message.rawRevision ?? null,
-      lineStarts: null,
-    });
-
     try {
       const { formatted, normalizedNestedString } = formatJsonText(text);
       postMessage({
