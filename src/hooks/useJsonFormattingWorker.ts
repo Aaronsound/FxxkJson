@@ -11,6 +11,8 @@ import type {
   EditJsonWorkerOperation,
   JsonEditPath,
   JsonSearchOptions,
+  JsonTableData,
+  JsonTableStatus,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -91,6 +93,12 @@ interface UseJsonFormattingWorkerArgs {
     nextStartOffset?: number,
     append?: boolean
   ) => void;
+  setJsonTableResult: (
+    tabId: string,
+    status: JsonTableStatus,
+    data: JsonTableData | null,
+    error: string | null
+  ) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
   updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
   resetSearchState: () => void;
@@ -129,6 +137,7 @@ export function useJsonFormattingWorker({
   setLargeViewerStatus,
   setLargeViewerSearchResults,
   setLeftSearchResults,
+  setJsonTableResult,
   updateTabContent,
   updateFormattedContent,
   resetSearchState,
@@ -146,6 +155,8 @@ export function useJsonFormattingWorker({
   const latestLocateRequestRef = useRef<Record<string, number>>({});
   const searchRequestCounterRef = useRef(0);
   const latestSearchRequestRef = useRef<Record<string, number>>({});
+  const tableRequestCounterRef = useRef(0);
+  const latestTableRequestRef = useRef<Record<string, number>>({});
   const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
   const pendingEditJsonRequestsRef = useRef<Record<number, {
     reject: (error: Error) => void;
@@ -172,6 +183,7 @@ export function useJsonFormattingWorker({
     setLargeViewerData,
     setLargeRawViewerData,
     setLeftSearchResults,
+    setJsonTableResult,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
@@ -200,6 +212,7 @@ export function useJsonFormattingWorker({
     setLargeViewerData,
     setLargeRawViewerData,
     setLeftSearchResults,
+    setJsonTableResult,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
@@ -220,6 +233,7 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
+    delete latestTableRequestRef.current[tabId];
     workerRef.current?.postMessage({
       type: 'clear-structure',
       tabId,
@@ -349,6 +363,25 @@ export function useJsonFormattingWorker({
     });
   };
 
+  const requestWorkerTable = (tabId: string, text: string) => {
+    if (!workerRef.current) {
+      callbacksRef.current.setJsonTableResult(tabId, 'failed', null, 'JSON worker is not ready');
+      return;
+    }
+
+    const requestId = ++tableRequestCounterRef.current;
+    latestTableRequestRef.current[tabId] = requestId;
+    callbacksRef.current.setJsonTableResult(tabId, 'building', null, null);
+    const textPayload = createWorkerTextPayload(text);
+
+    workerRef.current.postMessage({
+      type: 'build-table',
+      requestId,
+      tabId,
+      ...textPayload.message,
+    }, textPayload.transfer);
+  };
+
   const requestWorkerValue = (
     tabId: string,
     offset: number,
@@ -456,6 +489,7 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
+    delete latestTableRequestRef.current[tabId];
 
     if (!text.trim()) {
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
@@ -588,6 +622,7 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
+    delete latestTableRequestRef.current[tabId];
 
     if (!text.trim()) {
       callbacksRef.current.setTabError(tabId, '没有可修复的 JSON 内容');
@@ -697,6 +732,7 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeRawViewerData(tabId, null);
+    callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
     clearTabStructure(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
     callbacksRef.current.updateTabContent(tabId, '', true);
@@ -716,6 +752,7 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
+    delete latestTableRequestRef.current[tabId];
     delete largeModeRef.current[tabId];
     delete largeFileLocateEnabledRef.current[tabId];
     delete structureStatusRef.current[tabId];
@@ -724,6 +761,7 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeRawViewerData(tabId, null);
+    callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
     callbacksRef.current.setProcessingStage(tabId, 'idle');
     callbacksRef.current.setLocateFeedback(tabId, null);
     delete rawTextByTabRef.current[tabId];
@@ -762,6 +800,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setLargeRawViewerData(tabId, null);
+      callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
       callbacksRef.current.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
       delete latestLocateRequestRef.current[tabId];
@@ -836,6 +875,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setLargeRawViewerData(tabId, null);
+      callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
       callbacksRef.current.setTabError(
         tabId,
         error instanceof Error ? `导入失败：${error.message}` : '导入失败'
@@ -1112,6 +1152,27 @@ export function useJsonFormattingWorker({
         return;
       }
 
+      if (type === 'table-result') {
+        if (
+          tabId !== activeTabIdRef.current
+          || latestTableRequestRef.current[tabId] !== requestId
+        ) {
+          return;
+        }
+
+        if (event.data.success && event.data.tableData) {
+          callbacksRef.current.setJsonTableResult(tabId, 'ready', event.data.tableData, null);
+        } else {
+          callbacksRef.current.setJsonTableResult(
+            tabId,
+            'failed',
+            null,
+            event.data.error ?? '表格视图构建失败'
+          );
+        }
+        return;
+      }
+
       if (type === 'locate-result') {
         if (
           tabId !== activeTabIdRef.current
@@ -1195,6 +1256,7 @@ export function useJsonFormattingWorker({
     queueRepair,
     queueFormatAfterEditSave,
     removeTabArtifacts,
+    requestWorkerTable,
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,

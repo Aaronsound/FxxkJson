@@ -1656,3 +1656,113 @@ button:disabled {
   align-self: center;
   margin-left: 0;
 }
+
+.json-table-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.json-table-viewer.dark {
+  background: #1e1e1e;
+  color: #d4d4d4;
+}
+
+.json-table-viewer-empty {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #64748b;
+}
+
+.json-table-viewer-empty.dark {
+  color: #a1a1aa;
+}
+
+.json-table-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-bottom: 1px solid #e5e7eb;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.json-table-viewer.dark .json-table-summary {
+  border-bottom-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+.json-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.json-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.json-table th,
+.json-table td {
+  box-sizing: border-box;
+  max-width: 360px;
+  min-width: 120px;
+  padding: 0 10px;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #eef2f7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.json-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 600;
+}
+
+.json-table tbody tr:nth-child(even) td {
+  background: #f9fafb;
+}
+
+.json-table-index {
+  min-width: 64px !important;
+  max-width: 72px !important;
+  color: #64748b;
+  text-align: right !important;
+}
+
+.json-table-viewer.dark .json-table th,
+.json-table-viewer.dark .json-table td {
+  border-right-color: #3f3f46;
+  border-bottom-color: #2f2f35;
+}
+
+.json-table-viewer.dark .json-table th {
+  background: #252526;
+  color: #e5e7eb;
+}
+
+.json-table-viewer.dark .json-table tbody tr:nth-child(even) td {
+  background: #242424;
+}
+
+.json-table-viewer.dark .json-table-index {
+  color: #a1a1aa;
+}

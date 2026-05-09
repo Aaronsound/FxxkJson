@@ -17,7 +17,7 @@ export interface RenamingTabState {
 }
 
 export interface WorkerMessage {
-  type: 'format-result' | 'repair-result' | 'structure-ready' | 'locate-result' | 'value-result' | 'viewer-ready' | 'search-result' | 'edit-json-result';
+  type: 'format-result' | 'repair-result' | 'table-result' | 'structure-ready' | 'locate-result' | 'value-result' | 'viewer-ready' | 'search-result' | 'edit-json-result';
   requestId: number;
   tabId: string;
   target?: SearchTarget;
@@ -40,6 +40,7 @@ export interface WorkerMessage {
   viewerIndexMs?: number | null;
   query?: string;
   matches?: LargeJsonSearchMatch[];
+  tableData?: JsonTableData | null;
   hasMore?: boolean;
   nextStartOffset?: number;
   append?: boolean;
@@ -52,6 +53,7 @@ export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'repair' | 'edit-save' | 'paste';
 export type PerformanceSnapshotStatus = 'running' | 'ready' | 'failed';
 export type LargeViewerStatus = 'idle' | 'building' | 'ready';
+export type JsonTableStatus = 'idle' | 'building' | 'ready' | 'failed';
 export type ProcessingStage = 'idle' | 'reading' | 'syncing-left' | 'formatting' | 'repairing' | 'building-viewer' | 'building-index';
 
 export interface LargeJsonViewerRegion {
@@ -79,6 +81,27 @@ export interface LargeJsonSearchMatch {
   lineStartOffset: number;
   localStart: number;
   localEnd: number;
+}
+
+export interface JsonTableColumn {
+  id: string;
+  label: string;
+}
+
+export interface JsonTableRow {
+  id: string;
+  index: number;
+  cells: string[];
+}
+
+export interface JsonTableData {
+  kind: 'array' | 'object' | 'value';
+  columns: JsonTableColumn[];
+  rows: JsonTableRow[];
+  totalRows: number;
+  sampledRows: number;
+  truncatedRows: boolean;
+  truncatedColumns: boolean;
 }
 
 export interface JsonSearchOptions {
@@ -134,6 +157,9 @@ export const DEDICATED_RIGHT_VIEWER_THRESHOLD = LARGE_FILE_THRESHOLD;
 export const DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD = 0;
 export const SEARCH_HIGHLIGHT_DURATION = 4000;
 export const SEARCH_BATCH_SIZE = 2000;
+export const TABLE_VIEW_ROW_LIMIT = 2000;
+export const TABLE_VIEW_COLUMN_LIMIT = 60;
+export const TABLE_VIEW_CELL_TEXT_LIMIT = 240;
 export const FORMAT_DEBOUNCE_MS = 120;
 export const LARGE_FILE_FORMAT_DEBOUNCE_MS = 1200;
 export const EDIT_SAVE_FORMAT_DELAY_MS = 160;

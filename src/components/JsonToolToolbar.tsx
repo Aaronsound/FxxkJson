@@ -15,6 +15,9 @@ interface JsonToolToolbarProps {
   canEditJson: boolean;
   wrapLongLines: boolean;
   onWrapLongLinesChange: (checked: boolean) => void;
+  tableViewEnabled: boolean;
+  canUseTableView: boolean;
+  onTableViewEnabledChange: (checked: boolean) => void;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   isLargeFileLocateEnabled: boolean;
@@ -106,6 +109,9 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   canEditJson,
   wrapLongLines,
   onWrapLongLinesChange,
+  tableViewEnabled,
+  canUseTableView,
+  onTableViewEnabledChange,
   isDarkMode,
   onToggleDarkMode,
   isLargeFileLocateEnabled,
@@ -177,6 +183,15 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                   onChange={(event) => onWrapLongLinesChange(event.target.checked)}
                 />
                 自动换行
+              </label>
+              <label className="toolbar-checkbox">
+                <input
+                  type="checkbox"
+                  checked={tableViewEnabled}
+                  disabled={!canUseTableView}
+                  onChange={(event) => onTableViewEnabledChange(event.target.checked)}
+                />
+                表格视图
               </label>
               <label className="toolbar-checkbox">
                 <input

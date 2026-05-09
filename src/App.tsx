@@ -9,6 +9,7 @@ import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
+import JsonTableViewer from './components/JsonTableViewer';
 import PaneFindWidget from './components/PaneFindWidget';
 import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
@@ -23,6 +24,8 @@ import {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeRawViewerData,
+  JsonTableData,
+  JsonTableStatus,
   LocateFeedback,
   ProcessingStage,
   SEARCH_HIGHLIGHT_DURATION,
@@ -142,6 +145,18 @@ const App: React.FC = () => {
     [INITIAL_TAB_ID]: null,
   });
   const [largeRawViewerDataByTab, setLargeRawViewerDataByTab] = useState<Record<string, LargeRawViewerData | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
+  const [tableViewEnabledByTab, setTableViewEnabledByTab] = useState<Record<string, boolean>>({
+    [INITIAL_TAB_ID]: false,
+  });
+  const [jsonTableDataByTab, setJsonTableDataByTab] = useState<Record<string, JsonTableData | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
+  const [jsonTableStatusByTab, setJsonTableStatusByTab] = useState<Record<string, JsonTableStatus>>({
+    [INITIAL_TAB_ID]: 'idle',
+  });
+  const [jsonTableErrorByTab, setJsonTableErrorByTab] = useState<Record<string, string | null>>({
     [INITIAL_TAB_ID]: null,
   });
   const [largeViewerStatusByTab, setLargeViewerStatusByTab] = useState<Record<string, 'idle' | 'building' | 'ready'>>({
@@ -275,6 +290,18 @@ const App: React.FC = () => {
   const activeLargeRawViewerData = activeTab
     ? largeRawViewerDataByTab[activeTab.id] ?? null
     : null;
+  const activeTableViewEnabled = activeTab
+    ? Boolean(tableViewEnabledByTab[activeTab.id])
+    : false;
+  const activeJsonTableData = activeTab
+    ? jsonTableDataByTab[activeTab.id] ?? null
+    : null;
+  const activeJsonTableStatus = activeTab
+    ? jsonTableStatusByTab[activeTab.id] ?? 'idle'
+    : 'idle';
+  const activeJsonTableError = activeTab
+    ? jsonTableErrorByTab[activeTab.id] ?? null
+    : null;
   const activeLargeViewerStatus = activeTab
     ? largeViewerStatusByTab[activeTab.id] ?? 'idle'
     : 'idle';
@@ -282,6 +309,7 @@ const App: React.FC = () => {
     ? largeViewerCollapsedLinesByTab[activeTab.id] ?? []
     : [];
   const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
+  const shouldShowTableView = Boolean(activeTableViewEnabled && formattedValue);
   const shouldUseDedicatedLeftViewer = Boolean(activeRawText && activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD);
   const isBuildingDedicatedRightViewer = Boolean(
     formattedValue
@@ -290,12 +318,13 @@ const App: React.FC = () => {
   );
   const canControlRightPaneFolding = Boolean(
     formattedValue
+    && !shouldShowTableView
     && !isBuildingDedicatedRightViewer
     && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
   );
   const activeRightMatchCount = shouldUseDedicatedRightViewer
-    ? largeViewerMatchCount
-    : rightMatches.length;
+    ? (shouldShowTableView ? 0 : largeViewerMatchCount)
+    : (shouldShowTableView ? 0 : rightMatches.length);
   const activeLeftMatchCount = leftMatches.length;
   const normalizedLeftMatchIndex = activeLeftMatchCount > 0
     ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
@@ -338,6 +367,13 @@ const App: React.FC = () => {
     activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
     formatDuration(activePerformanceSnapshot?.formatWorkerMs)
       ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
+      : null,
+    shouldShowTableView
+      ? activeJsonTableStatus === 'building'
+        ? '表格构建中'
+        : activeJsonTableStatus === 'failed'
+          ? '表格构建失败'
+          : '表格视图'
       : null,
     rightPaneStatusText,
   ].filter(Boolean).join(' · ');
@@ -460,6 +496,24 @@ const App: React.FC = () => {
 
   const setLargeRawViewerData = (tabId: string, data: LargeRawViewerData | null) => {
     setLargeRawViewerDataByTab((current) => ({ ...current, [tabId]: data }));
+  };
+
+  const setJsonTableResult = (
+    tabId: string,
+    status: JsonTableStatus,
+    data: JsonTableData | null,
+    error: string | null
+  ) => {
+    setJsonTableStatusByTab((current) => ({ ...current, [tabId]: status }));
+    setJsonTableDataByTab((current) => ({ ...current, [tabId]: data }));
+    setJsonTableErrorByTab((current) => ({ ...current, [tabId]: error }));
+  };
+
+  const setTableViewEnabled = (tabId: string, enabled: boolean) => {
+    setTableViewEnabledByTab((current) => ({ ...current, [tabId]: enabled }));
+    if (!enabled) {
+      setJsonTableResult(tabId, 'idle', null, null);
+    }
   };
 
   const setLargeViewerStatus = (tabId: string, status: 'idle' | 'building' | 'ready') => {
@@ -763,6 +817,7 @@ const App: React.FC = () => {
     queueRepair,
     queueFormatAfterEditSave,
     removeTabArtifacts,
+    requestWorkerTable,
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,
@@ -796,6 +851,7 @@ const App: React.FC = () => {
     setStructureStatus,
     setLargeViewerData,
     setLargeRawViewerData,
+    setJsonTableResult,
     setLargeViewerStatus,
     setLargeViewerSearchResults,
     setLeftSearchResults,
@@ -915,6 +971,29 @@ const App: React.FC = () => {
     rightSearchOptions,
     rightSearchTerm,
     shouldUseDedicatedRightViewer,
+  ]);
+
+  useEffect(() => {
+    if (!activeTab) {
+      return;
+    }
+
+    if (!activeTableViewEnabled) {
+      return;
+    }
+
+    if (!formattedValue) {
+      setJsonTableResult(activeTab.id, 'idle', null, null);
+      return;
+    }
+
+    closeRightFind();
+    requestWorkerTable(activeTab.id, formattedValue);
+  }, [
+    activeDocumentMeta.formattedRevision,
+    activeTab,
+    activeTableViewEnabled,
+    formattedValue,
   ]);
 
   useEffect(() => {
@@ -1684,6 +1763,10 @@ const App: React.FC = () => {
     setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
     setLargeViewerDataByTab((current) => ({ ...current, [nextId]: null }));
     setLargeRawViewerDataByTab((current) => ({ ...current, [nextId]: null }));
+    setTableViewEnabledByTab((current) => ({ ...current, [nextId]: false }));
+    setJsonTableDataByTab((current) => ({ ...current, [nextId]: null }));
+    setJsonTableStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
+    setJsonTableErrorByTab((current) => ({ ...current, [nextId]: null }));
     setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
     setProcessingStageByTab((current) => ({ ...current, [nextId]: 'idle' }));
@@ -1714,6 +1797,26 @@ const App: React.FC = () => {
       return next;
     });
     setLargeRawViewerDataByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setTableViewEnabledByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setJsonTableDataByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setJsonTableStatusByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setJsonTableErrorByTab((current) => {
       const next = { ...current };
       delete next[tabId];
       return next;
@@ -1753,6 +1856,10 @@ const App: React.FC = () => {
   };
 
   const openRightFind = () => {
+    if (shouldShowTableView) {
+      return;
+    }
+
     setIsRightFindOpen(true);
   };
 
@@ -2047,6 +2154,9 @@ const App: React.FC = () => {
         canEditJson={canEditJson}
         wrapLongLines={wrapLongLines}
         onWrapLongLinesChange={setWrapLongLines}
+        tableViewEnabled={activeTableViewEnabled}
+        canUseTableView={Boolean(formattedValue)}
+        onTableViewEnabledChange={(checked) => setTableViewEnabled(activeTab.id, checked)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
         isLargeFileLocateEnabled={isLargeFileLocateEnabled}
@@ -2204,13 +2314,16 @@ const App: React.FC = () => {
               <span className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}>
                 大文件查看模式
               </span>
+              <span className={`editor-pane-header-flag ${shouldShowTableView ? 'visible' : ''}`}>
+                表格视图
+              </span>
               <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
                 轻量模式
               </span>
             </div>
           </div>
           <div className="editor-pane-body">
-            {isRightFindOpen && (
+            {isRightFindOpen && !shouldShowTableView && (
               <PaneFindWidget
                 value={rightSearchTerm}
                 currentIndex={activeRightMatchCount > 0 ? normalizedRightMatchIndex + 1 : 0}
@@ -2228,7 +2341,14 @@ const App: React.FC = () => {
                 onClose={closeRightFind}
               />
             )}
-            {shouldUseDedicatedRightViewer ? (
+            {shouldShowTableView ? (
+              <JsonTableViewer
+                data={activeJsonTableData}
+                status={activeJsonTableStatus}
+                error={activeJsonTableError}
+                isDarkMode={isDarkMode}
+              />
+            ) : shouldUseDedicatedRightViewer ? (
               <LargeJsonReadonlyViewer
                 ref={largeViewerRef}
                 text={formattedValue}
@@ -2270,7 +2390,7 @@ const App: React.FC = () => {
                 loading={null}
               />
             ) : null}
-            {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
+            {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && !shouldShowTableView && (
               <div className="editor-center-placeholder">
                 {processingStageText ?? (isFormattingActiveTab ? '正在格式化...' : '格式化结果')}
               </div>
