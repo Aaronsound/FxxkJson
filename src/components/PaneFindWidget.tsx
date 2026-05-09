@@ -5,6 +5,8 @@ interface PaneFindWidgetProps {
   value: string;
   currentIndex: number;
   matchCount: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
   isDarkMode: boolean;
   placeholder: string;
   searchOptions: JsonSearchOptions;
@@ -15,6 +17,7 @@ interface PaneFindWidgetProps {
   onReplaceValueChange?: (value: string) => void;
   onReplace?: () => void;
   onReplaceAll?: () => void;
+  onLoadMore?: () => void;
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
@@ -24,6 +27,8 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   value,
   currentIndex,
   matchCount,
+  hasMore = false,
+  isLoadingMore = false,
   isDarkMode,
   placeholder,
   searchOptions,
@@ -34,6 +39,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   onReplaceValueChange,
   onReplace,
   onReplaceAll,
+  onLoadMore,
   onPrev,
   onNext,
   onClose,
@@ -86,8 +92,18 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
             }}
           />
           <span className="pane-find-count">
-            {matchCount > 0 ? `${currentIndex}/${matchCount}` : '0/0'}
+            {matchCount > 0 ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}` : '0/0'}
           </span>
+          {hasMore && (
+            <button
+              type="button"
+              className="pane-find-button"
+              onClick={onLoadMore}
+              disabled={isLoadingMore}
+            >
+              {isLoadingMore ? '加载中...' : '加载更多'}
+            </button>
+          )}
           <div className="pane-find-options" aria-label="搜索匹配规则">
             <button
               type="button"

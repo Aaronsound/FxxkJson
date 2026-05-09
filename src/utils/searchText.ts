@@ -3,6 +3,12 @@ import type {
   LargeJsonSearchMatch,
 } from '../types/jsonTool';
 
+export interface TextSearchBatch {
+  matches: LargeJsonSearchMatch[];
+  hasMore: boolean;
+  nextStartOffset: number;
+}
+
 export function buildLineStarts(text: string) {
   const lineStarts = [0];
 
@@ -71,10 +77,35 @@ export function findTextSearchMatches(
   lineStarts: Uint32Array,
   lineCount: number,
   searchTerm: string,
-  options: JsonSearchOptions
+  options: JsonSearchOptions,
+  maxResults = Number.POSITIVE_INFINITY
 ): LargeJsonSearchMatch[] {
-  if (!searchTerm) {
-    return [];
+  return findTextSearchBatch(
+    text,
+    lineStarts,
+    lineCount,
+    searchTerm,
+    options,
+    0,
+    maxResults
+  ).matches;
+}
+
+export function findTextSearchBatch(
+  text: string,
+  lineStarts: Uint32Array,
+  lineCount: number,
+  searchTerm: string,
+  options: JsonSearchOptions,
+  startOffset = 0,
+  maxResults = Number.POSITIVE_INFINITY
+): TextSearchBatch {
+  if (!searchTerm || maxResults <= 0) {
+    return {
+      matches: [],
+      hasMore: false,
+      nextStartOffset: Math.min(Math.max(0, startOffset), text.length),
+    };
   }
 
   const source = options.useRegex ? searchTerm : escapeRegExp(searchTerm);
@@ -83,11 +114,17 @@ export function findTextSearchMatches(
   try {
     matcher = new RegExp(source, `g${options.matchCase ? '' : 'i'}`);
   } catch {
-    return [];
+    return {
+      matches: [],
+      hasMore: false,
+      nextStartOffset: Math.min(Math.max(0, startOffset), text.length),
+    };
   }
 
   const matches: LargeJsonSearchMatch[] = [];
   let match: RegExpExecArray | null;
+  let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
+  matcher.lastIndex = nextStartOffset;
 
   while ((match = matcher.exec(text)) !== null) {
     const start = match.index;
@@ -100,9 +137,22 @@ export function findTextSearchMatches(
     }
 
     if (!options.wholeWord || isWholeWordMatch(text, start, end)) {
+      if (matches.length >= maxResults) {
+        return {
+          matches,
+          hasMore: true,
+          nextStartOffset,
+        };
+      }
+
       matches.push(getLineMatch(text, lineStarts, lineCount, start, end));
+      nextStartOffset = Math.max(end, matcher.lastIndex);
     }
   }
 
-  return matches;
+  return {
+    matches,
+    hasMore: false,
+    nextStartOffset,
+  };
 }

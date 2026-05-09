@@ -15,6 +15,7 @@ import {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeJsonViewerRegion,
+  SEARCH_BATCH_SIZE,
 } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import {
@@ -455,7 +456,14 @@ const LargeJsonReadonlyViewer = forwardRef<
 
   const searchMatches = useMemo(() => (
     searchMatchesFromWorker
-      ?? findSearchMatchesInLargeJson(text, data.lineStarts, data.lineCount, searchTerm, searchOptions)
+      ?? findSearchMatchesInLargeJson(
+        text,
+        data.lineStarts,
+        data.lineCount,
+        searchTerm,
+        searchOptions,
+        SEARCH_BATCH_SIZE
+      )
   ), [data.lineCount, data.lineStarts, searchMatchesFromWorker, searchOptions, searchTerm, text]);
 
   const matchesByLine = useMemo(() => {

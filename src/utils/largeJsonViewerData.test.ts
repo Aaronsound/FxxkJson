@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import {
   buildLargeViewerData,
+  findSearchMatchesBatchInLargeJson,
   findSearchMatchesInLargeJson,
 } from './largeJsonViewerData';
 
@@ -136,5 +137,67 @@ describe('largeJsonViewerData', () => {
     expect(regexMatches[0]).toMatchObject({
       lineNumber: 3,
     });
+  });
+
+  it('caps large viewer search results when a max result count is provided', () => {
+    const text = [
+      '{',
+      '  "name": "HanJson",',
+      '  "name": "viewer",',
+      '  "name": "large"',
+      '}',
+    ].join('\n');
+    const viewerData = buildLargeViewerData(text, 1);
+    expect(viewerData).not.toBeNull();
+
+    const matches = findSearchMatchesInLargeJson(
+      text,
+      viewerData!.lineStarts,
+      viewerData!.lineCount,
+      'name',
+      DEFAULT_SEARCH_OPTIONS,
+      2
+    );
+
+    expect(matches).toHaveLength(2);
+    expect(matches[0]).toMatchObject({ lineNumber: 2 });
+    expect(matches[1]).toMatchObject({ lineNumber: 3 });
+  });
+
+  it('loads the next batch of search results from the previous batch offset', () => {
+    const text = [
+      '{',
+      '  "name": "HanJson",',
+      '  "name": "viewer",',
+      '  "name": "large"',
+      '}',
+    ].join('\n');
+    const viewerData = buildLargeViewerData(text, 1);
+    expect(viewerData).not.toBeNull();
+
+    const firstBatch = findSearchMatchesBatchInLargeJson(
+      text,
+      viewerData!.lineStarts,
+      viewerData!.lineCount,
+      'name',
+      DEFAULT_SEARCH_OPTIONS,
+      0,
+      2
+    );
+    expect(firstBatch.matches).toHaveLength(2);
+    expect(firstBatch.hasMore).toBe(true);
+
+    const secondBatch = findSearchMatchesBatchInLargeJson(
+      text,
+      viewerData!.lineStarts,
+      viewerData!.lineCount,
+      'name',
+      DEFAULT_SEARCH_OPTIONS,
+      firstBatch.nextStartOffset,
+      2
+    );
+    expect(secondBatch.matches).toHaveLength(1);
+    expect(secondBatch.matches[0]).toMatchObject({ lineNumber: 4 });
+    expect(secondBatch.hasMore).toBe(false);
   });
 });

@@ -3,10 +3,10 @@ import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 import {
   binarySearchLineStarts,
   buildLargeViewerData,
-  findSearchMatchesInLargeJson,
+  findSearchMatchesBatchInLargeJson,
 } from '../utils/largeJsonViewerData';
 import { formatJsonText } from '../utils/jsonFormat';
-import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -405,7 +405,14 @@ self.onmessage = (event) => {
   }
 
   if (message.type === 'search') {
-    const { requestId, tabId, query, searchOptions } = message;
+    const {
+      requestId,
+      tabId,
+      query,
+      searchOptions,
+      startOffset = 0,
+      append = false,
+    } = message;
     const cachedViewer = viewerCache.get(tabId);
 
     if (
@@ -419,17 +426,22 @@ self.onmessage = (event) => {
         tabId,
         query,
         matches: [],
+        hasMore: false,
+        nextStartOffset: 0,
+        append,
       });
       return;
     }
 
     try {
-      const matches = findSearchMatchesInLargeJson(
+      const result = findSearchMatchesBatchInLargeJson(
         cachedViewer.formattedText,
         cachedViewer.viewerData.lineStarts,
         cachedViewer.viewerData.lineCount,
         typeof query === 'string' ? query : '',
-        searchOptions ?? DEFAULT_SEARCH_OPTIONS
+        searchOptions ?? DEFAULT_SEARCH_OPTIONS,
+        startOffset,
+        SEARCH_BATCH_SIZE
       );
 
       postMessage({
@@ -437,7 +449,10 @@ self.onmessage = (event) => {
         requestId,
         tabId,
         query,
-        matches,
+        matches: result.matches,
+        hasMore: result.hasMore,
+        nextStartOffset: result.nextStartOffset,
+        append,
       });
     } catch {
       postMessage({
@@ -446,6 +461,9 @@ self.onmessage = (event) => {
         tabId,
         query,
         matches: [],
+        hasMore: false,
+        nextStartOffset: 0,
+        append,
       });
     }
   }

@@ -59,7 +59,13 @@ interface UseJsonFormattingWorkerArgs {
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
   setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
   setLargeViewerStatus: (tabId: string, status: 'idle' | 'building' | 'ready') => void;
-  setLargeViewerSearchResults: (tabId: string, matches: LargeJsonSearchMatch[]) => void;
+  setLargeViewerSearchResults: (
+    tabId: string,
+    matches: LargeJsonSearchMatch[],
+    hasMore?: boolean,
+    nextStartOffset?: number,
+    append?: boolean
+  ) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
   updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
   resetSearchState: () => void;
@@ -199,7 +205,9 @@ export function useJsonFormattingWorker({
   const requestWorkerSearch = (
     tabId: string,
     query: string,
-    searchOptions: JsonSearchOptions
+    searchOptions: JsonSearchOptions,
+    startOffset = 0,
+    append = false
   ) => {
     if (!workerRef.current) {
       callbacksRef.current.setLargeViewerSearchResults(tabId, []);
@@ -214,6 +222,8 @@ export function useJsonFormattingWorker({
       tabId,
       query,
       searchOptions,
+      startOffset,
+      append,
     });
   };
 
@@ -657,7 +667,13 @@ export function useJsonFormattingWorker({
           return;
         }
 
-        callbacksRef.current.setLargeViewerSearchResults(tabId, event.data.matches ?? []);
+        callbacksRef.current.setLargeViewerSearchResults(
+          tabId,
+          event.data.matches ?? [],
+          Boolean(event.data.hasMore),
+          event.data.nextStartOffset ?? 0,
+          Boolean(event.data.append)
+        );
         return;
       }
 

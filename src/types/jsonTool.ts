@@ -31,6 +31,9 @@ export interface WorkerMessage {
   viewerData?: LargeJsonViewerData | null;
   query?: string;
   matches?: LargeJsonSearchMatch[];
+  hasMore?: boolean;
+  nextStartOffset?: number;
+  append?: boolean;
 }
 
 export type StructureStatus = 'ready' | 'building' | 'disabled';
@@ -98,6 +101,7 @@ export const STRUCTURE_SYNC_THRESHOLD = 20 * 1024 * 1024;
 export const DEDICATED_RIGHT_VIEWER_THRESHOLD = LARGE_FILE_THRESHOLD;
 export const DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD = 0;
 export const SEARCH_HIGHLIGHT_DURATION = 1500;
+export const SEARCH_BATCH_SIZE = 2000;
 export const FORMAT_DEBOUNCE_MS = 120;
 export const LARGE_FILE_FORMAT_DEBOUNCE_MS = 1200;
 

@@ -19,6 +19,7 @@ import {
   LARGE_FILE_THRESHOLD,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
+  SEARCH_BATCH_SIZE,
   SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
@@ -38,7 +39,7 @@ import {
 } from './utils/jsonToolModels';
 import {
   buildLineStarts,
-  findTextSearchMatches,
+  findTextSearchBatch,
 } from './utils/searchText';
 import './App.css';
 
@@ -70,28 +71,37 @@ function formatDuration(value: number | null | undefined) {
   return `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
 }
 
-function getMonacoSearchRanges(
+function getMonacoSearchBatch(
   model: monaco.editor.ITextModel,
   searchTerm: string,
-  searchOptions: JsonSearchOptions
+  searchOptions: JsonSearchOptions,
+  startOffset = 0,
+  maxResults = SEARCH_BATCH_SIZE
 ) {
   const text = model.getValue();
-  return findTextSearchMatches(
+  const result = findTextSearchBatch(
     text,
     buildLineStarts(text),
     model.getLineCount(),
     searchTerm,
-    searchOptions
-  ).map((match) => {
-    const start = model.getPositionAt(match.start);
-    const end = model.getPositionAt(match.end);
-    return new monaco.Range(
-      start.lineNumber,
-      start.column,
-      end.lineNumber,
-      end.column
-    );
-  });
+    searchOptions,
+    startOffset,
+    maxResults
+  );
+
+  return {
+    ...result,
+    ranges: result.matches.map((match) => {
+      const start = model.getPositionAt(match.start);
+      const end = model.getPositionAt(match.end);
+      return new monaco.Range(
+        start.lineNumber,
+        start.column,
+        end.lineNumber,
+        end.column
+      );
+    }),
+  };
 }
 
 function getReplacementText(
@@ -157,6 +167,11 @@ const App: React.FC = () => {
   const [rightMatches, setRightMatches] = useState<monaco.Range[]>([]);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
+  const [leftSearchHasMore, setLeftSearchHasMore] = useState(false);
+  const [rightSearchHasMore, setRightSearchHasMore] = useState(false);
+  const [leftSearchNextOffset, setLeftSearchNextOffset] = useState(0);
+  const [rightSearchNextOffset, setRightSearchNextOffset] = useState(0);
+  const [isRightSearchLoadingMore, setIsRightSearchLoadingMore] = useState(false);
   const [leftMatchIndex, setLeftMatchIndex] = useState(0);
   const [rightMatchIndex, setRightMatchIndex] = useState(0);
   const [isLeftFindOpen, setIsLeftFindOpen] = useState(false);
@@ -410,6 +425,11 @@ const App: React.FC = () => {
     setRightMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
+    setLeftSearchHasMore(false);
+    setRightSearchHasMore(false);
+    setLeftSearchNextOffset(0);
+    setRightSearchNextOffset(0);
+    setIsRightSearchLoadingMore(false);
     setLeftMatchIndex(0);
     setRightMatchIndex(0);
     setIsLeftFindOpen(false);
@@ -439,6 +459,9 @@ const App: React.FC = () => {
     if (tabId === activeTabIdRef.current) {
       setLargeViewerMatches([]);
       setLargeViewerMatchCount(0);
+      setRightSearchHasMore(false);
+      setRightSearchNextOffset(0);
+      setIsRightSearchLoadingMore(false);
     }
   };
 
@@ -446,13 +469,23 @@ const App: React.FC = () => {
     setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: status }));
   };
 
-  const setLargeViewerSearchResults = (tabId: string, matches: LargeJsonSearchMatch[]) => {
+  const setLargeViewerSearchResults = (
+    tabId: string,
+    matches: LargeJsonSearchMatch[],
+    hasMore = false,
+    nextStartOffset = 0,
+    append = false
+  ) => {
     if (tabId !== activeTabIdRef.current) {
       return;
     }
 
-    setLargeViewerMatches(matches);
-    setLargeViewerMatchCount(matches.length);
+    const nextMatches = append ? [...largeViewerMatches, ...matches] : matches;
+    setLargeViewerMatches(nextMatches);
+    setLargeViewerMatchCount(nextMatches.length);
+    setRightSearchHasMore(hasMore);
+    setRightSearchNextOffset(nextStartOffset);
+    setIsRightSearchLoadingMore(false);
   };
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
@@ -783,10 +816,23 @@ const App: React.FC = () => {
     if (!activeTab || !shouldUseDedicatedRightViewer) {
       setLargeViewerMatches([]);
       setLargeViewerMatchCount(0);
+      setRightSearchHasMore(false);
+      setRightSearchNextOffset(0);
+      setIsRightSearchLoadingMore(false);
       return;
     }
 
-    requestWorkerSearch(activeTab.id, rightSearchTerm, rightSearchOptions);
+    if (!rightSearchTerm) {
+      setLargeViewerMatches([]);
+      setLargeViewerMatchCount(0);
+      setRightSearchHasMore(false);
+      setRightSearchNextOffset(0);
+      setIsRightSearchLoadingMore(false);
+      return;
+    }
+
+    setIsRightSearchLoadingMore(false);
+    requestWorkerSearch(activeTab.id, rightSearchTerm, rightSearchOptions, 0, false);
   }, [
     activeDocumentMeta.formattedRevision,
     activeLargeViewerData,
@@ -802,12 +848,17 @@ const App: React.FC = () => {
 
     if (!editor || !model || !leftSearchTerm) {
       setLeftMatches([]);
+      setLeftSearchHasMore(false);
+      setLeftSearchNextOffset(0);
       clearLeftHighlights();
       return;
     }
 
-    const matches = getMonacoSearchRanges(model, leftSearchTerm, leftSearchOptions);
+    const result = getMonacoSearchBatch(model, leftSearchTerm, leftSearchOptions);
+    const matches = result.ranges;
     setLeftMatches(matches);
+    setLeftSearchHasMore(result.hasMore);
+    setLeftSearchNextOffset(result.nextStartOffset);
 
     const activeIndex = matches.length > 0
       ? ((leftMatchIndex % matches.length) + matches.length) % matches.length
@@ -853,12 +904,21 @@ const App: React.FC = () => {
 
     if (!editor || !model || !rightSearchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
       setRightMatches([]);
+      if (!shouldUseDedicatedRightViewer) {
+        setRightSearchHasMore(false);
+        setRightSearchNextOffset(0);
+        setIsRightSearchLoadingMore(false);
+      }
       clearRightHighlights();
       return;
     }
 
-    const matches = getMonacoSearchRanges(model, rightSearchTerm, rightSearchOptions);
+    const result = getMonacoSearchBatch(model, rightSearchTerm, rightSearchOptions);
+    const matches = result.ranges;
     setRightMatches(matches);
+    setRightSearchHasMore(result.hasMore);
+    setRightSearchNextOffset(result.nextStartOffset);
+    setIsRightSearchLoadingMore(false);
     const activeIndex = matches.length > 0
       ? ((rightMatchIndex % matches.length) + matches.length) % matches.length
       : 0;
@@ -1398,6 +1458,8 @@ const App: React.FC = () => {
     setIsLeftFindOpen(false);
     setLeftSearchTerm('');
     setLeftMatches([]);
+    setLeftSearchHasMore(false);
+    setLeftSearchNextOffset(0);
     setLeftMatchIndex(0);
     clearLeftHighlights();
     leftEditorRef.current?.focus();
@@ -1409,6 +1471,9 @@ const App: React.FC = () => {
     setRightMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
+    setRightSearchHasMore(false);
+    setRightSearchNextOffset(0);
+    setIsRightSearchLoadingMore(false);
     setRightMatchIndex(0);
     clearRightHighlights();
     if (shouldUseDedicatedRightViewer) {
@@ -1420,6 +1485,8 @@ const App: React.FC = () => {
 
   const handleLeftSearchOptionsChange = (value: JsonSearchOptions) => {
     setLeftSearchOptions(value);
+    setLeftSearchHasMore(false);
+    setLeftSearchNextOffset(0);
     setLeftMatchIndex(0);
   };
 
@@ -1427,6 +1494,9 @@ const App: React.FC = () => {
     setRightSearchOptions(value);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
+    setRightSearchHasMore(false);
+    setRightSearchNextOffset(0);
+    setIsRightSearchLoadingMore(false);
     setRightMatchIndex(0);
   };
 
@@ -1521,8 +1591,98 @@ const App: React.FC = () => {
     setRightMatchIndex((current) => (current - 1 + activeRightMatchCount) % activeRightMatchCount);
   };
 
+  const loadMoreLeftSearch = () => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !model || !leftSearchTerm || !leftSearchHasMore) {
+      return;
+    }
+
+    const result = getMonacoSearchBatch(
+      model,
+      leftSearchTerm,
+      leftSearchOptions,
+      leftSearchNextOffset
+    );
+    const nextMatches = [...leftMatches, ...result.ranges];
+    const activeIndex = nextMatches.length > 0
+      ? ((leftMatchIndex % nextMatches.length) + nextMatches.length) % nextMatches.length
+      : 0;
+
+    setLeftMatches(nextMatches);
+    setLeftSearchHasMore(result.hasMore);
+    setLeftSearchNextOffset(result.nextStartOffset);
+    leftDecorationIdsRef.current = editor.deltaDecorations(
+      leftDecorationIdsRef.current,
+      nextMatches.map((range, index) => ({
+        range,
+        options: {
+          inlineClassName:
+            index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
+        },
+      }))
+    );
+  };
+
+  const loadMoreRightSearch = () => {
+    if (!rightSearchTerm || !rightSearchHasMore || isRightSearchLoadingMore) {
+      return;
+    }
+
+    if (shouldUseDedicatedRightViewer) {
+      if (!activeTab) {
+        return;
+      }
+
+      setIsRightSearchLoadingMore(true);
+      requestWorkerSearch(
+        activeTab.id,
+        rightSearchTerm,
+        rightSearchOptions,
+        rightSearchNextOffset,
+        true
+      );
+      return;
+    }
+
+    const editor = rightEditorRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !model || isBuildingDedicatedRightViewer) {
+      return;
+    }
+
+    const result = getMonacoSearchBatch(
+      model,
+      rightSearchTerm,
+      rightSearchOptions,
+      rightSearchNextOffset
+    );
+    const nextMatches = [...rightMatches, ...result.ranges];
+    const activeIndex = nextMatches.length > 0
+      ? ((rightMatchIndex % nextMatches.length) + nextMatches.length) % nextMatches.length
+      : 0;
+
+    setRightMatches(nextMatches);
+    setRightSearchHasMore(result.hasMore);
+    setRightSearchNextOffset(result.nextStartOffset);
+    rightDecorationIdsRef.current = editor.deltaDecorations(
+      rightDecorationIdsRef.current,
+      nextMatches.map((range, index) => ({
+        range,
+        options: {
+          inlineClassName:
+            index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
+        },
+      }))
+    );
+  };
+
   const handleLeftSearchTermChange = (value: string) => {
     setLeftSearchTerm(value);
+    setLeftSearchHasMore(false);
+    setLeftSearchNextOffset(0);
     setLeftMatchIndex(0);
   };
 
@@ -1530,6 +1690,9 @@ const App: React.FC = () => {
     setRightSearchTerm(value);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
+    setRightSearchHasMore(false);
+    setRightSearchNextOffset(0);
+    setIsRightSearchLoadingMore(false);
     setRightMatchIndex(0);
   };
 
@@ -1659,6 +1822,7 @@ const App: React.FC = () => {
                 value={leftSearchTerm}
                 currentIndex={activeLeftMatchCount > 0 ? normalizedLeftMatchIndex + 1 : 0}
                 matchCount={activeLeftMatchCount}
+                hasMore={leftSearchHasMore}
                 isDarkMode={isDarkMode}
                 placeholder="搜索原始 JSON"
                 searchOptions={leftSearchOptions}
@@ -1669,6 +1833,7 @@ const App: React.FC = () => {
                 onReplaceValueChange={setLeftReplaceText}
                 onReplace={replaceLeftMatch}
                 onReplaceAll={replaceAllLeftMatches}
+                onLoadMore={loadMoreLeftSearch}
                 onPrev={gotoPrevLeft}
                 onNext={gotoNextLeft}
                 onClose={closeLeftFind}
@@ -1720,11 +1885,14 @@ const App: React.FC = () => {
                 value={rightSearchTerm}
                 currentIndex={activeRightMatchCount > 0 ? normalizedRightMatchIndex + 1 : 0}
                 matchCount={activeRightMatchCount}
+                hasMore={rightSearchHasMore}
+                isLoadingMore={isRightSearchLoadingMore}
                 isDarkMode={isDarkMode}
                 placeholder="搜索格式化结果"
                 searchOptions={rightSearchOptions}
                 onChange={handleRightSearchTermChange}
                 onSearchOptionsChange={handleRightSearchOptionsChange}
+                onLoadMore={loadMoreRightSearch}
                 onPrev={gotoPrevRight}
                 onNext={gotoNextRight}
                 onClose={closeRightFind}

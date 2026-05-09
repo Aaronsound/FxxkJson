@@ -7,7 +7,8 @@ import type {
   LargeJsonViewerData,
   LargeJsonViewerRegion,
 } from '../types/jsonTool';
-import { findTextSearchMatches } from './searchText';
+import { findTextSearchBatch, findTextSearchMatches } from './searchText';
+import type { TextSearchBatch } from './searchText';
 
 export function buildLargeViewerData(
   text: string,
@@ -122,7 +123,20 @@ export function findSearchMatchesInLargeJson(
   lineStarts: Uint32Array,
   lineCount: number,
   searchTerm: string,
-  options: JsonSearchOptions
+  options: JsonSearchOptions,
+  maxResults?: number
 ): LargeJsonSearchMatch[] {
-  return findTextSearchMatches(text, lineStarts, lineCount, searchTerm, options);
+  return findTextSearchMatches(text, lineStarts, lineCount, searchTerm, options, maxResults);
+}
+
+export function findSearchMatchesBatchInLargeJson(
+  text: string,
+  lineStarts: Uint32Array,
+  lineCount: number,
+  searchTerm: string,
+  options: JsonSearchOptions,
+  startOffset: number,
+  maxResults: number
+): TextSearchBatch {
+  return findTextSearchBatch(text, lineStarts, lineCount, searchTerm, options, startOffset, maxResults);
 }
