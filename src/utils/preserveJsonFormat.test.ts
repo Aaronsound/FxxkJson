@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saveJsonPreservingOriginalFormat } from './preserveJsonFormat';
 
 describe('preserveJsonFormat', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('keeps a compact raw JSON document compact after editing a field', () => {
     const original = '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}';
     const edited = JSON.stringify({
@@ -14,6 +18,23 @@ describe('preserveJsonFormat', () => {
     expect(saveJsonPreservingOriginalFormat(original, edited)).toBe(
       '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"changed"}]}'
     );
+  });
+
+  it('skips parsing the original document for compact JSON saves', () => {
+    const original = '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}';
+    const edited = JSON.stringify({
+      items: [
+        { id: 1, name: 'alpha' },
+        { id: 2, name: 'changed' },
+      ],
+    }, null, 2);
+    const parseSpy = vi.spyOn(JSON, 'parse');
+
+    expect(saveJsonPreservingOriginalFormat(original, edited)).toBe(
+      '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"changed"}]}'
+    );
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+    expect(parseSpy).toHaveBeenCalledWith(edited);
   });
 
   it('keeps the original indentation style for multiline documents', () => {

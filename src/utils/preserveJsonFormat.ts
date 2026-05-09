@@ -113,6 +113,12 @@ export function saveJsonPreservingOriginalFormat(
   editedText: string
 ) {
   const editedValue = JSON.parse(editedText) as JsonValue;
+  const style = getOriginalStyle(originalText);
+
+  if (style.compact) {
+    return serializeWithOriginalStyle(originalText, editedValue);
+  }
+
   let originalValue: JsonValue;
 
   try {
@@ -128,9 +134,7 @@ export function saveJsonPreservingOriginalFormat(
     return originalText;
   }
 
-  const style = getOriginalStyle(originalText);
-  const shouldFallbackSerialize = diffs.length > MAX_PRESERVED_EDITS
-    || (style.compact && diffs.some((diff) => diff.structural));
+  const shouldFallbackSerialize = diffs.length > MAX_PRESERVED_EDITS;
 
   if (shouldFallbackSerialize) {
     return serializeWithOriginalStyle(originalText, editedValue);
