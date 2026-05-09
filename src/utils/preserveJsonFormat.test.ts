@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { saveJsonPreservingOriginalFormat } from './preserveJsonFormat';
+import {
+  saveJsonNodePreservingOriginalFormat,
+  saveJsonPreservingOriginalFormat,
+} from './preserveJsonFormat';
 
 describe('preserveJsonFormat', () => {
   afterEach(() => {
@@ -108,5 +111,35 @@ describe('preserveJsonFormat', () => {
     }, null, 2);
 
     expect(saveJsonPreservingOriginalFormat(original, edited)).toBe('{"name":"alpha","active":true}');
+  });
+
+  it('updates a compact nested node without formatting the whole document', () => {
+    const original = '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}';
+
+    expect(saveJsonNodePreservingOriginalFormat(original, ['items', 1, 'name'], '"changed"')).toBe(
+      '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"changed"}]}'
+    );
+  });
+
+  it('updates a multiline nested node with the original indentation style', () => {
+    const original = [
+      '{',
+      '    "name": "alpha",',
+      '    "nested": {',
+      '        "ok": true',
+      '    }',
+      '}',
+      '',
+    ].join('\n');
+
+    expect(saveJsonNodePreservingOriginalFormat(original, ['nested', 'ok'], 'false')).toBe([
+      '{',
+      '    "name": "alpha",',
+      '    "nested": {',
+      '        "ok": false',
+      '    }',
+      '}',
+      '',
+    ].join('\n'));
   });
 });

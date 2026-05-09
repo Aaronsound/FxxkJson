@@ -11,7 +11,10 @@ import {
   getIdentityLocateRange,
   getLightweightTokenLocateRange,
 } from '../utils/lightweightLocate';
-import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
+import {
+  saveJsonNodePreservingOriginalFormat,
+  saveJsonPreservingOriginalFormat,
+} from '../utils/preserveJsonFormat';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -53,6 +56,69 @@ function saveJsonForEdit(tabId, text, originalText) {
   }
 
   return formatJsonForEdit(tabId, text);
+}
+
+function getCachedFormattedText(tabId) {
+  const cachedStructure = structureCache.get(tabId);
+  if (typeof cachedStructure?.formattedText === 'string') {
+    return cachedStructure.formattedText;
+  }
+
+  const cachedViewer = viewerCache.get(tabId);
+  if (typeof cachedViewer?.formattedText === 'string') {
+    return cachedViewer.formattedText;
+  }
+
+  return null;
+}
+
+function readJsonNodeForEdit(tabId, text, offset) {
+  const sourceText = getCachedFormattedText(tabId) ?? text;
+  if (
+    typeof sourceText !== 'string'
+    || !sourceText.trim()
+    || typeof offset !== 'number'
+    || !Number.isFinite(offset)
+  ) {
+    throw new Error('当前节点无法编辑');
+  }
+
+  const cachedStructure = structureCache.get(tabId);
+  const tree = cachedStructure?.formattedText === sourceText && cachedStructure.formattedTree
+    ? cachedStructure.formattedTree
+    : parseTree(sourceText);
+
+  if (!tree) {
+    throw new Error('当前节点无法编辑');
+  }
+
+  const candidateOffsets = getLocateCandidateOffsets(sourceText, offset);
+  for (const candidateOffset of candidateOffsets) {
+    const location = getLocation(sourceText, candidateOffset);
+    const node = findNodeAtLocation(tree, location.path);
+
+    if (node) {
+      if (cachedStructure?.formattedText === sourceText && !cachedStructure.formattedTree) {
+        cachedStructure.formattedTree = tree;
+        structureCache.set(tabId, cachedStructure);
+      }
+
+      return JSON.stringify({
+        path: location.path,
+        value: sourceText.slice(node.offset, node.offset + node.length),
+      });
+    }
+  }
+
+  throw new Error('当前节点无法编辑');
+}
+
+function saveJsonNodeForEdit(text, originalText, path) {
+  if (typeof originalText !== 'string' || !Array.isArray(path)) {
+    throw new Error('当前节点无法保存');
+  }
+
+  return saveJsonNodePreservingOriginalFormat(originalText, path, text);
 }
 
 function copyJsonAsStringLiteral(text) {
@@ -269,12 +335,20 @@ self.onmessage = (event) => {
   }
 
   if (message.type === 'edit-json') {
-    const { requestId, tabId, operation, text, originalText } = message;
+    const { requestId, tabId, operation, text, originalText, path, offset } = message;
 
     try {
       const data = (() => {
         if (operation === 'copy-literal') {
           return copyJsonAsStringLiteral(text);
+        }
+
+        if (operation === 'read-node') {
+          return readJsonNodeForEdit(tabId, text, offset);
+        }
+
+        if (operation === 'save-node') {
+          return saveJsonNodeForEdit(text, originalText, path);
         }
 
         if (operation === 'save') {

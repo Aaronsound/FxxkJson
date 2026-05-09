@@ -27,7 +27,7 @@ import {
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
 } from './types/jsonTool';
-import type { JsonSearchOptions } from './types/jsonTool';
+import type { JsonEditPath, JsonSearchOptions } from './types/jsonTool';
 import {
   createTab,
   getEditorLanguageByLength,
@@ -53,6 +53,13 @@ import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
 const SEARCH_RESULT_PREVIEW_LIMIT = 120;
+
+type EditJsonSession = {
+  key: number;
+  initialValue: string;
+  mode: 'document' | 'node';
+  path?: JsonEditPath;
+};
 
 function getProcessingStageText(stage: ProcessingStage, fileName: string | null) {
   switch (stage) {
@@ -154,7 +161,7 @@ const App: React.FC = () => {
 
     return window.localStorage.getItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY) !== 'false';
   });
-  const [editJsonSession, setEditJsonSession] = useState<{ key: number; initialValue: string } | null>(null);
+  const [editJsonSession, setEditJsonSession] = useState<EditJsonSession | null>(null);
   const [editJsonError, setEditJsonError] = useState<string | null>(null);
   const [editJsonBusyLabel, setEditJsonBusyLabel] = useState<string | null>(null);
   const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
@@ -1304,6 +1311,24 @@ const App: React.FC = () => {
         await copyValueAtOffset(currentTabId, offset);
       },
     });
+
+    editor.addAction({
+      id: 'editValueAction',
+      label: '编辑当前值',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 2,
+      run: async (mountedEditor) => {
+        const currentTabId = activeTabIdRef.current;
+        const model = mountedEditor.getModel();
+        const position = mountedEditor.getPosition();
+
+        if (!model || !position) {
+          return;
+        }
+
+        await handleOpenEditNodeAtOffset(currentTabId, model.getOffsetAt(position));
+      },
+    });
   };
 
   const handleLeftChange = (value?: string) => {
@@ -1466,11 +1491,59 @@ const App: React.FC = () => {
       setEditJsonSession({
         key: Date.now(),
         initialValue: formatted,
+        mode: 'document',
       });
     } catch (error) {
       setTabError(
         activeTab.id,
         error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败'
+      );
+    } finally {
+      setEditJsonBusyLabel(null);
+    }
+  };
+
+  const handleOpenEditNodeAtOffset = async (
+    tabId: string,
+    offset: number,
+    preferCachedText = false
+  ) => {
+    setEditJsonBusyLabel('正在准备当前节点...');
+    try {
+      const sourceText = preferCachedText
+        ? ''
+        : (formattedTextByTabRef.current[tabId] ?? '');
+      const payload = await requestWorkerEditJson(
+        tabId,
+        'read-node',
+        sourceText,
+        undefined,
+        undefined,
+        offset
+      );
+      const parsed = JSON.parse(payload) as { path?: JsonEditPath; value?: string };
+
+      if (
+        !Array.isArray(parsed.path)
+        || !parsed.path.every((segment) => typeof segment === 'string' || typeof segment === 'number')
+        || typeof parsed.value !== 'string'
+      ) {
+        throw new Error('当前节点无法编辑');
+      }
+
+      editJsonValueRef.current = parsed.value;
+      setEditJsonError(null);
+      clearCopyLiteralNotice();
+      setEditJsonSession({
+        key: Date.now(),
+        initialValue: parsed.value,
+        mode: 'node',
+        path: parsed.path,
+      });
+    } catch (error) {
+      setTabError(
+        tabId,
+        error instanceof Error ? `打开当前节点编辑失败：${error.message}` : '打开当前节点编辑失败'
       );
     } finally {
       setEditJsonBusyLabel(null);
@@ -1491,14 +1564,16 @@ const App: React.FC = () => {
 
     const currentTabId = activeTab.id;
     const currentTabTitle = activeTab.title;
-    setEditJsonBusyLabel('正在更新原始 JSON...');
+    const isNodeEdit = editJsonSession?.mode === 'node';
+    setEditJsonBusyLabel(isNodeEdit ? '正在更新当前节点...' : '正在更新原始 JSON...');
     try {
       const original = getTabContent(currentTabId);
       const updated = await requestWorkerEditJson(
         currentTabId,
-        'save',
+        isNodeEdit ? 'save-node' : 'save',
         editJsonValueRef.current,
-        original
+        original,
+        editJsonSession?.path
       );
       const largeMode = isLargeDocument(updated);
       beginPerformanceSession(
@@ -2012,6 +2087,8 @@ const App: React.FC = () => {
           error={editJsonError}
           busyLabel={editJsonBusyLabel}
           hasCopiedLiteral={hasCopiedLiteral}
+          title={editJsonSession.mode === 'node' ? '编辑当前节点' : '编辑 JSON'}
+          saveLabel={editJsonSession.mode === 'node' ? '更新当前节点' : '更新为原始 JSON'}
           onValueChange={(value) => {
             editJsonValueRef.current = value;
           }}
@@ -2176,6 +2253,7 @@ const App: React.FC = () => {
                 onMatchCountChange={setLargeViewerMatchCount}
                 onLocateOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
                 onCopyValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
+                onEditValue={(offset) => handleOpenEditNodeAtOffset(activeTab.id, offset, true)}
                 onOpenFind={openRightFind}
               />
             ) : !isBuildingDedicatedRightViewer ? (

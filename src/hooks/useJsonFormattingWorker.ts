@@ -9,6 +9,7 @@ import {
 } from '../types/jsonTool';
 import type {
   EditJsonWorkerOperation,
+  JsonEditPath,
   JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -345,7 +346,9 @@ export function useJsonFormattingWorker({
     tabId: string,
     operation: EditJsonWorkerOperation,
     text: string,
-    originalText?: string
+    originalText?: string,
+    path?: JsonEditPath,
+    offset?: number
   ) => new Promise<string>((resolve, reject) => {
     if (!workerRef.current) {
       reject(new Error('JSON worker is not ready'));
@@ -361,6 +364,8 @@ export function useJsonFormattingWorker({
       operation,
       text,
       originalText,
+      path,
+      offset,
     });
   });
 

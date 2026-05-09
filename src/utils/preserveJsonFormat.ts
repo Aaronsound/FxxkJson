@@ -158,3 +158,22 @@ export function saveJsonPreservingOriginalFormat(
     )
   ), originalText);
 }
+
+export function saveJsonNodePreservingOriginalFormat(
+  originalText: string,
+  path: JSONPath,
+  editedText: string
+) {
+  const editedValue = JSON.parse(editedText) as JsonValue;
+
+  if (path.length === 0) {
+    return serializeWithOriginalStyle(originalText, editedValue);
+  }
+
+  return applyEdits(
+    originalText,
+    modify(originalText, path, editedValue, {
+      formattingOptions: getFormattingOptions(originalText),
+    })
+  );
+}

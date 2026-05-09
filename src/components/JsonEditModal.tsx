@@ -9,6 +9,8 @@ interface JsonEditModalProps {
   error: string | null;
   busyLabel: string | null;
   hasCopiedLiteral: boolean;
+  title?: string;
+  saveLabel?: string;
   onValueChange: (value: string) => void;
   onSave: () => void;
   onCopyLiteral: () => void;
@@ -22,6 +24,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   error,
   busyLabel,
   hasCopiedLiteral,
+  title = '编辑 JSON',
+  saveLabel = '更新为原始 JSON',
   onValueChange,
   onSave,
   onCopyLiteral,
@@ -78,7 +82,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     <div className="modal-overlay" ref={modalRef}>
       <div className={isDarkMode ? 'modal-card modal-card-dark' : 'modal-card'}>
         <div className="modal-header">
-          <h3>编辑 JSON</h3>
+          <h3>{title}</h3>
         </div>
 
         <Editor
@@ -101,7 +105,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         />
 
         <div className="modal-actions">
-          <button onClick={onSave} disabled={isBusy}>更新为原始 JSON</button>
+          <button onClick={onSave} disabled={isBusy}>{saveLabel}</button>
           <div className="modal-copy-group">
             <button onClick={onCopyLiteral} disabled={isBusy}>复制为字符串字面量</button>
             {hasCopiedLiteral && (

@@ -39,7 +39,8 @@ export interface WorkerMessage {
   append?: boolean;
 }
 
-export type EditJsonWorkerOperation = 'format' | 'save' | 'copy-literal';
+export type JsonEditPath = Array<string | number>;
+export type EditJsonWorkerOperation = 'format' | 'save' | 'copy-literal' | 'read-node' | 'save-node';
 export type SearchTarget = 'left' | 'right';
 export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'edit-save' | 'paste';
