@@ -1,12 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import type { JsonSearchOptions } from '../types/jsonTool';
 
+export interface PaneFindResultItem {
+  index: number;
+  label: string;
+  detail?: string;
+}
+
 interface PaneFindWidgetProps {
   value: string;
   currentIndex: number;
   matchCount: number;
   hasMore?: boolean;
   isLoadingMore?: boolean;
+  resultItems?: PaneFindResultItem[];
+  activeResultIndex?: number;
+  resultListLabel?: string;
   isDarkMode: boolean;
   placeholder: string;
   searchOptions: JsonSearchOptions;
@@ -18,6 +27,7 @@ interface PaneFindWidgetProps {
   onReplace?: () => void;
   onReplaceAll?: () => void;
   onLoadMore?: () => void;
+  onSelectResult?: (index: number) => void;
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
@@ -29,6 +39,9 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   matchCount,
   hasMore = false,
   isLoadingMore = false,
+  resultItems = [],
+  activeResultIndex = 0,
+  resultListLabel,
   isDarkMode,
   placeholder,
   searchOptions,
@@ -40,11 +53,13 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   onReplace,
   onReplaceAll,
   onLoadMore,
+  onSelectResult,
   onPrev,
   onNext,
   onClose,
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const shouldShowResultList = resultItems.length > 0;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -201,6 +216,29 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
               >
                 全部替换
               </button>
+            </div>
+          </div>
+        )}
+        {shouldShowResultList && (
+          <div className="pane-find-results" aria-label={resultListLabel ?? '搜索结果'}>
+            {resultListLabel && (
+              <div className="pane-find-results-label">{resultListLabel}</div>
+            )}
+            <div className="pane-find-results-list">
+              {resultItems.map((item) => (
+                <button
+                  type="button"
+                  key={item.index}
+                  className={`pane-find-result ${item.index === activeResultIndex ? 'active' : ''}`}
+                  onClick={() => onSelectResult?.(item.index)}
+                  title={item.detail ? `${item.label} ${item.detail}` : item.label}
+                >
+                  <span className="pane-find-result-label">{item.label}</span>
+                  {item.detail && (
+                    <span className="pane-find-result-detail">{item.detail}</span>
+                  )}
+                </button>
+              ))}
             </div>
           </div>
         )}
