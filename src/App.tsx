@@ -188,6 +188,7 @@ const App: React.FC = () => {
   });
   const [editJsonSession, setEditJsonSession] = useState<{ key: number; initialValue: string } | null>(null);
   const [editJsonError, setEditJsonError] = useState<string | null>(null);
+  const [editJsonBusyLabel, setEditJsonBusyLabel] = useState<string | null>(null);
   const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
   const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
     [INITIAL_TAB_ID]: null,
@@ -736,6 +737,7 @@ const App: React.FC = () => {
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,
+    requestWorkerEditJson,
     resetTabArtifacts,
   } = useJsonFormattingWorker({
     activeTabIdRef,
@@ -1333,14 +1335,15 @@ const App: React.FC = () => {
     queueFormat(activeTab.id, currentText, true);
   };
 
-  const handleOpenEditJson = () => {
+  const handleOpenEditJson = async () => {
     if (!activeTab) {
       return;
     }
 
+    setEditJsonBusyLabel('正在准备编辑内容...');
     try {
       const raw = getTabContent(activeTab.id);
-      const formatted = JSON.stringify(JSON.parse(raw), null, 2);
+      const formatted = await requestWorkerEditJson(activeTab.id, 'format', raw);
       editJsonValueRef.current = formatted;
       setEditJsonError(null);
       clearCopyLiteralNotice();
@@ -1353,22 +1356,26 @@ const App: React.FC = () => {
         activeTab.id,
         error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败'
       );
+    } finally {
+      setEditJsonBusyLabel(null);
     }
   };
 
   const closeEditJson = () => {
     setEditJsonSession(null);
     setEditJsonError(null);
+    setEditJsonBusyLabel(null);
     clearCopyLiteralNotice();
   };
 
-  const handleSaveEditJson = () => {
+  const handleSaveEditJson = async () => {
     if (!activeTab) {
       return;
     }
 
+    setEditJsonBusyLabel('正在更新原始 JSON...');
     try {
-      const updated = JSON.stringify(JSON.parse(editJsonValueRef.current), null, 2);
+      const updated = await requestWorkerEditJson(activeTab.id, 'save', editJsonValueRef.current);
       const largeMode = isLargeDocument(updated);
       beginPerformanceSession(
         activeTab.id,
@@ -1395,13 +1402,18 @@ const App: React.FC = () => {
       setEditJsonError(
         error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败'
       );
+      setEditJsonBusyLabel(null);
     }
   };
 
   const handleCopyEscapedJson = async () => {
+    if (!activeTab) {
+      return;
+    }
+
+    setEditJsonBusyLabel('正在复制字符串字面量...');
     try {
-      const jsonText = JSON.stringify(JSON.parse(editJsonValueRef.current));
-      const literal = JSON.stringify(jsonText);
+      const literal = await requestWorkerEditJson(activeTab.id, 'copy-literal', editJsonValueRef.current);
       await navigator.clipboard.writeText(literal);
       setEditJsonError(null);
       setHasCopiedLiteral(true);
@@ -1416,6 +1428,8 @@ const App: React.FC = () => {
       setEditJsonError(
         error instanceof Error ? `复制字符串字面量失败：${error.message}` : '复制字符串字面量失败'
       );
+    } finally {
+      setEditJsonBusyLabel(null);
     }
   };
 
@@ -1832,6 +1846,7 @@ const App: React.FC = () => {
           initialValue={editJsonSession.initialValue}
           isDarkMode={isDarkMode}
           error={editJsonError}
+          busyLabel={editJsonBusyLabel}
           hasCopiedLiteral={hasCopiedLiteral}
           onValueChange={(value) => {
             editJsonValueRef.current = value;

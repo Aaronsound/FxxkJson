@@ -17,10 +17,11 @@ export interface RenamingTabState {
 }
 
 export interface WorkerMessage {
-  type: 'format-result' | 'structure-ready' | 'locate-result' | 'value-result' | 'viewer-ready' | 'search-result';
+  type: 'format-result' | 'structure-ready' | 'locate-result' | 'value-result' | 'viewer-ready' | 'search-result' | 'edit-json-result';
   requestId: number;
   tabId: string;
   target?: SearchTarget;
+  operation?: EditJsonWorkerOperation;
   success?: boolean;
   ready?: boolean;
   found?: boolean;
@@ -38,6 +39,7 @@ export interface WorkerMessage {
   append?: boolean;
 }
 
+export type EditJsonWorkerOperation = 'format' | 'save' | 'copy-literal';
 export type SearchTarget = 'left' | 'right';
 export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'edit-save' | 'paste';

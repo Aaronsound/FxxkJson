@@ -7,6 +7,7 @@ import {
   LARGE_FILE_THRESHOLD,
 } from '../types/jsonTool';
 import type {
+  EditJsonWorkerOperation,
   JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -127,6 +128,10 @@ export function useJsonFormattingWorker({
   const searchRequestCounterRef = useRef(0);
   const latestSearchRequestRef = useRef<Record<string, number>>({});
   const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
+  const pendingEditJsonRequestsRef = useRef<Record<number, {
+    reject: (error: Error) => void;
+    resolve: (value: string) => void;
+  }>>({});
   const callbacksRef = useRef({
     beginPerformanceSession,
     clearLeftHighlights,
@@ -301,6 +306,27 @@ export function useJsonFormattingWorker({
       tabId,
       offset,
       text: formattedText,
+    });
+  });
+
+  const requestWorkerEditJson = (
+    tabId: string,
+    operation: EditJsonWorkerOperation,
+    text: string
+  ) => new Promise<string>((resolve, reject) => {
+    if (!workerRef.current) {
+      reject(new Error('JSON worker is not ready'));
+      return;
+    }
+
+    const requestId = ++locateRequestCounterRef.current;
+    pendingEditJsonRequestsRef.current[requestId] = { reject, resolve };
+    workerRef.current.postMessage({
+      type: 'edit-json',
+      requestId,
+      tabId,
+      operation,
+      text,
     });
   });
 
@@ -745,6 +771,21 @@ export function useJsonFormattingWorker({
 
         delete pendingValueRequestsRef.current[requestId];
         resolve(event.data.found ? (event.data.value ?? null) : null);
+        return;
+      }
+
+      if (type === 'edit-json-result') {
+        const pending = pendingEditJsonRequestsRef.current[requestId];
+        if (!pending) {
+          return;
+        }
+
+        delete pendingEditJsonRequestsRef.current[requestId];
+        if (event.data.success && typeof event.data.data === 'string') {
+          pending.resolve(event.data.data);
+        } else {
+          pending.reject(new Error(event.data.error ?? 'JSON 处理失败'));
+        }
       }
     };
 
@@ -755,6 +796,10 @@ export function useJsonFormattingWorker({
       Object.keys(pendingValueRequestsRef.current).forEach((requestId) => {
         pendingValueRequestsRef.current[Number(requestId)]?.(null);
         delete pendingValueRequestsRef.current[Number(requestId)];
+      });
+      Object.keys(pendingEditJsonRequestsRef.current).forEach((requestId) => {
+        pendingEditJsonRequestsRef.current[Number(requestId)]?.reject(new Error('JSON worker stopped'));
+        delete pendingEditJsonRequestsRef.current[Number(requestId)];
       });
       worker.terminate();
       workerRef.current = null;
@@ -769,6 +814,7 @@ export function useJsonFormattingWorker({
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,
+    requestWorkerEditJson,
     resetTabArtifacts,
   };
 }

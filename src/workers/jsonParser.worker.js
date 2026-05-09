@@ -15,6 +15,14 @@ const directValueTreeCache = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
 
+function formatJsonForEdit(text) {
+  return JSON.stringify(JSON.parse(text), null, 2);
+}
+
+function copyJsonAsStringLiteral(text) {
+  return JSON.stringify(JSON.stringify(JSON.parse(text)));
+}
+
 function getResolvedNodes(cached, offset) {
   if (
     !cached
@@ -94,6 +102,36 @@ self.onmessage = (event) => {
     directValueTreeCache.delete(message.tabId);
     rawSearchCache.delete(message.tabId);
     latestFormatRequestByTab.delete(message.tabId);
+    return;
+  }
+
+  if (message.type === 'edit-json') {
+    const { requestId, tabId, operation, text } = message;
+
+    try {
+      const data = operation === 'copy-literal'
+        ? copyJsonAsStringLiteral(text)
+        : formatJsonForEdit(text);
+
+      postMessage({
+        type: 'edit-json-result',
+        requestId,
+        tabId,
+        operation,
+        success: true,
+        data,
+      });
+    } catch (err) {
+      postMessage({
+        type: 'edit-json-result',
+        requestId,
+        tabId,
+        operation,
+        success: false,
+        error: err instanceof Error ? err.message : 'JSON 处理失败',
+      });
+    }
+
     return;
   }
 
