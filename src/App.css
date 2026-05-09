@@ -1492,6 +1492,12 @@ button:disabled {
   font-size: 18px;
 }
 
+.modal-editor-shell {
+  position: relative;
+  height: 400px;
+  min-height: 0;
+}
+
 .modal-actions {
   display: flex;
   flex-wrap: wrap;

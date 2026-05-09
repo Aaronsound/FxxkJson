@@ -8,11 +8,20 @@ export interface LocateRange {
   endOffset: number;
 }
 
+export interface LightweightLocateCache {
+  tokenOffsetsByToken: Map<string, TokenOffsets>;
+}
+
 interface TokenCandidate {
   token: string;
   occurrenceIndex: number;
   distance: number;
   start: number;
+}
+
+interface TokenOffsets {
+  rawOffsets: number[];
+  formattedOffsets: number[];
 }
 
 function createJsonTokenPattern() {
@@ -65,6 +74,74 @@ function getTokenOccurrenceIndex(text: string, token: string, targetStart: numbe
   return occurrenceIndex;
 }
 
+function lowerBound(values: number[], target: number) {
+  let low = 0;
+  let high = values.length;
+
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (values[mid] < target) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return low;
+}
+
+function findTokenOffsets(text: string, token: string) {
+  const pattern = createJsonTokenPattern();
+  const offsets: number[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match[0] === token) {
+      offsets.push(match.index);
+    }
+  }
+
+  return offsets;
+}
+
+function getTokenOffsets(
+  rawText: string,
+  formattedText: string,
+  token: string,
+  cache?: LightweightLocateCache
+) {
+  if (!cache) {
+    return null;
+  }
+
+  const cached = cache.tokenOffsetsByToken.get(token);
+  if (cached) {
+    return cached;
+  }
+
+  const next = {
+    rawOffsets: findTokenOffsets(rawText, token),
+    formattedOffsets: findTokenOffsets(formattedText, token),
+  };
+  cache.tokenOffsetsByToken.set(token, next);
+  return next;
+}
+
+function getCachedTokenOccurrenceIndex(
+  rawText: string,
+  formattedText: string,
+  token: string,
+  targetStart: number,
+  cache?: LightweightLocateCache
+) {
+  const offsets = getTokenOffsets(rawText, formattedText, token, cache);
+  if (!offsets) {
+    return getTokenOccurrenceIndex(formattedText, token, targetStart);
+  }
+
+  return lowerBound(offsets.formattedOffsets, targetStart);
+}
+
 function findTokenOccurrence(text: string, token: string, targetOccurrenceIndex: number) {
   const pattern = createJsonTokenPattern();
   let occurrenceIndex = 0;
@@ -85,11 +162,28 @@ function findTokenOccurrence(text: string, token: string, targetOccurrenceIndex:
   return -1;
 }
 
+function findCachedTokenOccurrence(
+  rawText: string,
+  formattedText: string,
+  token: string,
+  targetOccurrenceIndex: number,
+  cache?: LightweightLocateCache
+) {
+  const offsets = getTokenOffsets(rawText, formattedText, token, cache);
+  if (!offsets) {
+    return findTokenOccurrence(rawText, token, targetOccurrenceIndex);
+  }
+
+  return offsets.rawOffsets[targetOccurrenceIndex] ?? -1;
+}
+
 function getTokenCandidates(
+  rawText: string,
   formattedText: string,
   lineStartOffset: number,
   lineEndOffset: number,
-  offset: number
+  offset: number,
+  cache?: LightweightLocateCache
 ) {
   const lineText = formattedText.slice(lineStartOffset, lineEndOffset);
   const pattern = createJsonTokenPattern();
@@ -103,7 +197,13 @@ function getTokenCandidates(
 
     candidates.push({
       token,
-      occurrenceIndex: getTokenOccurrenceIndex(formattedText, token, start),
+      occurrenceIndex: getCachedTokenOccurrenceIndex(
+        rawText,
+        formattedText,
+        token,
+        start,
+        cache
+      ),
       distance: getDistanceToRange(offset, start, end),
       start,
     });
@@ -131,21 +231,26 @@ export function getLightweightTokenLocateRange(
   rawText: string,
   formattedText: string,
   viewerData: LargeJsonViewerData,
-  offset: number
+  offset: number,
+  cache?: LightweightLocateCache
 ): LocateRange | null {
   const { lineStartOffset, lineEndOffset } = getLineRange(formattedText.length, viewerData, offset);
   const candidates = getTokenCandidates(
+    rawText,
     formattedText,
     lineStartOffset,
     lineEndOffset,
-    Math.max(0, Math.min(offset, formattedText.length))
+    Math.max(0, Math.min(offset, formattedText.length)),
+    cache
   );
 
   for (const candidate of candidates) {
-    const rawStart = findTokenOccurrence(
+    const rawStart = findCachedTokenOccurrence(
       rawText,
+      formattedText,
       candidate.token,
-      candidate.occurrenceIndex
+      candidate.occurrenceIndex,
+      cache
     );
 
     if (rawStart !== -1) {

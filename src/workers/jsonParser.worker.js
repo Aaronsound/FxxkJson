@@ -26,7 +26,9 @@ const nodeEditCache = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
 const latestSearchRequestByKey = new Map();
+const latestLocateRequestByTab = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
+const LOCATE_REQUEST_DEBOUNCE_MS = 16;
 let textDecoder = null;
 let textEncoder = null;
 
@@ -211,6 +213,7 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
           rawText: rawText === nextFormattedText ? undefined : rawText,
           formattedText: nextFormattedText,
           viewerData,
+          tokenLocateCache: { tokenOffsetsByToken: new Map() },
         });
       } else {
         structureCache.delete(tabId);
@@ -349,7 +352,8 @@ function getDirectLocateRange(cached, offset) {
       cached.rawText,
       cached.formattedText,
       cached.viewerData,
-      offset
+      offset,
+      cached.tokenLocateCache
     );
   }
 
@@ -520,6 +524,24 @@ function postSearchResultIfLatest(payload) {
   postMessage(payload);
 }
 
+function isLatestLocateRequest(tabId, requestId) {
+  return latestLocateRequestByTab.get(tabId) === requestId;
+}
+
+function postLocateResultIfLatest(payload) {
+  if (!isLatestLocateRequest(payload.tabId, payload.requestId)) {
+    return;
+  }
+
+  postMessage(payload);
+}
+
+function cancelInteractiveRequests(tabId) {
+  latestLocateRequestByTab.delete(tabId);
+  latestSearchRequestByKey.delete(getSearchRequestKey(tabId, 'left'));
+  latestSearchRequestByKey.delete(getSearchRequestKey(tabId, 'right'));
+}
+
 function postEmptySearchResult(message) {
   postSearchResultIfLatest({
     type: 'search-result',
@@ -657,6 +679,79 @@ async function runSearchRequest(message) {
   }
 }
 
+function runLocateRequest(message) {
+  const { requestId, tabId, offset } = message;
+
+  if (!isLatestLocateRequest(tabId, requestId)) {
+    return;
+  }
+
+  const cached = structureCache.get(tabId);
+  const directRange = getDirectLocateRange(cached, offset);
+
+  if (!isLatestLocateRequest(tabId, requestId)) {
+    return;
+  }
+
+  if (directRange) {
+    postLocateResultIfLatest({
+      type: 'locate-result',
+      requestId,
+      tabId,
+      found: true,
+      startOffset: directRange.startOffset,
+      endOffset: directRange.endOffset,
+    });
+    return;
+  }
+
+  try {
+    if (!ensureStructureTrees(tabId, cached)) {
+      postLocateResultIfLatest({
+        type: 'locate-result',
+        requestId,
+        tabId,
+        found: false,
+      });
+      return;
+    }
+  } catch {
+    structureCache.delete(tabId);
+    postLocateResultIfLatest({
+      type: 'locate-result',
+      requestId,
+      tabId,
+      found: false,
+    });
+    return;
+  }
+
+  if (!isLatestLocateRequest(tabId, requestId)) {
+    return;
+  }
+
+  const resolvedNodes = getResolvedNodes(cached, offset);
+
+  if (!resolvedNodes) {
+    postLocateResultIfLatest({
+      type: 'locate-result',
+      requestId,
+      tabId,
+      found: false,
+    });
+    return;
+  }
+
+  postLocateResultIfLatest({
+    type: 'locate-result',
+    requestId,
+    tabId,
+    found: true,
+    startOffset: resolvedNodes.leftNode.offset,
+    endOffset: resolvedNodes.leftNode.offset + resolvedNodes.leftNode.length,
+  });
+}
+
 self.onmessage = (event) => {
   const message = event.data;
 
@@ -670,8 +765,7 @@ self.onmessage = (event) => {
     nodeEditCache.delete(message.tabId);
     rawSearchCache.delete(message.tabId);
     latestFormatRequestByTab.delete(message.tabId);
-    latestSearchRequestByKey.delete(getSearchRequestKey(message.tabId, 'left'));
-    latestSearchRequestByKey.delete(getSearchRequestKey(message.tabId, 'right'));
+    cancelInteractiveRequests(message.tabId);
     return;
   }
 
@@ -751,6 +845,7 @@ self.onmessage = (event) => {
     } = message;
     const text = readMessageText(message);
     latestFormatRequestByTab.set(tabId, requestId);
+    cancelInteractiveRequests(tabId);
     clearDirectValueWarmup(tabId);
     clearDeferredStructureWarmup(tabId);
     const cachedEditJson = editJsonCache.get(tabId);
@@ -801,6 +896,7 @@ self.onmessage = (event) => {
                 rawText: text === formatted ? undefined : text,
                 formattedText: formatted,
                 viewerData,
+                tokenLocateCache: { tokenOffsetsByToken: new Map() },
               });
               postMessage({
                 type: 'structure-ready',
@@ -930,64 +1026,10 @@ self.onmessage = (event) => {
   }
 
   if (message.type === 'locate') {
-    const { requestId, tabId, offset } = message;
-    const cached = structureCache.get(tabId);
-    const directRange = getDirectLocateRange(cached, offset);
-
-    if (directRange) {
-      postMessage({
-        type: 'locate-result',
-        requestId,
-        tabId,
-        found: true,
-        startOffset: directRange.startOffset,
-        endOffset: directRange.endOffset,
-      });
-      return;
-    }
-
-    try {
-      if (!ensureStructureTrees(tabId, cached)) {
-        postMessage({
-          type: 'locate-result',
-          requestId,
-          tabId,
-          found: false,
-        });
-        return;
-      }
-    } catch {
-      structureCache.delete(tabId);
-      postMessage({
-        type: 'locate-result',
-        requestId,
-        tabId,
-        found: false,
-      });
-      return;
-    }
-
-    const resolvedNodes = getResolvedNodes(cached, offset);
-
-    if (!resolvedNodes) {
-      postMessage({
-        type: 'locate-result',
-        requestId,
-        tabId,
-        found: false,
-      });
-      return;
-    }
-
-    postMessage({
-      type: 'locate-result',
-      requestId,
-      tabId,
-      found: true,
-      startOffset: resolvedNodes.leftNode.offset,
-      endOffset: resolvedNodes.leftNode.offset + resolvedNodes.leftNode.length,
-    });
-
+    latestLocateRequestByTab.set(message.tabId, message.requestId);
+    setTimeout(() => {
+      runLocateRequest(message);
+    }, LOCATE_REQUEST_DEBOUNCE_MS);
     return;
   }
 

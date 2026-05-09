@@ -445,6 +445,9 @@ export function useJsonFormattingWorker({
   const queueFormat = (tabId: string, text: string, immediate = false) => {
     clearPendingFormat(tabId);
     callbacksRef.current.setTabError(tabId, null);
+    delete latestLocateRequestRef.current[tabId];
+    delete latestSearchRequestRef.current[`left:${tabId}`];
+    delete latestSearchRequestRef.current[`right:${tabId}`];
 
     if (!text.trim()) {
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
@@ -895,6 +898,7 @@ export function useJsonFormattingWorker({
           return;
         }
 
+        const performanceSession = performanceSessionsRef.current[tabId];
         callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
           if (session.requestId !== requestId) {
             return;
@@ -911,7 +915,8 @@ export function useJsonFormattingWorker({
         const formattedText = formattedTextByTabRef.current[tabId] ?? '';
         const shouldWaitForViewer = getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD
           || getUtf8ByteLength(formattedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
-        if (!shouldWaitForViewer) {
+        const viewerReady = !shouldWaitForViewer || Boolean(performanceSession?.viewerReadyAt);
+        if (viewerReady) {
           callbacksRef.current.setProcessingStage(tabId, 'idle');
         }
         return;

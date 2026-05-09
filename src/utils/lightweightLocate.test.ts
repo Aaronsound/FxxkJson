@@ -46,6 +46,45 @@ describe('lightweightLocate', () => {
     expect(range!.startOffset).toBe(secondRawIdOffset);
   });
 
+  it('reuses cached token offsets for repeated lightweight locates', () => {
+    const rawText = '{"items":[{"request":1},{"request":2},{"request":3}]}';
+    const formattedText = JSON.stringify(JSON.parse(rawText), null, 2);
+    const secondRequestOffset = formattedText.indexOf('"request"', formattedText.indexOf('"request"') + 1);
+    const thirdRequestOffset = formattedText.indexOf('"request"', secondRequestOffset + 1);
+    const secondRawRequestOffset = rawText.indexOf('"request"', rawText.indexOf('"request"') + 1);
+    const thirdRawRequestOffset = rawText.indexOf('"request"', secondRawRequestOffset + 1);
+    const cache = { tokenOffsetsByToken: new Map() };
+
+    const secondRange = getLightweightTokenLocateRange(
+      rawText,
+      formattedText,
+      buildData(formattedText),
+      secondRequestOffset,
+      cache
+    );
+    const thirdRange = getLightweightTokenLocateRange(
+      rawText,
+      formattedText,
+      buildData(formattedText),
+      thirdRequestOffset,
+      cache
+    );
+    const cacheSizeAfterThirdLocate = cache.tokenOffsetsByToken.size;
+    const repeatedThirdRange = getLightweightTokenLocateRange(
+      rawText,
+      formattedText,
+      buildData(formattedText),
+      thirdRequestOffset,
+      cache
+    );
+
+    expect(secondRange?.startOffset).toBe(secondRawRequestOffset);
+    expect(thirdRange?.startOffset).toBe(thirdRawRequestOffset);
+    expect(repeatedThirdRange?.startOffset).toBe(thirdRawRequestOffset);
+    expect(cache.tokenOffsetsByToken.has('"request"')).toBe(true);
+    expect(cache.tokenOffsetsByToken.size).toBe(cacheSizeAfterThirdLocate);
+  });
+
   it('keeps identity direct locate on the active formatted line', () => {
     const text = ['{', '  "name": "alpha"', '}'].join('\n');
     const range = getIdentityLocateRange(
