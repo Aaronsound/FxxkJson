@@ -65,6 +65,41 @@ describe('preserveJsonFormat', () => {
     ].join('\n'));
   });
 
+  it('reuses a cached original value for multiline document saves', () => {
+    const original = [
+      '{',
+      '    "name": "alpha",',
+      '    "nested": {',
+      '        "ok": true',
+      '    }',
+      '}',
+    ].join('\n');
+    const originalValue = {
+      name: 'alpha',
+      nested: {
+        ok: true,
+      },
+    };
+    const edited = JSON.stringify({
+      name: 'beta',
+      nested: {
+        ok: true,
+      },
+    }, null, 2);
+    const parseSpy = vi.spyOn(JSON, 'parse');
+
+    expect(saveJsonPreservingOriginalFormat(original, edited, { originalValue })).toBe([
+      '{',
+      '    "name": "beta",',
+      '    "nested": {',
+      '        "ok": true',
+      '    }',
+      '}',
+    ].join('\n'));
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+    expect(parseSpy).toHaveBeenCalledWith(edited);
+  });
+
   it('falls back to compact serialization for structural edits in compact JSON', () => {
     const original = '{"name":"alpha"}';
     const edited = JSON.stringify({

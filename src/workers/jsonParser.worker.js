@@ -4,7 +4,7 @@ import {
   buildLargeViewerData,
   findSearchMatchesBatchInLargeJson,
 } from '../utils/largeJsonViewerData';
-import { formatJsonText } from '../utils/jsonFormat';
+import { formatJsonText, parseJsonForFormatting } from '../utils/jsonFormat';
 import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatch } from '../utils/searchText';
 import {
@@ -17,20 +17,42 @@ const structureCache = new Map();
 const viewerCache = new Map();
 const directValueTreeCache = new Map();
 const directValueWarmupTimers = new Map();
+const editJsonCache = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
 
-function formatJsonForEdit(text) {
-  return formatJsonText(text).formatted;
-}
+function formatJsonForEdit(tabId, text) {
+  const { value, normalizedNestedString } = parseJsonForFormatting(text);
 
-function saveJsonForEdit(text, originalText) {
-  if (typeof originalText === 'string') {
-    return saveJsonPreservingOriginalFormat(originalText, text);
+  if (normalizedNestedString) {
+    editJsonCache.delete(tabId);
+  } else {
+    editJsonCache.set(tabId, {
+      originalText: text,
+      originalValue: value,
+    });
   }
 
-  return formatJsonForEdit(text);
+  return JSON.stringify(value, null, 2);
+}
+
+function saveJsonForEdit(tabId, text, originalText) {
+  if (typeof originalText === 'string') {
+    const cached = editJsonCache.get(tabId);
+    const saved = saveJsonPreservingOriginalFormat(
+      originalText,
+      text,
+      cached?.originalText === originalText
+        ? { originalValue: cached.originalValue }
+        : undefined
+    );
+
+    editJsonCache.delete(tabId);
+    return saved;
+  }
+
+  return formatJsonForEdit(tabId, text);
 }
 
 function copyJsonAsStringLiteral(text) {
@@ -240,6 +262,7 @@ self.onmessage = (event) => {
     structureCache.delete(message.tabId);
     viewerCache.delete(message.tabId);
     directValueTreeCache.delete(message.tabId);
+    editJsonCache.delete(message.tabId);
     rawSearchCache.delete(message.tabId);
     latestFormatRequestByTab.delete(message.tabId);
     return;
@@ -255,10 +278,10 @@ self.onmessage = (event) => {
         }
 
         if (operation === 'save') {
-          return saveJsonForEdit(text, originalText);
+          return saveJsonForEdit(tabId, text, originalText);
         }
 
-        return formatJsonForEdit(text);
+        return formatJsonForEdit(tabId, text);
       })();
 
       postMessage({
@@ -295,6 +318,10 @@ self.onmessage = (event) => {
     } = message;
     latestFormatRequestByTab.set(tabId, requestId);
     clearDirectValueWarmup(tabId);
+    const cachedEditJson = editJsonCache.get(tabId);
+    if (cachedEditJson?.originalText !== text) {
+      editJsonCache.delete(tabId);
+    }
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
     try {

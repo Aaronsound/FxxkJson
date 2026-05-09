@@ -1,12 +1,16 @@
 import { applyEdits, modify } from 'jsonc-parser';
 import type { FormattingOptions, JSONPath } from 'jsonc-parser';
 
-type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 interface JsonDiff {
   path: JSONPath;
   value: JsonValue | undefined;
   structural: boolean;
+}
+
+interface SaveJsonPreserveOptions {
+  originalValue?: JsonValue;
 }
 
 const MAX_PRESERVED_EDITS = 200;
@@ -110,7 +114,8 @@ function collectDiffs(
 
 export function saveJsonPreservingOriginalFormat(
   originalText: string,
-  editedText: string
+  editedText: string,
+  options: SaveJsonPreserveOptions = {}
 ) {
   const editedValue = JSON.parse(editedText) as JsonValue;
   const style = getOriginalStyle(originalText);
@@ -121,10 +126,14 @@ export function saveJsonPreservingOriginalFormat(
 
   let originalValue: JsonValue;
 
-  try {
-    originalValue = JSON.parse(originalText) as JsonValue;
-  } catch {
-    return serializeWithOriginalStyle(originalText, editedValue);
+  if (options.originalValue !== undefined) {
+    originalValue = options.originalValue;
+  } else {
+    try {
+      originalValue = JSON.parse(originalText) as JsonValue;
+    } catch {
+      return serializeWithOriginalStyle(originalText, editedValue);
+    }
   }
 
   const diffs: JsonDiff[] = [];
