@@ -10,6 +10,7 @@ import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
 import PaneFindWidget, { type PaneFindResultItem } from './components/PaneFindWidget';
+import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
@@ -54,13 +55,6 @@ import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
 const SEARCH_RESULT_PREVIEW_LIMIT = 120;
-
-type EditJsonSession = {
-  key: number;
-  initialValue: string;
-  mode: 'document' | 'node';
-  path?: JsonEditPath;
-};
 
 function getProcessingStageText(stage: ProcessingStage, fileName: string | null) {
   switch (stage) {
@@ -162,10 +156,6 @@ const App: React.FC = () => {
 
     return window.localStorage.getItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY) !== 'false';
   });
-  const [editJsonSession, setEditJsonSession] = useState<EditJsonSession | null>(null);
-  const [editJsonError, setEditJsonError] = useState<string | null>(null);
-  const [editJsonBusyLabel, setEditJsonBusyLabel] = useState<string | null>(null);
-  const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
   const [isDragImportActive, setIsDragImportActive] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
   const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
@@ -217,8 +207,6 @@ const App: React.FC = () => {
   const leftDecorationIdsRef = useRef<string[]>([]);
   const rightDecorationIdsRef = useRef<string[]>([]);
   const highlightTimeoutRef = useRef<number | null>(null);
-  const editJsonValueRef = useRef('');
-  const copyLiteralTimeoutRef = useRef<number | null>(null);
   const leftViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
   const rightViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
   const previousActiveTabIdRef = useRef(INITIAL_TAB_ID);
@@ -236,6 +224,19 @@ const App: React.FC = () => {
     activeTabIdRef,
     initialTabId: INITIAL_TAB_ID,
   });
+  const {
+    closeEditJson,
+    editJsonBusyLabel,
+    editJsonError,
+    editJsonSession,
+    editJsonValueRef,
+    hasCopiedLiteral,
+    openDocumentEditSession,
+    openNodeEditSession,
+    setEditJsonBusyLabel,
+    setEditJsonError,
+    showCopyLiteralNotice,
+  } = useJsonEditSession();
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
   const activeDocumentMeta = activeTab
@@ -390,14 +391,6 @@ const App: React.FC = () => {
       rightEditorRef.current.deltaDecorations(rightDecorationIdsRef.current, []);
       rightDecorationIdsRef.current = [];
     }
-  };
-
-  const clearCopyLiteralNotice = () => {
-    if (copyLiteralTimeoutRef.current !== null) {
-      window.clearTimeout(copyLiteralTimeoutRef.current);
-      copyLiteralTimeoutRef.current = null;
-    }
-    setHasCopiedLiteral(false);
   };
 
   const copyValueAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
@@ -918,14 +911,6 @@ const App: React.FC = () => {
     shouldUseDedicatedRightViewer,
     wrapLongLines,
   ]);
-
-  useEffect(() => (
-    () => {
-      if (copyLiteralTimeoutRef.current !== null) {
-        window.clearTimeout(copyLiteralTimeoutRef.current);
-      }
-    }
-  ), []);
 
   useEffect(() => {
     resetSearchState();
@@ -1499,14 +1484,7 @@ const App: React.FC = () => {
     try {
       const raw = getTabContent(activeTab.id);
       const formatted = await requestWorkerEditJson(activeTab.id, 'format', raw);
-      editJsonValueRef.current = formatted;
-      setEditJsonError(null);
-      clearCopyLiteralNotice();
-      setEditJsonSession({
-        key: Date.now(),
-        initialValue: formatted,
-        mode: 'document',
-      });
+      openDocumentEditSession(formatted);
     } catch (error) {
       setTabError(
         activeTab.id,
@@ -1545,15 +1523,7 @@ const App: React.FC = () => {
         throw new Error('当前节点无法编辑');
       }
 
-      editJsonValueRef.current = parsed.value;
-      setEditJsonError(null);
-      clearCopyLiteralNotice();
-      setEditJsonSession({
-        key: Date.now(),
-        initialValue: parsed.value,
-        mode: 'node',
-        path: parsed.path,
-      });
+      openNodeEditSession(parsed.value, parsed.path);
     } catch (error) {
       setTabError(
         tabId,
@@ -1562,13 +1532,6 @@ const App: React.FC = () => {
     } finally {
       setEditJsonBusyLabel(null);
     }
-  };
-
-  const closeEditJson = () => {
-    setEditJsonSession(null);
-    setEditJsonError(null);
-    setEditJsonBusyLabel(null);
-    clearCopyLiteralNotice();
   };
 
   const handleSaveEditJson = async () => {
@@ -1668,14 +1631,7 @@ const App: React.FC = () => {
       const literal = await requestWorkerEditJson(activeTab.id, 'copy-literal', editJsonValueRef.current);
       await navigator.clipboard.writeText(literal);
       setEditJsonError(null);
-      setHasCopiedLiteral(true);
-      if (copyLiteralTimeoutRef.current !== null) {
-        window.clearTimeout(copyLiteralTimeoutRef.current);
-      }
-      copyLiteralTimeoutRef.current = window.setTimeout(() => {
-        setHasCopiedLiteral(false);
-        copyLiteralTimeoutRef.current = null;
-      }, 2000);
+      showCopyLiteralNotice();
     } catch (error) {
       setEditJsonError(
         error instanceof Error ? `复制字符串字面量失败：${error.message}` : '复制字符串字面量失败'
