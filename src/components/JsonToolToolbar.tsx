@@ -48,7 +48,7 @@ function getToolbarHintMessage({
   }
 
   if (!isLargeFileMode) {
-    return '已预设大文件定位：下次导入 5MB-20MB 的 JSON 时，会按当前选择决定是否建立右侧定位索引。';
+    return '已预设大文件定位：下次导入 5MB-21MB 的 JSON 时，会按当前选择决定是否建立右侧定位索引。';
   }
 
   if (!canEnableLargeFileLocate) {
@@ -149,6 +149,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 <input
                   type="checkbox"
                   checked={isLargeFileLocateEnabled}
+                  disabled={isLargeFileMode && !canEnableLargeFileLocate}
                   onChange={(event) => onLargeFileLocateToggle(event.target.checked)}
                 />
                 大文件启用右侧定位

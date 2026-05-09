@@ -51,12 +51,14 @@ describe('jsonToolModels', () => {
   it('only builds worker structure for supported document sizes', () => {
     const small = '{"ok":true}';
     const large = 'a'.repeat(LARGE_FILE_THRESHOLD);
+    const nominalTwentyMbFixture = 'a'.repeat((20 * 1024 * 1024) + 191);
     const tooLarge = 'a'.repeat(STRUCTURE_SYNC_THRESHOLD + 1);
 
     expect(shouldBuildWorkerStructure('', false)).toBe(false);
     expect(shouldBuildWorkerStructure(small, false)).toBe(true);
     expect(shouldBuildWorkerStructure(large, false)).toBe(false);
     expect(shouldBuildWorkerStructure(large, true)).toBe(true);
+    expect(shouldBuildWorkerStructure(nominalTwentyMbFixture, true)).toBe(true);
     expect(shouldBuildWorkerStructure(tooLarge, true)).toBe(false);
   });
 });

@@ -105,7 +105,9 @@ export interface PerformanceSnapshot {
 export const DEFAULT_TAB_TITLE = 'newTab';
 export const INITIAL_TAB_ID = 'tab-1';
 export const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024;
-export const STRUCTURE_SYNC_THRESHOLD = 20 * 1024 * 1024;
+// Keep nominal 20 MB imports inside the supported locate range when file
+// sizes are reported with binary rounding.
+export const STRUCTURE_SYNC_THRESHOLD = 21 * 1024 * 1024;
 export const DEDICATED_RIGHT_VIEWER_THRESHOLD = LARGE_FILE_THRESHOLD;
 export const DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD = 0;
 export const SEARCH_HIGHLIGHT_DURATION = 1500;

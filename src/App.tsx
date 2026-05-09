@@ -203,7 +203,7 @@ const App: React.FC = () => {
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
     : false;
   const canEnableLargeFileLocate = activeTab
-    ? activeDocumentMeta.rawLength > 0
+    ? activeDocumentMeta.rawLength > 0 && activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
     : false;
   const canEditJson = Boolean(activeRawText.trim());
   const canUseRightPaneFolding = activeTab
