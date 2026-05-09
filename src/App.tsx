@@ -262,7 +262,10 @@ const App: React.FC = () => {
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
     : false;
   const canEnableLargeFileLocate = activeTab
-    ? activeDocumentMeta.rawLength > 0 && activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
+    ? activeDocumentMeta.rawLength > 0
+    : false;
+  const usesLightweightLocate = activeTab
+    ? activeDocumentMeta.rawLength > STRUCTURE_SYNC_THRESHOLD
     : false;
   const canEditJson = Boolean(activeRawText.trim());
   const canUseRightPaneFolding = activeTab
@@ -327,11 +330,11 @@ const App: React.FC = () => {
     }
 
     if (currentStructureStatus === 'building') {
-      return '定位索引中';
+      return usesLightweightLocate ? '轻量定位准备中' : '定位索引中';
     }
 
     if (currentStructureStatus === 'ready') {
-      return '定位已启用';
+      return usesLightweightLocate ? '轻量定位已启用' : '定位已启用';
     }
 
     return '定位已关闭';
@@ -1943,6 +1946,7 @@ const App: React.FC = () => {
         onShowPerformancePanelChange={setShowPerformancePanel}
         importingFileName={importingFileName}
         canEnableLargeFileLocate={canEnableLargeFileLocate}
+        usesLightweightLocate={usesLightweightLocate}
         currentStructureStatus={currentStructureStatus}
         processingStageText={processingStageText}
         currentError={currentError}

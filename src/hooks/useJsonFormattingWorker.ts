@@ -630,10 +630,10 @@ export function useJsonFormattingWorker({
         error: error instanceof Error ? error.message : String(error),
       });
       callbacksRef.current.setTabImporting(tabId, null);
-        callbacksRef.current.setTabFormatting(tabId, false);
-        callbacksRef.current.setProcessingStage(tabId, 'idle');
-        callbacksRef.current.setLocateFeedback(tabId, null);
-        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+      callbacksRef.current.setTabFormatting(tabId, false);
+      callbacksRef.current.setProcessingStage(tabId, 'idle');
+      callbacksRef.current.setLocateFeedback(tabId, null);
+      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setTabError(
         tabId,

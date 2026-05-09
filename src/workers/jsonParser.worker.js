@@ -1,13 +1,16 @@
 /* eslint-disable no-restricted-globals */
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 import {
-  binarySearchLineStarts,
   buildLargeViewerData,
   findSearchMatchesBatchInLargeJson,
 } from '../utils/largeJsonViewerData';
 import { formatJsonText } from '../utils/jsonFormat';
 import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatch } from '../utils/searchText';
+import {
+  getIdentityLocateRange,
+  getLightweightTokenLocateRange,
+} from '../utils/lightweightLocate';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -105,18 +108,24 @@ function getDirectLocateRange(cached, offset) {
     return null;
   }
 
-  const lineStarts = cached.viewerData.lineStarts;
-  const lineIndex = binarySearchLineStarts(lineStarts, offset);
-  const lineStartOffset = lineStarts[lineIndex] ?? 0;
-  const nextLineStart = lineStarts[lineIndex + 1];
-  const lineEndOffset = typeof nextLineStart === 'number'
-    ? Math.max(lineStartOffset + 1, nextLineStart - 1)
-    : Math.max(lineStartOffset + 1, offset + 1);
+  if (
+    cached.directLocateMode === 'token-search'
+    && typeof cached.rawText === 'string'
+    && typeof cached.formattedText === 'string'
+  ) {
+    return getLightweightTokenLocateRange(
+      cached.rawText,
+      cached.formattedText,
+      cached.viewerData,
+      offset
+    );
+  }
 
-  return {
-    startOffset: lineStartOffset,
-    endOffset: lineEndOffset,
-  };
+  return getIdentityLocateRange(
+    typeof cached.formattedText === 'string' ? cached.formattedText.length : offset + 1,
+    cached.viewerData,
+    offset
+  );
 }
 
 function ensureStructureTrees(tabId, cached) {
@@ -300,11 +309,14 @@ self.onmessage = (event) => {
             viewerCache.delete(tabId);
           }
 
-          if (!enableStructure && enableDirectLocate) {
-            if (viewerData && text === formatted) {
+          if (!enableStructure && enableDirectLocate && !normalizedNestedString) {
+            if (viewerData) {
               structureCache.set(tabId, {
                 requestId,
                 directLocate: true,
+                directLocateMode: text === formatted ? 'identity' : 'token-search',
+                rawText: text === formatted ? undefined : text,
+                formattedText: formatted,
                 viewerData,
               });
               postMessage({

@@ -22,6 +22,7 @@ interface JsonToolToolbarProps {
   onShowPerformancePanelChange: (checked: boolean) => void;
   importingFileName: string | null;
   canEnableLargeFileLocate: boolean;
+  usesLightweightLocate: boolean;
   currentStructureStatus: StructureStatus;
   processingStageText: string | null;
   currentError: string | null;
@@ -32,6 +33,7 @@ function getToolbarHintMessage({
   isLargeFileMode,
   isLargeFileLocateEnabled,
   canEnableLargeFileLocate,
+  usesLightweightLocate,
   currentStructureStatus,
 }: Pick<
   JsonToolToolbarProps,
@@ -39,6 +41,7 @@ function getToolbarHintMessage({
   | 'isLargeFileMode'
   | 'isLargeFileLocateEnabled'
   | 'canEnableLargeFileLocate'
+  | 'usesLightweightLocate'
   | 'currentStructureStatus'
 >) {
   if (importingFileName) {
@@ -50,11 +53,27 @@ function getToolbarHintMessage({
   }
 
   if (!isLargeFileMode) {
-    return '已预设大文件定位：下次导入 5MB-21MB 的 JSON 时，会按当前选择决定是否建立右侧定位索引。';
+    return '已预设大文件定位：下次导入 5MB 以上 JSON 时，会按当前选择启用结构定位或轻量定位。';
   }
 
   if (!canEnableLargeFileLocate) {
-    return '大文件轻量模式已开启：当前文件过大，已关闭结构联动，仅保留轻量浏览与格式化。';
+    return '大文件轻量模式已开启：当前没有可定位的原始内容。';
+  }
+
+  if (usesLightweightLocate) {
+    if (!isLargeFileLocateEnabled) {
+      return '超大文件轻量模式已开启：当前未启用右侧定位，可勾选后使用轻量文本定位。';
+    }
+
+    if (currentStructureStatus === 'building') {
+      return '超大文件轻量模式已开启：正在准备轻量定位，完成后可从右侧点击定位到左侧。';
+    }
+
+    if (currentStructureStatus === 'ready') {
+      return '超大文件轻量模式已开启：已使用文本 token 映射右侧点击位置，重复内容可能定位到近似位置。';
+    }
+
+    return '超大文件轻量模式已开启：轻量定位暂不可用，仅保留轻量浏览与格式化。';
   }
 
   if (!isLargeFileLocateEnabled) {
@@ -93,6 +112,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onShowPerformancePanelChange,
   importingFileName,
   canEnableLargeFileLocate,
+  usesLightweightLocate,
   currentStructureStatus,
   processingStageText,
   currentError,
@@ -102,6 +122,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
     isLargeFileMode,
     isLargeFileLocateEnabled,
     canEnableLargeFileLocate,
+    usesLightweightLocate,
     currentStructureStatus,
   });
 
