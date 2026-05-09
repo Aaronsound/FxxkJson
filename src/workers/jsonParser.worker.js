@@ -5,7 +5,7 @@ import {
   findSearchMatchesBatchInLargeJson,
 } from '../utils/largeJsonViewerData';
 import { formatJsonText, parseJsonForFormatting } from '../utils/jsonFormat';
-import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
+import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatch } from '../utils/searchText';
 import {
   getIdentityLocateRange,
@@ -26,6 +26,53 @@ const nodeEditCache = new Map();
 const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
+let textDecoder = null;
+let textEncoder = null;
+
+function getTextDecoder() {
+  if (!textDecoder) {
+    textDecoder = new TextDecoder();
+  }
+
+  return textDecoder;
+}
+
+function getTextEncoder() {
+  if (!textEncoder) {
+    textEncoder = new TextEncoder();
+  }
+
+  return textEncoder;
+}
+
+function readMessageText(message) {
+  if (typeof message.text === 'string') {
+    return message.text;
+  }
+
+  if (message.textBuffer instanceof ArrayBuffer) {
+    return getTextDecoder().decode(new Uint8Array(message.textBuffer));
+  }
+
+  return '';
+}
+
+function postTextResult(payload, text) {
+  if (typeof text === 'string' && text.length >= LARGE_FILE_THRESHOLD) {
+    const bytes = getTextEncoder().encode(text);
+    const buffer = bytes.buffer;
+    postMessage({
+      ...payload,
+      dataBuffer: buffer,
+    }, [buffer]);
+    return;
+  }
+
+  postMessage({
+    ...payload,
+    data: text,
+  });
+}
 
 function formatJsonForEdit(tabId, text) {
   const { value, normalizedNestedString } = parseJsonForFormatting(text);
@@ -536,12 +583,12 @@ self.onmessage = (event) => {
     const {
       requestId,
       tabId,
-      text,
       enableStructure,
       enableDirectLocate,
       deferStructure = false,
       buildViewer,
     } = message;
+    const text = readMessageText(message);
     latestFormatRequestByTab.set(tabId, requestId);
     clearDirectValueWarmup(tabId);
     clearDeferredStructureWarmup(tabId);
@@ -554,13 +601,12 @@ self.onmessage = (event) => {
     directValueTreeCache.delete(tabId);
     try {
       const { formatted, normalizedNestedString } = formatJsonText(text);
-      postMessage({
+      postTextResult({
         type: 'format-result',
         requestId,
         tabId,
         success: true,
-        data: formatted,
-      });
+      }, formatted);
 
       if (buildViewer) {
         setTimeout(() => {

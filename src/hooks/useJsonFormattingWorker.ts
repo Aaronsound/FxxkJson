@@ -4,8 +4,8 @@ import {
   DEDICATED_RIGHT_VIEWER_THRESHOLD,
   EDIT_SAVE_FORMAT_DELAY_MS,
   FORMAT_DEBOUNCE_MS,
-  LARGE_FILE_FORMAT_DEBOUNCE_MS,
   LARGE_FILE_THRESHOLD,
+  LARGE_FILE_FORMAT_DEBOUNCE_MS,
 } from '../types/jsonTool';
 import type {
   EditJsonWorkerOperation,
@@ -133,6 +133,8 @@ export function useJsonFormattingWorker({
   clearLeftHighlights,
   clearRightHighlights,
 }: UseJsonFormattingWorkerArgs) {
+  const textEncoderRef = useRef<TextEncoder | null>(null);
+  const textDecoderRef = useRef<TextDecoder | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const formatTimersRef = useRef<Record<string, number>>({});
   const latestRequestRef = useRef<Record<string, number>>({});
@@ -219,6 +221,50 @@ export function useJsonFormattingWorker({
     });
     callbacksRef.current.setStructureStatus(tabId, status);
     callbacksRef.current.setProcessingStage(tabId, 'idle');
+  };
+
+  const getTextEncoder = () => {
+    if (!textEncoderRef.current) {
+      textEncoderRef.current = new TextEncoder();
+    }
+
+    return textEncoderRef.current;
+  };
+
+  const getTextDecoder = () => {
+    if (!textDecoderRef.current) {
+      textDecoderRef.current = new TextDecoder();
+    }
+
+    return textDecoderRef.current;
+  };
+
+  const createWorkerTextPayload = (text: string, byteLength = getUtf8ByteLength(text)) => {
+    if (byteLength < LARGE_FILE_THRESHOLD) {
+      return {
+        message: { text },
+        transfer: [] as Transferable[],
+      };
+    }
+
+    const bytes = getTextEncoder().encode(text);
+    const buffer = bytes.buffer as ArrayBuffer;
+    return {
+      message: { textBuffer: buffer },
+      transfer: [buffer] as Transferable[],
+    };
+  };
+
+  const readWorkerText = (message: WorkerMessage) => {
+    if (typeof message.data === 'string') {
+      return message.data;
+    }
+
+    if (message.dataBuffer instanceof ArrayBuffer) {
+      return getTextDecoder().decode(new Uint8Array(message.dataBuffer));
+    }
+
+    return null;
   };
 
   const requestWorkerLocate = (tabId: string, offset: number) => {
@@ -494,16 +540,17 @@ export function useJsonFormattingWorker({
         requestId,
         textLength: getUtf8ByteLength(text),
       });
+      const textPayload = createWorkerTextPayload(text, textByteLength);
       workerRef.current?.postMessage({
         type: 'format',
         requestId,
         tabId,
-        text,
         enableStructure: shouldBuildStructureIndex,
         enableDirectLocate: shouldAttemptDirectLocate,
         deferStructure: shouldDeferStructureIndex,
         buildViewer: shouldBuildLargeViewer,
-      });
+        ...textPayload.message,
+      }, textPayload.transfer);
     };
 
     if (immediate) {
@@ -733,7 +780,8 @@ export function useJsonFormattingWorker({
       const { type, requestId, tabId } = event.data;
 
       if (type === 'format-result') {
-        const { success, data, error } = event.data;
+        const { success, error } = event.data;
+        const data = readWorkerText(event.data);
         const performanceSession = performanceSessionsRef.current[tabId];
 
         if (latestRequestRef.current[tabId] !== requestId) {

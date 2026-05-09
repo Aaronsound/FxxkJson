@@ -26,6 +26,7 @@ export interface WorkerMessage {
   ready?: boolean;
   found?: boolean;
   data?: string;
+  dataBuffer?: ArrayBuffer;
   formattedText?: string;
   structureWarming?: boolean;
   value?: string | null;
