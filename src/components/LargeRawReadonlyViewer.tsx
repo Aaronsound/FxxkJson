@@ -10,6 +10,8 @@ import React, {
 const CHUNK_SIZE = 2000;
 const LINE_HEIGHT = 18;
 const OVERSCAN = 20;
+const APPROX_CHAR_WIDTH = 7.25;
+const REVEAL_CONTEXT_CHARS = 24;
 
 interface RawHighlightRange {
   start: number;
@@ -75,11 +77,22 @@ const LargeRawReadonlyViewer = forwardRef<
     },
     revealRange(startOffset) {
       const chunkIndex = clamp(Math.floor(startOffset / CHUNK_SIZE), 0, chunkCount - 1);
+      const chunkStart = chunkIndex * CHUNK_SIZE;
+      const localStart = clamp(startOffset - chunkStart, 0, CHUNK_SIZE);
       const nextScrollTop = Math.max(0, (chunkIndex - 3) * LINE_HEIGHT);
+      const nextScrollLeft = Math.max(0, (localStart - REVEAL_CONTEXT_CHARS) * APPROX_CHAR_WIDTH);
+      const revealHorizontal = () => {
+        if (containerRef.current) {
+          containerRef.current.scrollLeft = nextScrollLeft;
+        }
+      };
+
       if (containerRef.current) {
         containerRef.current.scrollTop = nextScrollTop;
       }
       setScrollTop(nextScrollTop);
+      revealHorizontal();
+      window.requestAnimationFrame(revealHorizontal);
     },
   }), [chunkCount]);
 
@@ -113,11 +126,16 @@ const LargeRawReadonlyViewer = forwardRef<
   for (let chunkIndex = visibleRange.start; chunkIndex <= visibleRange.end; chunkIndex += 1) {
     const chunkStart = chunkIndex * CHUNK_SIZE;
     const chunkEnd = Math.min(text.length, chunkStart + CHUNK_SIZE);
+    const isHighlighted = Boolean(
+      highlightRange
+      && highlightRange.end > chunkStart
+      && highlightRange.start < chunkEnd
+    );
 
     rows.push(
       <div
         key={chunkIndex}
-        className="large-raw-row"
+        className={`large-raw-row ${isHighlighted ? 'highlighted' : ''}`}
         style={{
           top: `${chunkIndex * LINE_HEIGHT}px`,
           height: `${LINE_HEIGHT}px`,

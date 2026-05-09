@@ -305,6 +305,10 @@ button:disabled {
   white-space: pre;
 }
 
+.large-raw-row.highlighted {
+  background: rgba(255, 235, 59, 0.16);
+}
+
 .large-raw-offset {
   position: sticky;
   left: 0;
