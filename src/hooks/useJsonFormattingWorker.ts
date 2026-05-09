@@ -2,6 +2,7 @@ import { MutableRefObject, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import {
   DEDICATED_RIGHT_VIEWER_THRESHOLD,
+  EDIT_SAVE_FORMAT_DELAY_MS,
   FORMAT_DEBOUNCE_MS,
   LARGE_FILE_FORMAT_DEBOUNCE_MS,
   LARGE_FILE_THRESHOLD,
@@ -489,12 +490,24 @@ export function useJsonFormattingWorker({
     );
   };
 
-  const queueFormatAfterImport = (tabId: string, text: string) => {
+  const queueFormatAfterUiUpdate = (tabId: string, text: string, delayMs = 0) => {
     clearPendingFormat(tabId);
     formatTimersRef.current[tabId] = window.setTimeout(() => {
       delete formatTimersRef.current[tabId];
       queueFormat(tabId, text, true);
-    }, 0);
+    }, delayMs);
+  };
+
+  const queueFormatAfterImport = (tabId: string, text: string) => {
+    queueFormatAfterUiUpdate(tabId, text);
+  };
+
+  const queueFormatAfterEditSave = (tabId: string, text: string) => {
+    queueFormatAfterUiUpdate(
+      tabId,
+      text,
+      shouldUseLargeMode(text) ? EDIT_SAVE_FORMAT_DELAY_MS : 0
+    );
   };
 
   const resetTabArtifacts = (tabId: string) => {
@@ -915,6 +928,7 @@ export function useJsonFormattingWorker({
     importJsonFile,
     importJsonText,
     queueFormat,
+    queueFormatAfterEditSave,
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,

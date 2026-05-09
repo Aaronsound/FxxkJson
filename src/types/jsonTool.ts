@@ -123,6 +123,7 @@ export const SEARCH_HIGHLIGHT_DURATION = 4000;
 export const SEARCH_BATCH_SIZE = 2000;
 export const FORMAT_DEBOUNCE_MS = 120;
 export const LARGE_FILE_FORMAT_DEBOUNCE_MS = 1200;
+export const EDIT_SAVE_FORMAT_DELAY_MS = 160;
 
 export const EMPTY_DOCUMENT_META: TabDocumentMeta = {
   rawLength: 0,

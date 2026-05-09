@@ -778,6 +778,7 @@ const App: React.FC = () => {
     importJsonFile,
     importJsonText,
     queueFormat,
+    queueFormatAfterEditSave,
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,
@@ -1488,37 +1489,39 @@ const App: React.FC = () => {
       return;
     }
 
+    const currentTabId = activeTab.id;
+    const currentTabTitle = activeTab.title;
     setEditJsonBusyLabel('正在更新原始 JSON...');
     try {
-      const original = getTabContent(activeTab.id);
+      const original = getTabContent(currentTabId);
       const updated = await requestWorkerEditJson(
-        activeTab.id,
+        currentTabId,
         'save',
         editJsonValueRef.current,
         original
       );
       const largeMode = isLargeDocument(updated);
       beginPerformanceSession(
-        activeTab.id,
+        currentTabId,
         'edit-save',
-        activeTab.title,
+        currentTabTitle,
         null,
         getUtf8ByteLength(updated),
         largeMode
       );
 
-      mutatePerformanceSession(activeTab.id, (session) => {
+      mutatePerformanceSession(currentTabId, (session) => {
         session.leftModelStartedAt = performance.now();
       });
-      updateTabContent(activeTab.id, updated, true);
-      mutatePerformanceSession(activeTab.id, (session) => {
+      updateTabContent(currentTabId, updated, true);
+      mutatePerformanceSession(currentTabId, (session) => {
         session.leftModelCompletedAt = performance.now();
       });
-      setTabLargeMode(activeTab.id, largeMode);
+      setTabLargeMode(currentTabId, largeMode);
       setEditJsonError(null);
       closeEditJson();
       resetSearchState();
-      queueFormat(activeTab.id, updated, true);
+      queueFormatAfterEditSave(currentTabId, updated);
     } catch (error) {
       setEditJsonError(
         error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败'
