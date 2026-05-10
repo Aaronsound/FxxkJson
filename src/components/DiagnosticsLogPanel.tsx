@@ -1,10 +1,31 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 const LOG_PREVIEW_BYTES = 160 * 1024;
+const ERROR_LINE_PATTERN = /("event"\s*:\s*"[^"]*(failed|error|gone|exception|rejection)|\b(failed|error|exception|rejection)\b|失败|异常)/i;
 
 interface DiagnosticsLogPanelProps {
   isDarkMode: boolean;
   onClose: () => void;
+}
+
+function getErrorLines(content: string) {
+  return content
+    .split('\n')
+    .filter((line) => ERROR_LINE_PATTERN.test(line))
+    .join('\n');
+}
+
+function buildIssueSummary(snapshot: RuntimeLogSnapshot | null, content: string) {
+  const path = snapshot?.path ?? 'runtime.log';
+  const truncated = snapshot?.truncated ? 'yes' : 'no';
+
+  return [
+    `HanJson diagnostics summary`,
+    `logPath=${path}`,
+    `truncated=${truncated}`,
+    '',
+    content || '(no matching log lines)',
+  ].join('\n');
 }
 
 const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
@@ -15,6 +36,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
+  const [showErrorsOnly, setShowErrorsOnly] = useState(false);
 
   const loadLog = useCallback(async () => {
     if (!window.electronAPI?.readRecentLog) {
@@ -56,14 +78,29 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
     };
   }, [onClose]);
 
-  const copyLog = async () => {
-    const content = snapshot?.content ?? '';
+  const copyLog = async (content: string, notice: string) => {
     if (!content) {
       return;
     }
 
     await navigator.clipboard.writeText(content);
-    setCopyNotice('已复制日志');
+    setCopyNotice(notice);
+  };
+
+  const clearLog = async () => {
+    if (!window.electronAPI?.clearLog) {
+      setError('当前环境没有可用的桌面日志接口');
+      return;
+    }
+
+    try {
+      const path = await window.electronAPI.clearLog();
+      setSnapshot({ path, content: '', truncated: false });
+      setCopyNotice('日志已清空');
+      setError(null);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    }
   };
 
   const showLogFile = async () => {
@@ -80,9 +117,15 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
   };
 
   const logContent = snapshot?.content ?? '';
+  const errorLogContent = getErrorLines(logContent);
+  const displayContent = showErrorsOnly ? errorLogContent : logContent;
   const previewText = isLoading
     ? '正在读取日志...'
-    : logContent || '暂无日志';
+    : displayContent || (showErrorsOnly ? '没有匹配到错误日志' : '暂无日志');
+  const metaText = [
+    snapshot?.truncated ? '显示最近日志片段' : '显示完整日志',
+    showErrorsOnly ? `错误行 ${errorLogContent ? errorLogContent.split('\n').length : 0}` : null,
+  ].filter(Boolean).join(' · ');
 
   return (
     <div className="modal-overlay">
@@ -92,8 +135,16 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
           <span className="diagnostics-log-path">{snapshot?.path ?? 'runtime.log'}</span>
         </div>
 
-        <div className="diagnostics-log-meta">
-          {snapshot?.truncated ? '显示最近日志片段' : '显示完整日志'}
+        <div className="diagnostics-log-meta diagnostics-log-meta-row">
+          <span>{metaText}</span>
+          <label className="toolbar-checkbox diagnostics-log-filter">
+            <input
+              type="checkbox"
+              checked={showErrorsOnly}
+              onChange={(event) => setShowErrorsOnly(event.target.checked)}
+            />
+            只看错误
+          </label>
         </div>
 
         <textarea
@@ -105,7 +156,19 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
 
         <div className="modal-actions">
           <button onClick={loadLog} disabled={isLoading}>刷新</button>
-          <button onClick={copyLog} disabled={!logContent}>复制</button>
+          <button
+            onClick={() => copyLog(displayContent, '已复制当前内容')}
+            disabled={!displayContent}
+          >
+            复制当前内容
+          </button>
+          <button
+            onClick={() => copyLog(buildIssueSummary(snapshot, displayContent), '已复制问题摘要')}
+            disabled={!logContent}
+          >
+            复制问题摘要
+          </button>
+          <button onClick={clearLog} disabled={isLoading}>清空日志</button>
           <button onClick={showLogFile}>定位文件</button>
           <button onClick={onClose}>关闭</button>
           {copyNotice && <span className="modal-copy-hint">{copyNotice}</span>}

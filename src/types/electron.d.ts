@@ -18,6 +18,7 @@ declare global {
     electronAPI?: {
       appendLog: (payload: string) => Promise<string>;
       readRecentLog: (maxBytes?: number) => Promise<RuntimeLogSnapshot>;
+      clearLog: () => Promise<string>;
       showLogFile: () => Promise<string>;
       openJsonFile: () => Promise<NativeJsonFile | null>;
     };

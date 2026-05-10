@@ -1,10 +1,10 @@
 /* eslint-disable no-restricted-globals */
+/** @typedef {import('../types/jsonTool').WorkerRequestMessage} WorkerRequestMessage */
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 import {
   buildLargeViewerData,
 } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
-import { buildJsonTableData } from '../utils/jsonTableData';
 import { formatJsonText, parseJsonForFormatting, repairJsonText } from '../utils/jsonFormat';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
@@ -28,7 +28,6 @@ const rawSearchCache = new Map();
 const latestFormatRequestByTab = new Map();
 const latestSearchRequestByKey = new Map();
 const latestLocateRequestByTab = new Map();
-const latestTableRequestByTab = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
 const LOCATE_REQUEST_DEBOUNCE_MS = 16;
 let textDecoder = null;
@@ -931,6 +930,7 @@ function buildFormatArtifacts({
 }
 
 self.onmessage = (event) => {
+  /** @type {WorkerRequestMessage} */
   const message = event.data;
 
   if (message.type === 'clear-structure') {
@@ -943,7 +943,6 @@ self.onmessage = (event) => {
     nodeEditCache.delete(message.tabId);
     rawSearchCache.delete(message.tabId);
     latestFormatRequestByTab.delete(message.tabId);
-    latestTableRequestByTab.delete(message.tabId);
     cancelInteractiveRequests(message.tabId);
     return;
   }
@@ -1114,53 +1113,6 @@ self.onmessage = (event) => {
         error: err instanceof Error ? err.message : 'JSON 修复失败',
       });
     }
-
-    return;
-  }
-
-  if (message.type === 'build-table') {
-    const { requestId, tabId } = message;
-    latestTableRequestByTab.set(tabId, requestId);
-
-    setTimeout(() => {
-      if (latestTableRequestByTab.get(tabId) !== requestId) {
-        return;
-      }
-
-      try {
-        const sourceText = readMessageText(message) || getCachedFormattedText(tabId);
-        if (typeof sourceText !== 'string' || !sourceText.trim()) {
-          throw new Error('没有可展示的 JSON');
-        }
-
-        const json = JSON.parse(sourceText);
-        const tableData = buildJsonTableData(json);
-
-        if (latestTableRequestByTab.get(tabId) !== requestId) {
-          return;
-        }
-
-        postMessage({
-          type: 'table-result',
-          requestId,
-          tabId,
-          success: true,
-          tableData,
-        });
-      } catch (err) {
-        if (latestTableRequestByTab.get(tabId) !== requestId) {
-          return;
-        }
-
-        postMessage({
-          type: 'table-result',
-          requestId,
-          tabId,
-          success: false,
-          error: err instanceof Error ? err.message : '表格视图构建失败',
-        });
-      }
-    }, 0);
 
     return;
   }

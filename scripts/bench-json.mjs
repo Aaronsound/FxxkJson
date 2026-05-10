@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { performance } from 'node:perf_hooks';
+import { pathToFileURL } from 'node:url';
 import { parseTree } from 'jsonc-parser';
 
 const DEFAULT_SAMPLE_FILES = [
@@ -229,4 +230,12 @@ async function main() {
   }
 }
 
-main();
+export {
+  benchFile,
+  formatBytes,
+  formatDuration,
+};
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

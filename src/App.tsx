@@ -1,16 +1,14 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import Split from 'react-split';
-import Editor, { OnMount } from '@monaco-editor/react';
+import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonEditModal from './components/JsonEditModal';
-import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
-import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
+import type { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
+import type { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
 import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
+import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
-import JsonTableViewer from './components/JsonTableViewer';
-import PaneFindWidget from './components/PaneFindWidget';
 import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
@@ -24,8 +22,6 @@ import {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeRawViewerData,
-  JsonTableData,
-  JsonTableStatus,
   LocateFeedback,
   ProcessingStage,
   SEARCH_HIGHLIGHT_DURATION,
@@ -54,29 +50,10 @@ import {
   getReplacementText,
 } from './utils/jsonEditorInteractions';
 import { getFirstJsonImportFile } from './utils/importFiles';
+import { getProcessingStageText } from './utils/jsonProcessingStage';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
-
-function getProcessingStageText(stage: ProcessingStage, fileName: string | null) {
-  switch (stage) {
-    case 'reading':
-      return fileName ? `正在读取 ${fileName}` : '正在读取文件';
-    case 'syncing-left':
-      return '正在准备原始视图';
-    case 'formatting':
-      return '正在格式化 JSON';
-    case 'repairing':
-      return '正在修复 JSON';
-    case 'building-viewer':
-      return '正在构建右侧大文件视图';
-    case 'building-index':
-      return '正在建立定位索引';
-    case 'idle':
-    default:
-      return null;
-  }
-}
 
 const App: React.FC = () => {
   const {
@@ -145,18 +122,6 @@ const App: React.FC = () => {
     [INITIAL_TAB_ID]: null,
   });
   const [largeRawViewerDataByTab, setLargeRawViewerDataByTab] = useState<Record<string, LargeRawViewerData | null>>({
-    [INITIAL_TAB_ID]: null,
-  });
-  const [tableViewEnabledByTab, setTableViewEnabledByTab] = useState<Record<string, boolean>>({
-    [INITIAL_TAB_ID]: false,
-  });
-  const [jsonTableDataByTab, setJsonTableDataByTab] = useState<Record<string, JsonTableData | null>>({
-    [INITIAL_TAB_ID]: null,
-  });
-  const [jsonTableStatusByTab, setJsonTableStatusByTab] = useState<Record<string, JsonTableStatus>>({
-    [INITIAL_TAB_ID]: 'idle',
-  });
-  const [jsonTableErrorByTab, setJsonTableErrorByTab] = useState<Record<string, string | null>>({
     [INITIAL_TAB_ID]: null,
   });
   const [largeViewerStatusByTab, setLargeViewerStatusByTab] = useState<Record<string, 'idle' | 'building' | 'ready'>>({
@@ -290,18 +255,6 @@ const App: React.FC = () => {
   const activeLargeRawViewerData = activeTab
     ? largeRawViewerDataByTab[activeTab.id] ?? null
     : null;
-  const activeTableViewEnabled = activeTab
-    ? Boolean(tableViewEnabledByTab[activeTab.id])
-    : false;
-  const activeJsonTableData = activeTab
-    ? jsonTableDataByTab[activeTab.id] ?? null
-    : null;
-  const activeJsonTableStatus = activeTab
-    ? jsonTableStatusByTab[activeTab.id] ?? 'idle'
-    : 'idle';
-  const activeJsonTableError = activeTab
-    ? jsonTableErrorByTab[activeTab.id] ?? null
-    : null;
   const activeLargeViewerStatus = activeTab
     ? largeViewerStatusByTab[activeTab.id] ?? 'idle'
     : 'idle';
@@ -309,7 +262,6 @@ const App: React.FC = () => {
     ? largeViewerCollapsedLinesByTab[activeTab.id] ?? []
     : [];
   const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
-  const shouldShowTableView = Boolean(activeTableViewEnabled && formattedValue);
   const shouldUseDedicatedLeftViewer = Boolean(activeRawText && activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD);
   const isBuildingDedicatedRightViewer = Boolean(
     formattedValue
@@ -318,13 +270,12 @@ const App: React.FC = () => {
   );
   const canControlRightPaneFolding = Boolean(
     formattedValue
-    && !shouldShowTableView
     && !isBuildingDedicatedRightViewer
     && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
   );
   const activeRightMatchCount = shouldUseDedicatedRightViewer
-    ? (shouldShowTableView ? 0 : largeViewerMatchCount)
-    : (shouldShowTableView ? 0 : rightMatches.length);
+    ? largeViewerMatchCount
+    : rightMatches.length;
   const activeLeftMatchCount = leftMatches.length;
   const normalizedLeftMatchIndex = activeLeftMatchCount > 0
     ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
@@ -367,13 +318,6 @@ const App: React.FC = () => {
     activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
     formatDuration(activePerformanceSnapshot?.formatWorkerMs)
       ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
-      : null,
-    shouldShowTableView
-      ? activeJsonTableStatus === 'building'
-        ? '表格构建中'
-        : activeJsonTableStatus === 'failed'
-          ? '表格构建失败'
-          : '表格视图'
       : null,
     rightPaneStatusText,
   ].filter(Boolean).join(' · ');
@@ -496,24 +440,6 @@ const App: React.FC = () => {
 
   const setLargeRawViewerData = (tabId: string, data: LargeRawViewerData | null) => {
     setLargeRawViewerDataByTab((current) => ({ ...current, [tabId]: data }));
-  };
-
-  const setJsonTableResult = (
-    tabId: string,
-    status: JsonTableStatus,
-    data: JsonTableData | null,
-    error: string | null
-  ) => {
-    setJsonTableStatusByTab((current) => ({ ...current, [tabId]: status }));
-    setJsonTableDataByTab((current) => ({ ...current, [tabId]: data }));
-    setJsonTableErrorByTab((current) => ({ ...current, [tabId]: error }));
-  };
-
-  const setTableViewEnabled = (tabId: string, enabled: boolean) => {
-    setTableViewEnabledByTab((current) => ({ ...current, [tabId]: enabled }));
-    if (!enabled) {
-      setJsonTableResult(tabId, 'idle', null, null);
-    }
   };
 
   const setLargeViewerStatus = (tabId: string, status: 'idle' | 'building' | 'ready') => {
@@ -817,7 +743,6 @@ const App: React.FC = () => {
     queueRepair,
     queueFormatAfterEditSave,
     removeTabArtifacts,
-    requestWorkerTable,
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,
@@ -851,7 +776,6 @@ const App: React.FC = () => {
     setStructureStatus,
     setLargeViewerData,
     setLargeRawViewerData,
-    setJsonTableResult,
     setLargeViewerStatus,
     setLargeViewerSearchResults,
     setLeftSearchResults,
@@ -971,29 +895,6 @@ const App: React.FC = () => {
     rightSearchOptions,
     rightSearchTerm,
     shouldUseDedicatedRightViewer,
-  ]);
-
-  useEffect(() => {
-    if (!activeTab) {
-      return;
-    }
-
-    if (!activeTableViewEnabled) {
-      return;
-    }
-
-    if (!formattedValue) {
-      setJsonTableResult(activeTab.id, 'idle', null, null);
-      return;
-    }
-
-    closeRightFind();
-    requestWorkerTable(activeTab.id, formattedValue);
-  }, [
-    activeDocumentMeta.formattedRevision,
-    activeTab,
-    activeTableViewEnabled,
-    formattedValue,
   ]);
 
   useEffect(() => {
@@ -1763,10 +1664,6 @@ const App: React.FC = () => {
     setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
     setLargeViewerDataByTab((current) => ({ ...current, [nextId]: null }));
     setLargeRawViewerDataByTab((current) => ({ ...current, [nextId]: null }));
-    setTableViewEnabledByTab((current) => ({ ...current, [nextId]: false }));
-    setJsonTableDataByTab((current) => ({ ...current, [nextId]: null }));
-    setJsonTableStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
-    setJsonTableErrorByTab((current) => ({ ...current, [nextId]: null }));
     setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
     setProcessingStageByTab((current) => ({ ...current, [nextId]: 'idle' }));
@@ -1797,26 +1694,6 @@ const App: React.FC = () => {
       return next;
     });
     setLargeRawViewerDataByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setTableViewEnabledByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setJsonTableDataByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setJsonTableStatusByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setJsonTableErrorByTab((current) => {
       const next = { ...current };
       delete next[tabId];
       return next;
@@ -1856,10 +1733,6 @@ const App: React.FC = () => {
   };
 
   const openRightFind = () => {
-    if (shouldShowTableView) {
-      return;
-    }
-
     setIsRightFindOpen(true);
   };
 
@@ -2154,9 +2027,6 @@ const App: React.FC = () => {
         canEditJson={canEditJson}
         wrapLongLines={wrapLongLines}
         onWrapLongLinesChange={setWrapLongLines}
-        tableViewEnabled={activeTableViewEnabled}
-        canUseTableView={Boolean(formattedValue)}
-        onTableViewEnabledChange={(checked) => setTableViewEnabled(activeTab.id, checked)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode((current) => !current)}
         isLargeFileLocateEnabled={isLargeFileLocateEnabled}
@@ -2218,192 +2088,75 @@ const App: React.FC = () => {
         />
       )}
 
-      <Split
-        sizes={[50, 50]}
-        minSize={200}
-        gutterSize={6}
-        style={{
-          display: 'flex',
-          flex: 1,
-          minHeight: 0,
+      <JsonEditorPanes
+        activeLargeRawViewerData={activeLargeRawViewerData}
+        activeLargeViewerCollapsedLines={activeLargeViewerCollapsedLines}
+        activeLargeViewerData={activeLargeViewerData}
+        activeLeftMatchCount={activeLeftMatchCount}
+        activeRawText={activeRawText}
+        activeRightMatchCount={activeRightMatchCount}
+        formattedValue={formattedValue}
+        isBuildingDedicatedRightViewer={isBuildingDedicatedRightViewer}
+        isDarkMode={isDarkMode}
+        isFormattingActiveTab={isFormattingActiveTab}
+        isImportingActiveTab={isImportingActiveTab}
+        isLargeFileMode={isLargeFileMode}
+        isLeftFindOpen={isLeftFindOpen}
+        isRightFindOpen={isRightFindOpen}
+        largeRawViewerRef={largeRawViewerRef}
+        largeViewerMatches={largeViewerMatches}
+        largeViewerRef={largeViewerRef}
+        leftPaneMetaText={leftPaneMetaText}
+        leftRawHighlightRange={leftRawHighlightRange}
+        leftReplaceText={leftReplaceText}
+        leftSearchHasMore={leftSearchHasMore}
+        leftSearchOptions={leftSearchOptions}
+        leftSearchTerm={leftSearchTerm}
+        normalizedLeftMatchIndex={normalizedLeftMatchIndex}
+        normalizedRightMatchIndex={normalizedRightMatchIndex}
+        processingStageText={processingStageText}
+        rightMatchIndex={rightMatchIndex}
+        rightPaneMetaText={rightPaneMetaText}
+        rightSearchHasMore={rightSearchHasMore}
+        rightSearchOptions={rightSearchOptions}
+        rightSearchTerm={rightSearchTerm}
+        shouldEnableRightPaneFolding={shouldEnableRightPaneFolding}
+        shouldShowLeftPlaceholder={activeDocumentMeta.rawLength === 0 && !isImportingActiveTab}
+        shouldUseDedicatedLeftViewer={shouldUseDedicatedLeftViewer}
+        shouldUseDedicatedRightViewer={shouldUseDedicatedRightViewer}
+        wrapLongLines={wrapLongLines}
+        isLeftSearchLoadingMore={isLeftSearchLoadingMore}
+        isRightSearchLoadingMore={isRightSearchLoadingMore}
+        onCloseLeftFind={closeLeftFind}
+        onCloseRightFind={closeRightFind}
+        onCopyRightValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
+        onEditRightValue={(offset) => handleOpenEditNodeAtOffset(activeTab.id, offset, true)}
+        onLeftChange={handleLeftChange}
+        onLeftMount={handleLeftMount}
+        onLeftReplace={replaceLeftMatch}
+        onLeftReplaceAll={replaceAllLeftMatches}
+        onLeftReplaceValueChange={setLeftReplaceText}
+        onLeftSearchOptionsChange={handleLeftSearchOptionsChange}
+        onLeftSearchTermChange={handleLeftSearchTermChange}
+        onLoadMoreLeftSearch={loadMoreLeftSearch}
+        onLoadMoreRightSearch={loadMoreRightSearch}
+        onLocateRightOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
+        onOpenRightFind={openRightFind}
+        onPrevLeft={gotoPrevLeft}
+        onPrevRight={gotoPrevRight}
+        onNextLeft={gotoNextLeft}
+        onNextRight={gotoNextRight}
+        onRightCollapsedLinesChange={(lines) => {
+          setLargeViewerCollapsedLinesByTab((current) => ({
+            ...current,
+            [activeTab.id]: lines,
+          }));
         }}
-      >
-        <div
-          className="editor-pane"
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd',
-            overflow: 'hidden',
-            overscrollBehavior: 'contain',
-          }}
-        >
-          <div className={`editor-pane-header editor-pane-header-subtle ${isDarkMode ? 'dark' : ''}`}>
-            <span className="editor-pane-header-text">{leftPaneMetaText}</span>
-          </div>
-          <div className="editor-pane-body">
-            {isLeftFindOpen && !shouldUseDedicatedLeftViewer && (
-              <PaneFindWidget
-                value={leftSearchTerm}
-                currentIndex={activeLeftMatchCount > 0 ? normalizedLeftMatchIndex + 1 : 0}
-                matchCount={activeLeftMatchCount}
-                hasMore={leftSearchHasMore}
-                isLoadingMore={isLeftSearchLoadingMore}
-                isDarkMode={isDarkMode}
-                placeholder="搜索原始 JSON"
-                searchOptions={leftSearchOptions}
-                canReplace
-                replaceValue={leftReplaceText}
-                onChange={handleLeftSearchTermChange}
-                onSearchOptionsChange={handleLeftSearchOptionsChange}
-                onReplaceValueChange={setLeftReplaceText}
-                onReplace={replaceLeftMatch}
-                onReplaceAll={replaceAllLeftMatches}
-                onLoadMore={loadMoreLeftSearch}
-                onPrev={gotoPrevLeft}
-                onNext={gotoNextLeft}
-                onClose={closeLeftFind}
-              />
-            )}
-            {shouldUseDedicatedLeftViewer ? (
-              <LargeRawReadonlyViewer
-                ref={largeRawViewerRef}
-                text={activeRawText}
-                data={activeLargeRawViewerData}
-                isDarkMode={isDarkMode}
-                highlightRange={leftRawHighlightRange}
-              />
-            ) : (
-              <Editor
-                onMount={handleLeftMount}
-                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-                options={getMonacoOptions({
-                  largeMode: isLargeFileMode,
-                  wrapLongLines,
-                })}
-                onChange={handleLeftChange}
-                height="100%"
-                loading={null}
-              />
-            )}
-            {activeDocumentMeta.rawLength === 0 && !isImportingActiveTab && (
-              <div className="editor-center-placeholder">原始 JSON</div>
-            )}
-            {processingStageText && (
-              <div className="editor-loading-overlay">
-                {processingStageText}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div
-          className="editor-pane"
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            overscrollBehavior: 'contain',
-          }}
-        >
-          <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
-            <span className="editor-pane-header-text">{rightPaneMetaText}</span>
-            <div className="editor-pane-header-flags">
-              <span className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}>
-                大文件查看模式
-              </span>
-              <span className={`editor-pane-header-flag ${shouldShowTableView ? 'visible' : ''}`}>
-                表格视图
-              </span>
-              <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
-                轻量模式
-              </span>
-            </div>
-          </div>
-          <div className="editor-pane-body">
-            {isRightFindOpen && !shouldShowTableView && (
-              <PaneFindWidget
-                value={rightSearchTerm}
-                currentIndex={activeRightMatchCount > 0 ? normalizedRightMatchIndex + 1 : 0}
-                matchCount={activeRightMatchCount}
-                hasMore={rightSearchHasMore}
-                isLoadingMore={isRightSearchLoadingMore}
-                isDarkMode={isDarkMode}
-                placeholder="搜索格式化结果"
-                searchOptions={rightSearchOptions}
-                onChange={handleRightSearchTermChange}
-                onSearchOptionsChange={handleRightSearchOptionsChange}
-                onLoadMore={loadMoreRightSearch}
-                onPrev={gotoPrevRight}
-                onNext={gotoNextRight}
-                onClose={closeRightFind}
-              />
-            )}
-            {shouldShowTableView ? (
-              <JsonTableViewer
-                data={activeJsonTableData}
-                status={activeJsonTableStatus}
-                error={activeJsonTableError}
-                isDarkMode={isDarkMode}
-              />
-            ) : shouldUseDedicatedRightViewer ? (
-              <LargeJsonReadonlyViewer
-                ref={largeViewerRef}
-                text={formattedValue}
-                data={activeLargeViewerData!}
-                isDarkMode={isDarkMode}
-                wrapLongLines={wrapLongLines}
-                collapsedLines={activeLargeViewerCollapsedLines}
-                searchTerm={rightSearchTerm}
-                searchOptions={rightSearchOptions}
-                searchMatches={largeViewerMatches}
-                activeMatchIndex={rightMatchIndex}
-                onCollapsedLinesChange={(lines) => {
-                  if (!activeTab) {
-                    return;
-                  }
-
-                  setLargeViewerCollapsedLinesByTab((current) => ({
-                    ...current,
-                    [activeTab.id]: lines,
-                  }));
-                }}
-                onMatchCountChange={setLargeViewerMatchCount}
-                onLocateOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
-                onCopyValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
-                onEditValue={(offset) => handleOpenEditNodeAtOffset(activeTab.id, offset, true)}
-                onOpenFind={openRightFind}
-              />
-            ) : !isBuildingDedicatedRightViewer ? (
-              <Editor
-                onMount={handleRightMount}
-                theme={isDarkMode ? 'vs-dark' : 'vs-light'}
-                options={getMonacoOptions({
-                  largeMode: isLargeFileMode,
-                  wrapLongLines,
-                  readOnly: true,
-                  enableStructuralFolding: shouldEnableRightPaneFolding,
-                })}
-                height="100%"
-                loading={null}
-              />
-            ) : null}
-            {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && !shouldShowTableView && (
-              <div className="editor-center-placeholder">
-                {processingStageText ?? (isFormattingActiveTab ? '正在格式化...' : '格式化结果')}
-              </div>
-            )}
-            {isBuildingDedicatedRightViewer && !isImportingActiveTab && (
-              <div className="editor-loading-overlay">{processingStageText ?? '正在构建大文件查看模式...'}</div>
-            )}
-            {processingStageText && !isBuildingDedicatedRightViewer && (
-              <div className="editor-loading-overlay">{processingStageText}</div>
-            )}
-          </div>
-        </div>
-      </Split>
+        onRightMatchCountChange={setLargeViewerMatchCount}
+        onRightMount={handleRightMount}
+        onRightSearchOptionsChange={handleRightSearchOptionsChange}
+        onRightSearchTermChange={handleRightSearchTermChange}
+      />
     </div>
   );
 };

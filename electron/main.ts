@@ -152,6 +152,12 @@ ipcMain.handle('log:readRecent', async (_event, maxBytes?: number) => (
   readRecentRuntimeLog(maxBytes)
 ));
 
+ipcMain.handle('log:clear', async () => {
+  await fs.mkdir(logDir, { recursive: true });
+  await fs.writeFile(logFilePath, '', 'utf8');
+  return logFilePath;
+});
+
 ipcMain.handle('log:showInFolder', async () => {
   await fs.mkdir(logDir, { recursive: true });
   await fs.appendFile(logFilePath, '', 'utf8');

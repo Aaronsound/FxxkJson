@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "node ./scripts/bench-json.mjs",
+    "perf:regression": "node ./scripts/perf-regression.mjs",
     "samples": "node ./scripts/generate-json-samples.mjs",
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win --x64",

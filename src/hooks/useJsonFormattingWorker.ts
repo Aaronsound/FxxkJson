@@ -11,8 +11,6 @@ import type {
   EditJsonWorkerOperation,
   JsonEditPath,
   JsonSearchOptions,
-  JsonTableData,
-  JsonTableStatus,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -22,6 +20,8 @@ import type {
   SearchTarget,
   StructureStatus,
   WorkerMessage,
+  WorkerRequestMessage,
+  WorkerRequestTextPayload,
 } from '../types/jsonTool';
 import { PerformanceSession } from './useJsonPerformanceTracking';
 import {
@@ -30,9 +30,9 @@ import {
   getLeftModelPath,
   getRightModelPath,
   getUtf8ByteLength,
-  shouldBuildWorkerStructure,
   shouldUseLargeMode,
 } from '../utils/jsonToolModels';
+import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 
 interface JsonImportSource {
   name: string;
@@ -93,12 +93,6 @@ interface UseJsonFormattingWorkerArgs {
     nextStartOffset?: number,
     append?: boolean
   ) => void;
-  setJsonTableResult: (
-    tabId: string,
-    status: JsonTableStatus,
-    data: JsonTableData | null,
-    error: string | null
-  ) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
   updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
   resetSearchState: () => void;
@@ -137,7 +131,6 @@ export function useJsonFormattingWorker({
   setLargeViewerStatus,
   setLargeViewerSearchResults,
   setLeftSearchResults,
-  setJsonTableResult,
   updateTabContent,
   updateFormattedContent,
   resetSearchState,
@@ -155,8 +148,6 @@ export function useJsonFormattingWorker({
   const latestLocateRequestRef = useRef<Record<string, number>>({});
   const searchRequestCounterRef = useRef(0);
   const latestSearchRequestRef = useRef<Record<string, number>>({});
-  const tableRequestCounterRef = useRef(0);
-  const latestTableRequestRef = useRef<Record<string, number>>({});
   const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
   const pendingEditJsonRequestsRef = useRef<Record<number, {
     reject: (error: Error) => void;
@@ -183,7 +174,6 @@ export function useJsonFormattingWorker({
     setLargeViewerData,
     setLargeRawViewerData,
     setLeftSearchResults,
-    setJsonTableResult,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
@@ -212,7 +202,6 @@ export function useJsonFormattingWorker({
     setLargeViewerData,
     setLargeRawViewerData,
     setLeftSearchResults,
-    setJsonTableResult,
     setLargeViewerSearchResults,
     setLargeViewerStatus,
     syncPerformanceSnapshot,
@@ -233,8 +222,7 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
-    delete latestTableRequestRef.current[tabId];
-    workerRef.current?.postMessage({
+    postWorkerRequest({
       type: 'clear-structure',
       tabId,
     });
@@ -258,7 +246,17 @@ export function useJsonFormattingWorker({
     return textDecoderRef.current;
   };
 
-  const createWorkerTextPayload = (text: string, byteLength = getUtf8ByteLength(text)) => {
+  const postWorkerRequest = (
+    message: WorkerRequestMessage,
+    transfer: Transferable[] = []
+  ) => {
+    workerRef.current?.postMessage(message, transfer);
+  };
+
+  const createWorkerTextPayload = (
+    text: string,
+    byteLength = getUtf8ByteLength(text)
+  ): { message: WorkerRequestTextPayload; transfer: Transferable[] } => {
     if (byteLength < LARGE_FILE_THRESHOLD) {
       return {
         message: { text },
@@ -319,7 +317,7 @@ export function useJsonFormattingWorker({
       message: `正在定位 offset ${Math.max(0, Math.floor(offset)).toLocaleString()}`,
       updatedAt: Date.now(),
     });
-    workerRef.current.postMessage({
+    postWorkerRequest({
       type: 'locate',
       requestId,
       tabId,
@@ -349,7 +347,7 @@ export function useJsonFormattingWorker({
     const requestId = ++searchRequestCounterRef.current;
     const requestKey = `${target}:${tabId}`;
     latestSearchRequestRef.current[requestKey] = requestId;
-    workerRef.current.postMessage({
+    postWorkerRequest({
       type: 'search',
       requestId,
       tabId,
@@ -361,25 +359,6 @@ export function useJsonFormattingWorker({
       text,
       rawRevision,
     });
-  };
-
-  const requestWorkerTable = (tabId: string, text: string) => {
-    if (!workerRef.current) {
-      callbacksRef.current.setJsonTableResult(tabId, 'failed', null, 'JSON worker is not ready');
-      return;
-    }
-
-    const requestId = ++tableRequestCounterRef.current;
-    latestTableRequestRef.current[tabId] = requestId;
-    callbacksRef.current.setJsonTableResult(tabId, 'building', null, null);
-    const textPayload = createWorkerTextPayload(text);
-
-    workerRef.current.postMessage({
-      type: 'build-table',
-      requestId,
-      tabId,
-      ...textPayload.message,
-    }, textPayload.transfer);
   };
 
   const requestWorkerValue = (
@@ -399,7 +378,7 @@ export function useJsonFormattingWorker({
       workerStructureEnabledRef.current[tabId]
       && structureStatusRef.current[tabId] === 'ready'
     ) {
-      workerRef.current.postMessage({
+      postWorkerRequest({
         type: 'read-value',
         requestId,
         tabId,
@@ -409,7 +388,7 @@ export function useJsonFormattingWorker({
     }
 
     if (preferCachedText) {
-      workerRef.current.postMessage({
+      postWorkerRequest({
         type: 'read-value-direct',
         requestId,
         tabId,
@@ -425,7 +404,7 @@ export function useJsonFormattingWorker({
       return;
     }
 
-    workerRef.current.postMessage({
+    postWorkerRequest({
       type: 'read-value-direct',
       requestId,
       tabId,
@@ -449,7 +428,7 @@ export function useJsonFormattingWorker({
 
     const requestId = ++locateRequestCounterRef.current;
     pendingEditJsonRequestsRef.current[requestId] = { reject, resolve };
-    workerRef.current.postMessage({
+    postWorkerRequest({
       type: 'edit-json',
       requestId,
       tabId,
@@ -489,7 +468,6 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
-    delete latestTableRequestRef.current[tabId];
 
     if (!text.trim()) {
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
@@ -514,22 +492,13 @@ export function useJsonFormattingWorker({
       return;
     }
 
-    const textByteLength = getUtf8ByteLength(text);
     const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
-    const largeMode = shouldUseLargeMode(text);
-    const shouldBuildStructureIndex = shouldBuildWorkerStructure(
-      text,
-      locateRequested
-    );
-    const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
-    const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
-    const shouldDeferStructureIndex = largeMode && shouldBuildStructureIndex;
+    const plan = buildJsonWorkerProcessingPlan(text, locateRequested);
 
-    if (largeModeRef.current[tabId] !== largeMode) {
-      callbacksRef.current.setTabLargeMode(tabId, largeMode);
+    if (largeModeRef.current[tabId] !== plan.largeMode) {
+      callbacksRef.current.setTabLargeMode(tabId, plan.largeMode);
     }
 
-    const shouldBuildLargeViewer = textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
     callbacksRef.current.setTabFormatting(tabId, true);
     callbacksRef.current.setProcessingStage(tabId, 'formatting');
     callbacksRef.current.setLocateFeedback(tabId, null);
@@ -537,12 +506,12 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLargeRawViewerData(tabId, null);
     callbacksRef.current.setLargeViewerStatus(
       tabId,
-      shouldBuildLargeViewer ? 'building' : 'idle'
+      plan.shouldBuildLargeViewer ? 'building' : 'idle'
     );
-    workerStructureEnabledRef.current[tabId] = workerLocateEnabled;
+    workerStructureEnabledRef.current[tabId] = plan.workerLocateEnabled;
     callbacksRef.current.setStructureStatus(
       tabId,
-      workerLocateEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+      plan.workerLocateEnabled ? 'building' : (plan.largeMode ? 'disabled' : 'ready')
     );
 
     const requestId = ++requestCounterRef.current;
@@ -554,8 +523,8 @@ export function useJsonFormattingWorker({
 
       session.pendingFormat = false;
       session.requestId = requestId;
-      session.largeMode = largeMode;
-      session.structureEnabled = workerLocateEnabled;
+      session.largeMode = plan.largeMode;
+      session.structureEnabled = plan.workerLocateEnabled;
       session.formatQueuedAt = performance.now();
       session.formatStartedAt = undefined;
       session.formatCompletedAt = undefined;
@@ -571,12 +540,12 @@ export function useJsonFormattingWorker({
     callbacksRef.current.logEvent('format-queued', {
       tabId,
       requestId,
-      textLength: textByteLength,
+      textLength: plan.textByteLength,
       immediate,
-      largeMode,
-      workerStructureEnabled: shouldBuildStructureIndex,
-      workerStructureDeferred: shouldDeferStructureIndex,
-      workerDirectLocateEnabled: shouldAttemptDirectLocate,
+      largeMode: plan.largeMode,
+      workerStructureEnabled: plan.shouldBuildStructureIndex,
+      workerStructureDeferred: plan.shouldDeferStructureIndex,
+      workerDirectLocateEnabled: plan.shouldAttemptDirectLocate,
     });
 
     const run = () => {
@@ -592,15 +561,15 @@ export function useJsonFormattingWorker({
         requestId,
         textLength: getUtf8ByteLength(text),
       });
-      const textPayload = createWorkerTextPayload(text, textByteLength);
-      workerRef.current?.postMessage({
+      const textPayload = createWorkerTextPayload(text, plan.textByteLength);
+      postWorkerRequest({
         type: 'format',
         requestId,
         tabId,
-        enableStructure: shouldBuildStructureIndex,
-        enableDirectLocate: shouldAttemptDirectLocate,
-        deferStructure: shouldDeferStructureIndex,
-        buildViewer: shouldBuildLargeViewer,
+        enableStructure: plan.shouldBuildStructureIndex,
+        enableDirectLocate: plan.shouldAttemptDirectLocate,
+        deferStructure: plan.shouldDeferStructureIndex,
+        buildViewer: plan.shouldBuildLargeViewer,
         ...textPayload.message,
       }, textPayload.transfer);
     };
@@ -612,7 +581,7 @@ export function useJsonFormattingWorker({
 
     formatTimersRef.current[tabId] = window.setTimeout(
       run,
-      largeMode ? LARGE_FILE_FORMAT_DEBOUNCE_MS : FORMAT_DEBOUNCE_MS
+      plan.largeMode ? LARGE_FILE_FORMAT_DEBOUNCE_MS : FORMAT_DEBOUNCE_MS
     );
   };
 
@@ -622,24 +591,14 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
-    delete latestTableRequestRef.current[tabId];
 
     if (!text.trim()) {
       callbacksRef.current.setTabError(tabId, '没有可修复的 JSON 内容');
       return;
     }
 
-    const textByteLength = getUtf8ByteLength(text);
     const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
-    const largeMode = shouldUseLargeMode(text);
-    const shouldBuildStructureIndex = shouldBuildWorkerStructure(
-      text,
-      locateRequested
-    );
-    const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
-    const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
-    const shouldDeferStructureIndex = largeMode && shouldBuildStructureIndex;
-    const shouldBuildLargeViewer = textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
+    const plan = buildJsonWorkerProcessingPlan(text, locateRequested);
     const requestId = ++requestCounterRef.current;
 
     latestRequestRef.current[tabId] = requestId;
@@ -650,12 +609,12 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLargeRawViewerData(tabId, null);
     callbacksRef.current.setLargeViewerStatus(
       tabId,
-      shouldBuildLargeViewer ? 'building' : 'idle'
+      plan.shouldBuildLargeViewer ? 'building' : 'idle'
     );
-    workerStructureEnabledRef.current[tabId] = workerLocateEnabled;
+    workerStructureEnabledRef.current[tabId] = plan.workerLocateEnabled;
     callbacksRef.current.setStructureStatus(
       tabId,
-      workerLocateEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+      plan.workerLocateEnabled ? 'building' : (plan.largeMode ? 'disabled' : 'ready')
     );
     callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
       if (!session.pendingFormat) {
@@ -664,8 +623,8 @@ export function useJsonFormattingWorker({
 
       session.pendingFormat = false;
       session.requestId = requestId;
-      session.largeMode = largeMode;
-      session.structureEnabled = workerLocateEnabled;
+      session.largeMode = plan.largeMode;
+      session.structureEnabled = plan.workerLocateEnabled;
       session.formatQueuedAt = performance.now();
       session.formatStartedAt = performance.now();
       session.formatCompletedAt = undefined;
@@ -681,22 +640,22 @@ export function useJsonFormattingWorker({
     callbacksRef.current.logEvent('repair-start', {
       tabId,
       requestId,
-      textLength: textByteLength,
-      largeMode,
-      workerStructureEnabled: shouldBuildStructureIndex,
-      workerStructureDeferred: shouldDeferStructureIndex,
-      workerDirectLocateEnabled: shouldAttemptDirectLocate,
+      textLength: plan.textByteLength,
+      largeMode: plan.largeMode,
+      workerStructureEnabled: plan.shouldBuildStructureIndex,
+      workerStructureDeferred: plan.shouldDeferStructureIndex,
+      workerDirectLocateEnabled: plan.shouldAttemptDirectLocate,
     });
 
-    const textPayload = createWorkerTextPayload(text, textByteLength);
-    workerRef.current?.postMessage({
+    const textPayload = createWorkerTextPayload(text, plan.textByteLength);
+    postWorkerRequest({
       type: 'repair',
       requestId,
       tabId,
-      enableStructure: shouldBuildStructureIndex,
-      enableDirectLocate: shouldAttemptDirectLocate,
-      deferStructure: shouldDeferStructureIndex,
-      buildViewer: shouldBuildLargeViewer,
+      enableStructure: plan.shouldBuildStructureIndex,
+      enableDirectLocate: plan.shouldAttemptDirectLocate,
+      deferStructure: plan.shouldDeferStructureIndex,
+      buildViewer: plan.shouldBuildLargeViewer,
       ...textPayload.message,
     }, textPayload.transfer);
   };
@@ -732,7 +691,6 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeRawViewerData(tabId, null);
-    callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
     clearTabStructure(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
     callbacksRef.current.updateTabContent(tabId, '', true);
@@ -743,7 +701,7 @@ export function useJsonFormattingWorker({
   const removeTabArtifacts = (tabId: string) => {
     clearPendingFormat(tabId);
     callbacksRef.current.clearPerformanceState(tabId, true);
-    workerRef.current?.postMessage({
+    postWorkerRequest({
       type: 'clear-structure',
       tabId,
     });
@@ -752,7 +710,6 @@ export function useJsonFormattingWorker({
     delete latestLocateRequestRef.current[tabId];
     delete latestSearchRequestRef.current[`left:${tabId}`];
     delete latestSearchRequestRef.current[`right:${tabId}`];
-    delete latestTableRequestRef.current[tabId];
     delete largeModeRef.current[tabId];
     delete largeFileLocateEnabledRef.current[tabId];
     delete structureStatusRef.current[tabId];
@@ -761,7 +718,6 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeRawViewerData(tabId, null);
-    callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
     callbacksRef.current.setProcessingStage(tabId, 'idle');
     callbacksRef.current.setLocateFeedback(tabId, null);
     delete rawTextByTabRef.current[tabId];
@@ -800,11 +756,10 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setLargeRawViewerData(tabId, null);
-      callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
       callbacksRef.current.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
       delete latestLocateRequestRef.current[tabId];
-      workerRef.current?.postMessage({
+      postWorkerRequest({
         type: 'clear-structure',
         tabId,
       });
@@ -829,18 +784,12 @@ export function useJsonFormattingWorker({
         rawLength: rawBytes,
       });
       const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
-      const largeMode = shouldUseLargeMode(content);
-      const shouldBuildStructureIndex = shouldBuildWorkerStructure(
-        content,
-        locateRequested
-      );
-      const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
-      const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
+      const plan = buildJsonWorkerProcessingPlan(content, locateRequested);
 
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
         session.leftModelStartedAt = performance.now();
-        session.largeMode = largeMode;
-        session.structureEnabled = workerLocateEnabled;
+        session.largeMode = plan.largeMode;
+        session.structureEnabled = plan.workerLocateEnabled;
       });
       callbacksRef.current.setProcessingStage(tabId, 'syncing-left');
       callbacksRef.current.updateTabContent(tabId, content, true);
@@ -848,14 +797,14 @@ export function useJsonFormattingWorker({
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
         session.leftModelCompletedAt = performance.now();
       });
-      callbacksRef.current.setTabLargeMode(tabId, largeMode);
+      callbacksRef.current.setTabLargeMode(tabId, plan.largeMode);
       callbacksRef.current.setTabFormatting(tabId, true);
       callbacksRef.current.setTabImporting(tabId, null);
       callbacksRef.current.setProcessingStage(tabId, 'formatting');
-      workerStructureEnabledRef.current[tabId] = workerLocateEnabled;
+      workerStructureEnabledRef.current[tabId] = plan.workerLocateEnabled;
       callbacksRef.current.setStructureStatus(
         tabId,
-        workerLocateEnabled ? 'building' : (largeMode ? 'disabled' : 'ready')
+        plan.workerLocateEnabled ? 'building' : (plan.largeMode ? 'disabled' : 'ready')
       );
       queueFormatAfterImport(tabId, content);
     } catch (error) {
@@ -875,7 +824,6 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setLargeRawViewerData(tabId, null);
-      callbacksRef.current.setJsonTableResult(tabId, 'idle', null, null);
       callbacksRef.current.setTabError(
         tabId,
         error instanceof Error ? `导入失败：${error.message}` : '导入失败'
@@ -1152,27 +1100,6 @@ export function useJsonFormattingWorker({
         return;
       }
 
-      if (type === 'table-result') {
-        if (
-          tabId !== activeTabIdRef.current
-          || latestTableRequestRef.current[tabId] !== requestId
-        ) {
-          return;
-        }
-
-        if (event.data.success && event.data.tableData) {
-          callbacksRef.current.setJsonTableResult(tabId, 'ready', event.data.tableData, null);
-        } else {
-          callbacksRef.current.setJsonTableResult(
-            tabId,
-            'failed',
-            null,
-            event.data.error ?? '表格视图构建失败'
-          );
-        }
-        return;
-      }
-
       if (type === 'locate-result') {
         if (
           tabId !== activeTabIdRef.current
@@ -1256,7 +1183,6 @@ export function useJsonFormattingWorker({
     queueRepair,
     queueFormatAfterEditSave,
     removeTabArtifacts,
-    requestWorkerTable,
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerValue,
