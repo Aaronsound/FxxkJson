@@ -24,6 +24,7 @@ jobs:
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          draft: true
           prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
 
   build:
@@ -65,6 +66,9 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run smoke flow
+        run: npm run smoke
+
       - name: Build renderer and electron bundles
         run: npm run build
 
@@ -101,11 +105,41 @@ jobs:
           }
           $files | ForEach-Object { $_.FullName }
 
+      - name: Verify collected release assets
+        run: npm run release:assets:check -- local ${{ matrix.artifact_name }} release-upload
+
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          draft: true
           prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
           files: |
             release-upload/*
+
+  publish-release:
+    name: Verify Release Assets and Publish
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Read release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: gh release view "$RELEASE_TAG" --json assets --jq '.assets' > release-assets.json
+
+      - name: Verify published release assets
+        run: npm run release:assets:check -- release release-assets.json
+
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: gh release edit "$RELEASE_TAG" --draft=false
