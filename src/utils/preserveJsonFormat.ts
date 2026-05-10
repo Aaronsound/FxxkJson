@@ -13,6 +13,15 @@ interface SaveJsonPreserveOptions {
   originalValue?: JsonValue;
 }
 
+interface JsonNodeRange {
+  startOffset: number;
+  endOffset: number;
+}
+
+interface SaveJsonNodePreserveOptions {
+  range?: JsonNodeRange;
+}
+
 const MAX_PRESERVED_EDITS = 200;
 
 function isObjectValue(value: JsonValue): value is { [key: string]: JsonValue } {
@@ -59,6 +68,41 @@ function serializeWithOriginalStyle(originalText: string, value: JsonValue) {
     : JSON.stringify(value, null, style.indent).replace(/\n/g, style.newline);
 
   return `${style.leadingWhitespace}${serialized}${style.trailingWhitespace}`;
+}
+
+function isValidRange(text: string, range: JsonNodeRange) {
+  return Number.isInteger(range.startOffset)
+    && Number.isInteger(range.endOffset)
+    && range.startOffset >= 0
+    && range.endOffset >= range.startOffset
+    && range.endOffset <= text.length;
+}
+
+function serializeDirectNodeReplacement(
+  originalText: string,
+  range: JsonNodeRange | undefined,
+  editedValue: JsonValue
+) {
+  if (!range || !isValidRange(originalText, range)) {
+    return null;
+  }
+
+  const originalNodeText = originalText.slice(range.startOffset, range.endOffset);
+  try {
+    JSON.parse(originalNodeText);
+  } catch {
+    return null;
+  }
+
+  if (isScalarValue(editedValue)) {
+    return JSON.stringify(editedValue);
+  }
+
+  if (getOriginalStyle(originalText).compact) {
+    return JSON.stringify(editedValue);
+  }
+
+  return null;
 }
 
 function collectDiffs(
@@ -162,12 +206,23 @@ export function saveJsonPreservingOriginalFormat(
 export function saveJsonNodePreservingOriginalFormat(
   originalText: string,
   path: JSONPath,
-  editedText: string
+  editedText: string,
+  options: SaveJsonNodePreserveOptions = {}
 ) {
   const editedValue = JSON.parse(editedText) as JsonValue;
 
   if (path.length === 0) {
     return serializeWithOriginalStyle(originalText, editedValue);
+  }
+
+  const directReplacement = serializeDirectNodeReplacement(
+    originalText,
+    options.range,
+    editedValue
+  );
+  if (directReplacement !== null) {
+    const { startOffset, endOffset } = options.range!;
+    return `${originalText.slice(0, startOffset)}${directReplacement}${originalText.slice(endOffset)}`;
   }
 
   return applyEdits(

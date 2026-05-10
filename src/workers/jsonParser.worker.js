@@ -136,6 +136,41 @@ function getCachedFormattedText(tabId) {
   return null;
 }
 
+function areJsonPathsEqual(left, right) {
+  return Array.isArray(left)
+    && Array.isArray(right)
+    && left.length === right.length
+    && left.every((segment, index) => segment === right[index]);
+}
+
+function getCachedNodeRange(tabId, path, kind, sourceText) {
+  const cached = nodeEditCache.get(tabId);
+  if (!cached || !areJsonPathsEqual(cached.path, path)) {
+    return undefined;
+  }
+
+  if (kind === 'formatted' && cached.formattedText !== sourceText) {
+    return undefined;
+  }
+
+  if (kind === 'raw' && cached.rawTextLength !== sourceText.length) {
+    return undefined;
+  }
+
+  const startOffset = kind === 'raw'
+    ? cached.rawStartOffset
+    : cached.formattedStartOffset;
+  const endOffset = kind === 'raw'
+    ? cached.rawEndOffset
+    : cached.formattedEndOffset;
+
+  if (typeof startOffset !== 'number' || typeof endOffset !== 'number') {
+    return undefined;
+  }
+
+  return { startOffset, endOffset };
+}
+
 function readJsonNodeForEdit(tabId, text, offset) {
   const sourceText = getCachedFormattedText(tabId) ?? text;
   if (
@@ -167,8 +202,21 @@ function readJsonNodeForEdit(tabId, text, offset) {
         structureCache.set(tabId, cachedStructure);
       }
 
+      const rawNode = cachedStructure?.formattedText === sourceText && cachedStructure.rawTree
+        ? findNodeAtLocation(cachedStructure.rawTree, location.path)
+        : null;
+      const rawTextLength = typeof cachedStructure?.rawText === 'string'
+        ? cachedStructure.rawText.length
+        : cachedStructure?.rawTree?.length;
+
       nodeEditCache.set(tabId, {
         formattedText: sourceText,
+        path: [...location.path],
+        formattedStartOffset: node.offset,
+        formattedEndOffset: node.offset + node.length,
+        rawStartOffset: rawNode?.offset,
+        rawEndOffset: rawNode ? rawNode.offset + rawNode.length : undefined,
+        rawTextLength,
       });
 
       return JSON.stringify({
@@ -193,7 +241,12 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
     };
   }
 
-  const nextFormattedText = saveJsonNodePreservingOriginalFormat(formattedText, path, text);
+  const nextFormattedText = saveJsonNodePreservingOriginalFormat(
+    formattedText,
+    path,
+    text,
+    { range: getCachedNodeRange(tabId, path, 'formatted', formattedText) }
+  );
   const viewerIndexStartedAt = performance.now();
   const viewerData = buildLargeViewerData(nextFormattedText);
   const viewerIndexMs = performance.now() - viewerIndexStartedAt;
@@ -256,7 +309,12 @@ function saveJsonNodeForEdit(tabId, text, originalText, path) {
     throw new Error('当前节点无法保存');
   }
 
-  const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text);
+  const rawText = saveJsonNodePreservingOriginalFormat(
+    originalText,
+    path,
+    text,
+    { range: getCachedNodeRange(tabId, path, 'raw', originalText) }
+  );
   const rawViewerData = rawText.length >= LARGE_FILE_THRESHOLD
     ? buildLargeRawViewerData(rawText)
     : null;

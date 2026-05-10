@@ -121,6 +121,33 @@ describe('preserveJsonFormat', () => {
     );
   });
 
+  it('uses a known node range for scalar node saves', () => {
+    const original = '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}';
+    const startOffset = original.indexOf('"beta"');
+
+    expect(saveJsonNodePreservingOriginalFormat(
+      original,
+      ['items', 1, 'name'],
+      '"changed"',
+      { range: { startOffset, endOffset: startOffset + '"beta"'.length } }
+    )).toBe(
+      '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"changed"}]}'
+    );
+  });
+
+  it('falls back to path editing when a provided node range is stale', () => {
+    const original = '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}';
+
+    expect(saveJsonNodePreservingOriginalFormat(
+      original,
+      ['items', 1, 'name'],
+      '"changed"',
+      { range: { startOffset: 0, endOffset: 1 } }
+    )).toBe(
+      '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"changed"}]}'
+    );
+  });
+
   it('updates a multiline nested node with the original indentation style', () => {
     const original = [
       '{',
