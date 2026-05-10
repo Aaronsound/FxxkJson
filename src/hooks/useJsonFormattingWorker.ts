@@ -17,6 +17,7 @@ import type {
   LocateFeedback,
   PerformanceTrigger,
   ProcessingStage,
+  RightNodeSelection,
   SearchTarget,
   StructureStatus,
   WorkerMessage,
@@ -77,6 +78,7 @@ interface UseJsonFormattingWorkerArgs {
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   setProcessingStage: (tabId: string, stage: ProcessingStage) => void;
   setLocateFeedback: (tabId: string, feedback: LocateFeedback | null) => void;
+  setRightNodeSelection: (tabId: string, selection: RightNodeSelection | null) => void;
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
   setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
   setLargeRawViewerData: (tabId: string, data: LargeRawViewerData | null) => void;
@@ -127,6 +129,7 @@ export function useJsonFormattingWorker({
   setTabLargeMode,
   setProcessingStage,
   setLocateFeedback,
+  setRightNodeSelection,
   setStructureStatus,
   setLargeViewerData,
   setLargeRawViewerData,
@@ -173,6 +176,7 @@ export function useJsonFormattingWorker({
     setTabLargeMode,
     setProcessingStage,
     setLocateFeedback,
+    setRightNodeSelection,
     setLargeViewerData,
     setLargeRawViewerData,
     setLeftSearchResults,
@@ -201,6 +205,7 @@ export function useJsonFormattingWorker({
     setTabLargeMode,
     setProcessingStage,
     setLocateFeedback,
+    setRightNodeSelection,
     setLargeViewerData,
     setLargeRawViewerData,
     setLeftSearchResults,
@@ -307,6 +312,7 @@ export function useJsonFormattingWorker({
           : '当前位置无法映射',
         updatedAt: Date.now(),
       });
+      callbacksRef.current.setRightNodeSelection(tabId, null);
       return;
     }
 
@@ -319,6 +325,7 @@ export function useJsonFormattingWorker({
       message: `正在定位 offset ${Math.max(0, Math.floor(offset)).toLocaleString()}`,
       updatedAt: Date.now(),
     });
+    callbacksRef.current.setRightNodeSelection(tabId, null);
     postWorkerRequest({
       type: 'locate',
       requestId,
@@ -1123,6 +1130,20 @@ export function useJsonFormattingWorker({
             endOffset: event.data.endOffset,
             updatedAt: Date.now(),
           });
+          if (
+            typeof event.data.rightStartOffset === 'number'
+            && typeof event.data.rightEndOffset === 'number'
+          ) {
+            callbacksRef.current.setRightNodeSelection(tabId, {
+              path: event.data.path ?? null,
+              pathText: event.data.pathText ?? null,
+              startOffset: event.data.rightStartOffset,
+              endOffset: event.data.rightEndOffset,
+              updatedAt: Date.now(),
+            });
+          } else {
+            callbacksRef.current.setRightNodeSelection(tabId, null);
+          }
           callbacksRef.current.revealLeftRange(event.data.startOffset, event.data.endOffset);
         } else {
           callbacksRef.current.setLocateFeedback(tabId, {
@@ -1130,6 +1151,7 @@ export function useJsonFormattingWorker({
             message: '该位置无法映射',
             updatedAt: Date.now(),
           });
+          callbacksRef.current.setRightNodeSelection(tabId, null);
         }
         return;
       }

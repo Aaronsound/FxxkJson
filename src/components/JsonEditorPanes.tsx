@@ -43,6 +43,7 @@ interface JsonEditorPanesProps {
   rightPaneMetaText: string;
   rightSearchHasMore: boolean;
   rightSearchOptions: JsonSearchOptions;
+  rightSelectedRange: { start: number; end: number } | null;
   rightSearchTerm: string;
   shouldEnableRightPaneFolding: boolean;
   shouldShowLeftPlaceholder: boolean;
@@ -108,6 +109,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   rightPaneMetaText,
   rightSearchHasMore,
   rightSearchOptions,
+  rightSelectedRange,
   rightSearchTerm,
   shouldEnableRightPaneFolding,
   shouldShowLeftPlaceholder,
@@ -273,6 +275,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             searchOptions={rightSearchOptions}
             searchMatches={largeViewerMatches}
             activeMatchIndex={rightMatchIndex}
+            selectedRange={rightSelectedRange}
             onCollapsedLinesChange={onRightCollapsedLinesChange}
             onMatchCountChange={onRightMatchCountChange}
             onLocateOffset={onLocateRightOffset}

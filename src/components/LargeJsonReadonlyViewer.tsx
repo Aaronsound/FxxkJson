@@ -45,6 +45,7 @@ interface LargeJsonReadonlyViewerProps {
   searchOptions?: JsonSearchOptions;
   searchMatches?: LargeJsonSearchMatch[];
   activeMatchIndex: number;
+  selectedRange?: { start: number; end: number } | null;
   onCollapsedLinesChange: (lines: number[]) => void;
   onMatchCountChange: (count: number) => void;
   onLocateOffset: (offset: number) => void;
@@ -107,6 +108,7 @@ const LargeJsonReadonlyViewer = forwardRef<
   searchOptions = DEFAULT_SEARCH_OPTIONS,
   searchMatches: searchMatchesFromWorker,
   activeMatchIndex,
+  selectedRange = null,
   onCollapsedLinesChange,
   onMatchCountChange,
   onLocateOffset,
@@ -209,6 +211,22 @@ const LargeJsonReadonlyViewer = forwardRef<
     }
     return value;
   }, [data.lineCount, data.lineStarts, text]);
+
+  const isLineSelected = useCallback((lineNumber: number) => {
+    if (!selectedRange) {
+      return false;
+    }
+
+    const lineStart = data.lineStarts[lineNumber - 1] ?? 0;
+    const nextLineStart = data.lineStarts[lineNumber];
+    const lineEnd = lineNumber < data.lineCount
+      ? Math.max(lineStart, (nextLineStart ?? text.length) - 1)
+      : text.length;
+    const selectionStart = Math.max(0, Math.min(selectedRange.start, selectedRange.end));
+    const selectionEnd = Math.max(selectionStart, Math.max(selectedRange.start, selectedRange.end));
+
+    return selectionEnd > lineStart && selectionStart < Math.max(lineEnd, lineStart + 1);
+  }, [data.lineCount, data.lineStarts, selectedRange, text.length]);
 
   const getActualLineNumber = useCallback((visibleIndex: number) => {
     const segment = binarySearchSegment(visibleSegments, visibleIndex);
@@ -685,11 +703,12 @@ const LargeJsonReadonlyViewer = forwardRef<
     const lineText = region && isCollapsed
       ? getCollapsedPreview(baseLineText)
       : baseLineText;
+    const isSelected = isLineSelected(lineNumber);
 
     renderedRows.push(
       <div
         key={`${lineNumber}-${visibleIndex}`}
-        className={`large-json-row ${wrapLongLines ? 'wrap' : ''}`}
+        className={`large-json-row ${wrapLongLines ? 'wrap' : ''} ${isSelected ? 'selected' : ''}`}
         onMouseUp={(event) => {
           if (event.button !== 0) {
             return;

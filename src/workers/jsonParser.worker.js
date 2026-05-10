@@ -16,6 +16,7 @@ import {
   saveJsonNodePreservingOriginalFormat,
   saveJsonPreservingOriginalFormat,
 } from '../utils/preserveJsonFormat';
+import { formatJsonPath } from '../utils/jsonPath';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -292,7 +293,7 @@ function getResolvedNodes(cached, offset) {
     const leftNode = findNodeAtLocation(cached.rawTree, location.path);
 
     if (rightNode && leftNode) {
-      return { rightNode, leftNode };
+      return { rightNode, leftNode, path: location.path };
     }
   }
 
@@ -370,6 +371,27 @@ function getDirectLocateRange(cached, offset) {
 
   return getIdentityLocateRange(
     typeof cached.formattedText === 'string' ? cached.formattedText.length : offset + 1,
+    cached.viewerData,
+    offset
+  );
+}
+
+function getDirectRightLocateRange(cached, offset) {
+  if (
+    !cached
+    || typeof cached.formattedText !== 'string'
+    || !cached.viewerData
+    || !(cached.viewerData.lineStarts instanceof Uint32Array)
+  ) {
+    const safeOffset = Math.max(0, Math.floor(offset));
+    return {
+      startOffset: safeOffset,
+      endOffset: safeOffset + 1,
+    };
+  }
+
+  return getIdentityLocateRange(
+    cached.formattedText.length,
     cached.viewerData,
     offset
   );
@@ -705,6 +727,7 @@ function runLocateRequest(message) {
   }
 
   if (directRange) {
+    const rightRange = getDirectRightLocateRange(cached, offset);
     postLocateResultIfLatest({
       type: 'locate-result',
       requestId,
@@ -712,6 +735,8 @@ function runLocateRequest(message) {
       found: true,
       startOffset: directRange.startOffset,
       endOffset: directRange.endOffset,
+      rightStartOffset: rightRange.startOffset,
+      rightEndOffset: rightRange.endOffset,
     });
     return;
   }
@@ -760,6 +785,10 @@ function runLocateRequest(message) {
     found: true,
     startOffset: resolvedNodes.leftNode.offset,
     endOffset: resolvedNodes.leftNode.offset + resolvedNodes.leftNode.length,
+    rightStartOffset: resolvedNodes.rightNode.offset,
+    rightEndOffset: resolvedNodes.rightNode.offset + resolvedNodes.rightNode.length,
+    path: resolvedNodes.path,
+    pathText: formatJsonPath(resolvedNodes.path),
   });
 }
 

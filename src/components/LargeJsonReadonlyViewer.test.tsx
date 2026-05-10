@@ -129,6 +129,23 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(row?.children[1]).toHaveClass('large-json-fold-button');
   });
 
+  it('marks rows that overlap the selected right-side node range', () => {
+    const start = fixtureText.indexOf('"alpha"');
+
+    renderViewer({
+      selectedRange: {
+        start,
+        end: start + '"alpha"'.length,
+      },
+    });
+
+    const selectedLine = document.querySelector('.large-json-line-text[title*="alpha"]');
+    const firstLine = document.querySelector('.large-json-line-text[data-line-number="1"]');
+
+    expect(selectedLine?.closest('.large-json-row')).toHaveClass('selected');
+    expect(firstLine?.closest('.large-json-row')).not.toHaveClass('selected');
+  });
+
   it('preserves fold all and unfold all commands through the ref API', () => {
     const ref = createRef<LargeJsonReadonlyViewerHandle>();
     const onCollapsedLinesChange = vi.fn();

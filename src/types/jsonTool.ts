@@ -77,6 +77,10 @@ export interface WorkerMessage {
   error?: string;
   startOffset?: number;
   endOffset?: number;
+  rightStartOffset?: number;
+  rightEndOffset?: number;
+  path?: JsonEditPath;
+  pathText?: string | null;
   viewerData?: LargeJsonViewerData | null;
   rawViewerData?: LargeRawViewerData | null;
   viewerIndexMs?: number | null;
@@ -134,6 +138,14 @@ export interface LocateFeedback {
   message: string;
   startOffset?: number;
   endOffset?: number;
+  updatedAt: number;
+}
+
+export interface RightNodeSelection {
+  path: JsonEditPath | null;
+  pathText: string | null;
+  startOffset: number;
+  endOffset: number;
   updatedAt: number;
 }
 

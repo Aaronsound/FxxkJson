@@ -28,7 +28,7 @@ import {
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
 } from './types/jsonTool';
-import type { JsonEditPath, JsonSearchOptions } from './types/jsonTool';
+import type { JsonEditPath, JsonSearchOptions, RightNodeSelection } from './types/jsonTool';
 import {
   createTab,
   getEditorLanguageByLength,
@@ -56,6 +56,13 @@ import { getProcessingStageText } from './utils/jsonProcessingStage';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
+const MAX_HEADER_PATH_LENGTH = 120;
+
+function getCompactPathLabel(pathText: string) {
+  return pathText.length > MAX_HEADER_PATH_LENGTH
+    ? `${pathText.slice(0, MAX_HEADER_PATH_LENGTH - 3)}...`
+    : pathText;
+}
 
 const App: React.FC = () => {
   const {
@@ -138,6 +145,9 @@ const App: React.FC = () => {
   const [locateFeedbackByTab, setLocateFeedbackByTab] = useState<Record<string, LocateFeedback | null>>({
     [INITIAL_TAB_ID]: null,
   });
+  const [rightNodeSelectionByTab, setRightNodeSelectionByTab] = useState<Record<string, RightNodeSelection | null>>({
+    [INITIAL_TAB_ID]: null,
+  });
 
   const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -168,6 +178,7 @@ const App: React.FC = () => {
   });
   const leftDecorationIdsRef = useRef<string[]>([]);
   const rightDecorationIdsRef = useRef<string[]>([]);
+  const rightSelectionDecorationIdsRef = useRef<string[]>([]);
   const highlightTimeoutRef = useRef<number | null>(null);
   const leftViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
   const rightViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
@@ -231,6 +242,15 @@ const App: React.FC = () => {
     : 'idle';
   const activeLocateFeedback = activeTab
     ? locateFeedbackByTab[activeTab.id] ?? null
+    : null;
+  const activeRightNodeSelection = activeTab
+    ? rightNodeSelectionByTab[activeTab.id] ?? null
+    : null;
+  const activeRightSelectedRange = activeRightNodeSelection
+    ? {
+      start: activeRightNodeSelection.startOffset,
+      end: activeRightNodeSelection.endOffset,
+    }
     : null;
   const isLargeFileLocateEnabled = activeTab
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
@@ -321,6 +341,9 @@ const App: React.FC = () => {
     formatDuration(activePerformanceSnapshot?.formatWorkerMs)
       ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
       : null,
+    activeRightNodeSelection?.pathText
+      ? `路径 ${getCompactPathLabel(activeRightNodeSelection.pathText)}`
+      : null,
     rightPaneStatusText,
   ].filter(Boolean).join(' · ');
 
@@ -342,6 +365,13 @@ const App: React.FC = () => {
     if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
       rightEditorRef.current.deltaDecorations(rightDecorationIdsRef.current, []);
       rightDecorationIdsRef.current = [];
+    }
+  };
+
+  const clearRightSelectionHighlight = () => {
+    if (rightEditorRef.current && rightSelectionDecorationIdsRef.current.length > 0) {
+      rightEditorRef.current.deltaDecorations(rightSelectionDecorationIdsRef.current, []);
+      rightSelectionDecorationIdsRef.current = [];
     }
   };
 
@@ -418,6 +448,10 @@ const App: React.FC = () => {
     setLocateFeedbackByTab((current) => ({ ...current, [tabId]: feedback }));
   };
 
+  const setRightNodeSelection = (tabId: string, selection: RightNodeSelection | null) => {
+    setRightNodeSelectionByTab((current) => ({ ...current, [tabId]: selection }));
+  };
+
   const setLargeFileLocateEnabled = (tabId: string, enabled: boolean) => {
     largeFileLocateEnabledRef.current[tabId] = enabled;
     setLargeFileLocateEnabledState(tabId, enabled);
@@ -431,6 +465,7 @@ const App: React.FC = () => {
   const setLargeViewerData = (tabId: string, data: LargeJsonViewerData | null) => {
     setLargeViewerDataByTab((current) => ({ ...current, [tabId]: data }));
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [tabId]: [] }));
+    setRightNodeSelection(tabId, null);
     if (tabId === activeTabIdRef.current) {
       setLargeViewerMatches([]);
       setLargeViewerMatchCount(0);
@@ -506,6 +541,7 @@ const App: React.FC = () => {
     const byteLength = getUtf8ByteLength(content);
     rawTextByTabRef.current[tabId] = content;
     setLargeRawViewerData(tabId, null);
+    setRightNodeSelection(tabId, null);
     setDocumentMeta(tabId, (current) => ({
       ...current,
       rawLength: byteLength,
@@ -520,6 +556,7 @@ const App: React.FC = () => {
   const updateFormattedContent = (tabId: string, content: string, syncModel = false) => {
     const byteLength = getUtf8ByteLength(content);
     formattedTextByTabRef.current[tabId] = content;
+    setRightNodeSelection(tabId, null);
     setDocumentMeta(tabId, (current) => ({
       ...current,
       formattedLength: byteLength,
@@ -775,6 +812,7 @@ const App: React.FC = () => {
     setTabLargeMode,
     setProcessingStage,
     setLocateFeedback,
+    setRightNodeSelection,
     setStructureStatus,
     setLargeViewerData,
     setLargeRawViewerData,
@@ -1038,6 +1076,51 @@ const App: React.FC = () => {
     rightMatchIndex,
     rightSearchOptions,
     rightSearchTerm,
+    shouldUseDedicatedRightViewer,
+  ]);
+
+  useEffect(() => {
+    const editor = rightEditorRef.current;
+    const model = editor?.getModel();
+
+    if (
+      !editor
+      || !model
+      || !activeRightNodeSelection
+      || shouldUseDedicatedRightViewer
+      || isBuildingDedicatedRightViewer
+    ) {
+      clearRightSelectionHighlight();
+      return;
+    }
+
+    const modelLength = model.getValueLength();
+    const startOffset = Math.max(0, Math.min(activeRightNodeSelection.startOffset, modelLength));
+    const endOffset = Math.max(
+      startOffset,
+      Math.min(activeRightNodeSelection.endOffset, modelLength)
+    );
+    const startPosition = model.getPositionAt(startOffset);
+    const endPosition = model.getPositionAt(endOffset);
+
+    rightSelectionDecorationIdsRef.current = editor.deltaDecorations(
+      rightSelectionDecorationIdsRef.current,
+      [{
+        range: new monaco.Range(
+          startPosition.lineNumber,
+          startPosition.column,
+          endPosition.lineNumber,
+          endPosition.column
+        ),
+        options: {
+          inlineClassName: 'rightNodeSelectionHighlight',
+          stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+        },
+      }]
+    );
+  }, [
+    activeRightNodeSelection,
+    isBuildingDedicatedRightViewer,
     shouldUseDedicatedRightViewer,
   ]);
 
@@ -1670,6 +1753,7 @@ const App: React.FC = () => {
     setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
     setProcessingStageByTab((current) => ({ ...current, [nextId]: 'idle' }));
     setLocateFeedbackByTab((current) => ({ ...current, [nextId]: null }));
+    setRightNodeSelectionByTab((current) => ({ ...current, [nextId]: null }));
     largeModeRef.current[nextId] = false;
     largeFileLocateEnabledRef.current[nextId] = false;
     structureStatusRef.current[nextId] = 'ready';
@@ -1711,6 +1795,11 @@ const App: React.FC = () => {
       return next;
     });
     setLocateFeedbackByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
+    setRightNodeSelectionByTab((current) => {
       const next = { ...current };
       delete next[tabId];
       return next;
@@ -2121,6 +2210,7 @@ const App: React.FC = () => {
         rightPaneMetaText={rightPaneMetaText}
         rightSearchHasMore={rightSearchHasMore}
         rightSearchOptions={rightSearchOptions}
+        rightSelectedRange={activeRightSelectedRange}
         rightSearchTerm={rightSearchTerm}
         shouldEnableRightPaneFolding={shouldEnableRightPaneFolding}
         shouldShowLeftPlaceholder={activeDocumentMeta.rawLength === 0 && !isImportingActiveTab}
