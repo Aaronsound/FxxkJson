@@ -20,6 +20,8 @@ interface JsonEditModalProps {
   saveLabel?: string;
   onValueChange: (value: string) => void;
   onSave: () => void;
+  onUnescapeContent: (value: string) => Promise<string>;
+  onEscapeContent: (value: string) => Promise<string>;
   onCopyLiteral: () => void;
   onClose: () => void;
 }
@@ -36,6 +38,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   saveLabel = '更新为原始 JSON',
   onValueChange,
   onSave,
+  onUnescapeContent,
+  onEscapeContent,
   onCopyLiteral,
   onClose,
 }) => {
@@ -263,6 +267,44 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     setSearchNextOffset(result.nextStartOffset);
   };
 
+  const replaceEditorValue = useCallback((nextValue: string) => {
+    const editor = editorRef.current;
+    const model = editor?.getModel() ?? null;
+
+    if (editor && model) {
+      editor.pushUndoStop();
+      editor.executeEdits('json-edit-transform', [{
+        range: model.getFullModelRange(),
+        text: nextValue,
+        forceMoveMarkers: true,
+      }]);
+      editor.pushUndoStop();
+      const nextPosition = model.getPositionAt(nextValue.length);
+      editor.setPosition(nextPosition);
+      editor.revealPositionInCenter(nextPosition);
+    }
+
+    onValueChange(nextValue);
+    setEditorRevision((current) => current + 1);
+  }, [onValueChange]);
+
+  const handleTransformContent = async (
+    transform: (value: string) => Promise<string>
+  ) => {
+    if (isBusy) {
+      return;
+    }
+
+    const currentValue = editorRef.current?.getValue() ?? initialValue;
+
+    try {
+      const nextValue = await transform(currentValue);
+      replaceEditorValue(nextValue);
+    } catch {
+      // The parent owns the user-facing error copy so worker errors stay consistent.
+    }
+  };
+
   return (
     <div className="modal-overlay" ref={modalRef}>
       <div className={isDarkMode ? 'modal-card modal-card-dark' : 'modal-card'}>
@@ -328,6 +370,14 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
 
         <div className="modal-actions">
           <button onClick={onSave} disabled={isBusy}>{saveLabel}</button>
+          <div className="modal-copy-group">
+            <button onClick={() => void handleTransformContent(onUnescapeContent)} disabled={isBusy}>
+              反转义内容
+            </button>
+            <button onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
+              转义为字符串
+            </button>
+          </div>
           <div className="modal-copy-group">
             <button onClick={onCopyLiteral} disabled={isBusy}>复制为字符串字面量</button>
             {hasCopiedLiteral && (

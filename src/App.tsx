@@ -1704,6 +1704,45 @@ const App: React.FC = () => {
     }
   };
 
+  const handleTransformEditJsonContent = async (
+    operation: Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>,
+    label: string,
+    value: string
+  ) => {
+    if (!activeTab) {
+      throw new Error('当前没有可编辑的 JSON');
+    }
+
+    if (!value.trim()) {
+      const errorMessage = `没有可${label}的编辑内容`;
+      setEditJsonError(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    setEditJsonBusyLabel(`正在${label}编辑内容...`);
+    try {
+      const transformed = await requestWorkerEditJson(activeTab.id, operation, value);
+      editJsonValueRef.current = transformed;
+      setEditJsonError(null);
+      return transformed;
+    } catch (error) {
+      setEditJsonError(
+        error instanceof Error ? `${label}编辑内容失败：${error.message}` : `${label}编辑内容失败`
+      );
+      throw error;
+    } finally {
+      setEditJsonBusyLabel(null);
+    }
+  };
+
+  const handleUnescapeEditJsonContent = (value: string) => (
+    handleTransformEditJsonContent('unescape-json', '反转义', value)
+  );
+
+  const handleEscapeEditJsonContent = (value: string) => (
+    handleTransformEditJsonContent('escape-json', '转义', value)
+  );
+
   const handleCopyEscapedJson = async () => {
     if (!activeTab) {
       return;
@@ -2193,6 +2232,8 @@ const App: React.FC = () => {
             editJsonValueRef.current = value;
           }}
           onSave={handleSaveEditJson}
+          onUnescapeContent={handleUnescapeEditJsonContent}
+          onEscapeContent={handleEscapeEditJsonContent}
           onCopyLiteral={handleCopyEscapedJson}
           onClose={closeEditJson}
         />
