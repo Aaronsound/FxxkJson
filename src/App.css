@@ -1507,6 +1507,22 @@ button:disabled {
   font-size: 18px;
 }
 
+.modal-path {
+  margin-top: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  color: #4f6f58;
+  font-family: Menlo, Monaco, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-card-dark .modal-path {
+  color: #9fe0af;
+}
+
 .modal-editor-shell {
   position: relative;
   height: 400px;

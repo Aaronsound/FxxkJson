@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { JsonEditPath } from '../types/jsonTool';
+import { formatJsonPath } from '../utils/jsonPath';
 
 export type EditJsonSession = {
   key: number;
   initialValue: string;
   mode: 'document' | 'node';
   path?: JsonEditPath;
+  pathText?: string;
 };
 
 export function useJsonEditSession() {
@@ -43,7 +45,8 @@ export function useJsonEditSession() {
       key: Date.now(),
       initialValue,
       mode: 'node',
-      path,
+      path: [...path],
+      pathText: formatJsonPath(path),
     });
   };
 

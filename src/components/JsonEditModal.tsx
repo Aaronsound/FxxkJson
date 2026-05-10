@@ -16,6 +16,7 @@ interface JsonEditModalProps {
   busyLabel: string | null;
   hasCopiedLiteral: boolean;
   title?: string;
+  pathText?: string;
   saveLabel?: string;
   onValueChange: (value: string) => void;
   onSave: () => void;
@@ -31,6 +32,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   busyLabel,
   hasCopiedLiteral,
   title = '编辑 JSON',
+  pathText,
   saveLabel = '更新为原始 JSON',
   onValueChange,
   onSave,
@@ -266,6 +268,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       <div className={isDarkMode ? 'modal-card modal-card-dark' : 'modal-card'}>
         <div className="modal-header">
           <h3>{title}</h3>
+          {pathText && (
+            <div className="modal-path" title={pathText}>
+              {pathText}
+            </div>
+          )}
         </div>
 
         <div className="modal-editor-shell">

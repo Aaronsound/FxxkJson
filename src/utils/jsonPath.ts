@@ -6,12 +6,12 @@ function escapeBracketKey(key: string) {
   return key.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
-export function formatJsonPath(path: JsonEditPath) {
+export function formatJsonPath(path: JsonEditPath): string {
   if (path.length === 0) {
     return '$';
   }
 
-  return path.reduce((current, segment) => {
+  return path.reduce<string>((current, segment) => {
     if (typeof segment === 'number') {
       return `${current}[${segment}]`;
     }

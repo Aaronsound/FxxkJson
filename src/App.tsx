@@ -2162,6 +2162,7 @@ const App: React.FC = () => {
           busyLabel={editJsonBusyLabel}
           hasCopiedLiteral={hasCopiedLiteral}
           title={editJsonSession.mode === 'node' ? '编辑当前节点' : '编辑 JSON'}
+          pathText={editJsonSession.pathText}
           saveLabel={editJsonSession.mode === 'node' ? '更新当前节点' : '更新为原始 JSON'}
           onValueChange={(value) => {
             editJsonValueRef.current = value;
