@@ -69,6 +69,7 @@ interface JsonEditorPanesProps {
   onOpenRightFind: () => void;
   onPrevLeft: () => void;
   onPrevRight: () => void;
+  onUnescapeRightValue: (offset: number) => void;
   onNextLeft: () => void;
   onNextRight: () => void;
   onRightCollapsedLinesChange: (lines: number[]) => void;
@@ -135,6 +136,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   onOpenRightFind,
   onPrevLeft,
   onPrevRight,
+  onUnescapeRightValue,
   onNextLeft,
   onNextRight,
   onRightCollapsedLinesChange,
@@ -281,6 +283,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             onLocateOffset={onLocateRightOffset}
             onCopyValue={onCopyRightValue}
             onEditValue={onEditRightValue}
+            onUnescapeValue={onUnescapeRightValue}
             onOpenFind={onOpenRightFind}
           />
         ) : !isBuildingDedicatedRightViewer ? (

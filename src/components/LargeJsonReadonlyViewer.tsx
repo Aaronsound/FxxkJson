@@ -51,6 +51,7 @@ interface LargeJsonReadonlyViewerProps {
   onLocateOffset: (offset: number) => void;
   onCopyValue: (offset: number) => void | Promise<void>;
   onEditValue: (offset: number) => void | Promise<void>;
+  onUnescapeValue: (offset: number) => void | Promise<void>;
   onOpenFind: () => void;
 }
 
@@ -114,6 +115,7 @@ const LargeJsonReadonlyViewer = forwardRef<
   onLocateOffset,
   onCopyValue,
   onEditValue,
+  onUnescapeValue,
   onOpenFind,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -818,6 +820,16 @@ const LargeJsonReadonlyViewer = forwardRef<
             }}
           >
             Edit value
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              await onUnescapeValue(contextMenu.offset);
+              setContextMenu(null);
+            }}
+          >
+            Unescape value
           </button>
         </div>
       )}

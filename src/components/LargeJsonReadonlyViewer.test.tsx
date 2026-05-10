@@ -38,6 +38,7 @@ function renderViewer(overrides: Partial<React.ComponentProps<typeof LargeJsonRe
     onLocateOffset: vi.fn(),
     onCopyValue: vi.fn(),
     onEditValue: vi.fn(),
+    onUnescapeValue: vi.fn(),
     onOpenFind: vi.fn(),
     ...overrides,
   };
@@ -91,6 +92,7 @@ describe('LargeJsonReadonlyViewer', () => {
       onLocateOffset: firstLocate,
       onCopyValue: vi.fn(),
       onEditValue: vi.fn(),
+      onUnescapeValue: vi.fn(),
       onOpenFind: vi.fn(),
     };
 
@@ -169,6 +171,7 @@ describe('LargeJsonReadonlyViewer', () => {
         onLocateOffset={vi.fn()}
         onCopyValue={vi.fn()}
         onEditValue={vi.fn()}
+        onUnescapeValue={vi.fn()}
         onOpenFind={vi.fn()}
       />
     );
@@ -184,11 +187,13 @@ describe('LargeJsonReadonlyViewer', () => {
     const onLocateOffset = vi.fn();
     const onCopyValue = vi.fn().mockResolvedValue(undefined);
     const onEditValue = vi.fn().mockResolvedValue(undefined);
+    const onUnescapeValue = vi.fn().mockResolvedValue(undefined);
 
     renderViewer({
       onLocateOffset,
       onCopyValue,
       onEditValue,
+      onUnescapeValue,
     });
 
     const line = document.querySelector('.large-json-line-text[title*="alpha"]');
@@ -229,6 +234,15 @@ describe('LargeJsonReadonlyViewer', () => {
       expect(onEditValue).toHaveBeenCalledTimes(1);
     });
     expect(onEditValue).toHaveBeenLastCalledWith(expect.any(Number));
+
+    fireEvent.contextMenu(line);
+    const unescapeMenuItem = await screen.findByRole('button', { name: 'Unescape value' });
+    fireEvent.click(unescapeMenuItem);
+
+    await waitFor(() => {
+      expect(onUnescapeValue).toHaveBeenCalledTimes(1);
+    });
+    expect(onUnescapeValue).toHaveBeenLastCalledWith(expect.any(Number));
   });
 
   it('copies the underlying JSON text instead of the collapsed preview', () => {

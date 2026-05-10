@@ -1323,6 +1323,24 @@ const App: React.FC = () => {
         await handleOpenEditNodeAtOffset(currentTabId, model.getOffsetAt(position));
       },
     });
+
+    editor.addAction({
+      id: 'unescapeValueAction',
+      label: '反转义当前值',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 3,
+      run: async (mountedEditor) => {
+        const currentTabId = activeTabIdRef.current;
+        const model = mountedEditor.getModel();
+        const position = mountedEditor.getPosition();
+
+        if (!model || !position) {
+          return;
+        }
+
+        await handleOpenUnescapedNodeAtOffset(currentTabId, model.getOffsetAt(position));
+      },
+    });
   };
 
   const handleLeftChange = (value?: string) => {
@@ -1611,6 +1629,52 @@ const App: React.FC = () => {
       setTabError(
         tabId,
         error instanceof Error ? `打开当前节点编辑失败：${error.message}` : '打开当前节点编辑失败'
+      );
+    } finally {
+      setEditJsonBusyLabel(null);
+    }
+  };
+
+  const handleOpenUnescapedNodeAtOffset = async (
+    tabId: string,
+    offset: number,
+    preferCachedText = false
+  ) => {
+    setEditJsonBusyLabel('正在反转义当前节点...');
+    try {
+      const sourceText = preferCachedText
+        ? ''
+        : (formattedTextByTabRef.current[tabId] ?? '');
+      const payload = await requestWorkerEditJson(
+        tabId,
+        'read-node',
+        sourceText,
+        undefined,
+        undefined,
+        offset
+      );
+      const parsed = JSON.parse(payload) as { path?: JsonEditPath; value?: string };
+
+      if (
+        !Array.isArray(parsed.path)
+        || !parsed.path.every((segment) => typeof segment === 'string' || typeof segment === 'number')
+        || typeof parsed.value !== 'string'
+      ) {
+        throw new Error('当前节点无法反转义');
+      }
+
+      const nodeValue = JSON.parse(parsed.value);
+      if (typeof nodeValue !== 'string') {
+        throw new Error('当前节点不是字符串值');
+      }
+
+      const transformed = await requestWorkerEditJson(tabId, 'unescape-json', parsed.value);
+      JSON.parse(transformed);
+      openNodeEditSession(transformed, parsed.path);
+    } catch (error) {
+      setTabError(
+        tabId,
+        error instanceof Error ? `反转义当前节点失败：${error.message}` : '反转义当前节点失败'
       );
     } finally {
       setEditJsonBusyLabel(null);
@@ -2301,6 +2365,7 @@ const App: React.FC = () => {
         onLoadMoreRightSearch={loadMoreRightSearch}
         onLocateRightOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
         onOpenRightFind={openRightFind}
+        onUnescapeRightValue={(offset) => handleOpenUnescapedNodeAtOffset(activeTab.id, offset, true)}
         onPrevLeft={gotoPrevLeft}
         onPrevRight={gotoPrevRight}
         onNextLeft={gotoNextLeft}
