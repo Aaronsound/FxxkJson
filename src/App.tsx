@@ -29,7 +29,12 @@ import {
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
 } from './types/jsonTool';
-import type { JsonEditPath, JsonSearchOptions, RightNodeSelection } from './types/jsonTool';
+import type {
+  EditJsonWorkerOperation,
+  JsonEditPath,
+  JsonSearchOptions,
+  RightNodeSelection,
+} from './types/jsonTool';
 import {
   createTab,
   getEditorLanguageByLength,
@@ -1489,6 +1494,70 @@ const App: React.FC = () => {
     queueRepair(activeTab.id, currentText);
   };
 
+  const handleJsonEscapeTransform = async (
+    operation: Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>,
+    label: string
+  ) => {
+    if (!activeTab) {
+      return;
+    }
+
+    const currentTabId = activeTab.id;
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel() ?? null;
+    const selection = editor?.getSelection() ?? null;
+    const hasSelection = Boolean(model && selection && !selection.isEmpty());
+    const sourceText = hasSelection && model && selection
+      ? model.getValueInRange(selection)
+      : getTabContent(currentTabId);
+
+    if (!sourceText.trim()) {
+      setTabError(currentTabId, `没有可${label}的内容`);
+      return;
+    }
+
+    setEditJsonBusyLabel(`正在${label}...`);
+    try {
+      const transformed = await requestWorkerEditJson(currentTabId, operation, sourceText);
+      const nextContent = hasSelection && model && selection
+        ? getContentAfterSelectionReplace(model, selection, transformed)
+        : transformed;
+      const largeMode = isLargeDocument(nextContent);
+
+      setTabLargeMode(currentTabId, largeMode);
+      setTabError(currentTabId, null);
+
+      if (hasSelection && editor && selection) {
+        editor.executeEdits('json-escape-transform', [{
+          range: selection,
+          text: transformed,
+          forceMoveMarkers: true,
+        }]);
+        resetSearchState();
+        return;
+      }
+
+      updateTabContent(currentTabId, transformed, true);
+      resetSearchState();
+      queueFormat(currentTabId, transformed, true);
+    } catch (error) {
+      setTabError(
+        currentTabId,
+        error instanceof Error ? `${label}失败：${error.message}` : `${label}失败`
+      );
+    } finally {
+      setEditJsonBusyLabel(null);
+    }
+  };
+
+  const handleUnescapeJson = () => {
+    void handleJsonEscapeTransform('unescape-json', '反转义');
+  };
+
+  const handleEscapeJson = () => {
+    void handleJsonEscapeTransform('escape-json', '转义');
+  };
+
   const handleOpenEditJson = async () => {
     if (!activeTab) {
       return;
@@ -2050,6 +2119,8 @@ const App: React.FC = () => {
         onImport={handleImport}
         onFormat={handleFormat}
         onRepairJson={handleRepairJson}
+        onUnescapeJson={handleUnescapeJson}
+        onEscapeJson={handleEscapeJson}
         onClear={handleClear}
         onEditJson={handleOpenEditJson}
         onOpenDiagnosticsLog={() => setIsDiagnosticsLogOpen(true)}

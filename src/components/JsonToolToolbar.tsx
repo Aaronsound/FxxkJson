@@ -5,6 +5,8 @@ interface JsonToolToolbarProps {
   onImport: () => void;
   onFormat: () => void;
   onRepairJson: () => void;
+  onUnescapeJson: () => void;
+  onEscapeJson: () => void;
   onClear: () => void;
   onEditJson: () => void;
   onOpenDiagnosticsLog: () => void;
@@ -96,6 +98,8 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onImport,
   onFormat,
   onRepairJson,
+  onUnescapeJson,
+  onEscapeJson,
   onClear,
   onEditJson,
   onOpenDiagnosticsLog,
@@ -147,6 +151,12 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 </button>
               </div>
               <div className="toolbar-actions-secondary">
+                <button className="toolbar-button-secondary" onClick={onUnescapeJson} disabled={!canEditJson}>
+                  反转义
+                </button>
+                <button className="toolbar-button-secondary" onClick={onEscapeJson} disabled={!canEditJson}>
+                  转义
+                </button>
                 <button className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
                   编辑 JSON
                 </button>
