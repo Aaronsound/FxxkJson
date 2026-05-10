@@ -29,9 +29,11 @@ import {
   getFileName,
   getLeftModelPath,
   getRightModelPath,
+} from '../utils/jsonToolModels';
+import {
   getUtf8ByteLength,
   shouldUseLargeMode,
-} from '../utils/jsonToolModels';
+} from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 
 interface JsonImportSource {

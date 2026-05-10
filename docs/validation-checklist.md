@@ -6,6 +6,7 @@ Use this checklist after routine changes and before handing a build to someone e
 
 ```bash
 npm run check
+npm run smoke
 ```
 
 Expected result:
@@ -14,12 +15,14 @@ Expected result:
 - Vitest passes.
 - Production build completes.
 - No Vite deprecation, sourcemap, or oversized chunk warnings are introduced.
+- The lightweight format/search/edit/repair smoke flow passes.
 
 ## 2. Large JSON Samples
 
 ```bash
 npm run samples
 npm run bench -- --samples
+npm run perf:regression
 ```
 
 Expected result:
@@ -28,6 +31,12 @@ Expected result:
 - Default samples include `sample-5mb.json`, `sample-6mb.json`, `sample-7mb.json`, `sample-10mb.json`, `sample-15mb.json`, and `sample-20mb.json`.
 - Bench output completes without crashes.
 - Parse, stringify, viewer-index, and tree timings do not show obvious regressions against recent local baselines.
+- `perf:regression` prints local 5MB/20MB timing metrics. To compare future runs against your machine, create a local baseline:
+
+```bash
+npm run perf:regression -- --write-baseline scripts/perf-baseline.local.json
+npm run perf:regression -- --baseline scripts/perf-baseline.local.json
+```
 
 ## 3. Manual Desktop Smoke Test
 
@@ -48,6 +57,7 @@ Manual flow:
 7. Repeat import smoke checks with `sample-10mb.json` and `sample-20mb.json`.
 8. Create a second tab, import another sample, switch tabs, and confirm content, fold state, and search state stay stable.
 9. Toggle dark mode, long-line wrapping, and the performance panel.
+10. Open `诊断日志`, toggle `只看错误`, use `复制问题摘要`, and confirm `清空日志` clears the panel.
 
 Expected result:
 
@@ -60,8 +70,10 @@ Run this before creating a release branch, version tag, or distributable package
 
 ```bash
 npm run check
+npm run smoke
 npm run samples
 npm run bench -- --samples
+npm run perf:regression
 ```
 
 Then run the full manual desktop smoke test above.

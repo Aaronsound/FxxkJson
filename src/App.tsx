@@ -35,13 +35,15 @@ import {
   getLeftModelPath,
   getOrCreateModel,
   getRightModelPath,
-  getUtf8ByteLength,
-  isLargeDocument,
   disposeModel,
   recreateModel,
   selectionCoversModel,
-  shouldUseLargeMode,
 } from './utils/jsonToolModels';
+import {
+  getUtf8ByteLength,
+  isLargeDocument,
+  shouldUseLargeMode,
+} from './utils/jsonDocumentMetrics';
 import {
   formatBytes,
   formatDuration,

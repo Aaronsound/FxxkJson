@@ -12,6 +12,7 @@ HanJson is focused on day-to-day JSON work: paste or import JSON on the left, in
 - Dedicated large-file viewer for 5MB+ JSON with virtualized rows, fold/unfold, copy value, and optional right-to-left locate.
 - Worker-based formatting, search, value copy, and large-file indexing to keep the UI responsive.
 - Performance panel with recent formatting/import timing snapshots.
+- Diagnostics log panel with error filtering, issue-summary copy, and log clearing.
 - Light/dark mode, long-line wrapping, and Electron desktop packaging for macOS and Windows.
 
 ## Project Structure
@@ -49,8 +50,10 @@ npm run typecheck  # type-check renderer and Electron sources
 npm test           # run Vitest tests
 npm run build      # build renderer and Electron output
 npm run check      # typecheck + test + build
+npm run smoke      # run a lightweight JSON format/search/edit/repair smoke flow
 npm run samples    # generate ignored json/sample-*.json files
 npm run bench -- --samples
+npm run perf:regression
 npm start          # run the built desktop app after npm run build
 ```
 
@@ -62,6 +65,8 @@ Packaging commands are available as `npm run dist:mac`, `npm run dist:win`, and 
 - Formatted output at or above `5MB` uses the dedicated readonly viewer instead of a second Monaco model.
 - Optional right-to-left locate is available for large files, but expensive structure trees are deferred until locate/copy behavior is actually used.
 - Generated samples live in `json/`; that directory is intentionally ignored by git.
+- `npm run smoke` exercises a lightweight core flow without opening the desktop UI.
+- `npm run perf:regression` measures local 5MB/20MB sample performance and can compare against a local baseline.
 
 ---
 
@@ -77,6 +82,7 @@ HanJson 是一个桌面端 JSON 格式化、搜索和大文件查看工具，基
 - 5MB 及以上 JSON 自动进入大文件模式，使用虚拟滚动 viewer，支持折叠、展开、复制值和可选右侧定位左侧。
 - 格式化、搜索、复制值和大文件索引运行在 Worker 中，尽量避免阻塞界面。
 - 性能面板展示导入、格式化、viewer 索引等耗时。
+- 诊断日志支持只看错误、复制问题摘要和清空日志，方便定位问题。
 - 支持深浅色模式、长行换行，以及 macOS/Windows 桌面端打包。
 
 ## 常用命令
@@ -88,8 +94,10 @@ npm run typecheck  # 检查渲染端和 Electron 端类型
 npm test           # 运行自动化测试
 npm run build      # 构建生产产物
 npm run check      # typecheck + test + build
+npm run smoke      # 运行轻量 JSON 格式化/搜索/编辑/修复冒烟流程
 npm run samples    # 生成本地大 JSON 样例
 npm run bench -- --samples
+npm run perf:regression
 npm start          # 构建后启动桌面端生产版本
 ```
 

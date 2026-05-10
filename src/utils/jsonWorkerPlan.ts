@@ -3,7 +3,7 @@ import {
   getUtf8ByteLength,
   shouldBuildWorkerStructure,
   shouldUseLargeMode,
-} from './jsonToolModels';
+} from './jsonDocumentMetrics';
 
 export interface JsonWorkerProcessingPlan {
   textByteLength: number;
