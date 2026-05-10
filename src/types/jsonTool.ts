@@ -92,7 +92,14 @@ export interface WorkerMessage {
 }
 
 export type JsonEditPath = Array<string | number>;
-export type EditJsonWorkerOperation = 'format' | 'save' | 'copy-literal' | 'read-node' | 'save-node';
+export type EditJsonWorkerOperation =
+  | 'format'
+  | 'save'
+  | 'copy-literal'
+  | 'escape-json'
+  | 'unescape-json'
+  | 'read-node'
+  | 'save-node';
 export type SearchTarget = 'left' | 'right';
 export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'repair' | 'edit-save' | 'paste';

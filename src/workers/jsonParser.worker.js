@@ -6,6 +6,7 @@ import {
 } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { formatJsonText, parseJsonForFormatting, repairJsonText } from '../utils/jsonFormat';
+import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
 import {
@@ -298,6 +299,13 @@ function saveJsonNodeForEdit(tabId, text, originalText, path) {
 
 function copyJsonAsStringLiteral(text) {
   return JSON.stringify(JSON.stringify(JSON.parse(text)));
+}
+
+function transformJsonEscape(operation, text) {
+  const result = operation === 'escape-json'
+    ? escapeJsonText(text)
+    : unescapeJsonText(text);
+  return result.text;
 }
 
 function getResolvedNodes(cached, offset) {
@@ -1008,6 +1016,10 @@ self.onmessage = (event) => {
       const data = (() => {
         if (operation === 'copy-literal') {
           return copyJsonAsStringLiteral(text);
+        }
+
+        if (operation === 'escape-json' || operation === 'unescape-json') {
+          return transformJsonEscape(operation, text);
         }
 
         if (operation === 'read-node') {
