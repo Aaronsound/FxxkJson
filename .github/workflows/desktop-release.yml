@@ -15,8 +15,20 @@ permissions:
   contents: write
 
 jobs:
+  prepare-release:
+    name: Prepare GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release entry
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
+
   build:
     name: Build ${{ matrix.name }}
+    needs: prepare-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -71,28 +83,23 @@ jobs:
             Write-Host "release directory does not exist"
           }
 
-      - name: Upload packaged app
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.artifact_name }}
-          path: |
-            release/*.dmg
-            release/*.exe
-            release/*.zip
-            release/*.blockmap
-            release/*.yml
-          if-no-files-found: error
-
-  release:
-    name: Publish GitHub Release
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Download packaged apps
-        uses: actions/download-artifact@v4
-        with:
-          path: desktop-release
-          merge-multiple: true
+      - name: Collect release assets
+        shell: pwsh
+        run: |
+          $artifactName = "${{ matrix.artifact_name }}"
+          New-Item -ItemType Directory -Force release-upload | Out-Null
+          $patterns = @("*.dmg", "*.exe", "*.zip", "*.blockmap", "*.yml")
+          foreach ($pattern in $patterns) {
+            Get-ChildItem -Path release -Filter $pattern -File -ErrorAction SilentlyContinue | ForEach-Object {
+              $target = Join-Path "release-upload" "$artifactName-$($_.Name)"
+              Copy-Item $_.FullName -Destination $target
+            }
+          }
+          $files = Get-ChildItem -Path release-upload -File -ErrorAction SilentlyContinue
+          if (-not $files) {
+            throw "No packaged files were collected"
+          }
+          $files | ForEach-Object { $_.FullName }
 
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
@@ -101,8 +108,4 @@ jobs:
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
           files: |
-            desktop-release/**/*.dmg
-            desktop-release/**/*.exe
-            desktop-release/**/*.zip
-            desktop-release/**/*.blockmap
-            desktop-release/**/*.yml
+            release-upload/*
