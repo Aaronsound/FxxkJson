@@ -12,6 +12,7 @@ import JsonToolToolbar from './components/JsonToolToolbar';
 import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
+import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import {
   DEFAULT_TAB_TITLE,
@@ -178,7 +179,6 @@ const App: React.FC = () => {
   });
   const leftDecorationIdsRef = useRef<string[]>([]);
   const rightDecorationIdsRef = useRef<string[]>([]);
-  const rightSelectionDecorationIdsRef = useRef<string[]>([]);
   const highlightTimeoutRef = useRef<number | null>(null);
   const leftViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
   const rightViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
@@ -365,13 +365,6 @@ const App: React.FC = () => {
     if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
       rightEditorRef.current.deltaDecorations(rightDecorationIdsRef.current, []);
       rightDecorationIdsRef.current = [];
-    }
-  };
-
-  const clearRightSelectionHighlight = () => {
-    if (rightEditorRef.current && rightSelectionDecorationIdsRef.current.length > 0) {
-      rightEditorRef.current.deltaDecorations(rightSelectionDecorationIdsRef.current, []);
-      rightSelectionDecorationIdsRef.current = [];
     }
   };
 
@@ -1079,50 +1072,11 @@ const App: React.FC = () => {
     shouldUseDedicatedRightViewer,
   ]);
 
-  useEffect(() => {
-    const editor = rightEditorRef.current;
-    const model = editor?.getModel();
-
-    if (
-      !editor
-      || !model
-      || !activeRightNodeSelection
-      || shouldUseDedicatedRightViewer
-      || isBuildingDedicatedRightViewer
-    ) {
-      clearRightSelectionHighlight();
-      return;
-    }
-
-    const modelLength = model.getValueLength();
-    const startOffset = Math.max(0, Math.min(activeRightNodeSelection.startOffset, modelLength));
-    const endOffset = Math.max(
-      startOffset,
-      Math.min(activeRightNodeSelection.endOffset, modelLength)
-    );
-    const startPosition = model.getPositionAt(startOffset);
-    const endPosition = model.getPositionAt(endOffset);
-
-    rightSelectionDecorationIdsRef.current = editor.deltaDecorations(
-      rightSelectionDecorationIdsRef.current,
-      [{
-        range: new monaco.Range(
-          startPosition.lineNumber,
-          startPosition.column,
-          endPosition.lineNumber,
-          endPosition.column
-        ),
-        options: {
-          inlineClassName: 'rightNodeSelectionHighlight',
-          stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-        },
-      }]
-    );
-  }, [
-    activeRightNodeSelection,
-    isBuildingDedicatedRightViewer,
-    shouldUseDedicatedRightViewer,
-  ]);
+  useRightNodeSelectionHighlight({
+    editorRef: rightEditorRef,
+    isDisabled: shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer,
+    selection: activeRightNodeSelection,
+  });
 
   const beginPastePerformanceSession = (tabId: string, nextContent: string) => {
     beginPerformanceSession(

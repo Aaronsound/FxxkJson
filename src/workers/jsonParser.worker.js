@@ -17,6 +17,10 @@ import {
   saveJsonPreservingOriginalFormat,
 } from '../utils/preserveJsonFormat';
 import { formatJsonPath } from '../utils/jsonPath';
+import {
+  createNodeEditCacheEntry,
+  getCachedNodeRange,
+} from './jsonNodeEditCache';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -136,41 +140,6 @@ function getCachedFormattedText(tabId) {
   return null;
 }
 
-function areJsonPathsEqual(left, right) {
-  return Array.isArray(left)
-    && Array.isArray(right)
-    && left.length === right.length
-    && left.every((segment, index) => segment === right[index]);
-}
-
-function getCachedNodeRange(tabId, path, kind, sourceText) {
-  const cached = nodeEditCache.get(tabId);
-  if (!cached || !areJsonPathsEqual(cached.path, path)) {
-    return undefined;
-  }
-
-  if (kind === 'formatted' && cached.formattedText !== sourceText) {
-    return undefined;
-  }
-
-  if (kind === 'raw' && cached.rawTextLength !== sourceText.length) {
-    return undefined;
-  }
-
-  const startOffset = kind === 'raw'
-    ? cached.rawStartOffset
-    : cached.formattedStartOffset;
-  const endOffset = kind === 'raw'
-    ? cached.rawEndOffset
-    : cached.formattedEndOffset;
-
-  if (typeof startOffset !== 'number' || typeof endOffset !== 'number') {
-    return undefined;
-  }
-
-  return { startOffset, endOffset };
-}
-
 function readJsonNodeForEdit(tabId, text, offset) {
   const sourceText = getCachedFormattedText(tabId) ?? text;
   if (
@@ -209,15 +178,13 @@ function readJsonNodeForEdit(tabId, text, offset) {
         ? cachedStructure.rawText.length
         : cachedStructure?.rawTree?.length;
 
-      nodeEditCache.set(tabId, {
+      nodeEditCache.set(tabId, createNodeEditCacheEntry({
         formattedText: sourceText,
         path: [...location.path],
-        formattedStartOffset: node.offset,
-        formattedEndOffset: node.offset + node.length,
-        rawStartOffset: rawNode?.offset,
-        rawEndOffset: rawNode ? rawNode.offset + rawNode.length : undefined,
+        formattedNode: node,
+        rawNode,
         rawTextLength,
-      });
+      }));
 
       return JSON.stringify({
         path: location.path,
@@ -245,7 +212,7 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
     formattedText,
     path,
     text,
-    { range: getCachedNodeRange(tabId, path, 'formatted', formattedText) }
+    { range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText) }
   );
   const viewerIndexStartedAt = performance.now();
   const viewerData = buildLargeViewerData(nextFormattedText);
@@ -313,7 +280,7 @@ function saveJsonNodeForEdit(tabId, text, originalText, path) {
     originalText,
     path,
     text,
-    { range: getCachedNodeRange(tabId, path, 'raw', originalText) }
+    { range: getCachedNodeRange(nodeEditCache, tabId, path, 'raw', originalText) }
   );
   const rawViewerData = rawText.length >= LARGE_FILE_THRESHOLD
     ? buildLargeRawViewerData(rawText)
