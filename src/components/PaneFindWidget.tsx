@@ -60,6 +60,12 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const shouldShowResultList = resultItems.length > 0;
+  const countText = matchCount > 0
+    ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}`
+    : '0/0';
+  const searchProgressText = value
+    ? (hasMore ? `已加载 ${matchCount} 条` : `共 ${matchCount} 条`)
+    : '';
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -106,9 +112,15 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
               }
             }}
           />
-          <span className="pane-find-count">
-            {matchCount > 0 ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}` : '0/0'}
+          <span
+            className="pane-find-count"
+            title={hasMore ? `已加载 ${matchCount} 条结果，可继续加载更多` : `共 ${matchCount} 条结果`}
+          >
+            {countText}
           </span>
+          {searchProgressText && (
+            <span className="pane-find-progress">{searchProgressText}</span>
+          )}
           {hasMore && (
             <button
               type="button"

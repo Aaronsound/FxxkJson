@@ -51,4 +51,16 @@ describe('PaneFindWidget', () => {
     expect(onSelectResult).toHaveBeenCalledWith(0);
     expect(screen.getByRole('button', { name: /#2 · 第 20 行/ })).toHaveClass('active');
   });
+
+  it('shows loaded search progress when more results are available', () => {
+    renderWidget({
+      currentIndex: 1,
+      matchCount: 2000,
+      hasMore: true,
+    });
+
+    expect(screen.getByText('1/2000+')).toBeInTheDocument();
+    expect(screen.getByText('已加载 2000 条')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '加载更多' })).toBeInTheDocument();
+  });
 });

@@ -14,10 +14,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: desktop-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   prepare-release:
     name: Prepare GitHub Release
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Create release entry
         uses: softprops/action-gh-release@v2
@@ -31,6 +36,7 @@ jobs:
     name: Build ${{ matrix.name }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -92,7 +98,7 @@ jobs:
         run: |
           $artifactName = "${{ matrix.artifact_name }}"
           New-Item -ItemType Directory -Force release-upload | Out-Null
-          $patterns = @("*.dmg", "*.exe", "*.zip", "*.blockmap", "*.yml")
+          $patterns = @("*.dmg", "*.exe", "*.zip")
           foreach ($pattern in $patterns) {
             Get-ChildItem -Path release -Filter $pattern -File -ErrorAction SilentlyContinue | ForEach-Object {
               $target = Join-Path "release-upload" "$artifactName-$($_.Name)"
@@ -122,6 +128,7 @@ jobs:
     name: Verify Release Assets and Publish
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout

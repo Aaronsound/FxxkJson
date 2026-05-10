@@ -53,7 +53,17 @@ describe('DiagnosticsLogPanel', () => {
       openJsonFile: vi.fn().mockResolvedValue(null),
     };
 
-    render(<DiagnosticsLogPanel isDarkMode={false} onClose={vi.fn()} />);
+    render(
+      <DiagnosticsLogPanel
+        isDarkMode={false}
+        context={[
+          { label: 'tabTitle', value: 'large-sample.json' },
+          { label: 'rawBytes', value: 20_000_000 },
+          { label: 'performanceStatus', value: 'failed' },
+        ]}
+        onClose={vi.fn()}
+      />
+    );
 
     await waitFor(() => {
       expect(screen.getByDisplayValue(/format-success/)).toBeInTheDocument();
@@ -64,12 +74,15 @@ describe('DiagnosticsLogPanel', () => {
     expect(screen.getByDisplayValue(/format-failed/)).toBeInTheDocument();
     expect(screen.queryByDisplayValue(/format-success/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('复制问题摘要'));
+    expect(screen.getByText(/标签 large-sample.json/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('复制诊断包'));
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(expect.stringContaining('HanJson diagnostics summary'));
     });
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('format-failed'));
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('tabTitle=large-sample.json'));
   });
 
   it('clears the desktop runtime log', async () => {

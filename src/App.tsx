@@ -5,6 +5,7 @@ import JsonEditModal from './components/JsonEditModal';
 import type { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
 import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
+import type { DiagnosticsContextItem } from './components/DiagnosticsLogPanel';
 import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
@@ -351,6 +352,31 @@ const App: React.FC = () => {
       : null,
     rightPaneStatusText,
   ].filter(Boolean).join(' · ');
+  const diagnosticsContext: DiagnosticsContextItem[] = activeTab ? [
+    { label: 'tabId', value: activeTab.id },
+    { label: 'tabTitle', value: activeTab.title },
+    { label: 'rawBytes', value: activeDocumentMeta.rawLength },
+    { label: 'formattedBytes', value: activeDocumentMeta.formattedLength },
+    { label: 'rawLength', value: activeDocumentMeta.rawLength },
+    { label: 'formattedLength', value: activeDocumentMeta.formattedLength },
+    { label: 'largeMode', value: isLargeFileMode },
+    { label: 'dedicatedLeftViewer', value: shouldUseDedicatedLeftViewer },
+    { label: 'dedicatedRightViewer', value: shouldUseDedicatedRightViewer },
+    { label: 'largeFileLocateEnabled', value: isLargeFileLocateEnabled },
+    { label: 'lightweightLocate', value: usesLightweightLocate },
+    { label: 'structureStatus', value: currentStructureStatus },
+    { label: 'processingStage', value: activeProcessingStage },
+    { label: 'isFormatting', value: isFormattingActiveTab },
+    { label: 'importingFileName', value: importingFileName },
+    { label: 'currentError', value: currentError },
+    { label: 'rightSelectedPath', value: activeRightNodeSelection?.pathText },
+    { label: 'leftSearch', value: leftSearchTerm ? `${normalizedLeftMatchIndex + 1}/${activeLeftMatchCount}${leftSearchHasMore ? '+' : ''}` : null },
+    { label: 'rightSearch', value: rightSearchTerm ? `${normalizedRightMatchIndex + 1}/${activeRightMatchCount}${rightSearchHasMore ? '+' : ''}` : null },
+    { label: 'performanceTrigger', value: activePerformanceSnapshot?.trigger },
+    { label: 'performanceStatus', value: activePerformanceSnapshot?.status },
+    { label: 'formatWorkerMs', value: activePerformanceSnapshot?.formatWorkerMs },
+    { label: 'viewerIndexMs', value: activePerformanceSnapshot?.viewerIndexMs },
+  ] : [];
 
   const clearLeftHighlights = () => {
     if (highlightTimeoutRef.current !== null) {
@@ -2306,6 +2332,7 @@ const App: React.FC = () => {
       {isDiagnosticsLogOpen && (
         <DiagnosticsLogPanel
           isDarkMode={isDarkMode}
+          context={diagnosticsContext}
           onClose={() => setIsDiagnosticsLogOpen(false)}
         />
       )}

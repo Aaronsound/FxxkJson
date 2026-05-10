@@ -5,7 +5,13 @@ const ERROR_LINE_PATTERN = /("event"\s*:\s*"[^"]*(failed|error|gone|exception|re
 
 interface DiagnosticsLogPanelProps {
   isDarkMode: boolean;
+  context?: DiagnosticsContextItem[];
   onClose: () => void;
+}
+
+export interface DiagnosticsContextItem {
+  label: string;
+  value: string | number | boolean | null | undefined;
 }
 
 function getErrorLines(content: string) {
@@ -15,21 +21,61 @@ function getErrorLines(content: string) {
     .join('\n');
 }
 
-function buildIssueSummary(snapshot: RuntimeLogSnapshot | null, content: string) {
+function formatContextValue(value: DiagnosticsContextItem['value']) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return '(none)';
+  }
+
+  return String(value);
+}
+
+function buildIssueSummary(
+  snapshot: RuntimeLogSnapshot | null,
+  content: string,
+  context: DiagnosticsContextItem[] = []
+) {
   const path = snapshot?.path ?? 'runtime.log';
   const truncated = snapshot?.truncated ? 'yes' : 'no';
+  const contextLines = context.length > 0
+    ? context.map((item) => `${item.label}=${formatContextValue(item.value)}`).join('\n')
+    : '(no app context)';
 
   return [
     `HanJson diagnostics summary`,
     `logPath=${path}`,
     `truncated=${truncated}`,
     '',
+    '[app-context]',
+    contextLines,
+    '',
+    '[log-excerpt]',
     content || '(no matching log lines)',
   ].join('\n');
 }
 
+function getContextSummary(context: DiagnosticsContextItem[]) {
+  if (context.length === 0) {
+    return null;
+  }
+
+  const tabTitle = context.find((item) => item.label === 'tabTitle')?.value;
+  const rawBytes = context.find((item) => item.label === 'rawBytes')?.value;
+  const status = context.find((item) => item.label === 'performanceStatus')?.value;
+
+  return [
+    tabTitle ? `标签 ${tabTitle}` : null,
+    typeof rawBytes === 'number' ? `原始 ${rawBytes.toLocaleString()} bytes` : null,
+    status ? `状态 ${status}` : null,
+  ].filter(Boolean).join(' · ');
+}
+
+function countLines(content: string) {
+  return content ? content.split('\n').length : 0;
+}
+
 const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
   isDarkMode,
+  context = [],
   onClose,
 }) => {
   const [snapshot, setSnapshot] = useState<RuntimeLogSnapshot | null>(null);
@@ -119,12 +165,15 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
   const logContent = snapshot?.content ?? '';
   const errorLogContent = getErrorLines(logContent);
   const displayContent = showErrorsOnly ? errorLogContent : logContent;
+  const contextSummary = getContextSummary(context);
   const previewText = isLoading
     ? '正在读取日志...'
     : displayContent || (showErrorsOnly ? '没有匹配到错误日志' : '暂无日志');
   const metaText = [
     snapshot?.truncated ? '显示最近日志片段' : '显示完整日志',
-    showErrorsOnly ? `错误行 ${errorLogContent ? errorLogContent.split('\n').length : 0}` : null,
+    `日志行 ${countLines(logContent)}`,
+    showErrorsOnly ? `错误行 ${countLines(errorLogContent)}` : null,
+    contextSummary,
   ].filter(Boolean).join(' · ');
 
   return (
@@ -163,10 +212,10 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
             复制当前内容
           </button>
           <button
-            onClick={() => copyLog(buildIssueSummary(snapshot, displayContent), '已复制问题摘要')}
-            disabled={!logContent}
+            onClick={() => copyLog(buildIssueSummary(snapshot, displayContent, context), '已复制诊断包')}
+            disabled={!logContent && context.length === 0}
           >
-            复制问题摘要
+            复制诊断包
           </button>
           <button onClick={clearLog} disabled={isLoading}>清空日志</button>
           <button onClick={showLogFile}>定位文件</button>
