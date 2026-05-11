@@ -9,6 +9,9 @@ import {
   getRangeStartOffset,
   getSafeOffsetAt,
 } from '../utils/searchMatchPosition';
+import { getSearchDecorationWindow } from '../utils/searchDecorationWindow';
+
+const EDIT_MODAL_SEARCH_DECORATION_RADIUS = 250;
 
 interface UseEditModalSearchArgs {
   editorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
@@ -218,11 +221,16 @@ export function useEditModalSearch({
       return;
     }
 
-    const nextDecorations = searchMatches.map((range, index) => ({
+    const visibleDecorationMatches = getSearchDecorationWindow(
+      searchMatches,
+      normalizedSearchIndex,
+      EDIT_MODAL_SEARCH_DECORATION_RADIUS
+    );
+    const nextDecorations = visibleDecorationMatches.map(({ matchIndex, range }) => ({
       range,
       options: {
         inlineClassName:
-          index === normalizedSearchIndex ? 'currentSearchHighlight' : 'searchHighlight',
+          matchIndex === normalizedSearchIndex ? 'currentSearchHighlight' : 'searchHighlight',
       },
     }));
 
