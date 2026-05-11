@@ -1,15 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import PaneFindWidget from './PaneFindWidget';
-import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
-import type { JsonSearchOptions } from '../types/jsonTool';
-import { getMonacoSearchBatch } from '../utils/jsonEditorInteractions';
-import {
-  findSearchIndexAtOrAfterOffset,
-  getRangeStartOffset,
-  getSafeOffsetAt,
-} from '../utils/searchMatchPosition';
+import { useEditModalSearch } from '../hooks/useEditModalSearch';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 
@@ -51,99 +44,19 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const isBusy = Boolean(busyLabel);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const searchDecorationIdsRef = useRef<string[]>([]);
-  const searchAnchorOffsetRef = useRef<number | null>(null);
-  const searchMatchesRef = useRef<monaco.Range[]>([]);
-  const searchPreservePositionRef = useRef(false);
-  const searchSkipRevealRef = useRef(false);
-  const searchTermRef = useRef('');
-  const normalizedSearchIndexRef = useRef(0);
   const isBusyRef = useRef(isBusy);
-  const isFindOpenRef = useRef(false);
   const onCloseRef = useRef(onClose);
   const closeFindRef = useRef<() => void>(() => undefined);
-  const [isFindOpen, setIsFindOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchOptions, setSearchOptions] = useState<JsonSearchOptions>(DEFAULT_SEARCH_OPTIONS);
-  const [searchMatches, setSearchMatches] = useState<monaco.Range[]>([]);
-  const [searchIndex, setSearchIndex] = useState(0);
-  const [searchHasMore, setSearchHasMore] = useState(false);
-  const [searchNextOffset, setSearchNextOffset] = useState(0);
-  const [editorRevision, setEditorRevision] = useState(0);
-
-  const normalizedSearchIndex = searchMatches.length > 0
-    ? ((searchIndex % searchMatches.length) + searchMatches.length) % searchMatches.length
-    : 0;
-
-  useEffect(() => {
-    searchMatchesRef.current = searchMatches;
-    normalizedSearchIndexRef.current = normalizedSearchIndex;
-  }, [normalizedSearchIndex, searchMatches]);
-
-  useEffect(() => {
-    searchTermRef.current = searchTerm;
-  }, [searchTerm]);
-
-  const resetSearchAnchor = useCallback(() => {
-    searchAnchorOffsetRef.current = null;
-    searchPreservePositionRef.current = false;
-    searchSkipRevealRef.current = false;
-  }, []);
-
-  const captureSearchAnchor = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
-    if (!isFindOpenRef.current || !searchTermRef.current) {
-      resetSearchAnchor();
-      return;
-    }
-
-    const model = editor.getModel();
-    if (!model) {
-      resetSearchAnchor();
-      return;
-    }
-
-    const activeMatch = searchMatchesRef.current[normalizedSearchIndexRef.current];
-    const fallbackPosition = editor.getPosition();
-    searchAnchorOffsetRef.current = activeMatch
-      ? getRangeStartOffset(model, activeMatch)
-      : fallbackPosition
-        ? getSafeOffsetAt(model, fallbackPosition)
-        : null;
-    searchPreservePositionRef.current = searchAnchorOffsetRef.current !== null;
-    searchSkipRevealRef.current = searchPreservePositionRef.current;
-  }, [resetSearchAnchor]);
-
-  const clearSearchDecorations = useCallback(() => {
-    if (editorRef.current && searchDecorationIdsRef.current.length > 0) {
-      searchDecorationIdsRef.current = editorRef.current.deltaDecorations(
-        searchDecorationIdsRef.current,
-        []
-      );
-    }
-  }, []);
-
-  const closeFind = useCallback(() => {
-    setIsFindOpen(false);
-    setSearchTerm('');
-    setSearchMatches([]);
-    setSearchIndex(0);
-    setSearchHasMore(false);
-    setSearchNextOffset(0);
-    resetSearchAnchor();
-    clearSearchDecorations();
-    editorRef.current?.focus();
-  }, [clearSearchDecorations, resetSearchAnchor]);
-
-  const openFind = useCallback(() => {
-    setIsFindOpen(true);
-  }, []);
+  const editSearch = useEditModalSearch({
+    editorRef,
+    searchBatchSize: EDIT_MODAL_SEARCH_BATCH_SIZE,
+  });
 
   useEffect(() => {
     isBusyRef.current = isBusy;
-    isFindOpenRef.current = isFindOpen;
     onCloseRef.current = onClose;
-    closeFindRef.current = closeFind;
-  }, [closeFind, isBusy, isFindOpen, onClose]);
+    closeFindRef.current = editSearch.closeFind;
+  }, [editSearch.closeFind, isBusy, onClose]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -155,7 +68,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       if (target instanceof Node && modalRef.current?.contains(target)) {
         event.preventDefault();
         event.stopPropagation();
-        if (isFindOpenRef.current) {
+        if (editSearch.isFindOpenRef.current) {
           closeFindRef.current();
           return;
         }
@@ -170,106 +83,6 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     };
   }, []);
 
-  useEffect(() => {
-    if (!isFindOpen || !searchTerm) {
-      setSearchMatches([]);
-      setSearchIndex(0);
-      setSearchHasMore(false);
-      setSearchNextOffset(0);
-      resetSearchAnchor();
-      clearSearchDecorations();
-      return;
-    }
-
-    const timerId = window.setTimeout(() => {
-      const model = editorRef.current?.getModel();
-      if (!model) {
-        return;
-      }
-
-      const result = getMonacoSearchBatch(
-        model,
-        searchTerm,
-        searchOptions,
-        0,
-        EDIT_MODAL_SEARCH_BATCH_SIZE
-      );
-      const nextSearchIndex = searchPreservePositionRef.current
-        ? findSearchIndexAtOrAfterOffset(model, result.ranges, searchAnchorOffsetRef.current)
-        : 0;
-
-      setSearchMatches(result.ranges);
-      setSearchIndex(nextSearchIndex);
-      setSearchHasMore(result.hasMore);
-      setSearchNextOffset(result.nextStartOffset);
-      searchAnchorOffsetRef.current = null;
-      searchPreservePositionRef.current = false;
-    }, 80);
-
-    return () => {
-      window.clearTimeout(timerId);
-    };
-  }, [
-    clearSearchDecorations,
-    editorRevision,
-    isFindOpen,
-    resetSearchAnchor,
-    searchOptions,
-    searchTerm,
-  ]);
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || !isFindOpen || !searchTerm) {
-      clearSearchDecorations();
-      return;
-    }
-
-    const nextDecorations = searchMatches.map((range, index) => ({
-      range,
-      options: {
-        inlineClassName:
-          index === normalizedSearchIndex ? 'currentSearchHighlight' : 'searchHighlight',
-      },
-    }));
-
-    searchDecorationIdsRef.current = editor.deltaDecorations(
-      searchDecorationIdsRef.current,
-      nextDecorations
-    );
-
-    const activeMatch = searchMatches[normalizedSearchIndex];
-    if (!activeMatch) {
-      searchSkipRevealRef.current = false;
-      return;
-    }
-
-    if (searchSkipRevealRef.current) {
-      searchSkipRevealRef.current = false;
-      return;
-    }
-
-    editor.revealRangeInCenter(activeMatch);
-    editor.setSelection(
-      new monaco.Selection(
-        activeMatch.startLineNumber,
-        activeMatch.startColumn,
-        activeMatch.endLineNumber,
-        activeMatch.endColumn
-      )
-    );
-  }, [
-    clearSearchDecorations,
-    isFindOpen,
-    normalizedSearchIndex,
-    searchMatches,
-    searchTerm,
-  ]);
-
-  useEffect(() => () => {
-    clearSearchDecorations();
-  }, [clearSearchDecorations]);
-
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
     editor.onDidDispose(() => {
@@ -278,8 +91,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       }
     });
     editor.onDidChangeModelContent(() => {
-      captureSearchAnchor(editor);
-      setEditorRevision((current) => current + 1);
+      editSearch.captureSearchAnchor(editor);
+      editSearch.refreshSearch();
     });
 
     window.setTimeout(() => {
@@ -291,7 +104,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         return;
       }
 
-      if (isFindOpenRef.current) {
+      if (editSearch.isFindOpenRef.current) {
         closeFindRef.current();
       } else {
         onCloseRef.current();
@@ -299,38 +112,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     });
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
-      openFind();
+      editSearch.openFind();
     });
-  };
-
-  const handleSearchOptionsChange = (value: JsonSearchOptions) => {
-    resetSearchAnchor();
-    setSearchOptions(value);
-    setSearchIndex(0);
-    setSearchHasMore(false);
-    setSearchNextOffset(0);
-  };
-
-  const loadMoreSearch = () => {
-    if (!searchTerm || !searchHasMore) {
-      return;
-    }
-
-    const model = editorRef.current?.getModel();
-    if (!model) {
-      return;
-    }
-
-    const result = getMonacoSearchBatch(
-      model,
-      searchTerm,
-      searchOptions,
-      searchNextOffset,
-      EDIT_MODAL_SEARCH_BATCH_SIZE
-    );
-    setSearchMatches((current) => [...current, ...result.ranges]);
-    setSearchHasMore(result.hasMore);
-    setSearchNextOffset(result.nextStartOffset);
   };
 
   const replaceEditorValue = useCallback((nextValue: string) => {
@@ -351,8 +134,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     }
 
     onValueChange(nextValue);
-    setEditorRevision((current) => current + 1);
-  }, [onValueChange]);
+    editSearch.refreshSearch();
+  }, [editSearch, onValueChange]);
 
   const handleTransformContent = async (
     transform: (value: string) => Promise<string>
@@ -384,35 +167,21 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         </div>
 
         <div className="modal-editor-shell">
-          {isFindOpen && (
+          {editSearch.isFindOpen && (
             <PaneFindWidget
-              value={searchTerm}
-              currentIndex={searchMatches.length > 0 ? normalizedSearchIndex + 1 : 0}
-              matchCount={searchMatches.length}
-              hasMore={searchHasMore}
+              value={editSearch.searchTerm}
+              currentIndex={editSearch.searchMatches.length > 0 ? editSearch.normalizedSearchIndex + 1 : 0}
+              matchCount={editSearch.searchMatches.length}
+              hasMore={editSearch.searchHasMore}
               isDarkMode={isDarkMode}
               placeholder="搜索编辑内容"
-              searchOptions={searchOptions}
-              onChange={(value) => {
-                resetSearchAnchor();
-                setSearchTerm(value);
-                setSearchIndex(0);
-                setSearchHasMore(false);
-                setSearchNextOffset(0);
-              }}
-              onSearchOptionsChange={handleSearchOptionsChange}
-              onLoadMore={loadMoreSearch}
-              onPrev={() => {
-                if (searchMatches.length > 0) {
-                  setSearchIndex((current) => (current - 1 + searchMatches.length) % searchMatches.length);
-                }
-              }}
-              onNext={() => {
-                if (searchMatches.length > 0) {
-                  setSearchIndex((current) => (current + 1) % searchMatches.length);
-                }
-              }}
-              onClose={closeFind}
+              searchOptions={editSearch.searchOptions}
+              onChange={editSearch.handleSearchTermChange}
+              onSearchOptionsChange={editSearch.handleSearchOptionsChange}
+              onLoadMore={editSearch.loadMoreSearch}
+              onPrev={editSearch.goToPreviousMatch}
+              onNext={editSearch.goToNextMatch}
+              onClose={editSearch.closeFind}
             />
           )}
           <Editor
