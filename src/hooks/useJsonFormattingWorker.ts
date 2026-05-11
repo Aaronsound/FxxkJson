@@ -555,6 +555,7 @@ export function useJsonFormattingWorker({
       workerStructureEnabled: plan.shouldBuildStructureIndex,
       workerStructureDeferred: plan.shouldDeferStructureIndex,
       workerDirectLocateEnabled: plan.shouldAttemptDirectLocate,
+      workerStructureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
     });
 
     const run = () => {
@@ -579,6 +580,7 @@ export function useJsonFormattingWorker({
         enableDirectLocate: plan.shouldAttemptDirectLocate,
         deferStructure: plan.shouldDeferStructureIndex,
         buildViewer: plan.shouldBuildLargeViewer,
+        structureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
         ...textPayload.message,
       }, textPayload.transfer);
     };
@@ -654,6 +656,7 @@ export function useJsonFormattingWorker({
       workerStructureEnabled: plan.shouldBuildStructureIndex,
       workerStructureDeferred: plan.shouldDeferStructureIndex,
       workerDirectLocateEnabled: plan.shouldAttemptDirectLocate,
+      workerStructureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
     });
 
     const textPayload = createWorkerTextPayload(text, plan.textByteLength);
@@ -665,6 +668,7 @@ export function useJsonFormattingWorker({
       enableDirectLocate: plan.shouldAttemptDirectLocate,
       deferStructure: plan.shouldDeferStructureIndex,
       buildViewer: plan.shouldBuildLargeViewer,
+      structureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
       ...textPayload.message,
     }, textPayload.transfer);
   };

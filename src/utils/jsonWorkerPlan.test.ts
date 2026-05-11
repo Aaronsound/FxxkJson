@@ -3,7 +3,10 @@ import {
   LARGE_FILE_THRESHOLD,
   STRUCTURE_SYNC_THRESHOLD,
 } from '../types/jsonTool';
-import { buildJsonWorkerProcessingPlan } from './jsonWorkerPlan';
+import {
+  buildJsonWorkerProcessingPlan,
+  getDeferredStructureWarmupDelayMs,
+} from './jsonWorkerPlan';
 
 describe('jsonWorkerPlan', () => {
   it('keeps small documents out of large viewer while retaining normal structure locate', () => {
@@ -26,6 +29,7 @@ describe('jsonWorkerPlan', () => {
     expect(plan.shouldAttemptDirectLocate).toBe(false);
     expect(plan.workerLocateEnabled).toBe(true);
     expect(plan.shouldDeferStructureIndex).toBe(true);
+    expect(plan.deferredStructureWarmupDelayMs).toBe(350);
   });
 
   it('uses direct lightweight locate above the full structure sync threshold', () => {
@@ -38,5 +42,12 @@ describe('jsonWorkerPlan', () => {
     expect(plan.shouldAttemptDirectLocate).toBe(true);
     expect(plan.workerLocateEnabled).toBe(true);
     expect(plan.shouldDeferStructureIndex).toBe(false);
+  });
+
+  it('backs off deferred structure warmup for larger supported files', () => {
+    expect(getDeferredStructureWarmupDelayMs(5 * 1024 * 1024)).toBe(350);
+    expect(getDeferredStructureWarmupDelayMs(10 * 1024 * 1024)).toBe(900);
+    expect(getDeferredStructureWarmupDelayMs(16 * 1024 * 1024)).toBe(1600);
+    expect(getDeferredStructureWarmupDelayMs(16 * 1024 * 1024, 2000)).toBe(2000);
   });
 });

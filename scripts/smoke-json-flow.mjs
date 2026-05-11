@@ -3,8 +3,6 @@ import path from 'node:path';
 import process from 'node:process';
 import { jsonrepair } from 'jsonrepair';
 
-const DEFAULT_SAMPLE = 'json/sample-5mb.json';
-
 function createFallbackSample() {
   return JSON.stringify([
     {
@@ -20,23 +18,19 @@ function createFallbackSample() {
 }
 
 async function readInput(filePath) {
-  const resolvedPath = path.resolve(filePath);
-
-  try {
+  if (!filePath) {
     return {
-      label: resolvedPath,
-      text: await fs.readFile(resolvedPath, 'utf8'),
-    };
-  } catch (error) {
-    if (filePath !== DEFAULT_SAMPLE) {
-      throw error;
-    }
-
-    return {
-      label: 'inline fallback sample',
+      label: 'inline smoke fixture',
       text: createFallbackSample(),
     };
   }
+
+  const resolvedPath = path.resolve(filePath);
+
+  return {
+    label: resolvedPath,
+    text: await fs.readFile(resolvedPath, 'utf8'),
+  };
 }
 
 function formatJson(text) {
@@ -72,11 +66,38 @@ function editFirstRecord(text) {
   return JSON.stringify(json, null, 2);
 }
 
+function findFirstObjectKey(value) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const key = findFirstObjectKey(item);
+      if (key) {
+        return key;
+      }
+    }
+    return null;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.keys(value)[0] ?? null;
+  }
+
+  return null;
+}
+
+function getSmokeSearchQuery(formatted) {
+  const parsed = JSON.parse(formatted);
+
+  return formatted.includes('requestId')
+    ? 'requestId'
+    : findFirstObjectKey(parsed);
+}
+
 async function main() {
-  const filePath = process.argv[2] ?? DEFAULT_SAMPLE;
+  const filePath = process.argv[2];
   const input = await readInput(filePath);
   const formatted = formatJson(input.text);
-  const requestMatches = countSearchMatches(formatted, 'requestId');
+  const searchQuery = getSmokeSearchQuery(formatted);
+  const requestMatches = searchQuery ? countSearchMatches(formatted, searchQuery) : 0;
   const edited = editFirstRecord(formatted);
   const repaired = jsonrepair('{ok: true, trailing: [1,2,],}');
   const repairedFormatted = formatJson(repaired);
@@ -86,7 +107,7 @@ async function main() {
   }
 
   if (requestMatches < 1) {
-    throw new Error('Search smoke did not find requestId');
+    throw new Error(`Search smoke did not find ${searchQuery ?? 'a searchable object key'}`);
   }
 
   if (!edited.includes('__hanjsonSmoke')) {
@@ -101,7 +122,7 @@ async function main() {
   console.table([
     { step: 'input', detail: input.label },
     { step: 'format', detail: `${formatted.length.toLocaleString()} chars` },
-    { step: 'search requestId', detail: `${requestMatches.toLocaleString()} matches` },
+    { step: `search ${searchQuery}`, detail: `${requestMatches.toLocaleString()} matches` },
     { step: 'edit', detail: '__hanjsonSmoke updated' },
     { step: 'repair', detail: 'malformed JSON repaired and formatted' },
   ]);

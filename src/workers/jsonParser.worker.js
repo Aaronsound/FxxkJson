@@ -9,6 +9,7 @@ import { formatJsonText, parseJsonForFormatting, repairJsonText } from '../utils
 import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
+import { getDeferredStructureWarmupDelayMs } from '../utils/jsonWorkerPlan';
 import {
   getIdentityLocateRange,
   getLightweightTokenLocateRange,
@@ -53,6 +54,17 @@ function getTextEncoder() {
   }
 
   return textEncoder;
+}
+
+function getTextByteLength(text) {
+  return getTextEncoder().encode(text).length;
+}
+
+function getStructureWarmupDelayForTexts(rawText, formattedText, baseDelayMs) {
+  return getDeferredStructureWarmupDelayMs(
+    Math.max(getTextByteLength(rawText ?? ''), getTextByteLength(formattedText ?? '')),
+    baseDelayMs
+  );
 }
 
 function readMessageText(message) {
@@ -259,7 +271,11 @@ function patchCachedFormattedNode(tabId, text, path, rawText) {
         rawTree: undefined,
         formattedTree: undefined,
       });
-      scheduleDeferredStructureWarmup(tabId, requestId, 150);
+      scheduleDeferredStructureWarmup(
+        tabId,
+        requestId,
+        getStructureWarmupDelayForTexts(rawText, nextFormattedText, 150)
+      );
       structureWarming = true;
     }
   }
@@ -849,6 +865,7 @@ function buildFormatArtifacts({
   enableDirectLocate,
   deferStructure,
   buildViewer,
+  structureWarmupDelayMs,
 }) {
   if (buildViewer) {
     setTimeout(() => {
@@ -966,7 +983,7 @@ function buildFormatArtifacts({
   });
 
   if (deferStructure) {
-    scheduleDeferredStructureWarmup(tabId, requestId);
+    scheduleDeferredStructureWarmup(tabId, requestId, structureWarmupDelayMs);
     return;
   }
 
@@ -1112,6 +1129,7 @@ self.onmessage = (event) => {
         enableDirectLocate,
         deferStructure,
         buildViewer,
+        structureWarmupDelayMs: message.structureWarmupDelayMs,
       });
     } catch (err) {
       structureCache.delete(tabId);
@@ -1165,6 +1183,7 @@ self.onmessage = (event) => {
         enableDirectLocate,
         deferStructure,
         buildViewer,
+        structureWarmupDelayMs: message.structureWarmupDelayMs,
       });
     } catch (err) {
       structureCache.delete(tabId);

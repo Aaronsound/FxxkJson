@@ -13,6 +13,28 @@ export interface JsonWorkerProcessingPlan {
   workerLocateEnabled: boolean;
   shouldDeferStructureIndex: boolean;
   shouldBuildLargeViewer: boolean;
+  deferredStructureWarmupDelayMs: number;
+}
+
+export const DEFERRED_STRUCTURE_WARMUP_DELAY_MS = 350;
+const LARGE_STRUCTURE_WARMUP_THRESHOLD = 10 * 1024 * 1024;
+const EXTRA_LARGE_STRUCTURE_WARMUP_THRESHOLD = 16 * 1024 * 1024;
+const LARGE_STRUCTURE_WARMUP_DELAY_MS = 900;
+const EXTRA_LARGE_STRUCTURE_WARMUP_DELAY_MS = 1600;
+
+export function getDeferredStructureWarmupDelayMs(
+  textByteLength: number,
+  baseDelayMs = DEFERRED_STRUCTURE_WARMUP_DELAY_MS
+) {
+  if (textByteLength >= EXTRA_LARGE_STRUCTURE_WARMUP_THRESHOLD) {
+    return Math.max(baseDelayMs, EXTRA_LARGE_STRUCTURE_WARMUP_DELAY_MS);
+  }
+
+  if (textByteLength >= LARGE_STRUCTURE_WARMUP_THRESHOLD) {
+    return Math.max(baseDelayMs, LARGE_STRUCTURE_WARMUP_DELAY_MS);
+  }
+
+  return baseDelayMs;
 }
 
 export function buildJsonWorkerProcessingPlan(
@@ -36,5 +58,6 @@ export function buildJsonWorkerProcessingPlan(
     workerLocateEnabled,
     shouldDeferStructureIndex: largeMode && shouldBuildStructureIndex,
     shouldBuildLargeViewer: textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD,
+    deferredStructureWarmupDelayMs: getDeferredStructureWarmupDelayMs(textByteLength),
   };
 }

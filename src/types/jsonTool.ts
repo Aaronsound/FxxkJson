@@ -30,6 +30,7 @@ interface WorkerFormatOptions {
   deferStructure: boolean;
   enableDirectLocate: boolean;
   enableStructure: boolean;
+  structureWarmupDelayMs?: number;
 }
 
 export type WorkerRequestMessage =
