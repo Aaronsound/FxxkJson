@@ -16,9 +16,9 @@ import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
+import { usePaneSearchState } from './hooks/usePaneSearchState';
 import {
   DEFAULT_TAB_TITLE,
-  DEFAULT_SEARCH_OPTIONS,
   EMPTY_DOCUMENT_META,
   INITIAL_TAB_ID,
   LARGE_FILE_THRESHOLD,
@@ -111,26 +111,52 @@ const App: React.FC = () => {
     initialTabId: INITIAL_TAB_ID,
     initialTabTitle: 'HelloJson',
   });
-  const [leftSearchTerm, setLeftSearchTerm] = useState('');
-  const [rightSearchTerm, setRightSearchTerm] = useState('');
-  const [leftSearchOptions, setLeftSearchOptions] = useState<JsonSearchOptions>(DEFAULT_SEARCH_OPTIONS);
-  const [rightSearchOptions, setRightSearchOptions] = useState<JsonSearchOptions>(DEFAULT_SEARCH_OPTIONS);
+  const leftPaneSearch = usePaneSearchState();
+  const rightPaneSearch = usePaneSearchState();
+  const {
+    isFindOpen: isLeftFindOpen,
+    isSearchLoadingMore: isLeftSearchLoadingMore,
+    matchIndex: leftMatchIndex,
+    matches: leftMatches,
+    resetSearchPaging: resetLeftSearchPaging,
+    resetSearchState: resetLeftSearchState,
+    searchHasMore: leftSearchHasMore,
+    searchNextOffset: leftSearchNextOffset,
+    searchOptions: leftSearchOptions,
+    searchTerm: leftSearchTerm,
+    setIsFindOpen: setIsLeftFindOpen,
+    setIsSearchLoadingMore: setIsLeftSearchLoadingMore,
+    setMatchIndex: setLeftMatchIndex,
+    setMatches: setLeftMatches,
+    setSearchHasMore: setLeftSearchHasMore,
+    setSearchNextOffset: setLeftSearchNextOffset,
+    setSearchOptions: setLeftSearchOptions,
+    setSearchTerm: setLeftSearchTerm,
+  } = leftPaneSearch;
+  const {
+    isFindOpen: isRightFindOpen,
+    isSearchLoadingMore: isRightSearchLoadingMore,
+    matchIndex: rightMatchIndex,
+    matches: rightMatches,
+    resetSearchPaging: resetRightSearchPaging,
+    resetSearchState: resetRightSearchState,
+    searchHasMore: rightSearchHasMore,
+    searchNextOffset: rightSearchNextOffset,
+    searchOptions: rightSearchOptions,
+    searchTerm: rightSearchTerm,
+    setIsFindOpen: setIsRightFindOpen,
+    setIsSearchLoadingMore: setIsRightSearchLoadingMore,
+    setMatchIndex: setRightMatchIndex,
+    setMatches: setRightMatches,
+    setSearchHasMore: setRightSearchHasMore,
+    setSearchNextOffset: setRightSearchNextOffset,
+    setSearchOptions: setRightSearchOptions,
+    setSearchTerm: setRightSearchTerm,
+  } = rightPaneSearch;
   const [leftReplaceText, setLeftReplaceText] = useState('');
-  const [leftMatches, setLeftMatches] = useState<monaco.Range[]>([]);
-  const [rightMatches, setRightMatches] = useState<monaco.Range[]>([]);
   const [leftRawHighlightRange, setLeftRawHighlightRange] = useState<{ start: number; end: number } | null>(null);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
-  const [leftSearchHasMore, setLeftSearchHasMore] = useState(false);
-  const [rightSearchHasMore, setRightSearchHasMore] = useState(false);
-  const [leftSearchNextOffset, setLeftSearchNextOffset] = useState(0);
-  const [rightSearchNextOffset, setRightSearchNextOffset] = useState(0);
-  const [isLeftSearchLoadingMore, setIsLeftSearchLoadingMore] = useState(false);
-  const [isRightSearchLoadingMore, setIsRightSearchLoadingMore] = useState(false);
-  const [leftMatchIndex, setLeftMatchIndex] = useState(0);
-  const [rightMatchIndex, setRightMatchIndex] = useState(0);
-  const [isLeftFindOpen, setIsLeftFindOpen] = useState(false);
-  const [isRightFindOpen, setIsRightFindOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [wrapLongLines, setWrapLongLines] = useState(false);
   const [showPerformancePanel, setShowPerformancePanel] = useState(() => {
@@ -427,24 +453,12 @@ const App: React.FC = () => {
   };
 
   const resetSearchState = () => {
-    setLeftSearchTerm('');
-    setRightSearchTerm('');
+    resetLeftSearchState();
+    resetRightSearchState();
     setLeftReplaceText('');
-    setLeftMatches([]);
-    setRightMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
     setLeftRawHighlightRange(null);
-    setLeftSearchHasMore(false);
-    setRightSearchHasMore(false);
-    setLeftSearchNextOffset(0);
-    setRightSearchNextOffset(0);
-    setIsLeftSearchLoadingMore(false);
-    setIsRightSearchLoadingMore(false);
-    setLeftMatchIndex(0);
-    setRightMatchIndex(0);
-    setIsLeftFindOpen(false);
-    setIsRightFindOpen(false);
     clearLeftHighlights();
     clearRightHighlights();
   };
@@ -483,9 +497,7 @@ const App: React.FC = () => {
     if (tabId === activeTabIdRef.current) {
       setLargeViewerMatches([]);
       setLargeViewerMatchCount(0);
-      setRightSearchHasMore(false);
-      setRightSearchNextOffset(0);
-      setIsRightSearchLoadingMore(false);
+      resetRightSearchPaging();
     }
   };
 
@@ -1889,27 +1901,15 @@ const App: React.FC = () => {
   };
 
   const closeLeftFind = () => {
-    setIsLeftFindOpen(false);
-    setLeftSearchTerm('');
-    setLeftMatches([]);
-    setLeftSearchHasMore(false);
-    setLeftSearchNextOffset(0);
-    setIsLeftSearchLoadingMore(false);
-    setLeftMatchIndex(0);
+    resetLeftSearchState();
     clearLeftHighlights();
     leftEditorRef.current?.focus();
   };
 
   const closeRightFind = () => {
-    setIsRightFindOpen(false);
-    setRightSearchTerm('');
-    setRightMatches([]);
+    resetRightSearchState();
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
-    setRightSearchHasMore(false);
-    setRightSearchNextOffset(0);
-    setIsRightSearchLoadingMore(false);
-    setRightMatchIndex(0);
     clearRightHighlights();
     if (shouldUseDedicatedRightViewer) {
       largeViewerRef.current?.focus();
@@ -1920,20 +1920,14 @@ const App: React.FC = () => {
 
   const handleLeftSearchOptionsChange = (value: JsonSearchOptions) => {
     setLeftSearchOptions(value);
-    setLeftSearchHasMore(false);
-    setLeftSearchNextOffset(0);
-    setIsLeftSearchLoadingMore(false);
-    setLeftMatchIndex(0);
+    resetLeftSearchPaging();
   };
 
   const handleRightSearchOptionsChange = (value: JsonSearchOptions) => {
     setRightSearchOptions(value);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
-    setRightSearchHasMore(false);
-    setRightSearchNextOffset(0);
-    setIsRightSearchLoadingMore(false);
-    setRightMatchIndex(0);
+    resetRightSearchPaging();
   };
 
   const replaceLeftMatch = () => {
@@ -2101,20 +2095,14 @@ const App: React.FC = () => {
 
   const handleLeftSearchTermChange = (value: string) => {
     setLeftSearchTerm(value);
-    setLeftSearchHasMore(false);
-    setLeftSearchNextOffset(0);
-    setIsLeftSearchLoadingMore(false);
-    setLeftMatchIndex(0);
+    resetLeftSearchPaging();
   };
 
   const handleRightSearchTermChange = (value: string) => {
     setRightSearchTerm(value);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
-    setRightSearchHasMore(false);
-    setRightSearchNextOffset(0);
-    setIsRightSearchLoadingMore(false);
-    setRightMatchIndex(0);
+    resetRightSearchPaging();
   };
 
   if (!activeTab) {
