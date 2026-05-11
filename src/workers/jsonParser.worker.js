@@ -23,6 +23,7 @@ import {
   createNodeEditCacheEntry,
   getCachedNodeRange,
 } from './jsonNodeEditCache';
+import { getJsonWorkerMessageHandler } from '../utils/jsonWorkerMessageRouting';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -1008,225 +1009,275 @@ function buildFormatArtifacts({
   }, 0);
 }
 
-self.onmessage = (event) => {
-  /** @type {WorkerRequestMessage} */
-  const message = event.data;
+function handleClearStructureMessage(message) {
+  clearDirectValueWarmup(message.tabId);
+  clearDeferredStructureWarmup(message.tabId);
+  structureCache.delete(message.tabId);
+  viewerCache.delete(message.tabId);
+  directValueTreeCache.delete(message.tabId);
+  editJsonCache.delete(message.tabId);
+  nodeEditCache.delete(message.tabId);
+  rawSearchCache.delete(message.tabId);
+  latestFormatRequestByTab.delete(message.tabId);
+  cancelInteractiveRequests(message.tabId);
+}
 
-  if (message.type === 'clear-structure') {
-    clearDirectValueWarmup(message.tabId);
-    clearDeferredStructureWarmup(message.tabId);
-    structureCache.delete(message.tabId);
-    viewerCache.delete(message.tabId);
-    directValueTreeCache.delete(message.tabId);
-    editJsonCache.delete(message.tabId);
-    nodeEditCache.delete(message.tabId);
-    rawSearchCache.delete(message.tabId);
-    latestFormatRequestByTab.delete(message.tabId);
-    cancelInteractiveRequests(message.tabId);
-    return;
-  }
+function handleEditJsonMessage(message) {
+  const { requestId, tabId, operation, text, originalText, path, offset } = message;
 
-  if (message.type === 'edit-json') {
-    const { requestId, tabId, operation, text, originalText, path, offset } = message;
-
-    try {
-      const data = (() => {
-        if (operation === 'copy-literal') {
-          return copyJsonAsStringLiteral(text);
-        }
-
-        if (operation === 'escape-json' || operation === 'unescape-json') {
-          return transformJsonEscape(operation, text);
-        }
-
-        if (operation === 'read-node') {
-          return readJsonNodeForEdit(tabId, text, offset);
-        }
-
-        if (operation === 'save-node') {
-          const result = saveJsonNodeForEdit(tabId, text, originalText, path);
-
-          postMessage({
-            type: 'edit-json-result',
-            requestId,
-            tabId,
-            operation,
-            success: true,
-            data: result.rawText,
-            formattedText: result.formattedText,
-            structureWarming: result.structureWarming,
-            rawViewerData: result.rawViewerData,
-            viewerData: result.viewerData,
-            viewerIndexMs: result.viewerIndexMs,
-          });
-          return null;
-        }
-
-        if (operation === 'save') {
-          return saveJsonForEdit(tabId, text, originalText);
-        }
-
-        return formatJsonForEdit(tabId, text);
-      })();
-
-      if (data === null) {
-        return;
+  try {
+    const data = (() => {
+      if (operation === 'copy-literal') {
+        return copyJsonAsStringLiteral(text);
       }
 
-      postMessage({
-        type: 'edit-json-result',
-        requestId,
-        tabId,
-        operation,
-        success: true,
-        data,
-      });
-    } catch (err) {
-      postMessage({
-        type: 'edit-json-result',
-        requestId,
-        tabId,
-        operation,
-        success: false,
-        error: err instanceof Error ? err.message : 'JSON 处理失败',
-      });
-    }
+      if (operation === 'escape-json' || operation === 'unescape-json') {
+        return transformJsonEscape(operation, text);
+      }
 
-    return;
-  }
+      if (operation === 'read-node') {
+        return readJsonNodeForEdit(tabId, text, offset);
+      }
 
-  if (message.type === 'format') {
-    const {
-      requestId,
-      tabId,
-      enableStructure,
-      enableDirectLocate,
-      deferStructure = false,
-      buildViewer,
-    } = message;
-    const text = readMessageText(message);
-    prepareFormatRequest(tabId, requestId, text);
-    try {
-      const rawViewerData = text.length >= LARGE_FILE_THRESHOLD
-        ? buildLargeRawViewerData(text)
-        : null;
-      const { formatted, normalizedNestedString } = formatJsonText(text);
-      postTextResult({
-        type: 'format-result',
-        requestId,
-        tabId,
-        success: true,
-        rawViewerData,
-      }, formatted);
+      if (operation === 'save-node') {
+        const result = saveJsonNodeForEdit(tabId, text, originalText, path);
 
-      buildFormatArtifacts({
-        requestId,
-        tabId,
-        sourceText: text,
-        formatted,
-        normalizedNestedString,
-        enableStructure,
-        enableDirectLocate,
-        deferStructure,
-        buildViewer,
-        structureWarmupDelayMs: message.structureWarmupDelayMs,
-      });
-    } catch (err) {
-      structureCache.delete(tabId);
-      viewerCache.delete(tabId);
-      directValueTreeCache.delete(tabId);
-      clearDeferredStructureWarmup(tabId);
-      postMessage({
-        type: 'format-result',
-        requestId,
-        tabId,
-        success: false,
-        error: err instanceof Error ? err.message : 'JSON 解析失败',
-      });
-    }
-
-    return;
-  }
-
-  if (message.type === 'repair') {
-    const {
-      requestId,
-      tabId,
-      enableStructure,
-      enableDirectLocate,
-      deferStructure = false,
-      buildViewer,
-    } = message;
-    const text = readMessageText(message);
-    prepareFormatRequest(tabId, requestId, text);
-    try {
-      const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
-      const rawViewerData = repaired.length >= LARGE_FILE_THRESHOLD
-        ? buildLargeRawViewerData(repaired)
-        : null;
-
-      postRepairResult({
-        type: 'repair-result',
-        requestId,
-        tabId,
-        success: true,
-        rawViewerData,
-      }, formatted, repaired);
-
-      buildFormatArtifacts({
-        requestId,
-        tabId,
-        sourceText: repaired,
-        formatted,
-        normalizedNestedString,
-        enableStructure,
-        enableDirectLocate,
-        deferStructure,
-        buildViewer,
-        structureWarmupDelayMs: message.structureWarmupDelayMs,
-      });
-    } catch (err) {
-      structureCache.delete(tabId);
-      viewerCache.delete(tabId);
-      directValueTreeCache.delete(tabId);
-      clearDeferredStructureWarmup(tabId);
-      postMessage({
-        type: 'repair-result',
-        requestId,
-        tabId,
-        success: false,
-        error: err instanceof Error ? err.message : 'JSON 修复失败',
-      });
-    }
-
-    return;
-  }
-
-  if (message.type === 'locate') {
-    latestLocateRequestByTab.set(message.tabId, message.requestId);
-    setTimeout(() => {
-      runLocateRequest(message);
-    }, LOCATE_REQUEST_DEBOUNCE_MS);
-    return;
-  }
-
-  if (message.type === 'read-value') {
-    const { requestId, tabId, offset } = message;
-    const cached = structureCache.get(tabId);
-
-    try {
-      if (!ensureStructureTrees(tabId, cached)) {
         postMessage({
-          type: 'value-result',
+          type: 'edit-json-result',
           requestId,
           tabId,
-          found: false,
-          value: null,
+          operation,
+          success: true,
+          data: result.rawText,
+          formattedText: result.formattedText,
+          structureWarming: result.structureWarming,
+          rawViewerData: result.rawViewerData,
+          viewerData: result.viewerData,
+          viewerIndexMs: result.viewerIndexMs,
         });
-        return;
+        return null;
       }
-    } catch {
-      structureCache.delete(tabId);
+
+      if (operation === 'save') {
+        return saveJsonForEdit(tabId, text, originalText);
+      }
+
+      return formatJsonForEdit(tabId, text);
+    })();
+
+    if (data === null) {
+      return;
+    }
+
+    postMessage({
+      type: 'edit-json-result',
+      requestId,
+      tabId,
+      operation,
+      success: true,
+      data,
+    });
+  } catch (err) {
+    postMessage({
+      type: 'edit-json-result',
+      requestId,
+      tabId,
+      operation,
+      success: false,
+      error: err instanceof Error ? err.message : 'JSON 处理失败',
+    });
+  }
+}
+
+function handleFormatMessage(message) {
+  const {
+    requestId,
+    tabId,
+    enableStructure,
+    enableDirectLocate,
+    deferStructure = false,
+    buildViewer,
+  } = message;
+  const text = readMessageText(message);
+  prepareFormatRequest(tabId, requestId, text);
+  try {
+    const rawViewerData = text.length >= LARGE_FILE_THRESHOLD
+      ? buildLargeRawViewerData(text)
+      : null;
+    const { formatted, normalizedNestedString } = formatJsonText(text);
+    postTextResult({
+      type: 'format-result',
+      requestId,
+      tabId,
+      success: true,
+      rawViewerData,
+    }, formatted);
+
+    buildFormatArtifacts({
+      requestId,
+      tabId,
+      sourceText: text,
+      formatted,
+      normalizedNestedString,
+      enableStructure,
+      enableDirectLocate,
+      deferStructure,
+      buildViewer,
+      structureWarmupDelayMs: message.structureWarmupDelayMs,
+    });
+  } catch (err) {
+    structureCache.delete(tabId);
+    viewerCache.delete(tabId);
+    directValueTreeCache.delete(tabId);
+    clearDeferredStructureWarmup(tabId);
+    postMessage({
+      type: 'format-result',
+      requestId,
+      tabId,
+      success: false,
+      error: err instanceof Error ? err.message : 'JSON 解析失败',
+    });
+  }
+}
+
+function handleRepairMessage(message) {
+  const {
+    requestId,
+    tabId,
+    enableStructure,
+    enableDirectLocate,
+    deferStructure = false,
+    buildViewer,
+  } = message;
+  const text = readMessageText(message);
+  prepareFormatRequest(tabId, requestId, text);
+  try {
+    const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
+    const rawViewerData = repaired.length >= LARGE_FILE_THRESHOLD
+      ? buildLargeRawViewerData(repaired)
+      : null;
+
+    postRepairResult({
+      type: 'repair-result',
+      requestId,
+      tabId,
+      success: true,
+      rawViewerData,
+    }, formatted, repaired);
+
+    buildFormatArtifacts({
+      requestId,
+      tabId,
+      sourceText: repaired,
+      formatted,
+      normalizedNestedString,
+      enableStructure,
+      enableDirectLocate,
+      deferStructure,
+      buildViewer,
+      structureWarmupDelayMs: message.structureWarmupDelayMs,
+    });
+  } catch (err) {
+    structureCache.delete(tabId);
+    viewerCache.delete(tabId);
+    directValueTreeCache.delete(tabId);
+    clearDeferredStructureWarmup(tabId);
+    postMessage({
+      type: 'repair-result',
+      requestId,
+      tabId,
+      success: false,
+      error: err instanceof Error ? err.message : 'JSON 修复失败',
+    });
+  }
+}
+
+function handleLocateMessage(message) {
+  latestLocateRequestByTab.set(message.tabId, message.requestId);
+  setTimeout(() => {
+    runLocateRequest(message);
+  }, LOCATE_REQUEST_DEBOUNCE_MS);
+}
+
+function handleReadValueMessage(message) {
+  const { requestId, tabId, offset } = message;
+  const cached = structureCache.get(tabId);
+
+  try {
+    if (!ensureStructureTrees(tabId, cached)) {
+      postMessage({
+        type: 'value-result',
+        requestId,
+        tabId,
+        found: false,
+        value: null,
+      });
+      return;
+    }
+  } catch {
+    structureCache.delete(tabId);
+    postMessage({
+      type: 'value-result',
+      requestId,
+      tabId,
+      found: false,
+      value: null,
+    });
+    return;
+  }
+
+  const resolvedNodes = getResolvedNodes(cached, offset);
+
+  if (!resolvedNodes || typeof cached?.formattedText !== 'string') {
+    postMessage({
+      type: 'value-result',
+      requestId,
+      tabId,
+      found: false,
+      value: null,
+    });
+    return;
+  }
+
+  const { rightNode } = resolvedNodes;
+  // Copy the exact JSON literal under the cursor so pasting into a new tab
+  // keeps valid JSON semantics for strings, numbers, arrays, objects, etc.
+  const value = cached.formattedText.slice(
+    rightNode.offset,
+    rightNode.offset + rightNode.length
+  );
+
+  postMessage({
+    type: 'value-result',
+    requestId,
+    tabId,
+    found: true,
+    value,
+  });
+}
+
+function handleReadValueDirectMessage(message) {
+  const { requestId, tabId, offset, text } = message;
+  const cachedViewer = viewerCache.get(tabId);
+  const sourceText = typeof text === 'string' && text
+    ? text
+    : cachedViewer?.formattedText;
+  const sourceRequestId = cachedViewer?.requestId ?? requestId;
+
+  if (typeof sourceText !== 'string' || !sourceText) {
+    postMessage({
+      type: 'value-result',
+      requestId,
+      tabId,
+      found: false,
+      value: null,
+    });
+    return;
+  }
+
+  try {
+    const formattedTree = getDirectValueTree(tabId, sourceRequestId, sourceText);
+    if (!formattedTree) {
       postMessage({
         type: 'value-result',
         requestId,
@@ -1237,9 +1288,10 @@ self.onmessage = (event) => {
       return;
     }
 
-    const resolvedNodes = getResolvedNodes(cached, offset);
+    const location = getLocation(sourceText, offset);
+    const rightNode = findNodeAtLocation(formattedTree, location.path);
 
-    if (!resolvedNodes || typeof cached?.formattedText !== 'string') {
+    if (!rightNode) {
       postMessage({
         type: 'value-result',
         requestId,
@@ -1249,100 +1301,52 @@ self.onmessage = (event) => {
       });
       return;
     }
-
-    const { rightNode } = resolvedNodes;
-    // Copy the exact JSON literal under the cursor so pasting into a new tab
-    // keeps valid JSON semantics for strings, numbers, arrays, objects, etc.
-    const value = cached.formattedText.slice(
-      rightNode.offset,
-      rightNode.offset + rightNode.length
-    );
 
     postMessage({
       type: 'value-result',
       requestId,
       tabId,
       found: true,
-      value,
+      value: sourceText.slice(rightNode.offset, rightNode.offset + rightNode.length),
+    });
+  } catch {
+    postMessage({
+      type: 'value-result',
+      requestId,
+      tabId,
+      found: false,
+      value: null,
     });
   }
+}
 
-  if (message.type === 'read-value-direct') {
-    const { requestId, tabId, offset, text } = message;
-    const cachedViewer = viewerCache.get(tabId);
-    const sourceText = typeof text === 'string' && text
-      ? text
-      : cachedViewer?.formattedText;
-    const sourceRequestId = cachedViewer?.requestId ?? requestId;
-
-    if (typeof sourceText !== 'string' || !sourceText) {
-      postMessage({
-        type: 'value-result',
-        requestId,
-        tabId,
-        found: false,
-        value: null,
-      });
-      return;
-    }
-
-    try {
-      const formattedTree = getDirectValueTree(tabId, sourceRequestId, sourceText);
-      if (!formattedTree) {
-        postMessage({
-          type: 'value-result',
-          requestId,
-          tabId,
-          found: false,
-          value: null,
-        });
-        return;
-      }
-
-      const location = getLocation(sourceText, offset);
-      const rightNode = findNodeAtLocation(formattedTree, location.path);
-
-      if (!rightNode) {
-        postMessage({
-          type: 'value-result',
-          requestId,
-          tabId,
-          found: false,
-          value: null,
-        });
-        return;
-      }
-
-      postMessage({
-        type: 'value-result',
-        requestId,
-        tabId,
-        found: true,
-        value: sourceText.slice(rightNode.offset, rightNode.offset + rightNode.length),
-      });
-    } catch {
-      postMessage({
-        type: 'value-result',
-        requestId,
-        tabId,
-        found: false,
-        value: null,
+function handleSearchMessage(message) {
+  const target = message.target ?? 'right';
+  latestSearchRequestByKey.set(getSearchRequestKey(message.tabId, target), message.requestId);
+  setTimeout(() => {
+    if (isLatestSearchRequest(message.tabId, target, message.requestId)) {
+      void runSearchRequest({
+        ...message,
+        target,
       });
     }
+  }, 0);
+}
 
-    return;
-  }
+const workerMessageHandlers = {
+  'clear-structure': handleClearStructureMessage,
+  'edit-json': handleEditJsonMessage,
+  format: handleFormatMessage,
+  locate: handleLocateMessage,
+  repair: handleRepairMessage,
+  'read-value': handleReadValueMessage,
+  'read-value-direct': handleReadValueDirectMessage,
+  search: handleSearchMessage,
+};
 
-  if (message.type === 'search') {
-    const target = message.target ?? 'right';
-    latestSearchRequestByKey.set(getSearchRequestKey(message.tabId, target), message.requestId);
-    setTimeout(() => {
-      if (isLatestSearchRequest(message.tabId, target, message.requestId)) {
-        void runSearchRequest({
-          ...message,
-          target,
-        });
-      }
-    }, 0);
-  }
+self.onmessage = (event) => {
+  /** @type {WorkerRequestMessage} */
+  const message = event.data;
+  const handler = getJsonWorkerMessageHandler(workerMessageHandlers, message);
+  handler?.(message);
 };
