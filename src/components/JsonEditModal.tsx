@@ -5,6 +5,11 @@ import PaneFindWidget from './PaneFindWidget';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import { getMonacoSearchBatch } from '../utils/jsonEditorInteractions';
+import {
+  findSearchIndexAtOrAfterOffset,
+  getRangeStartOffset,
+  getSafeOffsetAt,
+} from '../utils/searchMatchPosition';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 
@@ -47,6 +52,12 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const modalRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const searchDecorationIdsRef = useRef<string[]>([]);
+  const searchAnchorOffsetRef = useRef<number | null>(null);
+  const searchMatchesRef = useRef<monaco.Range[]>([]);
+  const searchPreservePositionRef = useRef(false);
+  const searchSkipRevealRef = useRef(false);
+  const searchTermRef = useRef('');
+  const normalizedSearchIndexRef = useRef(0);
   const isBusyRef = useRef(isBusy);
   const isFindOpenRef = useRef(false);
   const onCloseRef = useRef(onClose);
@@ -64,6 +75,44 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     ? ((searchIndex % searchMatches.length) + searchMatches.length) % searchMatches.length
     : 0;
 
+  useEffect(() => {
+    searchMatchesRef.current = searchMatches;
+    normalizedSearchIndexRef.current = normalizedSearchIndex;
+  }, [normalizedSearchIndex, searchMatches]);
+
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
+
+  const resetSearchAnchor = useCallback(() => {
+    searchAnchorOffsetRef.current = null;
+    searchPreservePositionRef.current = false;
+    searchSkipRevealRef.current = false;
+  }, []);
+
+  const captureSearchAnchor = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
+    if (!isFindOpenRef.current || !searchTermRef.current) {
+      resetSearchAnchor();
+      return;
+    }
+
+    const model = editor.getModel();
+    if (!model) {
+      resetSearchAnchor();
+      return;
+    }
+
+    const activeMatch = searchMatchesRef.current[normalizedSearchIndexRef.current];
+    const fallbackPosition = editor.getPosition();
+    searchAnchorOffsetRef.current = activeMatch
+      ? getRangeStartOffset(model, activeMatch)
+      : fallbackPosition
+        ? getSafeOffsetAt(model, fallbackPosition)
+        : null;
+    searchPreservePositionRef.current = searchAnchorOffsetRef.current !== null;
+    searchSkipRevealRef.current = searchPreservePositionRef.current;
+  }, [resetSearchAnchor]);
+
   const clearSearchDecorations = useCallback(() => {
     if (editorRef.current && searchDecorationIdsRef.current.length > 0) {
       searchDecorationIdsRef.current = editorRef.current.deltaDecorations(
@@ -80,9 +129,10 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     setSearchIndex(0);
     setSearchHasMore(false);
     setSearchNextOffset(0);
+    resetSearchAnchor();
     clearSearchDecorations();
     editorRef.current?.focus();
-  }, [clearSearchDecorations]);
+  }, [clearSearchDecorations, resetSearchAnchor]);
 
   const openFind = useCallback(() => {
     setIsFindOpen(true);
@@ -126,6 +176,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       setSearchIndex(0);
       setSearchHasMore(false);
       setSearchNextOffset(0);
+      resetSearchAnchor();
       clearSearchDecorations();
       return;
     }
@@ -143,10 +194,16 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         0,
         EDIT_MODAL_SEARCH_BATCH_SIZE
       );
+      const nextSearchIndex = searchPreservePositionRef.current
+        ? findSearchIndexAtOrAfterOffset(model, result.ranges, searchAnchorOffsetRef.current)
+        : 0;
+
       setSearchMatches(result.ranges);
-      setSearchIndex(0);
+      setSearchIndex(nextSearchIndex);
       setSearchHasMore(result.hasMore);
       setSearchNextOffset(result.nextStartOffset);
+      searchAnchorOffsetRef.current = null;
+      searchPreservePositionRef.current = false;
     }, 80);
 
     return () => {
@@ -156,6 +213,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     clearSearchDecorations,
     editorRevision,
     isFindOpen,
+    resetSearchAnchor,
     searchOptions,
     searchTerm,
   ]);
@@ -182,6 +240,12 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
 
     const activeMatch = searchMatches[normalizedSearchIndex];
     if (!activeMatch) {
+      searchSkipRevealRef.current = false;
+      return;
+    }
+
+    if (searchSkipRevealRef.current) {
+      searchSkipRevealRef.current = false;
       return;
     }
 
@@ -214,6 +278,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       }
     });
     editor.onDidChangeModelContent(() => {
+      captureSearchAnchor(editor);
       setEditorRevision((current) => current + 1);
     });
 
@@ -239,6 +304,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   };
 
   const handleSearchOptionsChange = (value: JsonSearchOptions) => {
+    resetSearchAnchor();
     setSearchOptions(value);
     setSearchIndex(0);
     setSearchHasMore(false);
@@ -328,6 +394,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
               placeholder="搜索编辑内容"
               searchOptions={searchOptions}
               onChange={(value) => {
+                resetSearchAnchor();
                 setSearchTerm(value);
                 setSearchIndex(0);
                 setSearchHasMore(false);
