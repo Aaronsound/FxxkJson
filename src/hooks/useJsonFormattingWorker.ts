@@ -22,7 +22,6 @@ import type {
   StructureStatus,
   WorkerMessage,
   WorkerRequestMessage,
-  WorkerRequestTextPayload,
 } from '../types/jsonTool';
 import { PerformanceSession } from './useJsonPerformanceTracking';
 import {
@@ -36,6 +35,7 @@ import {
   shouldUseLargeMode,
 } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
+import { createJsonWorkerClient } from '../utils/jsonWorkerClient';
 
 interface JsonImportSource {
   name: string;
@@ -143,9 +143,14 @@ export function useJsonFormattingWorker({
   clearLeftHighlights,
   clearRightHighlights,
 }: UseJsonFormattingWorkerArgs) {
-  const textEncoderRef = useRef<TextEncoder | null>(null);
-  const textDecoderRef = useRef<TextDecoder | null>(null);
   const workerRef = useRef<Worker | null>(null);
+  const workerClientRef = useRef(createJsonWorkerClient(() => workerRef.current));
+  const {
+    createTextPayload: createWorkerTextPayload,
+    postRequest: postWorkerRequest,
+    readText: readWorkerText,
+    readTextField: readWorkerTextField,
+  } = workerClientRef.current;
   const formatTimersRef = useRef<Record<string, number>>({});
   const latestRequestRef = useRef<Record<string, number>>({});
   const requestCounterRef = useRef(0);
@@ -236,68 +241,6 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setStructureStatus(tabId, status);
     callbacksRef.current.setProcessingStage(tabId, 'idle');
   };
-
-  const getTextEncoder = () => {
-    if (!textEncoderRef.current) {
-      textEncoderRef.current = new TextEncoder();
-    }
-
-    return textEncoderRef.current;
-  };
-
-  const getTextDecoder = () => {
-    if (!textDecoderRef.current) {
-      textDecoderRef.current = new TextDecoder();
-    }
-
-    return textDecoderRef.current;
-  };
-
-  const postWorkerRequest = (
-    message: WorkerRequestMessage,
-    transfer: Transferable[] = []
-  ) => {
-    workerRef.current?.postMessage(message, transfer);
-  };
-
-  const createWorkerTextPayload = (
-    text: string,
-    byteLength = getUtf8ByteLength(text)
-  ): { message: WorkerRequestTextPayload; transfer: Transferable[] } => {
-    if (byteLength < LARGE_FILE_THRESHOLD) {
-      return {
-        message: { text },
-        transfer: [] as Transferable[],
-      };
-    }
-
-    const bytes = getTextEncoder().encode(text);
-    const buffer = bytes.buffer as ArrayBuffer;
-    return {
-      message: { textBuffer: buffer },
-      transfer: [buffer] as Transferable[],
-    };
-  };
-
-  const readWorkerTextField = (
-    message: WorkerMessage,
-    stringKey: 'data' | 'repairedText',
-    bufferKey: 'dataBuffer' | 'repairedTextBuffer'
-  ) => {
-    if (typeof message[stringKey] === 'string') {
-      return message[stringKey];
-    }
-
-    if (message[bufferKey] instanceof ArrayBuffer) {
-      return getTextDecoder().decode(new Uint8Array(message[bufferKey]));
-    }
-
-    return null;
-  };
-
-  const readWorkerText = (message: WorkerMessage) => (
-    readWorkerTextField(message, 'data', 'dataBuffer')
-  );
 
   const requestWorkerLocate = (tabId: string, offset: number) => {
     if (
