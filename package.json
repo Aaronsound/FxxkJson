@@ -13,6 +13,7 @@
     "bench": "node ./scripts/bench-json.mjs",
     "check:text": "node ./scripts/check-text-encoding.mjs",
     "perf:regression": "node ./scripts/perf-regression.mjs",
+    "setup:electron": "node ./scripts/ensure-electron-install.mjs",
     "smoke": "node ./scripts/smoke-json-flow.mjs",
     "release:assets:check": "node ./scripts/verify-release-assets.mjs",
     "samples": "node ./scripts/generate-json-samples.mjs",

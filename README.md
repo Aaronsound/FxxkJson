@@ -54,10 +54,21 @@ npm run smoke      # run a lightweight JSON format/search/edit/repair smoke flow
 npm run samples    # generate ignored json/sample-*.json files
 npm run bench -- --samples
 npm run perf:regression
+npm run setup:electron # repair Electron binary download if install was interrupted
 npm start          # run the built desktop app after npm run build
 ```
 
 Packaging commands are available as `npm run dist:mac`, `npm run dist:win`, and `npm run dist`. Generated installers are written to `release/`.
+
+## Install Notes
+
+The repository includes an npm Electron mirror setting in `.npmrc` to make fresh installs more reliable on slower networks. If `npm install` completes but Electron cannot start because the desktop binary is missing, run:
+
+```bash
+npm run setup:electron
+```
+
+To override the mirror for one run, set `ELECTRON_MIRROR` before the command.
 
 ## Large JSON Notes
 
