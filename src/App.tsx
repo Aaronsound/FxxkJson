@@ -66,6 +66,7 @@ import {
 } from './utils/jsonEditorInteractions';
 import { getFirstJsonImportFile } from './utils/importFiles';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
+import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
@@ -325,29 +326,14 @@ const App: React.FC = () => {
       : null,
     activeLocateFeedback?.message ?? null,
   ].filter(Boolean).join(' · ');
-  const rightPaneStatusText = (() => {
-    if (!isLargeFileMode) {
-      return canUseRightPaneFolding ? '支持折叠' : null;
-    }
-
-    if (!canEnableLargeFileLocate) {
-      return '定位已关闭';
-    }
-
-    if (!isLargeFileLocateEnabled) {
-      return '定位未启用';
-    }
-
-    if (currentStructureStatus === 'building') {
-      return usesLightweightLocate ? '轻量定位准备中' : '定位索引中';
-    }
-
-    if (currentStructureStatus === 'ready') {
-      return usesLightweightLocate ? '轻量定位已启用' : '定位已启用';
-    }
-
-    return '定位已关闭';
-  })();
+  const rightPaneStatusText = getRightPaneStatusText({
+    canEnableLargeFileLocate,
+    canUseRightPaneFolding,
+    currentStructureStatus,
+    isLargeFileLocateEnabled,
+    isLargeFileMode,
+    usesLightweightLocate,
+  });
   const rightPaneMetaText = [
     activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
     formatDuration(activePerformanceSnapshot?.formatWorkerMs)
