@@ -15,6 +15,7 @@ import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
+import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import {
   DEFAULT_TAB_TITLE,
   DEFAULT_SEARCH_OPTIONS,
@@ -22,8 +23,6 @@ import {
   INITIAL_TAB_ID,
   LARGE_FILE_THRESHOLD,
   LargeJsonSearchMatch,
-  LargeJsonViewerData,
-  LargeRawViewerData,
   LocateFeedback,
   ProcessingStage,
   SEARCH_HIGHLIGHT_DURATION,
@@ -34,6 +33,8 @@ import type {
   EditJsonWorkerOperation,
   JsonEditPath,
   JsonSearchOptions,
+  LargeJsonViewerData,
+  LargeRawViewerData,
   RightNodeSelection,
 } from './types/jsonTool';
 import {
@@ -141,27 +142,24 @@ const App: React.FC = () => {
   });
   const [isDragImportActive, setIsDragImportActive] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
-  const [largeViewerDataByTab, setLargeViewerDataByTab] = useState<Record<string, LargeJsonViewerData | null>>({
-    [INITIAL_TAB_ID]: null,
-  });
-  const [largeRawViewerDataByTab, setLargeRawViewerDataByTab] = useState<Record<string, LargeRawViewerData | null>>({
-    [INITIAL_TAB_ID]: null,
-  });
-  const [largeViewerStatusByTab, setLargeViewerStatusByTab] = useState<Record<string, 'idle' | 'building' | 'ready'>>({
-    [INITIAL_TAB_ID]: 'idle',
-  });
-  const [largeViewerCollapsedLinesByTab, setLargeViewerCollapsedLinesByTab] = useState<Record<string, number[]>>({
-    [INITIAL_TAB_ID]: [],
-  });
-  const [processingStageByTab, setProcessingStageByTab] = useState<Record<string, ProcessingStage>>({
-    [INITIAL_TAB_ID]: 'idle',
-  });
-  const [locateFeedbackByTab, setLocateFeedbackByTab] = useState<Record<string, LocateFeedback | null>>({
-    [INITIAL_TAB_ID]: null,
-  });
-  const [rightNodeSelectionByTab, setRightNodeSelectionByTab] = useState<Record<string, RightNodeSelection | null>>({
-    [INITIAL_TAB_ID]: null,
-  });
+  const {
+    initializeTabArtifacts,
+    largeRawViewerDataByTab,
+    largeViewerCollapsedLinesByTab,
+    largeViewerDataByTab,
+    largeViewerStatusByTab,
+    locateFeedbackByTab,
+    processingStageByTab,
+    removeTabArtifactsState,
+    rightNodeSelectionByTab,
+    setLargeRawViewerDataByTab,
+    setLargeViewerCollapsedLinesByTab,
+    setLargeViewerDataByTab,
+    setLargeViewerStatusByTab,
+    setLocateFeedbackByTab,
+    setProcessingStageByTab,
+    setRightNodeSelectionByTab,
+  } = useJsonTabArtifacts(INITIAL_TAB_ID);
 
   const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -1850,13 +1848,7 @@ const App: React.FC = () => {
     formattedTextByTabRef.current[nextId] = '';
     initializeTabState(nextId);
     setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
-    setLargeViewerDataByTab((current) => ({ ...current, [nextId]: null }));
-    setLargeRawViewerDataByTab((current) => ({ ...current, [nextId]: null }));
-    setLargeViewerStatusByTab((current) => ({ ...current, [nextId]: 'idle' }));
-    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [nextId]: [] }));
-    setProcessingStageByTab((current) => ({ ...current, [nextId]: 'idle' }));
-    setLocateFeedbackByTab((current) => ({ ...current, [nextId]: null }));
-    setRightNodeSelectionByTab((current) => ({ ...current, [nextId]: null }));
+    initializeTabArtifacts(nextId);
     largeModeRef.current[nextId] = false;
     largeFileLocateEnabledRef.current[nextId] = false;
     structureStatusRef.current[nextId] = 'ready';
@@ -1877,41 +1869,7 @@ const App: React.FC = () => {
     setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
     delete leftSearchWorkerRevisionRef.current[tabId];
     removeTabArtifacts(tabId);
-    setLargeViewerDataByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setLargeRawViewerDataByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setLargeViewerStatusByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setProcessingStageByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setLocateFeedbackByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setRightNodeSelectionByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
-    setLargeViewerCollapsedLinesByTab((current) => {
-      const next = { ...current };
-      delete next[tabId];
-      return next;
-    });
+    removeTabArtifactsState(tabId);
 
     if (activeTabId === tabId) {
       setActiveTabId(fallbackTab.id);
