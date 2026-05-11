@@ -32,7 +32,7 @@ import type {
   CollapsedInterval,
 } from '../utils/largeJsonViewerRender';
 
-const LINE_HEIGHT = 18;
+const LINE_HEIGHT = 19;
 const OVERSCAN = 30;
 
 interface LargeJsonReadonlyViewerProps {

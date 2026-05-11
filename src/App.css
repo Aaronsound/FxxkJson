@@ -331,9 +331,9 @@ button:disabled {
   overflow: auto;
   background: #ffffff;
   color: #1f2937;
-  font-family: Menlo, Monaco, "Courier New", monospace;
-  font-size: 12px;
-  line-height: 18px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 14px;
+  line-height: 19px;
   outline: none;
 }
 
@@ -469,10 +469,10 @@ button:disabled {
   overflow: auto;
   background: #ffffff;
   color: #000000;
-  font-family: Menlo, Monaco, "Courier New", monospace;
-  font-size: 12px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 14px;
   font-weight: normal;
-  line-height: 18px;
+  line-height: 19px;
   text-rendering: auto;
 }
 

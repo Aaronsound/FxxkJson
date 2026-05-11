@@ -12,9 +12,9 @@ import {
   findRawSegmentIndex,
 } from '../utils/largeRawViewerData';
 
-const LINE_HEIGHT = 18;
+const LINE_HEIGHT = 19;
 const OVERSCAN = 20;
-const APPROX_CHAR_WIDTH = 7.25;
+const APPROX_CHAR_WIDTH = 7.7;
 const REVEAL_CONTEXT_CHARS = 24;
 
 interface RawHighlightRange {
