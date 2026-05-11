@@ -30,12 +30,12 @@ Expected result:
 - Local ignored files are created in `json/`.
 - Default samples include `sample-5mb.json`, `sample-6mb.json`, `sample-7mb.json`, `sample-10mb.json`, `sample-15mb.json`, and `sample-20mb.json`.
 - Bench output completes without crashes.
-- Parse, stringify, viewer-index, and tree timings do not show obvious regressions against recent local baselines.
-- `perf:regression` prints local 5MB/20MB timing metrics. To compare future runs against your machine, create a local baseline:
+- Parse, stringify, viewer-index, and tree timings do not regress beyond the committed baseline tolerance.
+- `perf:regression` automatically compares against `scripts/perf-baseline.json` when it exists. To refresh the committed baseline after intentional performance work, run:
 
 ```bash
-npm run perf:regression -- --write-baseline scripts/perf-baseline.local.json
-npm run perf:regression -- --baseline scripts/perf-baseline.local.json
+npm run perf:regression -- --write-baseline scripts/perf-baseline.json
+npm run perf:regression -- --baseline scripts/perf-baseline.json
 ```
 
 ## 3. Manual Desktop Smoke Test

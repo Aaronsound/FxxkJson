@@ -11,6 +11,7 @@ const DEFAULT_SAMPLE_FILES = [
   'json/sample-5mb.json',
   'json/sample-20mb.json',
 ];
+const DEFAULT_BASELINE_PATH = 'scripts/perf-baseline.json';
 const DEFAULT_TOLERANCE = 0.35;
 const COMPARED_METRICS = [
   'totalFormatMs',
@@ -84,6 +85,21 @@ async function getExistingDefaultSamples() {
   return existing;
 }
 
+async function getDefaultBaselinePath(explicitBaselinePath, writeBaselinePath) {
+  if (explicitBaselinePath || writeBaselinePath) {
+    return explicitBaselinePath;
+  }
+
+  const resolvedPath = path.resolve(DEFAULT_BASELINE_PATH);
+
+  try {
+    await fs.access(resolvedPath);
+    return resolvedPath;
+  } catch {
+    return null;
+  }
+}
+
 function toBaseline(results) {
   return {
     createdAt: new Date().toISOString(),
@@ -154,7 +170,7 @@ function printResults(results, failures, baselinePath) {
 
   if (!baselinePath) {
     console.log('\nNo baseline provided. To create one:');
-    console.log('  npm run perf:regression -- --write-baseline scripts/perf-baseline.local.json');
+    console.log(`  npm run perf:regression -- --write-baseline ${DEFAULT_BASELINE_PATH}`);
     return;
   }
 
@@ -182,6 +198,7 @@ async function main() {
     writeBaselinePath,
   } = parseArgs(process.argv.slice(2));
   const filesToBench = files.length > 0 ? files : await getExistingDefaultSamples();
+  const effectiveBaselinePath = await getDefaultBaselinePath(baselinePath, writeBaselinePath);
 
   if (filesToBench.length === 0) {
     console.log('No default sample files found. Generate them with `npm run samples -- 5 20`.');
@@ -198,19 +215,19 @@ async function main() {
     await fs.writeFile(writeBaselinePath, `${JSON.stringify(toBaseline(results), null, 2)}\n`, 'utf8');
   }
 
-  const baseline = await readBaseline(baselinePath);
+  const baseline = await readBaseline(effectiveBaselinePath);
   const failures = compareResults(results, baseline, tolerance);
 
   if (outputJson) {
     console.log(JSON.stringify({
-      baselinePath,
+      baselinePath: effectiveBaselinePath,
       failures,
       results,
       tolerance,
       writeBaselinePath,
     }, null, 2));
   } else {
-    printResults(results, failures, baselinePath);
+    printResults(results, failures, effectiveBaselinePath);
     if (writeBaselinePath) {
       console.log(`\nBaseline written to ${writeBaselinePath}`);
     }

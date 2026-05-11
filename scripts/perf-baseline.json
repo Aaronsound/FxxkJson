@@ -1,0 +1,18 @@
+{
+  "createdAt": "2026-05-11T06:36:01.909Z",
+  "note": "Conservative upper-bound baseline from repeated local 5MB/20MB sample runs. Keep values intentionally above the fastest run to avoid noisy false positives on local developer machines.",
+  "metrics": {
+    "sample-5mb.json": {
+      "totalFormatMs": 55,
+      "viewerIndexMs": 55,
+      "rawTreeMs": 180,
+      "formattedTreeMs": 330
+    },
+    "sample-20mb.json": {
+      "totalFormatMs": 550,
+      "viewerIndexMs": 330,
+      "rawTreeMs": 1100,
+      "formattedTreeMs": 1650
+    }
+  }
+}
