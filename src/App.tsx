@@ -47,6 +47,12 @@ import {
   selectionCoversModel,
 } from './utils/jsonToolModels';
 import {
+  bindEditorFocusContext,
+  getContentAfterSelectionReplace,
+  registerPaneFindAction,
+  registerSelectAllDeleteCommands,
+} from './utils/jsonEditorMountActions';
+import {
   getUtf8ByteLength,
   isLargeDocument,
   shouldUseLargeMode,
@@ -1120,22 +1126,11 @@ const App: React.FC = () => {
     );
   };
 
-  const getContentAfterSelectionReplace = (
-    model: monaco.editor.ITextModel,
-    selection: monaco.Selection,
-    text: string
-  ) => {
-    const startOffset = model.getOffsetAt(selection.getStartPosition());
-    const endOffset = model.getOffsetAt(selection.getEndPosition());
-    const currentText = model.getValue();
-    return `${currentText.slice(0, startOffset)}${text}${currentText.slice(endOffset)}`;
-  };
-
   const handleLeftMount: OnMount = (editor) => {
     leftEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncLeftModel(currentTabId, getTabContent(currentTabId), true);
-    const leftEditorFocusContext = editor.createContextKey('hanjsonLeftEditorFocused', editor.hasTextFocus());
+    const leftEditorFocusContextKey = 'hanjsonLeftEditorFocused';
 
     editor.onDidDispose(() => {
       if (leftEditorRef.current === editor) {
@@ -1143,57 +1138,37 @@ const App: React.FC = () => {
       }
     });
 
-    editor.onDidFocusEditorText(() => {
-      leftEditorFocusContext.set(true);
-    });
-
-    editor.onDidBlurEditorText(() => {
-      leftEditorFocusContext.set(false);
-    });
-
-    editor.addCommand(monaco.KeyCode.Delete, () => {
+    const clearSelectedDocument = () => {
       const currentTabId = activeTabIdRef.current;
 
-      if (selectionCoversModel(editor) && currentTabId) {
+      if (currentTabId) {
         renameTab(currentTabId, DEFAULT_TAB_TITLE);
         resetTabArtifacts(currentTabId);
         resetSearchState();
-        return;
       }
+    };
 
-      editor.trigger('', 'deleteRight', null);
-    }, 'hanjsonLeftEditorFocused');
+    bindEditorFocusContext(editor, leftEditorFocusContextKey);
 
-    editor.addCommand(monaco.KeyCode.Backspace, () => {
-      const currentTabId = activeTabIdRef.current;
+    registerSelectAllDeleteCommands(monaco, editor, {
+      focusContextKey: leftEditorFocusContextKey,
+      onClearAll: clearSelectedDocument,
+      selectionCoversModel: () => selectionCoversModel(editor),
+    });
 
-      if (selectionCoversModel(editor) && currentTabId) {
-        renameTab(currentTabId, DEFAULT_TAB_TITLE);
-        resetTabArtifacts(currentTabId);
-        resetSearchState();
-        return;
-      }
-
-      editor.trigger('', 'deleteLeft', null);
-    }, 'hanjsonLeftEditorFocused');
-
-    editor.addAction({
-      id: 'openLeftPaneFind',
+    registerPaneFindAction(monaco, editor, {
+      actionId: 'openLeftPaneFind',
       label: '搜索原始 JSON',
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF],
-      precondition: 'hanjsonLeftEditorFocused',
-      keybindingContext: 'hanjsonLeftEditorFocused',
-      run: () => {
-        openLeftFind();
-      },
+      focusContextKey: leftEditorFocusContextKey,
+      onOpen: openLeftFind,
     });
 
     editor.addAction({
       id: 'custom.clipboardPasteAction',
       label: 'Custom Paste',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
-      precondition: 'hanjsonLeftEditorFocused',
-      keybindingContext: 'hanjsonLeftEditorFocused',
+      precondition: leftEditorFocusContextKey,
+      keybindingContext: leftEditorFocusContextKey,
       contextMenuGroupId: '9_cutcopypaste',
       contextMenuOrder: 1,
       run: async (mountedEditor) => {
@@ -1235,7 +1210,7 @@ const App: React.FC = () => {
     rightEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncRightModel(currentTabId, formattedTextByTabRef.current[currentTabId] ?? '', true);
-    const rightEditorFocusContext = editor.createContextKey('hanjsonRightEditorFocused', editor.hasTextFocus());
+    const rightEditorFocusContextKey = 'hanjsonRightEditorFocused';
     logRightEditorState('right-editor-mounted', currentTabId, {
       wrapLongLines,
     });
@@ -1246,13 +1221,7 @@ const App: React.FC = () => {
       }
     });
 
-    editor.onDidFocusEditorText(() => {
-      rightEditorFocusContext.set(true);
-    });
-
-    editor.onDidBlurEditorText(() => {
-      rightEditorFocusContext.set(false);
-    });
+    bindEditorFocusContext(editor, rightEditorFocusContextKey);
 
     editor.onDidChangeCursorPosition((event) => {
       const currentTabId = activeTabIdRef.current;
@@ -1302,15 +1271,11 @@ const App: React.FC = () => {
       rightViewStateByTabRef.current[currentTabId] = editor.saveViewState() ?? null;
     });
 
-    editor.addAction({
-      id: 'openRightPaneFind',
+    registerPaneFindAction(monaco, editor, {
+      actionId: 'openRightPaneFind',
       label: '搜索格式化结果',
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF],
-      precondition: 'hanjsonRightEditorFocused',
-      keybindingContext: 'hanjsonRightEditorFocused',
-      run: () => {
-        openRightFind();
-      },
+      focusContextKey: rightEditorFocusContextKey,
+      onOpen: openRightFind,
     });
 
     editor.addAction({
