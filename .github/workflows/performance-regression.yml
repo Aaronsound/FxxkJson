@@ -1,0 +1,46 @@
+name: Performance Regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      tolerance:
+        description: 'Allowed slowdown versus scripts/perf-baseline.json, for example 0.75 = 75%'
+        required: false
+        default: '0.75'
+        type: string
+  schedule:
+    - cron: '0 20 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  perf-regression:
+    name: Large JSON Performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PERF_TOLERANCE: ${{ github.event_name == 'workflow_dispatch' && inputs.tolerance || '0.75' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --fund=false
+
+      - name: Generate benchmark samples
+        run: npm run samples -- 5 20
+
+      - name: Run performance regression check
+        run: npm run perf:regression -- --tolerance "$PERF_TOLERANCE"
