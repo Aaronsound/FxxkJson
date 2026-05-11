@@ -11,3 +11,43 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+.app-loading-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #1b1f2a;
+  background:
+    radial-gradient(circle at top left, rgba(88, 123, 255, 0.18), transparent 30rem),
+    linear-gradient(135deg, #f7f4eb 0%, #e7eef7 100%);
+}
+
+.app-loading-card {
+  width: min(28rem, calc(100vw - 3rem));
+  padding: 2rem;
+  border: 1px solid rgba(27, 31, 42, 0.12);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 1.5rem 4rem rgba(48, 64, 96, 0.16);
+  backdrop-filter: blur(1.25rem);
+}
+
+.app-loading-eyebrow {
+  margin-bottom: 0.75rem;
+  color: #526071;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.app-loading-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.app-loading-subtitle {
+  margin-top: 0.75rem;
+  color: #5d6673;
+  line-height: 1.6;
+}
