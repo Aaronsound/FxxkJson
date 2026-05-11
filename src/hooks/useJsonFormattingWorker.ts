@@ -36,6 +36,10 @@ import {
 } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 import { createJsonWorkerClient } from '../utils/jsonWorkerClient';
+import {
+  getFormatWorkerResult,
+  getRepairWorkerResult,
+} from '../utils/jsonWorkerResponse';
 
 interface JsonImportSource {
   name: string;
@@ -830,15 +834,16 @@ export function useJsonFormattingWorker({
       const { type, requestId, tabId } = event.data;
 
       if (type === 'format-result') {
-        const { success, error } = event.data;
-        const data = readWorkerText(event.data);
+        const result = getFormatWorkerResult(event.data, readWorkerText);
+        const { error } = result;
+        const data = result.formattedText;
         const performanceSession = performanceSessionsRef.current[tabId];
 
         if (latestRequestRef.current[tabId] !== requestId) {
           return;
         }
 
-        if (success && data) {
+        if (result.isSuccessful && data) {
           const rawText = rawTextByTabRef.current[tabId] ?? '';
           const largeMode = shouldUseLargeMode(rawText, data);
           const formatCompletedAt = performance.now();
@@ -849,7 +854,7 @@ export function useJsonFormattingWorker({
           });
           callbacksRef.current.setTabFormatting(tabId, false);
           callbacksRef.current.setTabLargeMode(tabId, largeMode);
-          callbacksRef.current.setLargeRawViewerData(tabId, event.data.rawViewerData ?? null);
+          callbacksRef.current.setLargeRawViewerData(tabId, result.rawViewerData);
           const shouldBuildLargeViewer = getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
           callbacksRef.current.setProcessingStage(
             tabId,
@@ -899,16 +904,15 @@ export function useJsonFormattingWorker({
       }
 
       if (type === 'repair-result') {
-        const { success, error } = event.data;
-        const formattedText = readWorkerText(event.data);
-        const repairedText = readWorkerTextField(event.data, 'repairedText', 'repairedTextBuffer');
+        const result = getRepairWorkerResult(event.data, readWorkerText, readWorkerTextField);
+        const { error, formattedText, repairedText } = result;
         const performanceSession = performanceSessionsRef.current[tabId];
 
         if (latestRequestRef.current[tabId] !== requestId) {
           return;
         }
 
-        if (success && typeof formattedText === 'string' && typeof repairedText === 'string') {
+        if (result.isSuccessful && typeof formattedText === 'string' && typeof repairedText === 'string') {
           const largeMode = shouldUseLargeMode(repairedText, formattedText);
           const now = performance.now();
           callbacksRef.current.logEvent('repair-success', {
@@ -934,7 +938,7 @@ export function useJsonFormattingWorker({
             performanceSession.largeMode = largeMode;
           }
           callbacksRef.current.updateTabContent(tabId, repairedText, true);
-          callbacksRef.current.setLargeRawViewerData(tabId, event.data.rawViewerData ?? null);
+          callbacksRef.current.setLargeRawViewerData(tabId, result.rawViewerData);
           callbacksRef.current.updateFormattedContent(tabId, formattedText, true);
           callbacksRef.current.resetSearchState();
           if (performanceSession?.requestId === requestId) {
