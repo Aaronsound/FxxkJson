@@ -23,10 +23,10 @@ import {
 } from '../utils/largeJsonViewerData';
 import {
   binarySearchSegment,
+  buildHighlightedJsonLineSegments,
   buildVisibleSegments,
   clamp,
   getCollapsedPreview,
-  tokenizeJsonLine,
 } from '../utils/largeJsonViewerRender';
 import type {
   CollapsedInterval,
@@ -604,91 +604,41 @@ const LargeJsonReadonlyViewer = forwardRef<
   const lineNumberWidth = `${Math.max(3, String(data.lineCount).length)}ch`;
 
   const renderLineText = useCallback((lineNumber: number, lineText: string) => {
-    const lineMatches = (matchesByLine.get(lineNumber) ?? [])
-      .map((match) => ({
-        ...match,
-        localStart: clamp(match.localStart, 0, lineText.length),
-        localEnd: clamp(match.localEnd, 0, lineText.length),
-      }))
-      .filter((match) => match.localEnd > match.localStart)
-      .sort((left, right) => left.localStart - right.localStart);
-    const syntaxTokens = tokenizeJsonLine(lineText);
-    const children: React.ReactNode[] = [];
-    let matchCursor = 0;
-    let partIndex = 0;
+    const segments = buildHighlightedJsonLineSegments(
+      lineText,
+      matchesByLine.get(lineNumber) ?? [],
+      effectiveMatchIndex
+    );
 
-    const pushSegment = (
-      start: number,
-      end: number,
-      className?: string,
-      match?: LargeJsonSearchMatch & { matchIndex: number }
-    ) => {
-      if (end <= start) {
-        return;
-      }
+    if (segments.length === 0) {
+      return lineText;
+    }
 
-      const segmentText = lineText.slice(start, end);
+    return segments.map((segment, partIndex) => {
       const key = `${lineNumber}-${partIndex}`;
-      partIndex += 1;
-      const content = className ? (
-        <span className={className}>{segmentText}</span>
+      const content = segment.className ? (
+        <span className={segment.className}>{segment.text}</span>
       ) : (
-        <React.Fragment>{segmentText}</React.Fragment>
+        <React.Fragment>{segment.text}</React.Fragment>
       );
 
-      if (!match) {
-        children.push(
-          className ? (
-            <span key={key} className={className}>{segmentText}</span>
-          ) : (
-            <React.Fragment key={key}>{segmentText}</React.Fragment>
-          )
+      if (!segment.isSearchMatch) {
+        return segment.className ? (
+          <span key={key} className={segment.className}>{segment.text}</span>
+        ) : (
+          <React.Fragment key={key}>{segment.text}</React.Fragment>
         );
-        return;
       }
 
-      children.push(
+      return (
         <mark
           key={key}
-          className={`large-json-search-match ${match.matchIndex === effectiveMatchIndex ? 'active' : ''}`}
+          className={`large-json-search-match ${segment.isActiveSearchMatch ? 'active' : ''}`}
         >
           {content}
         </mark>
       );
-    };
-
-    syntaxTokens.forEach((token) => {
-      let cursor = token.start;
-
-      while (cursor < token.end) {
-        while (matchCursor < lineMatches.length && lineMatches[matchCursor].localEnd <= cursor) {
-          matchCursor += 1;
-        }
-
-        const match = lineMatches[matchCursor];
-        if (!match || match.localStart >= token.end) {
-          pushSegment(cursor, token.end, token.className);
-          break;
-        }
-
-        if (cursor < match.localStart) {
-          const segmentEnd = Math.min(match.localStart, token.end);
-          pushSegment(cursor, segmentEnd, token.className);
-          cursor = segmentEnd;
-          continue;
-        }
-
-        const segmentEnd = Math.min(match.localEnd, token.end);
-        pushSegment(cursor, segmentEnd, token.className, match);
-        cursor = segmentEnd;
-      }
     });
-
-    if (children.length === 0) {
-      return lineText;
-    }
-
-    return children;
   }, [effectiveMatchIndex, matchesByLine]);
 
   const renderedRows = [];

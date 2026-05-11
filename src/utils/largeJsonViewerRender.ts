@@ -1,3 +1,5 @@
+import type { LargeJsonSearchMatch } from '../types/jsonTool';
+
 export interface VisibleSegment {
   actualStart: number;
   actualEnd: number;
@@ -15,6 +17,14 @@ export interface JsonSyntaxToken {
   start: number;
   end: number;
   className?: string;
+}
+
+export interface HighlightedJsonLineSegment {
+  className?: string;
+  isActiveSearchMatch: boolean;
+  isSearchMatch: boolean;
+  matchIndex?: number;
+  text: string;
 }
 
 export function getCollapsedPreview(lineText: string) {
@@ -189,4 +199,70 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
   }
 
   return tokens;
+}
+
+export function buildHighlightedJsonLineSegments(
+  lineText: string,
+  lineMatches: Array<LargeJsonSearchMatch & { matchIndex: number }>,
+  activeMatchIndex: number
+): HighlightedJsonLineSegment[] {
+  const normalizedMatches = lineMatches
+    .map((match) => ({
+      ...match,
+      localStart: clamp(match.localStart, 0, lineText.length),
+      localEnd: clamp(match.localEnd, 0, lineText.length),
+    }))
+    .filter((match) => match.localEnd > match.localStart)
+    .sort((left, right) => left.localStart - right.localStart);
+  const syntaxTokens = tokenizeJsonLine(lineText);
+  const segments: HighlightedJsonLineSegment[] = [];
+  let matchCursor = 0;
+
+  const pushSegment = (
+    start: number,
+    end: number,
+    className?: string,
+    match?: LargeJsonSearchMatch & { matchIndex: number }
+  ) => {
+    if (end <= start) {
+      return;
+    }
+
+    segments.push({
+      className,
+      isActiveSearchMatch: match?.matchIndex === activeMatchIndex,
+      isSearchMatch: Boolean(match),
+      matchIndex: match?.matchIndex,
+      text: lineText.slice(start, end),
+    });
+  };
+
+  syntaxTokens.forEach((token) => {
+    let cursor = token.start;
+
+    while (cursor < token.end) {
+      while (matchCursor < normalizedMatches.length && normalizedMatches[matchCursor].localEnd <= cursor) {
+        matchCursor += 1;
+      }
+
+      const match = normalizedMatches[matchCursor];
+      if (!match || match.localStart >= token.end) {
+        pushSegment(cursor, token.end, token.className);
+        break;
+      }
+
+      if (cursor < match.localStart) {
+        const segmentEnd = Math.min(match.localStart, token.end);
+        pushSegment(cursor, segmentEnd, token.className);
+        cursor = segmentEnd;
+        continue;
+      }
+
+      const segmentEnd = Math.min(match.localEnd, token.end);
+      pushSegment(cursor, segmentEnd, token.className, match);
+      cursor = segmentEnd;
+    }
+  });
+
+  return segments;
 }
