@@ -37,6 +37,8 @@ jobs:
     needs: prepare-release
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     strategy:
       fail-fast: false
       matrix:
@@ -68,6 +70,26 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --no-audit --fund=false
+
+      - name: Sync package version from tag
+        shell: pwsh
+        run: |
+          $appVersion = $env:RELEASE_TAG -replace '^v', ''
+          if ($appVersion -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$') {
+            throw "Release tag '$env:RELEASE_TAG' does not contain a valid SemVer version"
+          }
+
+          $env:APP_VERSION = $appVersion
+          @'
+          const fs = require("node:fs");
+
+          const version = process.env.APP_VERSION;
+          const packagePath = "package.json";
+          const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+          packageJson.version = version;
+          fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+          console.log(`Package version set to ${version}`);
+          '@ | node
 
       - name: Run tests
         run: npm test
@@ -114,8 +136,32 @@ jobs:
           }
           $files | ForEach-Object { $_.FullName }
 
+      - name: Verify collected release asset version
+        shell: pwsh
+        run: |
+          $appVersion = $env:RELEASE_TAG -replace '^v', ''
+          $files = Get-ChildItem -Path release-upload -File -ErrorAction Stop
+          $badFiles = $files | Where-Object { $_.Name -notlike "*$appVersion*" }
+          if ($badFiles) {
+            $names = ($badFiles | ForEach-Object { $_.Name }) -join ", "
+            throw "Release asset names must include version $appVersion. Invalid files: $names"
+          }
+
       - name: Verify collected release assets
         run: npm run release:assets:check -- local ${{ matrix.artifact_name }} release-upload
+
+      - name: Remove previous target release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_PREFIX: ${{ matrix.artifact_name }}-
+        run: |
+          $release = gh release view $env:RELEASE_TAG --json assets | ConvertFrom-Json
+          foreach ($asset in $release.assets) {
+            if ($asset.name.StartsWith($env:ARTIFACT_PREFIX)) {
+              gh release delete-asset $env:RELEASE_TAG $asset.name --yes
+            }
+          }
 
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
@@ -147,6 +193,27 @@ jobs:
 
       - name: Verify published release assets
         run: npm run release:assets:check -- release release-assets.json
+
+      - name: Verify published release asset versions
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+
+          const expectedVersion = process.env.RELEASE_TAG.replace(/^v/, '');
+          const assets = JSON.parse(fs.readFileSync('release-assets.json', 'utf8'));
+          const releaseAssetPattern = /^(macos-arm64|macos-x64|windows-x64)-/;
+          const badAssets = assets
+            .map((asset) => String(asset.name ?? ''))
+            .filter((name) => releaseAssetPattern.test(name) && !name.includes(expectedVersion));
+
+          if (badAssets.length > 0) {
+            throw new Error(`Release asset names must include version ${expectedVersion}: ${badAssets.join(', ')}`);
+          }
+
+          console.log(`Release asset versions passed for ${expectedVersion}`);
+          NODE
 
       - name: Publish draft release
         env:
