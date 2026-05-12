@@ -13,6 +13,8 @@
  */
 
 // 导入 Monaco 的通用 Editor Worker（用于默认编辑器逻辑）
+import loader from '@monaco-editor/loader';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 
 // 导入 Monaco 的 JSON 语言 Worker（用于 JSON 文件的语法分析、格式校验）
@@ -24,6 +26,8 @@ import 'monaco-editor/esm/vs/language/json/monaco.contribution';
  * 需要在应用启动时最早阶段调用一次。
  */
 export function setupMonacoWorker() {
+  loader.config({ monaco });
+
   self.MonacoEnvironment = {
     getWorker: function (moduleId, label) {
       // 根据 label 类型，返回不同的 Worker 实例
