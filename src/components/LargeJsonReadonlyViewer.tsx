@@ -759,7 +759,7 @@ const LargeJsonReadonlyViewer = forwardRef<
               setContextMenu(null);
             }}
           >
-            Copy value
+            复制值
           </button>
           <button
             type="button"
@@ -769,7 +769,7 @@ const LargeJsonReadonlyViewer = forwardRef<
               setContextMenu(null);
             }}
           >
-            Edit value
+            编辑当前值
           </button>
           <button
             type="button"
@@ -779,7 +779,7 @@ const LargeJsonReadonlyViewer = forwardRef<
               setContextMenu(null);
             }}
           >
-            Unescape value
+            反转义当前值
           </button>
         </div>
       )}

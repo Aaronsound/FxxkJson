@@ -73,10 +73,26 @@ import './App.css';
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
 const MAX_HEADER_PATH_LENGTH = 120;
 
+type RightEditorContextMenuState = {
+  x: number;
+  y: number;
+  tabId: string;
+  offset: number;
+} | null;
+
 function getCompactPathLabel(pathText: string) {
   return pathText.length > MAX_HEADER_PATH_LENGTH
     ? `${pathText.slice(0, MAX_HEADER_PATH_LENGTH - 3)}...`
     : pathText;
+}
+
+async function writeTextToClipboard(text: string) {
+  if (window.electronAPI?.writeClipboardText) {
+    await window.electronAPI.writeClipboardText(text);
+    return;
+  }
+
+  await navigator.clipboard.writeText(text);
 }
 
 const App: React.FC = () => {
@@ -168,6 +184,7 @@ const App: React.FC = () => {
   });
   const [isDragImportActive, setIsDragImportActive] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
+  const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState>(null);
   const {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
@@ -216,6 +233,7 @@ const App: React.FC = () => {
   });
   const leftDecorationIdsRef = useRef<string[]>([]);
   const rightDecorationIdsRef = useRef<string[]>([]);
+  const rightContextMenuOffsetByTabRef = useRef<Record<string, number | null>>({});
   const highlightTimeoutRef = useRef<number | null>(null);
   const leftViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
   const rightViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
@@ -418,10 +436,35 @@ const App: React.FC = () => {
   const copyValueAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
     const valueToCopy = await requestWorkerValue(tabId, offset, preferCachedText);
     if (valueToCopy === null) {
+      setTabError(tabId, '未找到可复制的 JSON 值');
+      logEvent('copy-value-missed', {
+        tabId,
+        offset,
+        preferCachedText,
+      });
       return;
     }
 
-    await navigator.clipboard.writeText(valueToCopy);
+    try {
+      await writeTextToClipboard(valueToCopy);
+      setTabError(tabId, null);
+      logEvent('copy-value-success', {
+        tabId,
+        offset,
+        copiedLength: valueToCopy.length,
+        preferCachedText,
+        viaDesktopClipboard: Boolean(window.electronAPI?.writeClipboardText),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setTabError(tabId, `复制值失败：${message}`);
+      logEvent('copy-value-failed', {
+        tabId,
+        offset,
+        preferCachedText,
+        error: message,
+      });
+    }
   };
 
   const logRightEditorState = (
@@ -858,6 +901,33 @@ const App: React.FC = () => {
   }, [activeTabId]);
 
   useEffect(() => {
+    setRightEditorContextMenu(null);
+  }, [activeTabId, shouldUseDedicatedRightViewer]);
+
+  useEffect(() => {
+    if (!rightEditorContextMenu) {
+      return;
+    }
+
+    const closeContextMenu = () => setRightEditorContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeContextMenu();
+      }
+    };
+
+    window.addEventListener('pointerdown', closeContextMenu);
+    window.addEventListener('scroll', closeContextMenu, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      window.removeEventListener('pointerdown', closeContextMenu);
+      window.removeEventListener('scroll', closeContextMenu, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [rightEditorContextMenu]);
+
+  useEffect(() => {
     const previousTabId = previousActiveTabIdRef.current;
 
     if (previousTabId && previousTabId !== activeTabId) {
@@ -1219,6 +1289,62 @@ const App: React.FC = () => {
 
     bindEditorFocusContext(editor, rightEditorFocusContextKey);
 
+    const getRightActionOffset = (mountedEditor: monaco.editor.ICodeEditor) => {
+      const currentTabId = activeTabIdRef.current;
+      const model = mountedEditor.getModel();
+
+      if (!model) {
+        return null;
+      }
+
+      const contextMenuOffset = rightContextMenuOffsetByTabRef.current[currentTabId];
+      if (typeof contextMenuOffset === 'number') {
+        rightContextMenuOffsetByTabRef.current[currentTabId] = null;
+        return { tabId: currentTabId, offset: contextMenuOffset };
+      }
+
+      const position = mountedEditor.getPosition();
+      if (!position) {
+        return null;
+      }
+
+      return { tabId: currentTabId, offset: model.getOffsetAt(position) };
+    };
+
+    editor.onContextMenu((event) => {
+      const currentTabId = activeTabIdRef.current;
+      const model = editor.getModel();
+      const position = event.target.position ?? editor.getPosition();
+      const browserEvent = event.event.browserEvent as MouseEvent | undefined;
+
+      event.event.preventDefault();
+      event.event.stopPropagation();
+
+      if (!model || !position) {
+        rightContextMenuOffsetByTabRef.current[currentTabId] = null;
+        setRightEditorContextMenu(null);
+        return;
+      }
+
+      const offset = model.getOffsetAt(position);
+      rightContextMenuOffsetByTabRef.current[currentTabId] = offset;
+      setRightEditorContextMenu({
+        tabId: currentTabId,
+        offset,
+        x: browserEvent?.clientX ?? event.event.posx ?? 0,
+        y: browserEvent?.clientY ?? event.event.posy ?? 0,
+      });
+    });
+
+    editor.onMouseDown((event) => {
+      if (event.event.rightButton) {
+        return;
+      }
+
+      rightContextMenuOffsetByTabRef.current[activeTabIdRef.current] = null;
+      setRightEditorContextMenu(null);
+    });
+
     editor.onDidChangeCursorPosition((event) => {
       const currentTabId = activeTabIdRef.current;
 
@@ -1280,16 +1406,12 @@ const App: React.FC = () => {
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 1,
       run: async (mountedEditor) => {
-        const currentTabId = activeTabIdRef.current;
-        const model = mountedEditor.getModel();
-        const position = mountedEditor.getPosition();
-
-        if (!model || !position) {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
           return;
         }
 
-        const offset = model.getOffsetAt(position);
-        await copyValueAtOffset(currentTabId, offset);
+        await copyValueAtOffset(actionOffset.tabId, actionOffset.offset);
       },
     });
 
@@ -1299,15 +1421,12 @@ const App: React.FC = () => {
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 2,
       run: async (mountedEditor) => {
-        const currentTabId = activeTabIdRef.current;
-        const model = mountedEditor.getModel();
-        const position = mountedEditor.getPosition();
-
-        if (!model || !position) {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
           return;
         }
 
-        await handleOpenEditNodeAtOffset(currentTabId, model.getOffsetAt(position));
+        await handleOpenEditNodeAtOffset(actionOffset.tabId, actionOffset.offset);
       },
     });
 
@@ -1317,15 +1436,12 @@ const App: React.FC = () => {
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 3,
       run: async (mountedEditor) => {
-        const currentTabId = activeTabIdRef.current;
-        const model = mountedEditor.getModel();
-        const position = mountedEditor.getPosition();
-
-        if (!model || !position) {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
           return;
         }
 
-        await handleOpenUnescapedNodeAtOffset(currentTabId, model.getOffsetAt(position));
+        await handleOpenUnescapedNodeAtOffset(actionOffset.tabId, actionOffset.offset);
       },
     });
   };
@@ -1802,7 +1918,7 @@ const App: React.FC = () => {
     setEditJsonBusyLabel('正在复制字符串字面量...');
     try {
       const literal = await requestWorkerEditJson(activeTab.id, 'copy-literal', editJsonValueRef.current);
-      await navigator.clipboard.writeText(literal);
+      await writeTextToClipboard(literal);
       setEditJsonError(null);
       showCopyLiteralNotice();
     } catch (error) {
@@ -2305,6 +2421,52 @@ const App: React.FC = () => {
         onRightSearchOptionsChange={handleRightSearchOptionsChange}
         onRightSearchTermChange={handleRightSearchTermChange}
       />
+
+      {rightEditorContextMenu && !shouldUseDedicatedRightViewer && (
+        <div
+          className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
+          style={{
+            left: rightEditorContextMenu.x,
+            top: rightEditorContextMenu.y,
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              await copyValueAtOffset(tabId, offset, true);
+            }}
+          >
+            复制值
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              await handleOpenEditNodeAtOffset(tabId, offset, true);
+            }}
+          >
+            编辑当前值
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              await handleOpenUnescapedNodeAtOffset(tabId, offset, true);
+            }}
+          >
+            反转义当前值
+          </button>
+        </div>
+      )}
     </div>
   );
 };

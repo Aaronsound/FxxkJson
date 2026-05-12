@@ -27,6 +27,12 @@ import 'monaco-editor/esm/vs/language/json/monaco.contribution';
  */
 export function setupMonacoWorker() {
   loader.config({ monaco });
+  monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+    validate: true,
+    allowComments: true,
+    enableSchemaRequest: false,
+    schemas: [],
+  });
 
   self.MonacoEnvironment = {
     getWorker: function (moduleId, label) {

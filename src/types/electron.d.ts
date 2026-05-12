@@ -20,6 +20,7 @@ declare global {
       readRecentLog: (maxBytes?: number) => Promise<RuntimeLogSnapshot>;
       clearLog: () => Promise<string>;
       showLogFile: () => Promise<string>;
+      writeClipboardText: (text: string) => Promise<boolean>;
       openJsonFile: () => Promise<NativeJsonFile | null>;
     };
   }

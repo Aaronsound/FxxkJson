@@ -218,7 +218,7 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(onLocateOffset.mock.calls[1][0]).toBeGreaterThan(alphaLineStart);
 
     fireEvent.contextMenu(line);
-    const menuItem = await screen.findByRole('button', { name: 'Copy value' });
+    const menuItem = await screen.findByRole('button', { name: '复制值' });
     fireEvent.click(menuItem);
 
     await waitFor(() => {
@@ -227,7 +227,7 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(onCopyValue).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    const editMenuItem = await screen.findByRole('button', { name: 'Edit value' });
+    const editMenuItem = await screen.findByRole('button', { name: '编辑当前值' });
     fireEvent.click(editMenuItem);
 
     await waitFor(() => {
@@ -236,7 +236,7 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(onEditValue).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    const unescapeMenuItem = await screen.findByRole('button', { name: 'Unescape value' });
+    const unescapeMenuItem = await screen.findByRole('button', { name: '反转义当前值' });
     fireEvent.click(unescapeMenuItem);
 
     await waitFor(() => {

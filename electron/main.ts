@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell } from 'electron';
 import type { OpenDialogOptions } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
@@ -51,6 +51,27 @@ function logRuntimeEvent(event: string, details: object = {}) {
     ...details,
   })).catch(() => {
     // Ignore logging failures in the main process.
+  });
+}
+
+function blockPackagedExternalRequests() {
+  if (!app.isPackaged) {
+    return;
+  }
+
+  session.defaultSession.webRequest.onBeforeRequest({
+    urls: [
+      'http://*/*',
+      'https://*/*',
+      'ws://*/*',
+      'wss://*/*',
+    ],
+  }, (details, callback) => {
+    logRuntimeEvent('blocked-external-request', {
+      url: details.url,
+      resourceType: details.resourceType,
+    });
+    callback({ cancel: true });
   });
 }
 
@@ -115,7 +136,10 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  blockPackagedExternalRequests();
+  createWindow();
+});
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
@@ -163,6 +187,11 @@ ipcMain.handle('log:showInFolder', async () => {
   await fs.appendFile(logFilePath, '', 'utf8');
   shell.showItemInFolder(logFilePath);
   return logFilePath;
+});
+
+ipcMain.handle('clipboard:writeText', async (_event, text: string) => {
+  clipboard.writeText(text);
+  return true;
 });
 
 ipcMain.handle('file:openJson', async () => {

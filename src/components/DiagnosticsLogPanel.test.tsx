@@ -20,6 +20,7 @@ describe('DiagnosticsLogPanel', () => {
       }),
       clearLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
       showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      writeClipboardText: vi.fn().mockResolvedValue(true),
       openJsonFile: vi.fn().mockResolvedValue(null),
     };
 
@@ -50,6 +51,7 @@ describe('DiagnosticsLogPanel', () => {
       }),
       clearLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
       showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      writeClipboardText: vi.fn().mockResolvedValue(true),
       openJsonFile: vi.fn().mockResolvedValue(null),
     };
 
@@ -95,6 +97,7 @@ describe('DiagnosticsLogPanel', () => {
       }),
       clearLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
       showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      writeClipboardText: vi.fn().mockResolvedValue(true),
       openJsonFile: vi.fn().mockResolvedValue(null),
     };
 

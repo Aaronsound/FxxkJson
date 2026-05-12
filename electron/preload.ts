@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readRecentLog: (maxBytes?: number) => ipcRenderer.invoke('log:readRecent', maxBytes),
   clearLog: () => ipcRenderer.invoke('log:clear'),
   showLogFile: () => ipcRenderer.invoke('log:showInFolder'),
+  writeClipboardText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
   openJsonFile: () => ipcRenderer.invoke('file:openJson'),
 });
