@@ -247,11 +247,7 @@ export function useJsonFormattingWorker({
   };
 
   const requestWorkerLocate = (tabId: string, offset: number) => {
-    if (
-      !workerRef.current
-      || !workerStructureEnabledRef.current[tabId]
-      || structureStatusRef.current[tabId] !== 'ready'
-    ) {
+    if (!workerRef.current) {
       callbacksRef.current.setLocateFeedback(tabId, {
         status: 'failed',
         message: structureStatusRef.current[tabId] === 'building'
@@ -265,6 +261,9 @@ export function useJsonFormattingWorker({
 
     const requestId = ++locateRequestCounterRef.current;
     latestLocateRequestRef.current[tabId] = requestId;
+    const canUseFullLocate =
+      workerStructureEnabledRef.current[tabId]
+      && structureStatusRef.current[tabId] === 'ready';
     // A locate request consumes the ready index. Keep the index status stable
     // so right-side clicks do not look like they rebuild the index every time.
     callbacksRef.current.setLocateFeedback(tabId, {
@@ -274,7 +273,7 @@ export function useJsonFormattingWorker({
     });
     callbacksRef.current.setRightNodeSelection(tabId, null);
     postWorkerRequest({
-      type: 'locate',
+      type: canUseFullLocate ? 'locate' : 'locate-right-direct',
       requestId,
       tabId,
       offset,
@@ -1073,6 +1072,28 @@ export function useJsonFormattingWorker({
         }
         callbacksRef.current.setProcessingStage(tabId, 'idle');
 
+        const rightStartOffset = event.data.rightStartOffset;
+        const rightEndOffset = event.data.rightEndOffset;
+        const hasRightRange =
+          typeof rightStartOffset === 'number'
+          && typeof rightEndOffset === 'number';
+
+        if (event.data.rightOnly && event.data.found && hasRightRange) {
+          callbacksRef.current.setLocateFeedback(tabId, {
+            status: 'success',
+            message: `宸查€変腑鍙充晶 offset ${rightStartOffset.toLocaleString()}`,
+            updatedAt: Date.now(),
+          });
+          callbacksRef.current.setRightNodeSelection(tabId, {
+            path: event.data.path ?? null,
+            pathText: event.data.pathText ?? null,
+            startOffset: rightStartOffset,
+            endOffset: rightEndOffset,
+            updatedAt: Date.now(),
+          });
+          return;
+        }
+
         if (event.data.found && typeof event.data.startOffset === 'number' && typeof event.data.endOffset === 'number') {
           callbacksRef.current.setLocateFeedback(tabId, {
             status: 'success',
@@ -1081,15 +1102,12 @@ export function useJsonFormattingWorker({
             endOffset: event.data.endOffset,
             updatedAt: Date.now(),
           });
-          if (
-            typeof event.data.rightStartOffset === 'number'
-            && typeof event.data.rightEndOffset === 'number'
-          ) {
+          if (hasRightRange) {
             callbacksRef.current.setRightNodeSelection(tabId, {
               path: event.data.path ?? null,
               pathText: event.data.pathText ?? null,
-              startOffset: event.data.rightStartOffset,
-              endOffset: event.data.rightEndOffset,
+              startOffset: rightStartOffset,
+              endOffset: rightEndOffset,
               updatedAt: Date.now(),
             });
           } else {

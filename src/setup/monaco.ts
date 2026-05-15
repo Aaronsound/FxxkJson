@@ -19,7 +19,9 @@ import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 
 // 导入 Monaco 的 JSON 语言 Worker（用于 JSON 文件的语法分析、格式校验）
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
 import 'monaco-editor/esm/vs/language/json/monaco.contribution';
+import 'monaco-editor/esm/vs/editor/contrib/folding/browser/folding';
 
 /**
  * 初始化 Monaco Editor 的 Worker 配置。

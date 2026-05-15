@@ -35,6 +35,11 @@ import type {
 const LINE_HEIGHT = 19;
 const OVERSCAN = 30;
 
+interface LocalSelectionRange {
+  start: number;
+  end: number;
+}
+
 interface LargeJsonReadonlyViewerProps {
   text: string;
   data: LargeJsonViewerData;
@@ -124,7 +129,12 @@ const LargeJsonReadonlyViewer = forwardRef<
   const onLocateOffsetRef = useRef(onLocateOffset);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; offset: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    offset: number;
+    foldLine: number | null;
+  } | null>(null);
   const rowHeight = wrapLongLines ? LINE_HEIGHT * 4 : LINE_HEIGHT;
 
   useEffect(() => {
@@ -214,8 +224,84 @@ const LargeJsonReadonlyViewer = forwardRef<
     return value;
   }, [data.lineCount, data.lineStarts, text]);
 
-  const isLineSelected = useCallback((lineNumber: number) => {
+  const normalizedSelectedRange = useMemo(() => {
     if (!selectedRange) {
+      return null;
+    }
+
+    const start = clamp(
+      Math.min(selectedRange.start, selectedRange.end),
+      0,
+      text.length
+    );
+    const end = clamp(
+      Math.max(selectedRange.start, selectedRange.end),
+      start,
+      text.length
+    );
+
+    return end > start ? { start, end } : null;
+  }, [selectedRange, text.length]);
+
+  const getLineDocumentEnd = useCallback((lineNumber: number) => {
+    const lineStart = data.lineStarts[lineNumber - 1] ?? 0;
+    return lineStart + getLineText(lineNumber).length;
+  }, [data.lineStarts, getLineText]);
+
+  const getLineSelectionRange = useCallback((
+    lineNumber: number,
+    baseLineText: string,
+    renderedLineText: string,
+    region: LargeJsonViewerRegion | undefined,
+    isCollapsed: boolean
+  ): LocalSelectionRange | null => {
+    if (!normalizedSelectedRange) {
+      return null;
+    }
+
+    const lineStart = data.lineStarts[lineNumber - 1] ?? 0;
+    const lineEnd = lineStart + baseLineText.length;
+
+    if (region && isCollapsed) {
+      const regionEnd = getLineDocumentEnd(region.endLine);
+      const selectionIntersectsCollapsedRegion =
+        normalizedSelectedRange.end > lineStart
+        && normalizedSelectedRange.start < Math.max(regionEnd, lineStart + 1);
+
+      if (!selectionIntersectsCollapsedRegion) {
+        return null;
+      }
+
+      const localStart = normalizedSelectedRange.start > lineEnd
+        ? Math.min(getFirstMeaningfulOffset(renderedLineText), renderedLineText.length)
+        : clamp(normalizedSelectedRange.start - lineStart, 0, renderedLineText.length);
+      const localEnd = normalizedSelectedRange.end <= lineEnd
+        ? clamp(normalizedSelectedRange.end - lineStart, localStart, renderedLineText.length)
+        : renderedLineText.length;
+
+      return localEnd > localStart ? { start: localStart, end: localEnd } : null;
+    }
+
+    const selectionIntersectsLine =
+      normalizedSelectedRange.end > lineStart
+      && normalizedSelectedRange.start < Math.max(lineEnd, lineStart + 1);
+
+    if (!selectionIntersectsLine) {
+      return null;
+    }
+
+    const localStart = clamp(normalizedSelectedRange.start - lineStart, 0, renderedLineText.length);
+    const localEnd = clamp(normalizedSelectedRange.end - lineStart, localStart, renderedLineText.length);
+
+    return localEnd > localStart ? { start: localStart, end: localEnd } : null;
+  }, [
+    data.lineStarts,
+    getLineDocumentEnd,
+    normalizedSelectedRange,
+  ]);
+
+  const isLineSelected = useCallback((lineNumber: number) => {
+    if (!normalizedSelectedRange) {
       return false;
     }
 
@@ -224,11 +310,10 @@ const LargeJsonReadonlyViewer = forwardRef<
     const lineEnd = lineNumber < data.lineCount
       ? Math.max(lineStart, (nextLineStart ?? text.length) - 1)
       : text.length;
-    const selectionStart = Math.max(0, Math.min(selectedRange.start, selectedRange.end));
-    const selectionEnd = Math.max(selectionStart, Math.max(selectedRange.start, selectedRange.end));
 
-    return selectionEnd > lineStart && selectionStart < Math.max(lineEnd, lineStart + 1);
-  }, [data.lineCount, data.lineStarts, selectedRange, text.length]);
+    return normalizedSelectedRange.end > lineStart
+      && normalizedSelectedRange.start < Math.max(lineEnd, lineStart + 1);
+  }, [data.lineCount, data.lineStarts, normalizedSelectedRange, text.length]);
 
   const getActualLineNumber = useCallback((visibleIndex: number) => {
     const segment = binarySearchSegment(visibleSegments, visibleIndex);
@@ -603,7 +688,11 @@ const LargeJsonReadonlyViewer = forwardRef<
   );
   const lineNumberWidth = `${Math.max(3, String(data.lineCount).length)}ch`;
 
-  const renderLineText = useCallback((lineNumber: number, lineText: string) => {
+  const renderLineText = useCallback((
+    lineNumber: number,
+    lineText: string,
+    selectedLineRange: LocalSelectionRange | null
+  ) => {
     const segments = buildHighlightedJsonLineSegments(
       lineText,
       matchesByLine.get(lineNumber) ?? [],
@@ -614,20 +703,63 @@ const LargeJsonReadonlyViewer = forwardRef<
       return lineText;
     }
 
+    let segmentStart = 0;
+
     return segments.map((segment, partIndex) => {
       const key = `${lineNumber}-${partIndex}`;
-      const content = segment.className ? (
-        <span className={segment.className}>{segment.text}</span>
-      ) : (
-        <React.Fragment>{segment.text}</React.Fragment>
+      const currentSegmentStart = segmentStart;
+      const currentSegmentEnd = currentSegmentStart + segment.text.length;
+      segmentStart = currentSegmentEnd;
+
+      const buildSyntaxContent = (textPart: string, contentKey: string) => (
+        segment.className ? (
+          <span key={contentKey} className={segment.className}>{textPart}</span>
+        ) : (
+          <React.Fragment key={contentKey}>{textPart}</React.Fragment>
+        )
       );
 
-      if (!segment.isSearchMatch) {
-        return segment.className ? (
-          <span key={key} className={segment.className}>{segment.text}</span>
-        ) : (
-          <React.Fragment key={key}>{segment.text}</React.Fragment>
+      const renderSegmentContent = () => {
+        const selectionStart = selectedLineRange
+          ? Math.max(currentSegmentStart, selectedLineRange.start)
+          : currentSegmentEnd;
+        const selectionEnd = selectedLineRange
+          ? Math.min(currentSegmentEnd, selectedLineRange.end)
+          : currentSegmentStart;
+
+        if (!selectedLineRange || selectionEnd <= selectionStart) {
+          return buildSyntaxContent(segment.text, `${key}-plain`);
+        }
+
+        const parts: React.ReactNode[] = [];
+        const localSelectionStart = selectionStart - currentSegmentStart;
+        const localSelectionEnd = selectionEnd - currentSegmentStart;
+
+        if (localSelectionStart > 0) {
+          parts.push(buildSyntaxContent(segment.text.slice(0, localSelectionStart), `${key}-before`));
+        }
+
+        const selectedText = segment.text.slice(localSelectionStart, localSelectionEnd);
+        parts.push(
+          <span
+            key={`${key}-selection`}
+            className="rightNodeSelectionHighlight large-json-node-selection-highlight"
+          >
+            {buildSyntaxContent(selectedText, `${key}-selection-content`)}
+          </span>
         );
+
+        if (localSelectionEnd < segment.text.length) {
+          parts.push(buildSyntaxContent(segment.text.slice(localSelectionEnd), `${key}-after`));
+        }
+
+        return parts;
+      };
+
+      const content = renderSegmentContent();
+
+      if (!segment.isSearchMatch) {
+        return <React.Fragment key={key}>{content}</React.Fragment>;
       }
 
       return (
@@ -656,6 +788,13 @@ const LargeJsonReadonlyViewer = forwardRef<
       ? getCollapsedPreview(baseLineText)
       : baseLineText;
     const isSelected = isLineSelected(lineNumber);
+    const selectedLineRange = getLineSelectionRange(
+      lineNumber,
+      baseLineText,
+      lineText,
+      region,
+      isCollapsed
+    );
 
     renderedRows.push(
       <div
@@ -717,10 +856,11 @@ const LargeJsonReadonlyViewer = forwardRef<
               x: event.clientX,
               y: event.clientY,
               offset,
+              foldLine: regionsByStartLine.has(lineNumber) ? lineNumber : null,
             });
           }}
         >
-          {renderLineText(lineNumber, lineText)}
+          {renderLineText(lineNumber, lineText, selectedLineRange)}
         </span>
       </div>
     );
@@ -751,6 +891,20 @@ const LargeJsonReadonlyViewer = forwardRef<
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
           onPointerDown={(event) => event.stopPropagation()}
         >
+          {contextMenu.foldLine !== null && (
+            <button
+              type="button"
+              className="large-json-context-menu-item"
+              onClick={() => {
+                if (contextMenu.foldLine !== null) {
+                  toggleLine(contextMenu.foldLine);
+                }
+                setContextMenu(null);
+              }}
+            >
+              {collapsedLineSet.has(contextMenu.foldLine) ? '展开当前节点' : '收缩当前节点'}
+            </button>
+          )}
           <button
             type="button"
             className="large-json-context-menu-item"

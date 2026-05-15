@@ -467,6 +467,23 @@ const App: React.FC = () => {
     }
   };
 
+  const toggleRightFoldAtOffset = (tabId: string, offset: number) => {
+    if (tabId !== activeTabIdRef.current) {
+      return;
+    }
+
+    const editor = rightEditorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) {
+      return;
+    }
+
+    const position = model.getPositionAt(offset);
+    editor.setPosition(position);
+    editor.focus();
+    void editor.getAction('editor.toggleFold')?.run();
+  };
+
   const logRightEditorState = (
     event: string,
     tabId: string,
@@ -2432,6 +2449,17 @@ const App: React.FC = () => {
           onContextMenu={(event) => event.preventDefault()}
           onPointerDown={(event) => event.stopPropagation()}
         >
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={() => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              toggleRightFoldAtOffset(tabId, offset);
+            }}
+          >
+            展开/收缩当前节点
+          </button>
           <button
             type="button"
             className="large-json-context-menu-item"

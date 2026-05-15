@@ -3,13 +3,9 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 
 const App = React.lazy(async () => {
-  const [{ setupMonacoWorker }, appModule] = await Promise.all([
-    import('./setup/monaco'),
-    import('./App'),
-  ]);
-
+  const { setupMonacoWorker } = await import('./setup/monaco');
   setupMonacoWorker();
-  return appModule;
+  return import('./App');
 });
 
 const loadingShell = (

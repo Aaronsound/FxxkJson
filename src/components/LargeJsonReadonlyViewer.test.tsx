@@ -146,6 +146,48 @@ describe('LargeJsonReadonlyViewer', () => {
 
     expect(selectedLine?.closest('.large-json-row')).toHaveClass('selected');
     expect(firstLine?.closest('.large-json-row')).not.toHaveClass('selected');
+    expect(document.querySelector('.large-json-node-selection-highlight')?.textContent).toBe('"alpha"');
+  });
+
+  it('renders precise node range highlights across multiple large-viewer lines', () => {
+    const start = fixtureText.indexOf('{', fixtureText.indexOf('"outer"'));
+    const end = fixtureText.indexOf('  },') + '  }'.length;
+
+    renderViewer({
+      selectedRange: {
+        start,
+        end,
+      },
+    });
+
+    const highlightedText = Array.from(
+      document.querySelectorAll('.large-json-node-selection-highlight')
+    ).map((node) => node.textContent).join('\n');
+
+    expect(highlightedText).toContain('{');
+    expect(highlightedText).toContain('"items"');
+    expect(highlightedText).toContain(']');
+    expect(highlightedText).toContain('}');
+  });
+
+  it('shows a node highlight on the visible preview for collapsed selected regions', () => {
+    const hiddenStart = fixtureText.indexOf('"items"');
+
+    renderViewer({
+      collapsedLines: [2],
+      selectedRange: {
+        start: hiddenStart,
+        end: hiddenStart + '"items"'.length,
+      },
+    });
+
+    const highlightedText = Array.from(document.querySelectorAll(
+      '.large-json-line-text[data-line-number="2"][data-collapsed="true"] .large-json-node-selection-highlight'
+    )).map((node) => node.textContent).join('');
+
+    expect(highlightedText).toContain('"outer"');
+    expect(highlightedText).toContain('{');
+    expect(highlightedText).toContain('...');
   });
 
   it('preserves fold all and unfold all commands through the ref API', () => {

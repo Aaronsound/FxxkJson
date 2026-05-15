@@ -48,6 +48,7 @@ export type WorkerRequestMessage =
       rawRevision?: number;
     })
   | (WorkerRequestBase & { type: 'locate'; offset: number })
+  | (WorkerRequestBase & { type: 'locate-right-direct'; offset: number })
   | (WorkerRequestBase & { type: 'read-value'; offset: number })
   | (WorkerRequestBase & { type: 'read-value-direct'; offset: number; text?: string })
   | (WorkerRequestBase & {
@@ -80,6 +81,7 @@ export interface WorkerMessage {
   endOffset?: number;
   rightStartOffset?: number;
   rightEndOffset?: number;
+  rightOnly?: boolean;
   path?: JsonEditPath;
   pathText?: string | null;
   viewerData?: LargeJsonViewerData | null;

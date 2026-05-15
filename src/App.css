@@ -27,6 +27,13 @@ html body .gutter.gutter-vertical:hover {
 .rightNodeSelectionHighlight {
   background-color: rgba(72, 187, 120, 0.28) !important;
   outline: 1px solid rgba(46, 125, 80, 0.58);
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.large-json-node-selection-highlight {
+  display: inline;
 }
 
 .large-raw-highlight {
@@ -107,6 +114,12 @@ body {
   --input-text: #333333;
   --input-border: #cccccc;
   --input-focus-border: #888888;
+  --json-fold-control-width: 16px;
+  --json-fold-control-height: 18px;
+  --json-fold-icon-size: 6px;
+  --json-fold-icon-border-width: 1.6px;
+  --json-fold-icon-color: rgba(120, 96, 58, 0.72);
+  --json-fold-hover-bg: rgba(73, 104, 150, 0.14);
 }
 .app-container.dark-mode {
   /* 深色模式覆盖变量 */
@@ -119,6 +132,8 @@ body {
   --input-text: #eeeeee;
   --input-border: #555555;
   --input-focus-border: #888888;
+  --json-fold-icon-color: rgba(224, 214, 194, 0.8);
+  --json-fold-hover-bg: rgba(141, 180, 255, 0.16);
 }
 
 /* ============================================= */
@@ -514,13 +529,13 @@ button:disabled {
 }
 
 .large-json-fold-button {
-  width: 16px;
-  height: 18px;
+  width: var(--json-fold-control-width);
+  height: var(--json-fold-control-height);
   padding: 0;
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: rgba(120, 96, 58, 0.78);
+  color: var(--json-fold-icon-color);
   cursor: default;
   opacity: 0;
   pointer-events: none;
@@ -528,7 +543,7 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 16px;
+  flex: 0 0 var(--json-fold-control-width);
   margin-right: 4px;
 }
 
@@ -540,10 +555,13 @@ button:disabled {
 
 .large-json-fold-button.visible::before {
   content: '';
-  width: 5px;
-  height: 5px;
+  display: block;
+  width: var(--json-fold-icon-size);
+  height: var(--json-fold-icon-size);
   border: solid currentColor;
-  border-width: 0 1.5px 1.5px 0;
+  border-color: var(--json-fold-icon-color);
+  border-width: 0 var(--json-fold-icon-border-width) var(--json-fold-icon-border-width) 0;
+  box-sizing: border-box;
   transform: rotate(45deg);
 }
 
@@ -552,15 +570,89 @@ button:disabled {
 }
 
 .large-json-fold-button.visible:hover:not(:disabled) {
-  background: rgba(73, 104, 150, 0.14);
+  background: var(--json-fold-hover-bg);
 }
 
 .large-json-viewer.dark .large-json-fold-button {
-  color: rgba(224, 214, 194, 0.8);
+  color: var(--json-fold-icon-color);
 }
 
 .large-json-viewer.dark .large-json-fold-button.visible:hover:not(:disabled) {
-  background: rgba(141, 180, 255, 0.16);
+  background: var(--json-fold-hover-bg);
+}
+
+.monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.monaco-editor .margin-view-overlays .codicon-folding-collapsed,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed {
+  width: var(--json-fold-control-width) !important;
+  height: var(--json-fold-control-height) !important;
+  margin-left: 2px !important;
+  border-radius: 4px;
+  color: var(--json-fold-icon-color) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box;
+  font-family: inherit !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+.monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-expanded,
+.monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-collapsed,
+.monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-manual-expanded,
+.monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-manual-collapsed {
+  color: var(--json-fold-icon-color) !important;
+  opacity: 1 !important;
+}
+
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-collapsed,
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed {
+  color: var(--json-fold-icon-color) !important;
+}
+
+.monaco-editor .margin-view-overlays .codicon-folding-expanded::before,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-expanded::before,
+.monaco-editor .margin-view-overlays .codicon-folding-collapsed::before,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed::before {
+  content: '' !important;
+  display: block;
+  width: var(--json-fold-icon-size);
+  height: var(--json-fold-icon-size);
+  border: solid currentColor;
+  border-color: var(--json-fold-icon-color);
+  border-width: 0 var(--json-fold-icon-border-width) var(--json-fold-icon-border-width) 0;
+  box-sizing: border-box;
+  opacity: 1 !important;
+}
+
+.monaco-editor .margin-view-overlays .codicon-folding-expanded::before,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-expanded::before {
+  transform: rotate(45deg);
+}
+
+.monaco-editor .margin-view-overlays .codicon-folding-collapsed::before,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed::before {
+  transform: rotate(-45deg);
+}
+
+.monaco-editor .margin-view-overlays .codicon-folding-expanded:hover,
+.monaco-editor .margin-view-overlays .codicon-folding-collapsed:hover,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-expanded:hover,
+.monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed:hover {
+  background: var(--json-fold-hover-bg);
+}
+
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-expanded:hover,
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-collapsed:hover,
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded:hover,
+.app-container.dark-mode .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed:hover {
+  background: var(--json-fold-hover-bg);
 }
 
 .large-json-line-number {

@@ -1199,6 +1199,84 @@ function handleLocateMessage(message) {
   }, LOCATE_REQUEST_DEBOUNCE_MS);
 }
 
+function handleLocateRightDirectMessage(message) {
+  latestLocateRequestByTab.set(message.tabId, message.requestId);
+  setTimeout(() => {
+    const { requestId, tabId, offset } = message;
+
+    if (!isLatestLocateRequest(tabId, requestId)) {
+      return;
+    }
+
+    const cachedViewer = viewerCache.get(tabId);
+    const sourceText = cachedViewer?.formattedText;
+    const sourceRequestId = cachedViewer?.requestId ?? requestId;
+
+    if (typeof sourceText !== 'string' || !sourceText) {
+      postLocateResultIfLatest({
+        type: 'locate-result',
+        requestId,
+        tabId,
+        found: false,
+        rightOnly: true,
+      });
+      return;
+    }
+
+    try {
+      const formattedTree = getDirectValueTree(tabId, sourceRequestId, sourceText);
+
+      if (!formattedTree) {
+        postLocateResultIfLatest({
+          type: 'locate-result',
+          requestId,
+          tabId,
+          found: false,
+          rightOnly: true,
+        });
+        return;
+      }
+
+      const candidateOffsets = getLocateCandidateOffsets(sourceText, offset);
+      for (const candidateOffset of candidateOffsets) {
+        const location = getLocation(sourceText, candidateOffset);
+        const rightNode = findNodeAtLocation(formattedTree, location.path);
+
+        if (rightNode) {
+          postLocateResultIfLatest({
+            type: 'locate-result',
+            requestId,
+            tabId,
+            found: true,
+            rightOnly: true,
+            rightStartOffset: rightNode.offset,
+            rightEndOffset: rightNode.offset + rightNode.length,
+            path: location.path,
+            pathText: formatJsonPath(location.path),
+          });
+          return;
+        }
+      }
+
+      postLocateResultIfLatest({
+        type: 'locate-result',
+        requestId,
+        tabId,
+        found: false,
+        rightOnly: true,
+      });
+    } catch {
+      postLocateResultIfLatest({
+        type: 'locate-result',
+        requestId,
+        tabId,
+        found: false,
+        rightOnly: true,
+      });
+    }
+  }, LOCATE_REQUEST_DEBOUNCE_MS);
+}
+
 function handleReadValueMessage(message) {
   const { requestId, tabId, offset } = message;
   const cached = structureCache.get(tabId);
@@ -1338,6 +1416,7 @@ const workerMessageHandlers = {
   'edit-json': handleEditJsonMessage,
   format: handleFormatMessage,
   locate: handleLocateMessage,
+  'locate-right-direct': handleLocateRightDirectMessage,
   repair: handleRepairMessage,
   'read-value': handleReadValueMessage,
   'read-value-direct': handleReadValueDirectMessage,
