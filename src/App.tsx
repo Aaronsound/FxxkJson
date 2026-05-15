@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonEditModal from './components/JsonEditModal';
@@ -68,6 +68,7 @@ import {
 import { getFirstJsonImportFile } from './utils/importFiles';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
+import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
@@ -93,6 +94,24 @@ async function writeTextToClipboard(text: string) {
   }
 
   await navigator.clipboard.writeText(text);
+}
+
+function isJsonEditPath(value: unknown): value is JsonEditPath {
+  return Array.isArray(value)
+    && value.every((segment) => typeof segment === 'string' || typeof segment === 'number');
+}
+
+function parseEditableNodePayload(payload: string, invalidMessage: string) {
+  const parsed = JSON.parse(payload) as { path?: unknown; value?: unknown };
+
+  if (!isJsonEditPath(parsed.path) || typeof parsed.value !== 'string') {
+    throw new Error(invalidMessage);
+  }
+
+  return {
+    path: parsed.path,
+    value: parsed.value,
+  };
 }
 
 const App: React.FC = () => {
@@ -1344,12 +1363,17 @@ const App: React.FC = () => {
       }
 
       const offset = model.getOffsetAt(position);
+      const menuPosition = getViewportContextMenuPosition(
+        browserEvent?.clientX ?? event.event.posx ?? 0,
+        browserEvent?.clientY ?? event.event.posy ?? 0,
+        4
+      );
       rightContextMenuOffsetByTabRef.current[currentTabId] = offset;
       setRightEditorContextMenu({
         tabId: currentTabId,
         offset,
-        x: browserEvent?.clientX ?? event.event.posx ?? 0,
-        y: browserEvent?.clientY ?? event.event.posy ?? 0,
+        x: menuPosition.x,
+        y: menuPosition.y,
       });
     });
 
@@ -1716,16 +1740,13 @@ const App: React.FC = () => {
     }
   };
 
-  const handleOpenEditNodeAtOffset = async (
+  const readEditableNodeAtOffset = useCallback(async (
     tabId: string,
     offset: number,
-    preferCachedText = false
+    preferCachedText: boolean,
+    invalidMessage: string
   ) => {
-    setEditJsonBusyLabel('正在准备当前节点...');
-    try {
-      const sourceText = preferCachedText
-        ? ''
-        : (formattedTextByTabRef.current[tabId] ?? '');
+    const readAndParse = async (sourceText: string) => {
       const payload = await requestWorkerEditJson(
         tabId,
         'read-node',
@@ -1734,15 +1755,37 @@ const App: React.FC = () => {
         undefined,
         offset
       );
-      const parsed = JSON.parse(payload) as { path?: JsonEditPath; value?: string };
 
-      if (
-        !Array.isArray(parsed.path)
-        || !parsed.path.every((segment) => typeof segment === 'string' || typeof segment === 'number')
-        || typeof parsed.value !== 'string'
-      ) {
-        throw new Error('当前节点无法编辑');
+      return parseEditableNodePayload(payload, invalidMessage);
+    };
+
+    if (preferCachedText) {
+      try {
+        return await readAndParse('');
+      } catch (error) {
+        const fallbackText = formattedTextByTabRef.current[tabId] ?? '';
+        if (!fallbackText) {
+          throw error;
+        }
       }
+    }
+
+    return readAndParse(formattedTextByTabRef.current[tabId] ?? '');
+  }, [requestWorkerEditJson]);
+
+  const handleOpenEditNodeAtOffset = async (
+    tabId: string,
+    offset: number,
+    preferCachedText = false
+  ) => {
+    setEditJsonBusyLabel('正在准备当前节点...');
+    try {
+      const parsed = await readEditableNodeAtOffset(
+        tabId,
+        offset,
+        preferCachedText,
+        '当前节点无法编辑'
+      );
 
       openNodeEditSession(parsed.value, parsed.path);
     } catch (error) {
@@ -1762,26 +1805,12 @@ const App: React.FC = () => {
   ) => {
     setEditJsonBusyLabel('正在反转义当前节点...');
     try {
-      const sourceText = preferCachedText
-        ? ''
-        : (formattedTextByTabRef.current[tabId] ?? '');
-      const payload = await requestWorkerEditJson(
+      const parsed = await readEditableNodeAtOffset(
         tabId,
-        'read-node',
-        sourceText,
-        undefined,
-        undefined,
-        offset
+        offset,
+        preferCachedText,
+        '当前节点无法反转义'
       );
-      const parsed = JSON.parse(payload) as { path?: JsonEditPath; value?: string };
-
-      if (
-        !Array.isArray(parsed.path)
-        || !parsed.path.every((segment) => typeof segment === 'string' || typeof segment === 'number')
-        || typeof parsed.value !== 'string'
-      ) {
-        throw new Error('当前节点无法反转义');
-      }
 
       const nodeValue = JSON.parse(parsed.value);
       if (typeof nodeValue !== 'string') {
@@ -2021,17 +2050,17 @@ const App: React.FC = () => {
     }
   };
 
-  const openLeftFind = () => {
+  const openLeftFind = useCallback(() => {
     if (shouldUseDedicatedLeftViewer) {
       return;
     }
 
     setIsLeftFindOpen(true);
-  };
+  }, [setIsLeftFindOpen, shouldUseDedicatedLeftViewer]);
 
-  const openRightFind = () => {
+  const openRightFind = useCallback(() => {
     setIsRightFindOpen(true);
-  };
+  }, [setIsRightFindOpen]);
 
   const closeLeftFind = () => {
     resetLeftSearchState();
@@ -2050,6 +2079,58 @@ const App: React.FC = () => {
       rightEditorRef.current?.focus();
     }
   };
+
+  const openContextualFind = useCallback(() => {
+    const activeElement = document.activeElement;
+
+    if (activeElement instanceof HTMLElement && activeElement.closest('.modal-overlay')) {
+      return;
+    }
+
+    if (activeElement instanceof HTMLElement && activeElement.closest('.left-editor-pane')) {
+      openLeftFind();
+      return;
+    }
+
+    openRightFind();
+  }, [openLeftFind, openRightFind]);
+
+  useEffect(() => {
+    const handleFindShortcut = (event: KeyboardEvent) => {
+      const isFindShortcut = event.key.toLowerCase() === 'f'
+        && (event.ctrlKey || event.metaKey)
+        && !event.shiftKey
+        && !event.altKey;
+
+      if (!isFindShortcut) {
+        return;
+      }
+
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest('.modal-overlay')) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      openContextualFind();
+    };
+
+    window.addEventListener('keydown', handleFindShortcut, true);
+    return () => {
+      window.removeEventListener('keydown', handleFindShortcut, true);
+    };
+  }, [openContextualFind]);
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onFindShortcut?.(() => {
+      openContextualFind();
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [openContextualFind]);
 
   const handleLeftSearchOptionsChange = (value: JsonSearchOptions) => {
     setLeftSearchOptions(value);

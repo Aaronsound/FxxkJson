@@ -156,7 +156,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
     }}
   >
     <div
-      className="editor-pane"
+      className="editor-pane left-editor-pane"
       style={{
         flex: 1,
         display: 'flex',
@@ -226,7 +226,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
     </div>
 
     <div
-      className="editor-pane"
+      className="editor-pane right-editor-pane"
       style={{
         flex: 1,
         display: 'flex',

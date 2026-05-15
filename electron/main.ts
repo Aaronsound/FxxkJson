@@ -131,6 +131,21 @@ function createWindow() {
     });
   });
 
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isFindShortcut = input.type === 'keyDown'
+      && input.key?.toLowerCase() === 'f'
+      && (input.control || input.meta)
+      && !input.shift
+      && !input.alt;
+
+    if (!isFindShortcut) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow?.webContents.send('app:find-shortcut');
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });

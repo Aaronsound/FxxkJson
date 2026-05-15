@@ -155,7 +155,9 @@ function getCachedFormattedText(tabId) {
 }
 
 function readJsonNodeForEdit(tabId, text, offset) {
-  const sourceText = getCachedFormattedText(tabId) ?? text;
+  const sourceText = typeof text === 'string' && text.trim()
+    ? text
+    : getCachedFormattedText(tabId);
   if (
     typeof sourceText !== 'string'
     || !sourceText.trim()

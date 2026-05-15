@@ -31,6 +31,7 @@ import {
 import type {
   CollapsedInterval,
 } from '../utils/largeJsonViewerRender';
+import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 
 const LINE_HEIGHT = 19;
 const OVERSCAN = 30;
@@ -852,9 +853,14 @@ const LargeJsonReadonlyViewer = forwardRef<
             event.preventDefault();
             event.stopPropagation();
             const offset = resolveOffsetFromPoint(event, lineNumber, baseLineText);
+            const menuPosition = getViewportContextMenuPosition(
+              event.clientX,
+              event.clientY,
+              regionsByStartLine.has(lineNumber) ? 4 : 3
+            );
             setContextMenu({
-              x: event.clientX,
-              y: event.clientY,
+              x: menuPosition.x,
+              y: menuPosition.y,
               offset,
               foldLine: regionsByStartLine.has(lineNumber) ? lineNumber : null,
             });
@@ -889,6 +895,7 @@ const LargeJsonReadonlyViewer = forwardRef<
         <div
           className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+          onContextMenu={(event) => event.preventDefault()}
           onPointerDown={(event) => event.stopPropagation()}
         >
           {contextMenu.foldLine !== null && (

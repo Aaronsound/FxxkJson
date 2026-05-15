@@ -7,4 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showLogFile: () => ipcRenderer.invoke('log:showInFolder'),
   writeClipboardText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
   openJsonFile: () => ipcRenderer.invoke('file:openJson'),
+  onFindShortcut: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('app:find-shortcut', listener);
+    return () => ipcRenderer.removeListener('app:find-shortcut', listener);
+  },
 });

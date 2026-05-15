@@ -287,6 +287,32 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(onUnescapeValue).toHaveBeenLastCalledWith(expect.any(Number));
   });
 
+  it('keeps the context menu inside the viewport near the bottom edge', () => {
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
+
+    try {
+      renderViewer();
+
+      const firstLine = document.querySelector('.large-json-line-text[data-line-number="1"]');
+      expect(firstLine).not.toBeNull();
+      if (!firstLine) {
+        throw new Error('Expected first line in large viewer');
+      }
+
+      fireEvent.contextMenu(firstLine, { clientX: 790, clientY: 590 });
+
+      const menu = document.querySelector<HTMLElement>('.large-json-context-menu');
+      expect(menu?.style.left).toBe('612px');
+      expect(menu?.style.top).toBe('444px');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight });
+    }
+  });
+
   it('copies the underlying JSON text instead of the collapsed preview', () => {
     renderViewer({
       collapsedLines: [1],

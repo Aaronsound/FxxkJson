@@ -22,6 +22,7 @@ declare global {
       showLogFile: () => Promise<string>;
       writeClipboardText: (text: string) => Promise<boolean>;
       openJsonFile: () => Promise<NativeJsonFile | null>;
+      onFindShortcut?: (callback: () => void) => () => void;
     };
   }
 }
