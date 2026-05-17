@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import type { JsonSearchOptions } from '../types/jsonTool';
+import './PaneFindWidget.css';
 
 export interface PaneFindResultItem {
   index: number;

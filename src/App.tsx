@@ -73,6 +73,11 @@ import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
 import { formatJsonPath } from './utils/jsonPath';
+import {
+  addRecentSearchTerm,
+  upsertPinnedPath,
+} from './utils/searchQuickAccess';
+import type { RightPinnedPath } from './utils/searchQuickAccess';
 import { APP_VERSION } from './utils/appInfo';
 import './App.css';
 
@@ -88,14 +93,6 @@ type RightEditorContextMenuState = {
   tabId: string;
   offset: number;
 } | null;
-
-interface RightPinnedPath {
-  id: string;
-  pathText: string;
-  startOffset: number;
-  endOffset: number;
-  createdAt: number;
-}
 
 function getCompactPathLabel(pathText: string) {
   return pathText.length > MAX_HEADER_PATH_LENGTH
@@ -598,16 +595,8 @@ const App: React.FC = () => {
   };
 
   const rememberRightSearchTerm = useCallback((term: string) => {
-    const normalized = term.trim();
-    if (normalized.length < 2) {
-      return;
-    }
-
     setRightRecentSearches((current) => {
-      const next = [
-        normalized,
-        ...current.filter((item) => item !== normalized),
-      ].slice(0, MAX_RECENT_SEARCHES);
+      const next = addRecentSearchTerm(current, term, MAX_RECENT_SEARCHES);
       writeStoredStringList(RIGHT_RECENT_SEARCHES_STORAGE_KEY, next);
       return next;
     });
@@ -653,10 +642,7 @@ const App: React.FC = () => {
 
     setRightPinnedPathsByTab((current) => {
       const existing = current[activeTab.id] ?? [];
-      const next = [
-        pinnedPath,
-        ...existing.filter((item) => item.pathText !== pinnedPath.pathText),
-      ].slice(0, MAX_PINNED_PATHS);
+      const next = upsertPinnedPath(existing, pinnedPath, MAX_PINNED_PATHS);
 
       return {
         ...current,
