@@ -15,6 +15,7 @@ import {
   getIdentityLocateRange,
   getLightweightTokenLocateRange,
 } from '../utils/lightweightLocate';
+import { getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import {
   saveJsonNodePreservingOriginalFormat,
   saveJsonPreservingOriginalFormat,
@@ -450,6 +451,46 @@ function getDirectRightLocateRange(cached, offset) {
   );
 }
 
+function getPathCalibratedDirectLocateRange(tabId, cached, offset) {
+  if (
+    !cached
+    || !cached.directLocate
+    || typeof cached.rawText !== 'string'
+    || typeof cached.formattedText !== 'string'
+  ) {
+    return null;
+  }
+
+  const formattedTree = getDirectValueTree(tabId, cached.requestId, cached.formattedText);
+  if (!formattedTree) {
+    return null;
+  }
+
+  const candidateOffsets = getLocateCandidateOffsets(cached.formattedText, offset);
+  for (const candidateOffset of candidateOffsets) {
+    const location = getLocation(cached.formattedText, candidateOffset);
+    const rightNode = findNodeAtLocation(formattedTree, location.path);
+
+    if (!rightNode) {
+      continue;
+    }
+
+    const leftRange = getJsonPathLocateRange(cached.rawText, location.path);
+    if (leftRange) {
+      return {
+        leftRange,
+        rightRange: {
+          startOffset: rightNode.offset,
+          endOffset: rightNode.offset + rightNode.length,
+        },
+        path: location.path,
+      };
+    }
+  }
+
+  return null;
+}
+
 function ensureStructureTrees(tabId, cached) {
   if (!cached || cached.directLocate) {
     return Boolean(cached?.directLocate);
@@ -773,6 +814,28 @@ function runLocateRequest(message) {
   }
 
   const cached = structureCache.get(tabId);
+  const pathCalibratedRange = getPathCalibratedDirectLocateRange(tabId, cached, offset);
+
+  if (!isLatestLocateRequest(tabId, requestId)) {
+    return;
+  }
+
+  if (pathCalibratedRange) {
+    postLocateResultIfLatest({
+      type: 'locate-result',
+      requestId,
+      tabId,
+      found: true,
+      startOffset: pathCalibratedRange.leftRange.startOffset,
+      endOffset: pathCalibratedRange.leftRange.endOffset,
+      rightStartOffset: pathCalibratedRange.rightRange.startOffset,
+      rightEndOffset: pathCalibratedRange.rightRange.endOffset,
+      path: pathCalibratedRange.path,
+      pathText: formatJsonPath(pathCalibratedRange.path),
+    });
+    return;
+  }
+
   const directRange = getDirectLocateRange(cached, offset);
 
   if (!isLatestLocateRequest(tabId, requestId)) {
