@@ -3,6 +3,7 @@ import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import AboutDialog from './components/AboutDialog';
 import ArchitectureWarningDialog from './components/ArchitectureWarningDialog';
+import JsonCompareDialog from './components/JsonCompareDialog';
 import JsonEditModal from './components/JsonEditModal';
 import type { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
@@ -188,6 +189,7 @@ const App: React.FC = () => {
   });
   const [isDragImportActive, setIsDragImportActive] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeAppInfo | null>(null);
   const [isArchitectureWarningDismissed, setIsArchitectureWarningDismissed] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
@@ -2380,6 +2382,7 @@ const App: React.FC = () => {
         onEscapeJson={handleEscapeJson}
         onClear={handleClear}
         onEditJson={handleOpenEditJson}
+        onOpenCompare={() => setIsCompareOpen(true)}
         onOpenDiagnosticsLog={() => setIsDiagnosticsLogOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         onFoldAll={() => {
@@ -2399,6 +2402,7 @@ const App: React.FC = () => {
         canControlRightPaneFolding={canControlRightPaneFolding}
         isLargeFileMode={isLargeFileMode}
         canEditJson={canEditJson}
+        canCompareJson={tabs.length >= 2}
         wrapLongLines={wrapLongLines}
         onWrapLongLinesChange={setWrapLongLines}
         isDarkMode={isDarkMode}
@@ -2463,6 +2467,16 @@ const App: React.FC = () => {
           isDarkMode={isDarkMode}
           context={diagnosticsContext}
           onClose={() => setIsDiagnosticsLogOpen(false)}
+        />
+      )}
+
+      {isCompareOpen && (
+        <JsonCompareDialog
+          tabs={tabs}
+          activeTabId={activeTab.id}
+          isDarkMode={isDarkMode}
+          getTabText={getTabContent}
+          onClose={() => setIsCompareOpen(false)}
         />
       )}
 

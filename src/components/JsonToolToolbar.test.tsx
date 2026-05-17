@@ -12,6 +12,7 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
     onEscapeJson: vi.fn(),
     onClear: vi.fn(),
     onEditJson: vi.fn(),
+    onOpenCompare: vi.fn(),
     onOpenDiagnosticsLog: vi.fn(),
     onOpenAbout: vi.fn(),
     onFoldAll: vi.fn(),
@@ -19,6 +20,7 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
     canControlRightPaneFolding: true,
     isLargeFileMode: false,
     canEditJson: true,
+    canCompareJson: true,
     wrapLongLines: false,
     onWrapLongLinesChange: vi.fn(),
     isDarkMode: false,
@@ -78,5 +80,13 @@ describe('JsonToolToolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: '关于' }));
 
     expect(props.onOpenAbout).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens JSON compare from the toolbar', () => {
+    const { props } = renderToolbar();
+
+    fireEvent.click(screen.getByRole('button', { name: '对比 JSON' }));
+
+    expect(props.onOpenCompare).toHaveBeenCalledTimes(1);
   });
 });

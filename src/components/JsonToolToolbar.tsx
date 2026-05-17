@@ -9,6 +9,7 @@ interface JsonToolToolbarProps {
   onEscapeJson: () => void;
   onClear: () => void;
   onEditJson: () => void;
+  onOpenCompare: () => void;
   onOpenDiagnosticsLog: () => void;
   onOpenAbout: () => void;
   onFoldAll: () => void;
@@ -16,6 +17,7 @@ interface JsonToolToolbarProps {
   canControlRightPaneFolding: boolean;
   isLargeFileMode: boolean;
   canEditJson: boolean;
+  canCompareJson: boolean;
   wrapLongLines: boolean;
   onWrapLongLinesChange: (checked: boolean) => void;
   isDarkMode: boolean;
@@ -103,6 +105,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onEscapeJson,
   onClear,
   onEditJson,
+  onOpenCompare,
   onOpenDiagnosticsLog,
   onOpenAbout,
   onFoldAll,
@@ -110,6 +113,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   canControlRightPaneFolding,
   isLargeFileMode,
   canEditJson,
+  canCompareJson,
   wrapLongLines,
   onWrapLongLinesChange,
   isDarkMode,
@@ -161,6 +165,9 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 </button>
                 <button className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
                   编辑 JSON
+                </button>
+                <button className="toolbar-button-secondary" onClick={onOpenCompare} disabled={!canCompareJson}>
+                  对比 JSON
                 </button>
                 <button className="toolbar-button-secondary" onClick={onOpenDiagnosticsLog}>
                   诊断日志
