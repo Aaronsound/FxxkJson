@@ -8,6 +8,7 @@ import {
   getUtf8ByteLength,
   isLargeDocument,
   shouldBuildWorkerStructure,
+  shouldUseDedicatedRightViewer,
   shouldUseLargeMode,
 } from './jsonDocumentMetrics';
 
@@ -31,10 +32,13 @@ describe('jsonToolModels', () => {
   it('derives large mode from the current raw and formatted content only', () => {
     const small = '{"ok":true}';
     const large = 'a'.repeat(LARGE_FILE_THRESHOLD);
+    const highLineFormatted = Array.from({ length: 50001 }, () => '{}').join('\n');
 
     expect(shouldUseLargeMode(small, small)).toBe(false);
     expect(shouldUseLargeMode(large, small)).toBe(true);
     expect(shouldUseLargeMode(small, large)).toBe(true);
+    expect(shouldUseLargeMode(small, highLineFormatted)).toBe(true);
+    expect(shouldUseDedicatedRightViewer(small, highLineFormatted)).toBe(true);
   });
 
   it('only builds worker structure for supported document sizes', () => {

@@ -21,12 +21,13 @@ function buildLineRichFormattedSample(lineCount: number) {
 }
 
 describe('largeJsonViewerData', () => {
-  it('builds viewer data without a line-count gate by default', () => {
-    const formatted = buildLineRichFormattedSample(10);
+  it('uses the default high-line threshold for dedicated viewer data', () => {
+    const formatted = buildLineRichFormattedSample(50001);
     const viewer = buildLargeViewerData(formatted);
 
     expect(viewer).not.toBeNull();
-    expect(viewer?.lineCount).toBe(10);
+    expect(viewer?.lineCount).toBe(50001);
+    expect(buildLargeViewerData(buildLineRichFormattedSample(10))).toBeNull();
   });
 
   it('still supports an explicit line threshold when needed', () => {

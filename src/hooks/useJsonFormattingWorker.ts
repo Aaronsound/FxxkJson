@@ -1,7 +1,6 @@
 import { MutableRefObject, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import {
-  DEDICATED_RIGHT_VIEWER_THRESHOLD,
   EDIT_SAVE_FORMAT_DELAY_MS,
   FORMAT_DEBOUNCE_MS,
   LARGE_FILE_THRESHOLD,
@@ -32,6 +31,7 @@ import {
 } from '../utils/jsonToolModels';
 import {
   getUtf8ByteLength,
+  shouldUseDedicatedRightViewer,
   shouldUseLargeMode,
 } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
@@ -854,7 +854,8 @@ export function useJsonFormattingWorker({
           callbacksRef.current.setTabFormatting(tabId, false);
           callbacksRef.current.setTabLargeMode(tabId, largeMode);
           callbacksRef.current.setLargeRawViewerData(tabId, result.rawViewerData);
-          const shouldBuildLargeViewer = getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
+          const shouldBuildLargeViewer = shouldUseDedicatedRightViewer(rawText, data);
+          callbacksRef.current.setLargeViewerStatus(tabId, shouldBuildLargeViewer ? 'building' : 'idle');
           callbacksRef.current.setProcessingStage(
             tabId,
             shouldBuildLargeViewer ? 'building-viewer' : (performanceSession?.structureEnabled ? 'building-index' : 'idle')
@@ -922,7 +923,8 @@ export function useJsonFormattingWorker({
           });
           callbacksRef.current.setTabFormatting(tabId, false);
           callbacksRef.current.setTabLargeMode(tabId, largeMode);
-          const shouldBuildLargeViewer = getUtf8ByteLength(repairedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
+          const shouldBuildLargeViewer = shouldUseDedicatedRightViewer(repairedText, formattedText);
+          callbacksRef.current.setLargeViewerStatus(tabId, shouldBuildLargeViewer ? 'building' : 'idle');
           callbacksRef.current.setProcessingStage(
             tabId,
             shouldBuildLargeViewer ? 'building-viewer' : (performanceSession?.structureEnabled ? 'building-index' : 'idle')
@@ -1026,8 +1028,7 @@ export function useJsonFormattingWorker({
         );
         const rawText = rawTextByTabRef.current[tabId] ?? '';
         const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-        const shouldWaitForViewer = getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD
-          || getUtf8ByteLength(formattedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD;
+        const shouldWaitForViewer = shouldUseDedicatedRightViewer(rawText, formattedText);
         const viewerReady = !shouldWaitForViewer || Boolean(performanceSession?.viewerReadyAt);
         if (viewerReady) {
           callbacksRef.current.setProcessingStage(tabId, 'idle');
