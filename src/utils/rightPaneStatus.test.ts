@@ -7,6 +7,7 @@ const baseArgs = {
   currentStructureStatus: 'ready' as const,
   isLargeFileLocateEnabled: true,
   isLargeFileMode: false,
+  usesDedicatedRightViewer: false,
   usesLightweightLocate: false,
 };
 
@@ -45,5 +46,14 @@ describe('getRightPaneStatusText', () => {
       isLargeFileMode: true,
       usesLightweightLocate: true,
     })).toBe('轻量定位已启用');
+  });
+
+  it('keeps folding visible in status for the dedicated right viewer', () => {
+    expect(getRightPaneStatusText({
+      ...baseArgs,
+      isLargeFileLocateEnabled: false,
+      isLargeFileMode: true,
+      usesDedicatedRightViewer: true,
+    })).toBe('轻量折叠 · 定位未启用');
   });
 });

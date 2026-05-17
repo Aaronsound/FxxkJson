@@ -239,7 +239,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
         <span className="editor-pane-header-text">{rightPaneMetaText}</span>
         <div className="editor-pane-header-flags">
           <span className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}>
-            大文件查看模式
+            轻量折叠模式
           </span>
           <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
             轻量模式

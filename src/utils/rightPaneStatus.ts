@@ -6,6 +6,7 @@ interface RightPaneStatusArgs {
   currentStructureStatus: StructureStatus;
   isLargeFileLocateEnabled: boolean;
   isLargeFileMode: boolean;
+  usesDedicatedRightViewer: boolean;
   usesLightweightLocate: boolean;
 }
 
@@ -15,27 +16,30 @@ export function getRightPaneStatusText({
   currentStructureStatus,
   isLargeFileLocateEnabled,
   isLargeFileMode,
+  usesDedicatedRightViewer,
   usesLightweightLocate,
 }: RightPaneStatusArgs) {
   if (!isLargeFileMode) {
     return canUseRightPaneFolding ? '支持折叠' : null;
   }
 
+  const foldingPrefix = usesDedicatedRightViewer ? '轻量折叠 · ' : '';
+
   if (!canEnableLargeFileLocate) {
-    return '定位已关闭';
+    return `${foldingPrefix}定位已关闭`;
   }
 
   if (!isLargeFileLocateEnabled) {
-    return '定位未启用';
+    return `${foldingPrefix}定位未启用`;
   }
 
   if (currentStructureStatus === 'building') {
-    return usesLightweightLocate ? '轻量定位准备中' : '定位索引中';
+    return `${foldingPrefix}${usesLightweightLocate ? '轻量定位准备中' : '定位索引中'}`;
   }
 
   if (currentStructureStatus === 'ready') {
-    return usesLightweightLocate ? '轻量定位已启用' : '定位已启用';
+    return `${foldingPrefix}${usesLightweightLocate ? '轻量定位已启用' : '定位已启用'}`;
   }
 
-  return '定位已关闭';
+  return `${foldingPrefix}定位已关闭`;
 }

@@ -380,6 +380,7 @@ const App: React.FC = () => {
     currentStructureStatus,
     isLargeFileLocateEnabled,
     isLargeFileMode,
+    usesDedicatedRightViewer: shouldUseDedicatedRightViewer,
     usesLightweightLocate,
   });
   const rightPaneMetaText = [
