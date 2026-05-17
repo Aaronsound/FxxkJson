@@ -54,7 +54,12 @@ interface JsonEditorPanesProps {
   isRightSearchLoadingMore: boolean;
   onCloseLeftFind: () => void;
   onCloseRightFind: () => void;
+  onCopyRightCompactJson: (offset: number) => void;
+  onCopyRightFormattedJson: (offset: number) => void;
+  onCopyRightKey: (offset: number) => void;
+  onCopyRightPath: (offset: number) => void;
   onCopyRightValue: (offset: number) => void;
+  onDeleteRightValue: (offset: number) => void;
   onEditRightValue: (offset: number) => void;
   onLeftChange: (value?: string) => void;
   onLeftMount: OnMount;
@@ -69,6 +74,7 @@ interface JsonEditorPanesProps {
   onOpenRightFind: () => void;
   onPrevLeft: () => void;
   onPrevRight: () => void;
+  onRenameRightKey: (offset: number) => void;
   onUnescapeRightValue: (offset: number) => void;
   onNextLeft: () => void;
   onNextRight: () => void;
@@ -121,7 +127,12 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   isRightSearchLoadingMore,
   onCloseLeftFind,
   onCloseRightFind,
+  onCopyRightCompactJson,
+  onCopyRightFormattedJson,
+  onCopyRightKey,
+  onCopyRightPath,
   onCopyRightValue,
+  onDeleteRightValue,
   onEditRightValue,
   onLeftChange,
   onLeftMount,
@@ -136,6 +147,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   onOpenRightFind,
   onPrevLeft,
   onPrevRight,
+  onRenameRightKey,
   onUnescapeRightValue,
   onNextLeft,
   onNextRight,
@@ -281,8 +293,14 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             onCollapsedLinesChange={onRightCollapsedLinesChange}
             onMatchCountChange={onRightMatchCountChange}
             onLocateOffset={onLocateRightOffset}
+            onCopyPath={onCopyRightPath}
+            onCopyKey={onCopyRightKey}
             onCopyValue={onCopyRightValue}
+            onCopyCompactJson={onCopyRightCompactJson}
+            onCopyFormattedJson={onCopyRightFormattedJson}
             onEditValue={onEditRightValue}
+            onDeleteValue={onDeleteRightValue}
+            onRenameKey={onRenameRightKey}
             onUnescapeValue={onUnescapeRightValue}
             onOpenFind={onOpenRightFind}
           />

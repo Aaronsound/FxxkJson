@@ -55,8 +55,14 @@ interface LargeJsonReadonlyViewerProps {
   onCollapsedLinesChange: (lines: number[]) => void;
   onMatchCountChange: (count: number) => void;
   onLocateOffset: (offset: number) => void;
+  onCopyPath: (offset: number) => void | Promise<void>;
+  onCopyKey: (offset: number) => void | Promise<void>;
   onCopyValue: (offset: number) => void | Promise<void>;
+  onCopyCompactJson: (offset: number) => void | Promise<void>;
+  onCopyFormattedJson: (offset: number) => void | Promise<void>;
   onEditValue: (offset: number) => void | Promise<void>;
+  onDeleteValue: (offset: number) => void | Promise<void>;
+  onRenameKey: (offset: number) => void | Promise<void>;
   onUnescapeValue: (offset: number) => void | Promise<void>;
   onOpenFind: () => void;
 }
@@ -119,8 +125,14 @@ const LargeJsonReadonlyViewer = forwardRef<
   onCollapsedLinesChange,
   onMatchCountChange,
   onLocateOffset,
+  onCopyPath,
+  onCopyKey,
   onCopyValue,
+  onCopyCompactJson,
+  onCopyFormattedJson,
   onEditValue,
+  onDeleteValue,
+  onRenameKey,
   onUnescapeValue,
   onOpenFind,
 }, ref) => {
@@ -856,7 +868,7 @@ const LargeJsonReadonlyViewer = forwardRef<
             const menuPosition = getViewportContextMenuPosition(
               event.clientX,
               event.clientY,
-              regionsByStartLine.has(lineNumber) ? 4 : 3
+              regionsByStartLine.has(lineNumber) ? 10 : 9
             );
             setContextMenu({
               x: menuPosition.x,
@@ -916,6 +928,26 @@ const LargeJsonReadonlyViewer = forwardRef<
             type="button"
             className="large-json-context-menu-item"
             onClick={async () => {
+              await onCopyPath(contextMenu.offset);
+              setContextMenu(null);
+            }}
+          >
+            复制 JSON Path
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              await onCopyKey(contextMenu.offset);
+              setContextMenu(null);
+            }}
+          >
+            复制 key
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
               await onCopyValue(contextMenu.offset);
               setContextMenu(null);
             }}
@@ -926,11 +958,51 @@ const LargeJsonReadonlyViewer = forwardRef<
             type="button"
             className="large-json-context-menu-item"
             onClick={async () => {
+              await onCopyCompactJson(contextMenu.offset);
+              setContextMenu(null);
+            }}
+          >
+            复制压缩 JSON
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              await onCopyFormattedJson(contextMenu.offset);
+              setContextMenu(null);
+            }}
+          >
+            复制格式化 JSON
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
               await onEditValue(contextMenu.offset);
               setContextMenu(null);
             }}
           >
             编辑当前值
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              await onRenameKey(contextMenu.offset);
+              setContextMenu(null);
+            }}
+          >
+            重命名 key
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item danger"
+            onClick={async () => {
+              await onDeleteValue(contextMenu.offset);
+              setContextMenu(null);
+            }}
+          >
+            删除当前节点
           </button>
           <button
             type="button"

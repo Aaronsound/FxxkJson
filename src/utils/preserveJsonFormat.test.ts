@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  deleteJsonNodePreservingOriginalFormat,
+  renameJsonObjectKeyPreservingOriginalFormat,
   saveJsonNodePreservingOriginalFormat,
   saveJsonPreservingOriginalFormat,
 } from './preserveJsonFormat';
@@ -168,5 +170,33 @@ describe('preserveJsonFormat', () => {
       '}',
       '',
     ].join('\n'));
+  });
+
+  it('deletes a compact nested object key', () => {
+    const original = '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}';
+
+    expect(deleteJsonNodePreservingOriginalFormat(original, ['items', 1, 'name'])).toBe(
+      '{"items":[{"id":1,"name":"alpha"},{"id":2}]}'
+    );
+  });
+
+  it('renames a compact object key and keeps the value', () => {
+    const original = '{"items":[{"requestId":"req-1","name":"alpha"}]}';
+
+    expect(renameJsonObjectKeyPreservingOriginalFormat(
+      original,
+      ['items', 0, 'requestId'],
+      'traceId'
+    )).toBe('{"items":[{"name":"alpha","traceId":"req-1"}]}');
+  });
+
+  it('rejects duplicate key names while renaming', () => {
+    const original = '{"name":"alpha","traceId":"req-1"}';
+
+    expect(() => renameJsonObjectKeyPreservingOriginalFormat(
+      original,
+      ['name'],
+      'traceId'
+    )).toThrow('新的 key 已存在');
   });
 });

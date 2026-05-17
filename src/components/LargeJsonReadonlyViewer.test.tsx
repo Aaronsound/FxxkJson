@@ -36,8 +36,14 @@ function renderViewer(overrides: Partial<React.ComponentProps<typeof LargeJsonRe
     onCollapsedLinesChange: vi.fn(),
     onMatchCountChange: vi.fn(),
     onLocateOffset: vi.fn(),
+    onCopyPath: vi.fn(),
+    onCopyKey: vi.fn(),
     onCopyValue: vi.fn(),
+    onCopyCompactJson: vi.fn(),
+    onCopyFormattedJson: vi.fn(),
     onEditValue: vi.fn(),
+    onDeleteValue: vi.fn(),
+    onRenameKey: vi.fn(),
     onUnescapeValue: vi.fn(),
     onOpenFind: vi.fn(),
     ...overrides,
@@ -90,8 +96,14 @@ describe('LargeJsonReadonlyViewer', () => {
       onCollapsedLinesChange: firstCollapsedChange,
       onMatchCountChange: vi.fn(),
       onLocateOffset: firstLocate,
+      onCopyPath: vi.fn(),
+      onCopyKey: vi.fn(),
       onCopyValue: vi.fn(),
+      onCopyCompactJson: vi.fn(),
+      onCopyFormattedJson: vi.fn(),
       onEditValue: vi.fn(),
+      onDeleteValue: vi.fn(),
+      onRenameKey: vi.fn(),
       onUnescapeValue: vi.fn(),
       onOpenFind: vi.fn(),
     };
@@ -211,8 +223,14 @@ describe('LargeJsonReadonlyViewer', () => {
         onCollapsedLinesChange={onCollapsedLinesChange}
         onMatchCountChange={vi.fn()}
         onLocateOffset={vi.fn()}
+        onCopyPath={vi.fn()}
+        onCopyKey={vi.fn()}
         onCopyValue={vi.fn()}
+        onCopyCompactJson={vi.fn()}
+        onCopyFormattedJson={vi.fn()}
         onEditValue={vi.fn()}
+        onDeleteValue={vi.fn()}
+        onRenameKey={vi.fn()}
         onUnescapeValue={vi.fn()}
         onOpenFind={vi.fn()}
       />
@@ -227,14 +245,26 @@ describe('LargeJsonReadonlyViewer', () => {
 
   it('uses right-side clicks and context menu actions for locate, copy, and edit callbacks', async () => {
     const onLocateOffset = vi.fn();
+    const onCopyPath = vi.fn().mockResolvedValue(undefined);
+    const onCopyKey = vi.fn().mockResolvedValue(undefined);
     const onCopyValue = vi.fn().mockResolvedValue(undefined);
+    const onCopyCompactJson = vi.fn().mockResolvedValue(undefined);
+    const onCopyFormattedJson = vi.fn().mockResolvedValue(undefined);
     const onEditValue = vi.fn().mockResolvedValue(undefined);
+    const onDeleteValue = vi.fn().mockResolvedValue(undefined);
+    const onRenameKey = vi.fn().mockResolvedValue(undefined);
     const onUnescapeValue = vi.fn().mockResolvedValue(undefined);
 
     renderViewer({
       onLocateOffset,
+      onCopyPath,
+      onCopyKey,
       onCopyValue,
+      onCopyCompactJson,
+      onCopyFormattedJson,
       onEditValue,
+      onDeleteValue,
+      onRenameKey,
       onUnescapeValue,
     });
 
@@ -269,6 +299,42 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(onCopyValue).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
+    const copyPathMenuItem = await screen.findByRole('button', { name: '复制 JSON Path' });
+    fireEvent.click(copyPathMenuItem);
+
+    await waitFor(() => {
+      expect(onCopyPath).toHaveBeenCalledTimes(1);
+    });
+    expect(onCopyPath).toHaveBeenLastCalledWith(expect.any(Number));
+
+    fireEvent.contextMenu(line);
+    const copyKeyMenuItem = await screen.findByRole('button', { name: '复制 key' });
+    fireEvent.click(copyKeyMenuItem);
+
+    await waitFor(() => {
+      expect(onCopyKey).toHaveBeenCalledTimes(1);
+    });
+    expect(onCopyKey).toHaveBeenLastCalledWith(expect.any(Number));
+
+    fireEvent.contextMenu(line);
+    const copyCompactMenuItem = await screen.findByRole('button', { name: '复制压缩 JSON' });
+    fireEvent.click(copyCompactMenuItem);
+
+    await waitFor(() => {
+      expect(onCopyCompactJson).toHaveBeenCalledTimes(1);
+    });
+    expect(onCopyCompactJson).toHaveBeenLastCalledWith(expect.any(Number));
+
+    fireEvent.contextMenu(line);
+    const copyFormattedMenuItem = await screen.findByRole('button', { name: '复制格式化 JSON' });
+    fireEvent.click(copyFormattedMenuItem);
+
+    await waitFor(() => {
+      expect(onCopyFormattedJson).toHaveBeenCalledTimes(1);
+    });
+    expect(onCopyFormattedJson).toHaveBeenLastCalledWith(expect.any(Number));
+
+    fireEvent.contextMenu(line);
     const editMenuItem = await screen.findByRole('button', { name: '编辑当前值' });
     fireEvent.click(editMenuItem);
 
@@ -276,6 +342,24 @@ describe('LargeJsonReadonlyViewer', () => {
       expect(onEditValue).toHaveBeenCalledTimes(1);
     });
     expect(onEditValue).toHaveBeenLastCalledWith(expect.any(Number));
+
+    fireEvent.contextMenu(line);
+    const renameMenuItem = await screen.findByRole('button', { name: '重命名 key' });
+    fireEvent.click(renameMenuItem);
+
+    await waitFor(() => {
+      expect(onRenameKey).toHaveBeenCalledTimes(1);
+    });
+    expect(onRenameKey).toHaveBeenLastCalledWith(expect.any(Number));
+
+    fireEvent.contextMenu(line);
+    const deleteMenuItem = await screen.findByRole('button', { name: '删除当前节点' });
+    fireEvent.click(deleteMenuItem);
+
+    await waitFor(() => {
+      expect(onDeleteValue).toHaveBeenCalledTimes(1);
+    });
+    expect(onDeleteValue).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
     const unescapeMenuItem = await screen.findByRole('button', { name: '反转义当前值' });
@@ -306,7 +390,7 @@ describe('LargeJsonReadonlyViewer', () => {
 
       const menu = document.querySelector<HTMLElement>('.large-json-context-menu');
       expect(menu?.style.left).toBe('612px');
-      expect(menu?.style.top).toBe('444px');
+      expect(menu?.style.top).toBe('240px');
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth });
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight });

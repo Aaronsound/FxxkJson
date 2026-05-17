@@ -72,6 +72,7 @@ import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
+import { formatJsonPath } from './utils/jsonPath';
 import { APP_VERSION } from './utils/appInfo';
 import './App.css';
 
@@ -1377,7 +1378,7 @@ const App: React.FC = () => {
       const menuPosition = getViewportContextMenuPosition(
         browserEvent?.clientX ?? event.event.posx ?? 0,
         browserEvent?.clientY ?? event.event.posy ?? 0,
-        4
+        10
       );
       rightContextMenuOffsetByTabRef.current[currentTabId] = offset;
       setRightEditorContextMenu({
@@ -1453,10 +1454,40 @@ const App: React.FC = () => {
     });
 
     editor.addAction({
+      id: 'copyJsonPathAction',
+      label: '复制 JSON Path',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1,
+      run: async (mountedEditor) => {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
+          return;
+        }
+
+        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'path');
+      },
+    });
+
+    editor.addAction({
+      id: 'copyKeyAction',
+      label: '复制 key',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 2,
+      run: async (mountedEditor) => {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
+          return;
+        }
+
+        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'key');
+      },
+    });
+
+    editor.addAction({
       id: 'copyValueAction',
       label: '复制值',
       contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1,
+      contextMenuOrder: 3,
       run: async (mountedEditor) => {
         const actionOffset = getRightActionOffset(mountedEditor);
         if (!actionOffset) {
@@ -1468,10 +1499,40 @@ const App: React.FC = () => {
     });
 
     editor.addAction({
+      id: 'copyCompactJsonAction',
+      label: '复制压缩 JSON',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 4,
+      run: async (mountedEditor) => {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
+          return;
+        }
+
+        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'compact-json');
+      },
+    });
+
+    editor.addAction({
+      id: 'copyFormattedJsonAction',
+      label: '复制格式化 JSON',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 5,
+      run: async (mountedEditor) => {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
+          return;
+        }
+
+        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'formatted-json');
+      },
+    });
+
+    editor.addAction({
       id: 'editValueAction',
       label: '编辑当前值',
       contextMenuGroupId: 'navigation',
-      contextMenuOrder: 2,
+      contextMenuOrder: 6,
       run: async (mountedEditor) => {
         const actionOffset = getRightActionOffset(mountedEditor);
         if (!actionOffset) {
@@ -1483,10 +1544,50 @@ const App: React.FC = () => {
     });
 
     editor.addAction({
+      id: 'renameKeyAction',
+      label: '重命名 key',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 7,
+      run: async (mountedEditor) => {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
+          return;
+        }
+
+        await applyRightNodeMutationAtOffset(
+          actionOffset.tabId,
+          actionOffset.offset,
+          true,
+          'rename-node-key'
+        );
+      },
+    });
+
+    editor.addAction({
+      id: 'deleteNodeAction',
+      label: '删除当前节点',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 8,
+      run: async (mountedEditor) => {
+        const actionOffset = getRightActionOffset(mountedEditor);
+        if (!actionOffset) {
+          return;
+        }
+
+        await applyRightNodeMutationAtOffset(
+          actionOffset.tabId,
+          actionOffset.offset,
+          true,
+          'delete-node'
+        );
+      },
+    });
+
+    editor.addAction({
       id: 'unescapeValueAction',
       label: '反转义当前值',
       contextMenuGroupId: 'navigation',
-      contextMenuOrder: 3,
+      contextMenuOrder: 9,
       run: async (mountedEditor) => {
         const actionOffset = getRightActionOffset(mountedEditor);
         if (!actionOffset) {
@@ -1783,6 +1884,146 @@ const App: React.FC = () => {
 
     return readAndParse(formattedTextByTabRef.current[tabId] ?? '');
   }, [requestWorkerEditJson]);
+
+  const copyNodeDetailAtOffset = async (
+    tabId: string,
+    offset: number,
+    preferCachedText: boolean,
+    mode: 'path' | 'key' | 'compact-json' | 'formatted-json'
+  ) => {
+    const labels = {
+      path: 'JSON Path',
+      key: 'key',
+      'compact-json': '压缩 JSON',
+      'formatted-json': '格式化 JSON',
+    };
+
+    try {
+      const parsed = await readEditableNodeAtOffset(
+        tabId,
+        offset,
+        preferCachedText,
+        `当前节点无法复制${labels[mode]}`
+      );
+      const textToCopy = (() => {
+        if (mode === 'path') {
+          return formatJsonPath(parsed.path);
+        }
+
+        if (mode === 'key') {
+          const key = parsed.path[parsed.path.length - 1];
+          if (key === undefined) {
+            throw new Error('根节点没有 key');
+          }
+          return String(key);
+        }
+
+        const value = JSON.parse(parsed.value);
+        return mode === 'compact-json'
+          ? JSON.stringify(value)
+          : JSON.stringify(value, null, 2);
+      })();
+
+      await writeTextToClipboard(textToCopy);
+      setTabError(tabId, null);
+      logEvent('copy-node-detail-success', {
+        tabId,
+        offset,
+        mode,
+        copiedLength: textToCopy.length,
+        preferCachedText,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setTabError(tabId, `复制${labels[mode]}失败：${message}`);
+      logEvent('copy-node-detail-failed', {
+        tabId,
+        offset,
+        mode,
+        preferCachedText,
+        error: message,
+      });
+    }
+  };
+
+  const applyRightNodeMutationAtOffset = async (
+    tabId: string,
+    offset: number,
+    preferCachedText: boolean,
+    operation: 'delete-node' | 'rename-node-key'
+  ) => {
+    const isDelete = operation === 'delete-node';
+    setEditJsonBusyLabel(isDelete ? '正在删除当前节点...' : '正在重命名当前 key...');
+    try {
+      const parsed = await readEditableNodeAtOffset(
+        tabId,
+        offset,
+        preferCachedText,
+        isDelete ? '当前节点无法删除' : '当前 key 无法重命名'
+      );
+
+      if (parsed.path.length === 0) {
+        throw new Error(isDelete ? '不能删除根节点' : '根节点没有 key');
+      }
+
+      let workerText = '';
+      if (isDelete) {
+        const confirmed = window.confirm('确定删除当前节点吗？');
+        if (!confirmed) {
+          return;
+        }
+      } else {
+        const currentKey = parsed.path[parsed.path.length - 1];
+        if (typeof currentKey !== 'string') {
+          throw new Error('只有对象 key 可以重命名');
+        }
+
+        const nextKey = window.prompt('输入新的 key 名称', currentKey);
+        if (nextKey === null) {
+          return;
+        }
+        workerText = nextKey;
+      }
+
+      const original = getTabContent(tabId);
+      const updated = await requestWorkerEditJson(
+        tabId,
+        operation,
+        workerText,
+        original,
+        parsed.path
+      );
+      const largeMode = isLargeDocument(updated);
+
+      updateTabContent(tabId, updated, true);
+      setTabLargeMode(tabId, largeMode);
+      resetSearchState();
+      queueFormatAfterEditSave(tabId, updated);
+      setTabError(tabId, null);
+      logEvent('right-node-mutation-success', {
+        tabId,
+        offset,
+        operation,
+        path: parsed.path,
+        rawLength: updated.length,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setTabError(
+        tabId,
+        isDelete ? `删除当前节点失败：${message}` : `重命名 key 失败：${message}`
+      );
+      logEvent('right-node-mutation-failed', {
+        tabId,
+        offset,
+        operation,
+        preferCachedText,
+        error: message,
+      });
+    } finally {
+      setEditJsonBusyLabel(null);
+    }
+  };
 
   const handleOpenEditNodeAtOffset = async (
     tabId: string,
@@ -2531,7 +2772,12 @@ const App: React.FC = () => {
         isRightSearchLoadingMore={isRightSearchLoadingMore}
         onCloseLeftFind={closeLeftFind}
         onCloseRightFind={closeRightFind}
+        onCopyRightCompactJson={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'compact-json')}
+        onCopyRightFormattedJson={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'formatted-json')}
+        onCopyRightKey={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'key')}
+        onCopyRightPath={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'path')}
         onCopyRightValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
+        onDeleteRightValue={(offset) => applyRightNodeMutationAtOffset(activeTab.id, offset, true, 'delete-node')}
         onEditRightValue={(offset) => handleOpenEditNodeAtOffset(activeTab.id, offset, true)}
         onLeftChange={handleLeftChange}
         onLeftMount={handleLeftMount}
@@ -2544,6 +2790,7 @@ const App: React.FC = () => {
         onLoadMoreRightSearch={loadMoreRightSearch}
         onLocateRightOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
         onOpenRightFind={openRightFind}
+        onRenameRightKey={(offset) => applyRightNodeMutationAtOffset(activeTab.id, offset, true, 'rename-node-key')}
         onUnescapeRightValue={(offset) => handleOpenUnescapedNodeAtOffset(activeTab.id, offset, true)}
         onPrevLeft={gotoPrevLeft}
         onPrevRight={gotoPrevRight}
@@ -2588,6 +2835,28 @@ const App: React.FC = () => {
             onClick={async () => {
               const { tabId, offset } = rightEditorContextMenu;
               setRightEditorContextMenu(null);
+              await copyNodeDetailAtOffset(tabId, offset, true, 'path');
+            }}
+          >
+            复制 JSON Path
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              await copyNodeDetailAtOffset(tabId, offset, true, 'key');
+            }}
+          >
+            复制 key
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
               await copyValueAtOffset(tabId, offset, true);
             }}
           >
@@ -2599,10 +2868,54 @@ const App: React.FC = () => {
             onClick={async () => {
               const { tabId, offset } = rightEditorContextMenu;
               setRightEditorContextMenu(null);
+              await copyNodeDetailAtOffset(tabId, offset, true, 'compact-json');
+            }}
+          >
+            复制压缩 JSON
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              await copyNodeDetailAtOffset(tabId, offset, true, 'formatted-json');
+            }}
+          >
+            复制格式化 JSON
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
               await handleOpenEditNodeAtOffset(tabId, offset, true);
             }}
           >
             编辑当前值
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              await applyRightNodeMutationAtOffset(tabId, offset, true, 'rename-node-key');
+            }}
+          >
+            重命名 key
+          </button>
+          <button
+            type="button"
+            className="large-json-context-menu-item danger"
+            onClick={async () => {
+              const { tabId, offset } = rightEditorContextMenu;
+              setRightEditorContextMenu(null);
+              await applyRightNodeMutationAtOffset(tabId, offset, true, 'delete-node');
+            }}
+          >
+            删除当前节点
           </button>
           <button
             type="button"

@@ -17,6 +17,8 @@ import {
 } from '../utils/lightweightLocate';
 import { getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import {
+  deleteJsonNodePreservingOriginalFormat,
+  renameJsonObjectKeyPreservingOriginalFormat,
   saveJsonNodePreservingOriginalFormat,
   saveJsonPreservingOriginalFormat,
 } from '../utils/preserveJsonFormat';
@@ -316,6 +318,24 @@ function saveJsonNodeForEdit(tabId, text, originalText, path) {
     rawViewerData,
     ...formattedPatch,
   };
+}
+
+function deleteJsonNodeForEdit(tabId, originalText, path) {
+  if (typeof originalText !== 'string' || !Array.isArray(path)) {
+    throw new Error('当前节点无法删除');
+  }
+
+  nodeEditCache.delete(tabId);
+  return deleteJsonNodePreservingOriginalFormat(originalText, path);
+}
+
+function renameJsonNodeKeyForEdit(tabId, text, originalText, path) {
+  if (typeof originalText !== 'string' || !Array.isArray(path)) {
+    throw new Error('当前 key 无法重命名');
+  }
+
+  nodeEditCache.delete(tabId);
+  return renameJsonObjectKeyPreservingOriginalFormat(originalText, path, text);
 }
 
 function copyJsonAsStringLiteral(text) {
@@ -1124,6 +1144,14 @@ function handleEditJsonMessage(message) {
           viewerIndexMs: result.viewerIndexMs,
         });
         return null;
+      }
+
+      if (operation === 'delete-node') {
+        return deleteJsonNodeForEdit(tabId, originalText, path);
+      }
+
+      if (operation === 'rename-node-key') {
+        return renameJsonNodeKeyForEdit(tabId, text, originalText, path);
       }
 
       if (operation === 'save') {

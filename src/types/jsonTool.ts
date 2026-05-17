@@ -102,7 +102,9 @@ export type EditJsonWorkerOperation =
   | 'escape-json'
   | 'unescape-json'
   | 'read-node'
-  | 'save-node';
+  | 'save-node'
+  | 'delete-node'
+  | 'rename-node-key';
 export type SearchTarget = 'left' | 'right';
 export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'repair' | 'edit-save' | 'paste';
