@@ -7,15 +7,10 @@ import {
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { formatJsonText, parseJsonForFormatting, repairJsonText } from '../utils/jsonFormat';
 import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
-import {
-  DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
-  DEDICATED_RIGHT_VIEWER_THRESHOLD,
-  DEFAULT_SEARCH_OPTIONS,
-  LARGE_FILE_THRESHOLD,
-  SEARCH_BATCH_SIZE,
-} from '../types/jsonTool';
+import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
 import { getDeferredStructureWarmupDelayMs } from '../utils/jsonWorkerPlan';
+import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
 import {
   getIdentityLocateRange,
   getLightweightTokenLocateRange,
@@ -65,30 +60,6 @@ function getTextEncoder() {
 
 function getTextByteLength(text) {
   return getTextEncoder().encode(text).length;
-}
-
-function exceedsLineCountThreshold(text, threshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD) {
-  if (threshold <= 0) {
-    return text.length > 0;
-  }
-
-  let lineCount = 1;
-  for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === '\n') {
-      lineCount += 1;
-      if (lineCount > threshold) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-function shouldBuildDedicatedRightViewer(rawText, formattedText) {
-  return getTextByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD
-    || getTextByteLength(formattedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD
-    || exceedsLineCountThreshold(formattedText);
 }
 
 function getStructureWarmupDelayForTexts(rawText, formattedText, baseDelayMs) {
@@ -900,7 +871,7 @@ function buildFormatArtifacts({
   buildViewer,
   structureWarmupDelayMs,
 }) {
-  const shouldBuildViewer = buildViewer || shouldBuildDedicatedRightViewer(sourceText, formatted);
+  const shouldBuildViewer = buildViewer || shouldUseDedicatedRightViewer(sourceText, formatted);
 
   if (shouldBuildViewer) {
     setTimeout(() => {
