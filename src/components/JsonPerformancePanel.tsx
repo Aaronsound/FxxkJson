@@ -25,10 +25,10 @@ const PANEL_POSITION_STORAGE_KEY = 'hanjson.performancePanel.position.v4';
 
 const stageLabels: Array<{ key: StageKey; label: string }> = [
   { key: 'readFileMs', label: '读取文件' },
-  { key: 'leftModelSyncMs', label: '左侧挂载' },
+  { key: 'leftModelSyncMs', label: '左侧渲染' },
   { key: 'formatQueueMs', label: '排队等待' },
   { key: 'formatWorkerMs', label: 'Worker 格式化' },
-  { key: 'rightModelSyncMs', label: '右侧挂载' },
+  { key: 'rightModelSyncMs', label: '右侧渲染' },
   { key: 'viewerIndexMs', label: 'Viewer 索引' },
   { key: 'structureIndexMs', label: '定位索引' },
 ];
@@ -89,21 +89,54 @@ function getStatusLabel(snapshot: PerformanceSnapshot) {
 
 function getBottleneck(snapshot: PerformanceSnapshot) {
   const topStage = stageLabels
-    .map((stage) => ({ label: stage.label, value: snapshot[stage.key] }))
+    .map((stage) => ({ key: stage.key, label: stage.label, value: snapshot[stage.key] }))
     .filter((stage) => typeof stage.value === 'number')
     .sort((a, b) => (b.value as number) - (a.value as number))[0];
 
   if (!topStage || typeof topStage.value !== 'number') {
     return {
+      key: null,
       label: '--',
       duration: '--',
     };
   }
 
   return {
+    key: topStage.key,
     label: topStage.label,
     duration: formatDuration(topStage.value),
   };
+}
+
+function getPerformanceDiagnosis(snapshot: PerformanceSnapshot) {
+  if (snapshot.status === 'failed') {
+    return '处理失败，请打开诊断日志查看错误详情。';
+  }
+
+  if (snapshot.status === 'running') {
+    return '正在采集性能数据，完成后会显示主要耗时位置。';
+  }
+
+  const bottleneck = getBottleneck(snapshot);
+
+  switch (bottleneck.key) {
+    case 'rightModelSyncMs':
+      return '当前慢在右侧渲染，不是 JSON 格式化。高行数内容会优先使用轻量折叠模式。';
+    case 'structureIndexMs':
+      return '当前慢在定位索引；不需要右侧定位时关闭定位可以提升速度。';
+    case 'leftModelSyncMs':
+      return '当前慢在左侧原文渲染，通常是原始 JSON 单行过长或体积较大。';
+    case 'formatWorkerMs':
+      return '当前慢在 Worker 格式化，说明 JSON 解析和 stringify 本身占主要耗时。';
+    case 'viewerIndexMs':
+      return '当前慢在轻量 viewer 索引，通常是行数或可折叠区域非常多。';
+    case 'readFileMs':
+      return '当前慢在文件读取，可能和磁盘、网络盘或系统文件权限有关。';
+    case 'formatQueueMs':
+      return '当前慢在排队等待，可能是上一次格式化或编辑保存还没完成。';
+    default:
+      return '当前没有明显瓶颈。';
+  }
 }
 
 function readStoredPosition() {
@@ -140,7 +173,11 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
 
   const bottleneck = useMemo(
-    () => (snapshot ? getBottleneck(snapshot) : { label: '--', duration: '--' }),
+    () => (snapshot ? getBottleneck(snapshot) : { key: null, label: '--', duration: '--' }),
+    [snapshot]
+  );
+  const diagnosis = useMemo(
+    () => (snapshot ? getPerformanceDiagnosis(snapshot) : ''),
     [snapshot]
   );
 
@@ -308,6 +345,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
         <span>Viewer {formatDuration(snapshot.totalToViewerReadyMs)}</span>
         <span>总耗时 {formatDuration(snapshot.totalToFormattedMs)}</span>
         <span>瓶颈 {bottleneck.label}</span>
+        <span>{diagnosis}</span>
       </div>
 
       {expanded && (
@@ -342,6 +380,10 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
               <span className="performance-card-label">主要瓶颈</span>
               <strong>{`${bottleneck.label} (${bottleneck.duration})`}</strong>
             </div>
+          </div>
+
+          <div className="performance-diagnosis">
+            {diagnosis}
           </div>
 
           <div className="performance-stage-grid">
