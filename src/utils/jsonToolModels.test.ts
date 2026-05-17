@@ -48,7 +48,8 @@ describe('jsonToolModels', () => {
     const tooLarge = 'a'.repeat(STRUCTURE_SYNC_THRESHOLD + 1);
 
     expect(shouldBuildWorkerStructure('', false)).toBe(false);
-    expect(shouldBuildWorkerStructure(small, false)).toBe(true);
+    expect(shouldBuildWorkerStructure(small, false)).toBe(false);
+    expect(shouldBuildWorkerStructure(small, true)).toBe(true);
     expect(shouldBuildWorkerStructure(large, false)).toBe(false);
     expect(shouldBuildWorkerStructure(large, true)).toBe(true);
     expect(shouldBuildWorkerStructure(nominalTwentyMbFixture, true)).toBe(true);

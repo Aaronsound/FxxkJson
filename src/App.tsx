@@ -1990,16 +1990,16 @@ const App: React.FC = () => {
     }
 
     const currentText = getTabContent(activeTab.id);
-    const largeMode = isLargeDocument(currentText);
+    const largeMode = Boolean(largeModeRef.current[activeTab.id]) || isLargeDocument(currentText);
     setLargeFileLocateEnabled(activeTab.id, enabled);
 
-    if (!largeMode) {
+    if (!currentText.trim()) {
       setStructureStatus(activeTab.id, 'ready');
       return;
     }
 
     if (!enabled) {
-      clearTabStructure(activeTab.id, 'disabled');
+      clearTabStructure(activeTab.id, largeMode ? 'disabled' : 'ready');
       return;
     }
 

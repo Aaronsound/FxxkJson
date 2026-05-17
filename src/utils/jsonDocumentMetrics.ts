@@ -52,14 +52,7 @@ export function canUseStructureSync(text: string) {
 
 export function shouldBuildWorkerStructure(text: string, largeFileLocateEnabled: boolean) {
   const byteLength = getUtf8ByteLength(text);
-
-  if (byteLength === 0) {
-    return false;
-  }
-
-  if (byteLength < LARGE_FILE_THRESHOLD) {
-    return true;
-  }
-
-  return byteLength <= STRUCTURE_SYNC_THRESHOLD && largeFileLocateEnabled;
+  return byteLength > 0
+    && byteLength <= STRUCTURE_SYNC_THRESHOLD
+    && largeFileLocateEnabled;
 }

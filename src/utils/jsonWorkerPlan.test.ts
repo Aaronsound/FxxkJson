@@ -9,8 +9,18 @@ import {
 } from './jsonWorkerPlan';
 
 describe('jsonWorkerPlan', () => {
-  it('keeps small documents out of large viewer while retaining normal structure locate', () => {
+  it('keeps small documents out of large viewer and skips locate index until requested', () => {
     const plan = buildJsonWorkerProcessingPlan('{"ok":true}', false);
+
+    expect(plan.largeMode).toBe(false);
+    expect(plan.shouldBuildLargeViewer).toBe(false);
+    expect(plan.shouldBuildStructureIndex).toBe(false);
+    expect(plan.shouldAttemptDirectLocate).toBe(false);
+    expect(plan.workerLocateEnabled).toBe(false);
+  });
+
+  it('builds a structure index for small documents when locate is requested', () => {
+    const plan = buildJsonWorkerProcessingPlan('{"ok":true}', true);
 
     expect(plan.largeMode).toBe(false);
     expect(plan.shouldBuildLargeViewer).toBe(false);
