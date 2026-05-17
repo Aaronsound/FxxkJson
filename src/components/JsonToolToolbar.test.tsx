@@ -13,6 +13,7 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
     onClear: vi.fn(),
     onEditJson: vi.fn(),
     onOpenDiagnosticsLog: vi.fn(),
+    onOpenAbout: vi.fn(),
     onFoldAll: vi.fn(),
     onUnfoldAll: vi.fn(),
     canControlRightPaneFolding: true,
@@ -69,5 +70,13 @@ describe('JsonToolToolbar', () => {
 
     expect(props.onUnescapeJson).not.toHaveBeenCalled();
     expect(props.onEscapeJson).not.toHaveBeenCalled();
+  });
+
+  it('opens the about dialog from the toolbar', () => {
+    const { props } = renderToolbar();
+
+    fireEvent.click(screen.getByRole('button', { name: '关于' }));
+
+    expect(props.onOpenAbout).toHaveBeenCalledTimes(1);
   });
 });

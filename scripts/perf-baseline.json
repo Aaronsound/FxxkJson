@@ -6,13 +6,21 @@
       "totalFormatMs": 55,
       "viewerIndexMs": 55,
       "rawTreeMs": 180,
-      "formattedTreeMs": 330
+      "formattedTreeMs": 330,
+      "rightSearchBatchMs": 80,
+      "rightSearchLoadMoreMs": 80,
+      "nodeValueReadMs": 25,
+      "nodeEditPatchMs": 25
     },
     "sample-20mb.json": {
       "totalFormatMs": 550,
       "viewerIndexMs": 330,
       "rawTreeMs": 1100,
-      "formattedTreeMs": 1650
+      "formattedTreeMs": 1650,
+      "rightSearchBatchMs": 220,
+      "rightSearchLoadMoreMs": 220,
+      "nodeValueReadMs": 50,
+      "nodeEditPatchMs": 50
     }
   }
 }

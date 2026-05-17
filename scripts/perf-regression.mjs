@@ -18,6 +18,10 @@ const COMPARED_METRICS = [
   'viewerIndexMs',
   'rawTreeMs',
   'formattedTreeMs',
+  'rightSearchBatchMs',
+  'rightSearchLoadMoreMs',
+  'nodeValueReadMs',
+  'nodeEditPatchMs',
 ];
 
 function parseArgs(args) {
@@ -166,6 +170,10 @@ function printResults(results, failures, baselinePath) {
     viewerIndex: formatDuration(result.viewerIndexMs),
     rawTree: formatDuration(result.rawTreeMs),
     formattedTree: formatDuration(result.formattedTreeMs),
+    rightSearch: formatDuration(result.rightSearchBatchMs),
+    rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
+    nodeRead: formatDuration(result.nodeValueReadMs),
+    nodePatch: formatDuration(result.nodeEditPatchMs),
   })));
 
   if (!baselinePath) {

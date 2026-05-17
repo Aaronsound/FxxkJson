@@ -33,7 +33,7 @@ import type {
 } from '../utils/largeJsonViewerRender';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 
-const LINE_HEIGHT = 19;
+const LINE_HEIGHT = 18;
 const OVERSCAN = 30;
 
 interface LocalSelectionRange {

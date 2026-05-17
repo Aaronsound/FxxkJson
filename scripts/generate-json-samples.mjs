@@ -4,7 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { finished } from 'node:stream/promises';
 
-const DEFAULT_SIZES_MB = [5, 6, 7, 10, 15, 20];
+const DEFAULT_SIZES_MB = [2, 5, 6, 7, 10, 15, 20];
 const DEFAULT_OUTPUT_DIR = path.resolve('json');
 
 function parseArgs(args) {

@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import AboutDialog from './components/AboutDialog';
 import JsonEditModal from './components/JsonEditModal';
 import type { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
@@ -31,7 +32,6 @@ import {
 } from './types/jsonTool';
 import type {
   EditJsonWorkerOperation,
-  JsonEditPath,
   JsonSearchOptions,
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -69,6 +69,8 @@ import { getFirstJsonImportFile } from './utils/importFiles';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
+import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
+import { APP_VERSION } from './utils/appInfo';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
@@ -94,24 +96,6 @@ async function writeTextToClipboard(text: string) {
   }
 
   await navigator.clipboard.writeText(text);
-}
-
-function isJsonEditPath(value: unknown): value is JsonEditPath {
-  return Array.isArray(value)
-    && value.every((segment) => typeof segment === 'string' || typeof segment === 'number');
-}
-
-function parseEditableNodePayload(payload: string, invalidMessage: string) {
-  const parsed = JSON.parse(payload) as { path?: unknown; value?: unknown };
-
-  if (!isJsonEditPath(parsed.path) || typeof parsed.value !== 'string') {
-    throw new Error(invalidMessage);
-  }
-
-  return {
-    path: parsed.path,
-    value: parsed.value,
-  };
 }
 
 const App: React.FC = () => {
@@ -202,6 +186,7 @@ const App: React.FC = () => {
     return window.localStorage.getItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY) !== 'false';
   });
   const [isDragImportActive, setIsDragImportActive] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
   const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState>(null);
   const {
@@ -2364,6 +2349,7 @@ const App: React.FC = () => {
         onClear={handleClear}
         onEditJson={handleOpenEditJson}
         onOpenDiagnosticsLog={() => setIsDiagnosticsLogOpen(true)}
+        onOpenAbout={() => setIsAboutOpen(true)}
         onFoldAll={() => {
           if (shouldUseDedicatedRightViewer) {
             largeViewerRef.current?.foldAll();
@@ -2445,6 +2431,14 @@ const App: React.FC = () => {
           isDarkMode={isDarkMode}
           context={diagnosticsContext}
           onClose={() => setIsDiagnosticsLogOpen(false)}
+        />
+      )}
+
+      {isAboutOpen && (
+        <AboutDialog
+          version={APP_VERSION}
+          isDarkMode={isDarkMode}
+          onClose={() => setIsAboutOpen(false)}
         />
       )}
 

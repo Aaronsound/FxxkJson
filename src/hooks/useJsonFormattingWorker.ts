@@ -1081,7 +1081,7 @@ export function useJsonFormattingWorker({
         if (event.data.rightOnly && event.data.found && hasRightRange) {
           callbacksRef.current.setLocateFeedback(tabId, {
             status: 'success',
-            message: `宸查€変腑鍙充晶 offset ${rightStartOffset.toLocaleString()}`,
+            message: `已选中右侧节点 offset ${rightStartOffset.toLocaleString()}`,
             updatedAt: Date.now(),
           });
           callbacksRef.current.setRightNodeSelection(tabId, {

@@ -120,6 +120,9 @@ body {
   --json-fold-icon-border-width: 1.6px;
   --json-fold-icon-color: rgba(120, 96, 58, 0.72);
   --json-fold-hover-bg: rgba(73, 104, 150, 0.14);
+  --json-editor-font-family: Menlo, Monaco, "Courier New", monospace;
+  --json-editor-font-size: 12px;
+  --json-editor-line-height: 18px;
 }
 .app-container.dark-mode {
   /* 深色模式覆盖变量 */
@@ -484,10 +487,10 @@ button:disabled {
   overflow: auto;
   background: #ffffff;
   color: #000000;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 14px;
+  font-family: var(--json-editor-font-family);
+  font-size: var(--json-editor-font-size);
   font-weight: normal;
-  line-height: 19px;
+  line-height: var(--json-editor-line-height);
   text-rendering: auto;
 }
 
@@ -683,7 +686,7 @@ button:disabled {
 
 .large-json-line-text.wrap {
   display: block;
-  max-height: 72px;
+  max-height: calc(var(--json-editor-line-height) * 4);
   overflow: hidden;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1724,6 +1727,89 @@ button:disabled {
 .modal-card-dark .diagnostics-log-output {
   border-color: rgba(255, 255, 255, 0.14);
   background: #0f172a;
+}
+
+.about-dialog-card {
+  width: min(560px, 100%);
+}
+
+.about-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.about-dialog-close {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.about-dialog-meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(120, 96, 58, 0.16);
+  border-radius: 8px;
+  background: rgba(250, 247, 239, 0.62);
+}
+
+.modal-card-dark .about-dialog-meta {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.about-dialog-meta div {
+  display: contents;
+}
+
+.about-dialog-meta dt {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.modal-card-dark .about-dialog-meta dt {
+  color: #c7c7c7;
+}
+
+.about-dialog-meta dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.about-dialog-meta a {
+  color: #1d4ed8;
+}
+
+.modal-card-dark .about-dialog-meta a {
+  color: #93c5fd;
+}
+
+.about-dialog-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.about-dialog-section ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.modal-card-dark .about-dialog-section ul {
+  color: #e5e7eb;
+}
+
+.about-dialog-actions {
+  justify-content: flex-end;
 }
 
 /* Tab bar overrides */
