@@ -73,6 +73,15 @@ function countLines(content: string) {
   return content ? content.split('\n').length : 0;
 }
 
+async function writeDiagnosticsTextToClipboard(content: string) {
+  if (window.electronAPI?.writeClipboardText) {
+    await window.electronAPI.writeClipboardText(content);
+    return;
+  }
+
+  await navigator.clipboard.writeText(content);
+}
+
 const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
   isDarkMode,
   context = [],
@@ -129,7 +138,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
       return;
     }
 
-    await navigator.clipboard.writeText(content);
+    await writeDiagnosticsTextToClipboard(content);
     setCopyNotice(notice);
   };
 
@@ -142,6 +151,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
     try {
       const path = await window.electronAPI.clearLog();
       setSnapshot({ path, content: '', truncated: false });
+      setShowErrorsOnly(false);
       setCopyNotice('日志已清空');
       setError(null);
     } catch (nextError) {

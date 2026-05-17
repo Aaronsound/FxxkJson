@@ -34,11 +34,7 @@ describe('DiagnosticsLogPanel', () => {
   });
 
   it('filters error lines and copies a diagnostic summary', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    });
+    const writeClipboardText = vi.fn().mockResolvedValue(true);
     window.electronAPI = {
       appendLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
       readRecentLog: vi.fn().mockResolvedValue({
@@ -51,7 +47,7 @@ describe('DiagnosticsLogPanel', () => {
       }),
       clearLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
       showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
-      writeClipboardText: vi.fn().mockResolvedValue(true),
+      writeClipboardText,
       openJsonFile: vi.fn().mockResolvedValue(null),
     };
 
@@ -73,18 +69,20 @@ describe('DiagnosticsLogPanel', () => {
 
     fireEvent.click(screen.getByLabelText('只看错误'));
 
-    expect(screen.getByDisplayValue(/format-failed/)).toBeInTheDocument();
-    expect(screen.queryByDisplayValue(/format-success/)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByDisplayValue(/format-failed/)).toBeInTheDocument();
+      expect(screen.queryByDisplayValue(/format-success/)).not.toBeInTheDocument();
+    });
 
     expect(screen.getByText(/标签 large-sample.json/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('复制诊断包'));
 
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith(expect.stringContaining('HanJson diagnostics summary'));
+      expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('HanJson diagnostics summary'));
     });
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('format-failed'));
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('tabTitle=large-sample.json'));
+    expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('format-failed'));
+    expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('tabTitle=large-sample.json'));
   });
 
   it('clears the desktop runtime log', async () => {
@@ -111,6 +109,8 @@ describe('DiagnosticsLogPanel', () => {
     await waitFor(() => {
       expect(window.electronAPI?.clearLog).toHaveBeenCalled();
     });
-    expect(screen.getByDisplayValue('暂无日志')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('暂无日志')).toBeInTheDocument();
+    });
   });
 });
