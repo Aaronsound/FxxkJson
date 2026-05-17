@@ -3,6 +3,7 @@ import Split from 'react-split';
 import Editor, { OnMount } from '@monaco-editor/react';
 import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
 import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
+import type { PaneFindPathItem } from './PaneFindWidget';
 import PaneFindWidget from './PaneFindWidget';
 import type {
   JsonSearchOptions,
@@ -41,6 +42,8 @@ interface JsonEditorPanesProps {
   processingStageText: string | null;
   rightMatchIndex: number;
   rightPaneMetaText: string;
+  rightPinnedPaths: PaneFindPathItem[];
+  rightRecentSearches: string[];
   rightSearchHasMore: boolean;
   rightSearchOptions: JsonSearchOptions;
   rightSelectedRange: { start: number; end: number } | null;
@@ -72,9 +75,12 @@ interface JsonEditorPanesProps {
   onLoadMoreRightSearch: () => void;
   onLocateRightOffset: (offset: number) => void;
   onOpenRightFind: () => void;
+  onPinCurrentRightPath: () => void;
   onPrevLeft: () => void;
   onPrevRight: () => void;
   onRenameRightKey: (offset: number) => void;
+  onSelectRightPinnedPath: (id: string) => void;
+  onSelectRightRecentSearch: (value: string) => void;
   onUnescapeRightValue: (offset: number) => void;
   onNextLeft: () => void;
   onNextRight: () => void;
@@ -114,6 +120,8 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   processingStageText,
   rightMatchIndex,
   rightPaneMetaText,
+  rightPinnedPaths,
+  rightRecentSearches,
   rightSearchHasMore,
   rightSearchOptions,
   rightSelectedRange,
@@ -145,9 +153,12 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   onLoadMoreRightSearch,
   onLocateRightOffset,
   onOpenRightFind,
+  onPinCurrentRightPath,
   onPrevLeft,
   onPrevRight,
   onRenameRightKey,
+  onSelectRightPinnedPath,
+  onSelectRightRecentSearch,
   onUnescapeRightValue,
   onNextLeft,
   onNextRight,
@@ -266,12 +277,18 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             matchCount={activeRightMatchCount}
             hasMore={rightSearchHasMore}
             isLoadingMore={isRightSearchLoadingMore}
+            recentSearches={rightRecentSearches}
+            favoritePaths={rightPinnedPaths}
+            canPinPath={Boolean(rightSelectedRange)}
             isDarkMode={isDarkMode}
             placeholder="搜索格式化结果"
             searchOptions={rightSearchOptions}
             onChange={onRightSearchTermChange}
             onSearchOptionsChange={onRightSearchOptionsChange}
             onLoadMore={onLoadMoreRightSearch}
+            onSelectRecentSearch={onSelectRightRecentSearch}
+            onPinPath={onPinCurrentRightPath}
+            onSelectFavoritePath={onSelectRightPinnedPath}
             onPrev={onPrevRight}
             onNext={onNextRight}
             onClose={onCloseRightFind}

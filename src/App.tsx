@@ -77,7 +77,10 @@ import { APP_VERSION } from './utils/appInfo';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
+const RIGHT_RECENT_SEARCHES_STORAGE_KEY = 'hanjson.rightSearch.recent.v1';
 const MAX_HEADER_PATH_LENGTH = 120;
+const MAX_RECENT_SEARCHES = 8;
+const MAX_PINNED_PATHS = 16;
 
 type RightEditorContextMenuState = {
   x: number;
@@ -86,10 +89,41 @@ type RightEditorContextMenuState = {
   offset: number;
 } | null;
 
+interface RightPinnedPath {
+  id: string;
+  pathText: string;
+  startOffset: number;
+  endOffset: number;
+  createdAt: number;
+}
+
 function getCompactPathLabel(pathText: string) {
   return pathText.length > MAX_HEADER_PATH_LENGTH
     ? `${pathText.slice(0, MAX_HEADER_PATH_LENGTH - 3)}...`
     : pathText;
+}
+
+function readStoredStringList(key: string) {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? '[]');
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredStringList(key: string, values: string[]) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(values));
 }
 
 async function writeTextToClipboard(text: string) {
@@ -195,6 +229,10 @@ const App: React.FC = () => {
   const [isArchitectureWarningDismissed, setIsArchitectureWarningDismissed] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
   const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState>(null);
+  const [rightRecentSearches, setRightRecentSearches] = useState<string[]>(() => (
+    readStoredStringList(RIGHT_RECENT_SEARCHES_STORAGE_KEY).slice(0, MAX_RECENT_SEARCHES)
+  ));
+  const [rightPinnedPathsByTab, setRightPinnedPathsByTab] = useState<Record<string, RightPinnedPath[]>>({});
   const {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
@@ -317,6 +355,14 @@ const App: React.FC = () => {
       end: activeRightNodeSelection.endOffset,
     }
     : null;
+  const activeRightPinnedPaths = activeTab
+    ? rightPinnedPathsByTab[activeTab.id] ?? []
+    : [];
+  const activeRightPinnedPathItems = activeRightPinnedPaths.map((item) => ({
+    id: item.id,
+    label: getCompactPathLabel(item.pathText),
+    detail: item.pathText,
+  }));
   const isLargeFileLocateEnabled = activeTab
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
     : false;
@@ -549,6 +595,95 @@ const App: React.FC = () => {
 
   const setRightNodeSelection = (tabId: string, selection: RightNodeSelection | null) => {
     setRightNodeSelectionByTab((current) => ({ ...current, [tabId]: selection }));
+  };
+
+  const rememberRightSearchTerm = useCallback((term: string) => {
+    const normalized = term.trim();
+    if (normalized.length < 2) {
+      return;
+    }
+
+    setRightRecentSearches((current) => {
+      const next = [
+        normalized,
+        ...current.filter((item) => item !== normalized),
+      ].slice(0, MAX_RECENT_SEARCHES);
+      writeStoredStringList(RIGHT_RECENT_SEARCHES_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const revealRightOffset = (offset: number, endOffset = offset + 1) => {
+    if (shouldUseDedicatedRightViewer) {
+      largeViewerRef.current?.revealOffset(offset);
+      return;
+    }
+
+    const editor = rightEditorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) {
+      return;
+    }
+
+    const start = model.getPositionAt(Math.max(0, offset));
+    const end = model.getPositionAt(Math.max(offset + 1, endOffset));
+    const range = new monaco.Range(
+      start.lineNumber,
+      start.column,
+      end.lineNumber,
+      end.column
+    );
+    editor.revealRangeInCenter(range);
+    editor.setSelection(range);
+    editor.focus();
+  };
+
+  const pinActiveRightPath = () => {
+    if (!activeTab || !activeRightNodeSelection?.pathText) {
+      return;
+    }
+
+    const pinnedPath: RightPinnedPath = {
+      id: `${activeRightNodeSelection.pathText}:${activeRightNodeSelection.startOffset}`,
+      pathText: activeRightNodeSelection.pathText,
+      startOffset: activeRightNodeSelection.startOffset,
+      endOffset: activeRightNodeSelection.endOffset,
+      createdAt: Date.now(),
+    };
+
+    setRightPinnedPathsByTab((current) => {
+      const existing = current[activeTab.id] ?? [];
+      const next = [
+        pinnedPath,
+        ...existing.filter((item) => item.pathText !== pinnedPath.pathText),
+      ].slice(0, MAX_PINNED_PATHS);
+
+      return {
+        ...current,
+        [activeTab.id]: next,
+      };
+    });
+  };
+
+  const selectRightPinnedPath = (id: string) => {
+    if (!activeTab) {
+      return;
+    }
+
+    const pinnedPath = (rightPinnedPathsByTab[activeTab.id] ?? []).find((item) => item.id === id);
+    if (!pinnedPath) {
+      return;
+    }
+
+    setRightNodeSelection(activeTab.id, {
+      path: null,
+      pathText: pinnedPath.pathText,
+      startOffset: pinnedPath.startOffset,
+      endOffset: pinnedPath.endOffset,
+      updatedAt: Date.now(),
+    });
+    revealRightOffset(pinnedPath.startOffset, pinnedPath.endOffset);
+    requestWorkerLocate(activeTab.id, pinnedPath.startOffset);
   };
 
   const setLargeFileLocateEnabled = (tabId: string, enabled: boolean) => {
@@ -1050,6 +1185,20 @@ const App: React.FC = () => {
   useEffect(() => {
     resetSearchState();
   }, [activeTabId]);
+
+  useEffect(() => {
+    if (!rightSearchTerm.trim()) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      rememberRightSearchTerm(rightSearchTerm);
+    }, 800);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [rememberRightSearchTerm, rightSearchTerm]);
 
   useEffect(() => {
     if (!activeTab || !shouldUseDedicatedRightViewer) {
@@ -2759,6 +2908,8 @@ const App: React.FC = () => {
         processingStageText={processingStageText}
         rightMatchIndex={rightMatchIndex}
         rightPaneMetaText={rightPaneMetaText}
+        rightPinnedPaths={activeRightPinnedPathItems}
+        rightRecentSearches={rightRecentSearches}
         rightSearchHasMore={rightSearchHasMore}
         rightSearchOptions={rightSearchOptions}
         rightSelectedRange={activeRightSelectedRange}
@@ -2790,7 +2941,15 @@ const App: React.FC = () => {
         onLoadMoreRightSearch={loadMoreRightSearch}
         onLocateRightOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
         onOpenRightFind={openRightFind}
+        onPinCurrentRightPath={pinActiveRightPath}
         onRenameRightKey={(offset) => applyRightNodeMutationAtOffset(activeTab.id, offset, true, 'rename-node-key')}
+        onSelectRightPinnedPath={selectRightPinnedPath}
+        onSelectRightRecentSearch={(value) => {
+          setRightSearchTerm(value);
+          setRightMatchIndex(0);
+          setIsRightFindOpen(true);
+          rememberRightSearchTerm(value);
+        }}
         onUnescapeRightValue={(offset) => handleOpenUnescapedNodeAtOffset(activeTab.id, offset, true)}
         onPrevLeft={gotoPrevLeft}
         onPrevRight={gotoPrevRight}

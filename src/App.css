@@ -852,6 +852,68 @@ button:disabled {
   width: min(260px, 34vw);
 }
 
+.pane-find-quick-panel {
+  display: flex;
+  width: min(460px, calc(100vw - 56px));
+  max-width: 100%;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid rgba(120, 96, 58, 0.14);
+  padding-top: 6px;
+}
+
+.pane-find-widget.dark .pane-find-quick-panel {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.pane-find-quick-group {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+}
+
+.pane-find-quick-label {
+  padding-top: 5px;
+  color: #6b7280;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pane-find-widget.dark .pane-find-quick-label {
+  color: #bdbdbd;
+}
+
+.pane-find-chips {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pane-find-chip {
+  max-width: 170px;
+  height: 24px;
+  padding: 0 8px;
+  overflow: hidden;
+  border-radius: 3px;
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-find-chip.primary {
+  background: rgba(79, 126, 203, 0.16);
+  color: #184f9e;
+}
+
+.pane-find-widget.dark .pane-find-chip.primary {
+  background: rgba(117, 190, 255, 0.18);
+  color: #a9d7ff;
+}
+
 .pane-find-results {
   width: min(460px, calc(100vw - 56px));
   max-width: 100%;

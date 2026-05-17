@@ -63,4 +63,30 @@ describe('PaneFindWidget', () => {
     expect(screen.getByText('已加载 2000 条')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '加载更多' })).toBeInTheDocument();
   });
+
+  it('renders recent searches and pinned paths as quick actions', () => {
+    const onSelectRecentSearch = vi.fn();
+    const onPinPath = vi.fn();
+    const onSelectFavoritePath = vi.fn();
+
+    renderWidget({
+      recentSearches: ['request', 'traceId'],
+      favoritePaths: [
+        { id: 'path-1', label: '$.items[0].requestId', detail: '$.items[0].requestId' },
+      ],
+      canPinPath: true,
+      onSelectRecentSearch,
+      onPinPath,
+      onSelectFavoritePath,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '固定当前路径' }));
+    expect(onPinPath).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'request' }));
+    expect(onSelectRecentSearch).toHaveBeenCalledWith('request');
+
+    fireEvent.click(screen.getByRole('button', { name: '$.items[0].requestId' }));
+    expect(onSelectFavoritePath).toHaveBeenCalledWith('path-1');
+  });
 });

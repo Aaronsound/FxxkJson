@@ -7,12 +7,21 @@ export interface PaneFindResultItem {
   detail?: string;
 }
 
+export interface PaneFindPathItem {
+  id: string;
+  label: string;
+  detail?: string;
+}
+
 interface PaneFindWidgetProps {
   value: string;
   currentIndex: number;
   matchCount: number;
   hasMore?: boolean;
   isLoadingMore?: boolean;
+  recentSearches?: string[];
+  favoritePaths?: PaneFindPathItem[];
+  canPinPath?: boolean;
   resultItems?: PaneFindResultItem[];
   activeResultIndex?: number;
   resultListLabel?: string;
@@ -27,6 +36,9 @@ interface PaneFindWidgetProps {
   onReplace?: () => void;
   onReplaceAll?: () => void;
   onLoadMore?: () => void;
+  onSelectRecentSearch?: (value: string) => void;
+  onPinPath?: () => void;
+  onSelectFavoritePath?: (id: string) => void;
   onSelectResult?: (index: number) => void;
   onPrev: () => void;
   onNext: () => void;
@@ -39,6 +51,9 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   matchCount,
   hasMore = false,
   isLoadingMore = false,
+  recentSearches = [],
+  favoritePaths = [],
+  canPinPath = false,
   resultItems = [],
   activeResultIndex = 0,
   resultListLabel,
@@ -53,6 +68,9 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   onReplace,
   onReplaceAll,
   onLoadMore,
+  onSelectRecentSearch,
+  onPinPath,
+  onSelectFavoritePath,
   onSelectResult,
   onPrev,
   onNext,
@@ -60,6 +78,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const shouldShowResultList = resultItems.length > 0;
+  const shouldShowQuickItems = recentSearches.length > 0 || favoritePaths.length > 0 || canPinPath;
   const countText = matchCount > 0
     ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}`
     : '0/0';
@@ -229,6 +248,55 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
                 全部替换
               </button>
             </div>
+          </div>
+        )}
+        {shouldShowQuickItems && (
+          <div className="pane-find-quick-panel">
+            {(canPinPath || favoritePaths.length > 0) && (
+              <div className="pane-find-quick-group">
+                <div className="pane-find-quick-label">收藏路径</div>
+                <div className="pane-find-chips">
+                  {canPinPath && (
+                    <button
+                      type="button"
+                      className="pane-find-chip primary"
+                      onClick={onPinPath}
+                    >
+                      固定当前路径
+                    </button>
+                  )}
+                  {favoritePaths.map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className="pane-find-chip"
+                      title={item.detail ?? item.label}
+                      onClick={() => onSelectFavoritePath?.(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {recentSearches.length > 0 && (
+              <div className="pane-find-quick-group">
+                <div className="pane-find-quick-label">最近搜索</div>
+                <div className="pane-find-chips">
+                  {recentSearches.map((term) => (
+                    <button
+                      type="button"
+                      key={term}
+                      className="pane-find-chip"
+                      title={term}
+                      onClick={() => onSelectRecentSearch?.(term)}
+                    >
+                      {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {shouldShowResultList && (

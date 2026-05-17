@@ -71,6 +71,7 @@ export interface LargeJsonReadonlyViewerHandle {
   foldAll: () => void;
   unfoldAll: () => void;
   focus: () => void;
+  revealOffset: (offset: number) => void;
 }
 
 function getTextOffsetWithin(root: HTMLElement, node: Node, offset: number, fallbackLength: number) {
@@ -106,6 +107,24 @@ function getLineNumberFromElement(element: HTMLElement) {
 function getFirstMeaningfulOffset(lineText: string) {
   const match = lineText.match(/\S/);
   return match?.index ?? 0;
+}
+
+function getLineNumberForOffset(lineStarts: Uint32Array, offset: number) {
+  let low = 0;
+  let high = lineStarts.length - 1;
+  let result = 0;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (lineStarts[mid] <= offset) {
+      result = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return result + 1;
 }
 
 const LargeJsonReadonlyViewer = forwardRef<
@@ -623,7 +642,38 @@ const LargeJsonReadonlyViewer = forwardRef<
     focus() {
       containerRef.current?.focus({ preventScroll: true });
     },
-  }), [data.regions, onCollapsedLinesChange]);
+    revealOffset(offset: number) {
+      const lineNumber = getLineNumberForOffset(
+        data.lineStarts,
+        clamp(Math.floor(offset), 0, text.length)
+      );
+      const containingCollapsedRegion = collapsedIntervals.find((interval) => (
+        lineNumber >= interval.start && lineNumber <= interval.end
+      ));
+
+      if (containingCollapsedRegion) {
+        onCollapsedLinesChange(
+          normalizedCollapsedLines.filter((line) => line !== containingCollapsedRegion.triggerLine)
+        );
+        return;
+      }
+
+      const visibleIndex = getVisibleIndexForActualLine(lineNumber);
+      if (visibleIndex !== null && containerRef.current) {
+        containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
+        containerRef.current.focus({ preventScroll: true });
+      }
+    },
+  }), [
+    collapsedIntervals,
+    data.lineStarts,
+    data.regions,
+    getVisibleIndexForActualLine,
+    normalizedCollapsedLines,
+    onCollapsedLinesChange,
+    rowHeight,
+    text.length,
+  ]);
 
   useEffect(() => {
     onMatchCountChange(searchMatches.length);
