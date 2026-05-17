@@ -15,6 +15,7 @@
     "perf:regression": "node ./scripts/perf-regression.mjs",
     "setup:electron": "node ./scripts/ensure-electron-install.mjs",
     "smoke": "node ./scripts/smoke-json-flow.mjs",
+    "e2e:electron": "npm run build && node ./scripts/e2e-electron-json-flow.mjs",
     "release:assets:check": "node ./scripts/verify-release-assets.mjs",
     "samples": "node ./scripts/generate-json-samples.mjs",
     "dist": "npm run build && electron-builder",

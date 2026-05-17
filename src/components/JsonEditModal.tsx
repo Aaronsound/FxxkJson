@@ -24,6 +24,13 @@ interface JsonEditModalProps {
   onClose: () => void;
 }
 
+type JsonEditModalE2EWindow = Window & {
+  __HANJSON_E2E__?: boolean;
+  __HANJSON_E2E_EDIT_MODAL__?: {
+    setValue: (value: string) => void;
+  };
+};
+
 const JsonEditModal: React.FC<JsonEditModalProps> = ({
   sessionKey,
   initialValue,
@@ -85,9 +92,31 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
+    const e2eWindow = window as JsonEditModalE2EWindow;
+    if (e2eWindow.__HANJSON_E2E__) {
+      e2eWindow.__HANJSON_E2E_EDIT_MODAL__ = {
+        setValue(nextValue: string) {
+          const model = editor.getModel();
+          if (model) {
+            editor.pushUndoStop();
+            editor.executeEdits('hanjson-e2e', [{
+              range: model.getFullModelRange(),
+              text: nextValue,
+              forceMoveMarkers: true,
+            }]);
+            editor.pushUndoStop();
+          }
+          onValueChange(nextValue);
+          editSearch.refreshSearch();
+        },
+      };
+    }
     editor.onDidDispose(() => {
       if (editorRef.current === editor) {
         editorRef.current = null;
+      }
+      if (e2eWindow.__HANJSON_E2E_EDIT_MODAL__) {
+        delete e2eWindow.__HANJSON_E2E_EDIT_MODAL__;
       }
     });
     editor.onDidChangeModelContent(() => {
