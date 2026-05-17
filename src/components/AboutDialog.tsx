@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 interface AboutDialogProps {
   version: string;
   isDarkMode: boolean;
+  runtimeInfo?: RuntimeAppInfo | null;
   onClose: () => void;
 }
 
@@ -16,6 +17,7 @@ const FEATURE_ITEMS = [
 const AboutDialog: React.FC<AboutDialogProps> = ({
   version,
   isDarkMode,
+  runtimeInfo = null,
   onClose,
 }) => {
   useEffect(() => {
@@ -52,6 +54,14 @@ const AboutDialog: React.FC<AboutDialogProps> = ({
             <dd>{version}</dd>
           </div>
           <div>
+            <dt>运行架构</dt>
+            <dd>
+              {runtimeInfo
+                ? `${runtimeInfo.arch}${runtimeInfo.isMacTranslated ? '（Rosetta 转译）' : ''}`
+                : '未知'}
+            </dd>
+          </div>
+          <div>
             <dt>作者</dt>
             <dd>Alosan</dd>
           </div>
@@ -62,6 +72,12 @@ const AboutDialog: React.FC<AboutDialogProps> = ({
             </dd>
           </div>
         </dl>
+
+        {runtimeInfo?.isMacTranslated && (
+          <div className="about-dialog-warning" role="alert">
+            当前正在通过 Rosetta 运行 x64 版本。M 系列 Mac 建议安装 macos-arm64 包，导入和格式化大 JSON 会更流畅。
+          </div>
+        )}
 
         <section className="about-dialog-section" aria-labelledby="about-feature-title">
           <h4 id="about-feature-title">功能介绍</h4>

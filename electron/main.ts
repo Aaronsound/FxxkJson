@@ -1,11 +1,14 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell } from 'electron';
 import type { OpenDialogOptions } from 'electron';
+import { execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { promisify } from 'util';
 
 let mainWindow: BrowserWindow | null = null;
 const logDir = path.join(app.getPath('userData'), 'logs');
 const logFilePath = path.join(logDir, 'runtime.log');
+const execFileAsync = promisify(execFile);
 
 async function appendRuntimeLog(entry: string) {
   await fs.mkdir(logDir, { recursive: true });
@@ -73,6 +76,19 @@ function blockPackagedExternalRequests() {
     });
     callback({ cancel: true });
   });
+}
+
+async function isRunningUnderRosetta() {
+  if (process.platform !== 'darwin' || process.arch !== 'x64') {
+    return false;
+  }
+
+  try {
+    const { stdout } = await execFileAsync('/usr/sbin/sysctl', ['-in', 'sysctl.proc_translated']);
+    return stdout.trim() === '1';
+  } catch {
+    return false;
+  }
 }
 
 function createWindow() {
@@ -208,6 +224,13 @@ ipcMain.handle('clipboard:writeText', async (_event, text: string) => {
   clipboard.writeText(text);
   return true;
 });
+
+ipcMain.handle('app:runtimeInfo', async () => ({
+  arch: process.arch,
+  isMacTranslated: await isRunningUnderRosetta(),
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+}));
 
 ipcMain.handle('file:openJson', async () => {
   const dialogOptions: OpenDialogOptions = {

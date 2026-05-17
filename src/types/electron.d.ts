@@ -14,6 +14,13 @@ declare global {
     content: string;
   }
 
+  interface RuntimeAppInfo {
+    arch: string;
+    isMacTranslated: boolean;
+    isPackaged: boolean;
+    platform: string;
+  }
+
   interface Window {
     electronAPI?: {
       appendLog: (payload: string) => Promise<string>;
@@ -21,6 +28,7 @@ declare global {
       clearLog: () => Promise<string>;
       showLogFile: () => Promise<string>;
       writeClipboardText: (text: string) => Promise<boolean>;
+      getRuntimeInfo?: () => Promise<RuntimeAppInfo>;
       openJsonFile: () => Promise<NativeJsonFile | null>;
       onFindShortcut?: (callback: () => void) => () => void;
     };

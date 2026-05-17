@@ -29,6 +29,14 @@ jobs:
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          body: |
+            ## macOS 下载说明
+
+            - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
+            - Intel 芯片 Mac：下载 `macos-x64-*.dmg`
+            - Windows：下载 `windows-x64-*.exe`
+
+            如果 M 系列 Mac 误装 x64 包，应用会通过 Rosetta 转译运行，导入和格式化大 JSON 可能明显变慢。
           draft: true
           prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
 
@@ -168,6 +176,14 @@ jobs:
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          body: |
+            ## macOS 下载说明
+
+            - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
+            - Intel 芯片 Mac：下载 `macos-x64-*.dmg`
+            - Windows：下载 `windows-x64-*.exe`
+
+            如果 M 系列 Mac 误装 x64 包，应用会通过 Rosetta 转译运行，导入和格式化大 JSON 可能明显变慢。
           draft: true
           prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
           files: |

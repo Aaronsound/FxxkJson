@@ -1733,6 +1733,20 @@ button:disabled {
   width: min(560px, 100%);
 }
 
+.architecture-warning-card {
+  width: min(520px, 100%);
+}
+
+.architecture-warning-text {
+  margin: 0;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.modal-card-dark .architecture-warning-text {
+  color: #e5e7eb;
+}
+
 .about-dialog-header {
   display: flex;
   align-items: center;
@@ -1790,6 +1804,21 @@ button:disabled {
 
 .modal-card-dark .about-dialog-meta a {
   color: #93c5fd;
+}
+
+.about-dialog-warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 247, 237, 0.9);
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.modal-card-dark .about-dialog-warning {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(146, 64, 14, 0.22);
+  color: #fbbf24;
 }
 
 .about-dialog-section h4 {
