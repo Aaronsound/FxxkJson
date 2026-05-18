@@ -20,6 +20,7 @@ import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHig
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
+import { useRightNodeActions } from './hooks/useRightNodeActions';
 import {
   DEFAULT_TAB_TITLE,
   EMPTY_DOCUMENT_META,
@@ -72,12 +73,12 @@ import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
-import { formatJsonPath } from './utils/jsonPath';
 import {
   addRecentSearchTerm,
   upsertPinnedPath,
 } from './utils/searchQuickAccess';
 import type { RightPinnedPath } from './utils/searchQuickAccess';
+import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import './App.css';
 
@@ -121,15 +122,6 @@ function writeStoredStringList(key: string, values: string[]) {
   }
 
   window.localStorage.setItem(key, JSON.stringify(values));
-}
-
-async function writeTextToClipboard(text: string) {
-  if (window.electronAPI?.writeClipboardText) {
-    await window.electronAPI.writeClipboardText(text);
-    return;
-  }
-
-  await navigator.clipboard.writeText(text);
 }
 
 const App: React.FC = () => {
@@ -484,40 +476,6 @@ const App: React.FC = () => {
     if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
       rightEditorRef.current.deltaDecorations(rightDecorationIdsRef.current, []);
       rightDecorationIdsRef.current = [];
-    }
-  };
-
-  const copyValueAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
-    const valueToCopy = await requestWorkerValue(tabId, offset, preferCachedText);
-    if (valueToCopy === null) {
-      setTabError(tabId, '未找到可复制的 JSON 值');
-      logEvent('copy-value-missed', {
-        tabId,
-        offset,
-        preferCachedText,
-      });
-      return;
-    }
-
-    try {
-      await writeTextToClipboard(valueToCopy);
-      setTabError(tabId, null);
-      logEvent('copy-value-success', {
-        tabId,
-        offset,
-        copiedLength: valueToCopy.length,
-        preferCachedText,
-        viaDesktopClipboard: Boolean(window.electronAPI?.writeClipboardText),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setTabError(tabId, `复制值失败：${message}`);
-      logEvent('copy-value-failed', {
-        tabId,
-        offset,
-        preferCachedText,
-        error: message,
-      });
     }
   };
 
@@ -2020,145 +1978,25 @@ const App: React.FC = () => {
     return readAndParse(formattedTextByTabRef.current[tabId] ?? '');
   }, [requestWorkerEditJson]);
 
-  const copyNodeDetailAtOffset = async (
-    tabId: string,
-    offset: number,
-    preferCachedText: boolean,
-    mode: 'path' | 'key' | 'compact-json' | 'formatted-json'
-  ) => {
-    const labels = {
-      path: 'JSON Path',
-      key: 'key',
-      'compact-json': '压缩 JSON',
-      'formatted-json': '格式化 JSON',
-    };
-
-    try {
-      const parsed = await readEditableNodeAtOffset(
-        tabId,
-        offset,
-        preferCachedText,
-        `当前节点无法复制${labels[mode]}`
-      );
-      const textToCopy = (() => {
-        if (mode === 'path') {
-          return formatJsonPath(parsed.path);
-        }
-
-        if (mode === 'key') {
-          const key = parsed.path[parsed.path.length - 1];
-          if (key === undefined) {
-            throw new Error('根节点没有 key');
-          }
-          return String(key);
-        }
-
-        const value = JSON.parse(parsed.value);
-        return mode === 'compact-json'
-          ? JSON.stringify(value)
-          : JSON.stringify(value, null, 2);
-      })();
-
-      await writeTextToClipboard(textToCopy);
-      setTabError(tabId, null);
-      logEvent('copy-node-detail-success', {
-        tabId,
-        offset,
-        mode,
-        copiedLength: textToCopy.length,
-        preferCachedText,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setTabError(tabId, `复制${labels[mode]}失败：${message}`);
-      logEvent('copy-node-detail-failed', {
-        tabId,
-        offset,
-        mode,
-        preferCachedText,
-        error: message,
-      });
-    }
-  };
-
-  const applyRightNodeMutationAtOffset = async (
-    tabId: string,
-    offset: number,
-    preferCachedText: boolean,
-    operation: 'delete-node' | 'rename-node-key'
-  ) => {
-    const isDelete = operation === 'delete-node';
-    setEditJsonBusyLabel(isDelete ? '正在删除当前节点...' : '正在重命名当前 key...');
-    try {
-      const parsed = await readEditableNodeAtOffset(
-        tabId,
-        offset,
-        preferCachedText,
-        isDelete ? '当前节点无法删除' : '当前 key 无法重命名'
-      );
-
-      if (parsed.path.length === 0) {
-        throw new Error(isDelete ? '不能删除根节点' : '根节点没有 key');
-      }
-
-      let workerText = '';
-      if (isDelete) {
-        const confirmed = window.confirm('确定删除当前节点吗？');
-        if (!confirmed) {
-          return;
-        }
-      } else {
-        const currentKey = parsed.path[parsed.path.length - 1];
-        if (typeof currentKey !== 'string') {
-          throw new Error('只有对象 key 可以重命名');
-        }
-
-        const nextKey = window.prompt('输入新的 key 名称', currentKey);
-        if (nextKey === null) {
-          return;
-        }
-        workerText = nextKey;
-      }
-
-      const original = getTabContent(tabId);
-      const updated = await requestWorkerEditJson(
-        tabId,
-        operation,
-        workerText,
-        original,
-        parsed.path
-      );
-      const largeMode = isLargeDocument(updated);
-
+  const {
+    applyRightNodeMutationAtOffset,
+    copyNodeDetailAtOffset,
+    copyValueAtOffset,
+  } = useRightNodeActions({
+    applyRawUpdate(tabId, updated) {
       updateTabContent(tabId, updated, true);
-      setTabLargeMode(tabId, largeMode);
-      resetSearchState();
-      queueFormatAfterEditSave(tabId, updated);
-      setTabError(tabId, null);
-      logEvent('right-node-mutation-success', {
-        tabId,
-        offset,
-        operation,
-        path: parsed.path,
-        rawLength: updated.length,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setTabError(
-        tabId,
-        isDelete ? `删除当前节点失败：${message}` : `重命名 key 失败：${message}`
-      );
-      logEvent('right-node-mutation-failed', {
-        tabId,
-        offset,
-        operation,
-        preferCachedText,
-        error: message,
-      });
-    } finally {
-      setEditJsonBusyLabel(null);
-    }
-  };
+      setTabLargeMode(tabId, isLargeDocument(updated));
+    },
+    getTabContent,
+    logEvent,
+    queueFormatAfterEditSave,
+    readEditableNodeAtOffset,
+    requestWorkerEditJson,
+    requestWorkerValue,
+    resetSearchState,
+    setEditJsonBusyLabel,
+    setTabError,
+  });
 
   const handleOpenEditNodeAtOffset = async (
     tabId: string,
