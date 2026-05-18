@@ -159,6 +159,8 @@ const LargeJsonReadonlyViewer = forwardRef<
   const fullDocumentSelectedRef = useRef(false);
   const onCollapsedLinesChangeRef = useRef(onCollapsedLinesChange);
   const onLocateOffsetRef = useRef(onLocateOffset);
+  const pendingScrollTopRef = useRef(0);
+  const scrollAnimationFrameRef = useRef<number | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [contextMenu, setContextMenu] = useState<{
@@ -173,6 +175,25 @@ const LargeJsonReadonlyViewer = forwardRef<
     onCollapsedLinesChangeRef.current = onCollapsedLinesChange;
     onLocateOffsetRef.current = onLocateOffset;
   }, [onCollapsedLinesChange, onLocateOffset]);
+
+  const queueScrollTopUpdate = useCallback((nextScrollTop: number) => {
+    pendingScrollTopRef.current = nextScrollTop;
+
+    if (scrollAnimationFrameRef.current !== null) {
+      return;
+    }
+
+    scrollAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      scrollAnimationFrameRef.current = null;
+      setScrollTop(pendingScrollTopRef.current);
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (scrollAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollAnimationFrameRef.current);
+    }
+  }, []);
 
   const regionsByStartLine = useMemo(() => {
     const map = new Map<number, LargeJsonViewerRegion>();
@@ -944,7 +965,7 @@ const LargeJsonReadonlyViewer = forwardRef<
         fullDocumentSelectedRef.current = false;
         containerRef.current?.focus({ preventScroll: true });
       }}
-      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      onScroll={(event) => queueScrollTopUpdate(event.currentTarget.scrollTop)}
       onCopy={handleCopy}
     >
       <div

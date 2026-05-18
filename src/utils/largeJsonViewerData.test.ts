@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import {

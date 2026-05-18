@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { WorkerMessage, WorkerRequestMessage } from '../types/jsonTool';
