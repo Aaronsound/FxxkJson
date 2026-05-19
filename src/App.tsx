@@ -9,7 +9,6 @@ import RightNodeMutationDialog from './components/RightNodeMutationDialog';
 import type { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
 import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
-import type { DiagnosticsContextItem } from './components/DiagnosticsLogPanel';
 import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
@@ -81,6 +80,7 @@ import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
 import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
+import { buildDiagnosticsContext } from './utils/diagnosticsContext';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
@@ -403,31 +403,30 @@ const App: React.FC = () => {
       : null,
     rightPaneStatusText,
   ].filter(Boolean).join(' · ');
-  const diagnosticsContext: DiagnosticsContextItem[] = activeTab ? [
-    { label: 'tabId', value: activeTab.id },
-    { label: 'tabTitle', value: activeTab.title },
-    { label: 'rawBytes', value: activeDocumentMeta.rawLength },
-    { label: 'formattedBytes', value: activeDocumentMeta.formattedLength },
-    { label: 'rawLength', value: activeDocumentMeta.rawLength },
-    { label: 'formattedLength', value: activeDocumentMeta.formattedLength },
-    { label: 'largeMode', value: isLargeFileMode },
-    { label: 'dedicatedLeftViewer', value: shouldUseDedicatedLeftViewer },
-    { label: 'dedicatedRightViewer', value: shouldUseDedicatedRightViewer },
-    { label: 'largeFileLocateEnabled', value: isLargeFileLocateEnabled },
-    { label: 'lightweightLocate', value: usesLightweightLocate },
-    { label: 'structureStatus', value: currentStructureStatus },
-    { label: 'processingStage', value: activeProcessingStage },
-    { label: 'isFormatting', value: isFormattingActiveTab },
-    { label: 'importingFileName', value: importingFileName },
-    { label: 'currentError', value: currentError },
-    { label: 'rightSelectedPath', value: activeRightNodeSelection?.pathText },
-    { label: 'leftSearch', value: leftSearchTerm ? `${normalizedLeftMatchIndex + 1}/${activeLeftMatchCount}${leftSearchHasMore ? '+' : ''}` : null },
-    { label: 'rightSearch', value: rightSearchTerm ? `${normalizedRightMatchIndex + 1}/${activeRightMatchCount}${rightSearchHasMore ? '+' : ''}` : null },
-    { label: 'performanceTrigger', value: activePerformanceSnapshot?.trigger },
-    { label: 'performanceStatus', value: activePerformanceSnapshot?.status },
-    { label: 'formatWorkerMs', value: activePerformanceSnapshot?.formatWorkerMs },
-    { label: 'viewerIndexMs', value: activePerformanceSnapshot?.viewerIndexMs },
-  ] : [];
+  const diagnosticsContext = buildDiagnosticsContext({
+    activeDocumentMeta,
+    activeLeftMatchCount,
+    activePerformanceSnapshot,
+    activeProcessingStage,
+    activeRightMatchCount,
+    activeRightNodeSelection,
+    activeTab,
+    currentError,
+    currentStructureStatus,
+    importingFileName,
+    isFormattingActiveTab,
+    isLargeFileLocateEnabled,
+    isLargeFileMode,
+    leftSearchHasMore,
+    leftSearchTerm,
+    normalizedLeftMatchIndex,
+    normalizedRightMatchIndex,
+    rightSearchHasMore,
+    rightSearchTerm,
+    shouldUseDedicatedLeftViewer,
+    shouldUseDedicatedRightViewer,
+    usesLightweightLocate,
+  });
 
   const clearLeftHighlights = () => {
     if (highlightTimeoutRef.current !== null) {
