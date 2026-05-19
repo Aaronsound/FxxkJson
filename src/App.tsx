@@ -24,6 +24,10 @@ import { usePaneSearchState } from './hooks/usePaneSearchState';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import {
+  getCompactPathLabel,
+  useRightSearchQuickAccess,
+} from './hooks/useRightSearchQuickAccess';
+import {
   DEFAULT_TAB_TITLE,
   EMPTY_DOCUMENT_META,
   INITIAL_TAB_ID,
@@ -75,20 +79,11 @@ import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
-import {
-  addRecentSearchTerm,
-  upsertPinnedPath,
-} from './utils/searchQuickAccess';
-import type { RightPinnedPath } from './utils/searchQuickAccess';
 import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
-const RIGHT_RECENT_SEARCHES_STORAGE_KEY = 'hanjson.rightSearch.recent.v1';
-const MAX_HEADER_PATH_LENGTH = 120;
-const MAX_RECENT_SEARCHES = 8;
-const MAX_PINNED_PATHS = 16;
 
 type RightEditorContextMenuState = {
   x: number;
@@ -96,35 +91,6 @@ type RightEditorContextMenuState = {
   tabId: string;
   offset: number;
 } | null;
-
-function getCompactPathLabel(pathText: string) {
-  return pathText.length > MAX_HEADER_PATH_LENGTH
-    ? `${pathText.slice(0, MAX_HEADER_PATH_LENGTH - 3)}...`
-    : pathText;
-}
-
-function readStoredStringList(key: string) {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(key) ?? '[]');
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === 'string')
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeStoredStringList(key: string, values: string[]) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(key, JSON.stringify(values));
-}
 
 const App: React.FC = () => {
   const {
@@ -220,10 +186,6 @@ const App: React.FC = () => {
   const [isArchitectureWarningDismissed, setIsArchitectureWarningDismissed] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
   const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState>(null);
-  const [rightRecentSearches, setRightRecentSearches] = useState<string[]>(() => (
-    readStoredStringList(RIGHT_RECENT_SEARCHES_STORAGE_KEY).slice(0, MAX_RECENT_SEARCHES)
-  ));
-  const [rightPinnedPathsByTab, setRightPinnedPathsByTab] = useState<Record<string, RightPinnedPath[]>>({});
   const {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
@@ -314,6 +276,13 @@ const App: React.FC = () => {
   } = useRightNodeMutationDialog();
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+  const {
+    activeRightPinnedPathItems,
+    getPinnedPath,
+    pinRightPath,
+    rememberRightSearchTerm,
+    rightRecentSearches,
+  } = useRightSearchQuickAccess(activeTab?.id ?? null);
   const activeDocumentMeta = activeTab
     ? documentMetaByTab[activeTab.id] ?? EMPTY_DOCUMENT_META
     : EMPTY_DOCUMENT_META;
@@ -354,14 +323,6 @@ const App: React.FC = () => {
       end: activeRightNodeSelection.endOffset,
     }
     : null;
-  const activeRightPinnedPaths = activeTab
-    ? rightPinnedPathsByTab[activeTab.id] ?? []
-    : [];
-  const activeRightPinnedPathItems = activeRightPinnedPaths.map((item) => ({
-    id: item.id,
-    label: getCompactPathLabel(item.pathText),
-    detail: item.pathText,
-  }));
   const isLargeFileLocateEnabled = activeTab
     ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
     : false;
@@ -562,14 +523,6 @@ const App: React.FC = () => {
     setRightNodeSelectionByTab((current) => ({ ...current, [tabId]: selection }));
   };
 
-  const rememberRightSearchTerm = useCallback((term: string) => {
-    setRightRecentSearches((current) => {
-      const next = addRecentSearchTerm(current, term, MAX_RECENT_SEARCHES);
-      writeStoredStringList(RIGHT_RECENT_SEARCHES_STORAGE_KEY, next);
-      return next;
-    });
-  }, []);
-
   const revealRightOffset = (offset: number, endOffset = offset + 1) => {
     if (shouldUseDedicatedRightViewer) {
       largeViewerRef.current?.revealOffset(offset);
@@ -596,27 +549,11 @@ const App: React.FC = () => {
   };
 
   const pinActiveRightPath = () => {
-    if (!activeTab || !activeRightNodeSelection?.pathText) {
+    if (!activeTab) {
       return;
     }
 
-    const pinnedPath: RightPinnedPath = {
-      id: `${activeRightNodeSelection.pathText}:${activeRightNodeSelection.startOffset}`,
-      pathText: activeRightNodeSelection.pathText,
-      startOffset: activeRightNodeSelection.startOffset,
-      endOffset: activeRightNodeSelection.endOffset,
-      createdAt: Date.now(),
-    };
-
-    setRightPinnedPathsByTab((current) => {
-      const existing = current[activeTab.id] ?? [];
-      const next = upsertPinnedPath(existing, pinnedPath, MAX_PINNED_PATHS);
-
-      return {
-        ...current,
-        [activeTab.id]: next,
-      };
-    });
+    pinRightPath(activeTab.id, activeRightNodeSelection);
   };
 
   const selectRightPinnedPath = (id: string) => {
@@ -624,7 +561,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const pinnedPath = (rightPinnedPathsByTab[activeTab.id] ?? []).find((item) => item.id === id);
+    const pinnedPath = getPinnedPath(activeTab.id, id);
     if (!pinnedPath) {
       return;
     }
