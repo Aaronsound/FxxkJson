@@ -33,6 +33,20 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
     setNextKey(state.mode === 'rename' ? state.currentKey : '');
   }, [state]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onCancel]);
+
   const isRename = state.mode === 'rename';
   const title = isRename ? '重命名 key' : '删除当前节点';
   const canSubmitRename = nextKey.trim().length > 0;
@@ -50,11 +64,6 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="right-node-mutation-title"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          onCancel();
-        }
-      }}
     >
       <div className={isDarkMode ? 'modal-card modal-card-dark right-node-mutation-card' : 'modal-card right-node-mutation-card'}>
         <div className="modal-header">

@@ -41,7 +41,7 @@ describe('RightNodeMutationDialog', () => {
       />
     );
 
-    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
