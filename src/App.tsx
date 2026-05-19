@@ -76,6 +76,7 @@ import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
 import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
+import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
@@ -485,7 +486,7 @@ const App: React.FC = () => {
       ...extra,
     };
 
-    console.info(`[HanJson][${event}]`, payload);
+    logDiagnosticsToConsole(event, payload);
     logEvent(event, payload);
   };
   const {
