@@ -22,6 +22,12 @@ import {
 import { formatJsonPath } from '../utils/jsonPath';
 import { createJsonNodeEditOperations } from './jsonNodeEditOperations';
 import { getJsonWorkerMessageHandler } from '../utils/jsonWorkerMessageRouting';
+import {
+  getTextByteLength,
+  postRepairResult,
+  postTextResult,
+  readMessageText,
+} from './jsonWorkerTextPayload';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -36,73 +42,12 @@ const latestSearchRequestByKey = new Map();
 const latestLocateRequestByTab = new Map();
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
 const LOCATE_REQUEST_DEBOUNCE_MS = 16;
-let textDecoder = null;
-let textEncoder = null;
-
-function getTextDecoder() {
-  if (!textDecoder) {
-    textDecoder = new TextDecoder();
-  }
-
-  return textDecoder;
-}
-
-function getTextEncoder() {
-  if (!textEncoder) {
-    textEncoder = new TextEncoder();
-  }
-
-  return textEncoder;
-}
-
-function getTextByteLength(text) {
-  return getTextEncoder().encode(text).length;
-}
 
 function getStructureWarmupDelayForTexts(rawText, formattedText, baseDelayMs) {
   return getDeferredStructureWarmupDelayMs(
     Math.max(getTextByteLength(rawText ?? ''), getTextByteLength(formattedText ?? '')),
     baseDelayMs
   );
-}
-
-function readMessageText(message) {
-  if (typeof message.text === 'string') {
-    return message.text;
-  }
-
-  if (message.textBuffer instanceof ArrayBuffer) {
-    return getTextDecoder().decode(new Uint8Array(message.textBuffer));
-  }
-
-  return '';
-}
-
-function appendTextPayload(message, transfer, stringKey, bufferKey, text) {
-  if (typeof text === 'string' && text.length >= LARGE_FILE_THRESHOLD) {
-    const bytes = getTextEncoder().encode(text);
-    const buffer = bytes.buffer;
-    message[bufferKey] = buffer;
-    transfer.push(buffer);
-    return;
-  }
-
-  message[stringKey] = text;
-}
-
-function postTextResult(payload, text) {
-  const message = { ...payload };
-  const transfer = [];
-  appendTextPayload(message, transfer, 'data', 'dataBuffer', text);
-  postMessage(message, transfer);
-}
-
-function postRepairResult(payload, formattedText, repairedText) {
-  const message = { ...payload };
-  const transfer = [];
-  appendTextPayload(message, transfer, 'data', 'dataBuffer', formattedText);
-  appendTextPayload(message, transfer, 'repairedText', 'repairedTextBuffer', repairedText);
-  postMessage(message, transfer);
 }
 
 function formatJsonForEdit(tabId, text) {
