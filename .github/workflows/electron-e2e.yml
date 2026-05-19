@@ -1,0 +1,46 @@
+name: Electron E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      size_mb:
+        description: 'Generated JSON sample size in MB'
+        required: false
+        default: '2'
+        type: string
+  schedule:
+    - cron: '0 21 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electron-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  electron-e2e:
+    name: Desktop JSON Flow
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HANJSON_E2E_SIZE_MB: ${{ github.event_name == 'workflow_dispatch' && inputs.size_mb || '2' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --fund=false
+
+      - name: Install virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run Electron E2E
+        run: xvfb-run --auto-servernum npm run e2e:electron -- --size-mb "$HANJSON_E2E_SIZE_MB"
