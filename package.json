@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "bench": "node ./scripts/bench-json.mjs",
     "check:text": "node ./scripts/check-text-encoding.mjs",
+    "perf:ci": "node ./scripts/perf-ci.mjs",
     "perf:regression": "node ./scripts/perf-regression.mjs",
     "setup:electron": "node ./scripts/ensure-electron-install.mjs",
     "smoke": "node ./scripts/smoke-json-flow.mjs",
