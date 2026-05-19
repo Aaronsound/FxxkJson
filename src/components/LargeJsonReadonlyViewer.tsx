@@ -32,6 +32,8 @@ import type {
   CollapsedInterval,
 } from '../utils/largeJsonViewerRender';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
+import LargeJsonContextMenu from './LargeJsonContextMenu';
+import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
 
 const LINE_HEIGHT = 18;
 const OVERSCAN = 30;
@@ -163,12 +165,7 @@ const LargeJsonReadonlyViewer = forwardRef<
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    offset: number;
-    foldLine: number | null;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<LargeJsonContextMenuState | null>(null);
   const rowHeight = wrapLongLines ? LINE_HEIGHT * 4 : LINE_HEIGHT;
 
   useEffect(() => {
@@ -975,117 +972,22 @@ const LargeJsonReadonlyViewer = forwardRef<
         {renderedRows}
       </div>
       {contextMenu && (
-        <div
-          className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
-          style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
-          onContextMenu={(event) => event.preventDefault()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          {contextMenu.foldLine !== null && (
-            <button
-              type="button"
-              className="large-json-context-menu-item"
-              onClick={() => {
-                if (contextMenu.foldLine !== null) {
-                  toggleLine(contextMenu.foldLine);
-                }
-                setContextMenu(null);
-              }}
-            >
-              {collapsedLineSet.has(contextMenu.foldLine) ? '展开当前节点' : '收缩当前节点'}
-            </button>
-          )}
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onCopyPath(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            复制 JSON Path
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onCopyKey(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            复制 key
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onCopyValue(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            复制值
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onCopyCompactJson(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            复制压缩 JSON
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onCopyFormattedJson(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            复制格式化 JSON
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onEditValue(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            编辑当前值
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onRenameKey(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            重命名 key
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item danger"
-            onClick={async () => {
-              await onDeleteValue(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            删除当前节点
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              await onUnescapeValue(contextMenu.offset);
-              setContextMenu(null);
-            }}
-          >
-            反转义当前值
-          </button>
-        </div>
+        <LargeJsonContextMenu
+          contextMenu={contextMenu}
+          isCollapsed={contextMenu.foldLine !== null && collapsedLineSet.has(contextMenu.foldLine)}
+          isDarkMode={isDarkMode}
+          onClose={() => setContextMenu(null)}
+          onToggleFold={toggleLine}
+          onCopyPath={onCopyPath}
+          onCopyKey={onCopyKey}
+          onCopyValue={onCopyValue}
+          onCopyCompactJson={onCopyCompactJson}
+          onCopyFormattedJson={onCopyFormattedJson}
+          onEditValue={onEditValue}
+          onRenameKey={onRenameKey}
+          onDeleteValue={onDeleteValue}
+          onUnescapeValue={onUnescapeValue}
+        />
       )}
     </div>
   );
