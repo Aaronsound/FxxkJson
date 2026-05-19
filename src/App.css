@@ -220,6 +220,15 @@ button:disabled {
   cursor: not-allowed;  
 }
 
+.danger-button {
+  background-color: #c62828;
+  color: #ffffff;
+}
+
+.danger-button:hover:not(:disabled) {
+  background-color: #a51f1f;
+}
+
 /* ============================================= */
 /*                输入框样式                      */
 /* ============================================= */
@@ -1486,6 +1495,45 @@ button:disabled {
 
 .modal-card-dark .modal-error {
   color: #ef9a9a;
+}
+
+.right-node-mutation-card {
+  width: min(520px, 100%);
+}
+
+.right-node-mutation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.right-node-mutation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.right-node-mutation-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 14px;
+}
+
+.right-node-mutation-message {
+  margin: 0;
+  color: #5f6368;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modal-card-dark .right-node-mutation-message {
+  color: #c8c8c8;
 }
 
 .diagnostics-log-card {

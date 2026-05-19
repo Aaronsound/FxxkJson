@@ -5,6 +5,7 @@ import AboutDialog from './components/AboutDialog';
 import ArchitectureWarningDialog from './components/ArchitectureWarningDialog';
 import JsonCompareDialog from './components/JsonCompareDialog';
 import JsonEditModal from './components/JsonEditModal';
+import RightNodeMutationDialog from './components/RightNodeMutationDialog';
 import type { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
 import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
@@ -21,6 +22,7 @@ import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
+import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import {
   DEFAULT_TAB_TITLE,
   EMPTY_DOCUMENT_META,
@@ -302,6 +304,14 @@ const App: React.FC = () => {
     setEditJsonError,
     showCopyLiteralNotice,
   } = useJsonEditSession();
+  const {
+    cancelMutationDialog,
+    confirmDeleteDialog,
+    confirmRenameDialog,
+    dialogState: rightNodeMutationDialog,
+    requestDeleteNode,
+    requestRenameKey,
+  } = useRightNodeMutationDialog();
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
   const activeDocumentMeta = activeTab
@@ -1993,6 +2003,8 @@ const App: React.FC = () => {
     readEditableNodeAtOffset,
     requestWorkerEditJson,
     requestWorkerValue,
+    requestDeleteConfirmation: requestDeleteNode,
+    requestRenameKey,
     resetSearchState,
     setEditJsonBusyLabel,
     setTabError,
@@ -2673,6 +2685,16 @@ const App: React.FC = () => {
           onEscapeContent={handleEscapeEditJsonContent}
           onCopyLiteral={handleCopyEscapedJson}
           onClose={closeEditJson}
+        />
+      )}
+
+      {rightNodeMutationDialog && (
+        <RightNodeMutationDialog
+          state={rightNodeMutationDialog}
+          isDarkMode={isDarkMode}
+          onCancel={cancelMutationDialog}
+          onConfirmDelete={confirmDeleteDialog}
+          onConfirmRename={confirmRenameDialog}
         />
       )}
 

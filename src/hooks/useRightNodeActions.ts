@@ -34,6 +34,8 @@ interface UseRightNodeActionsArgs {
     offset: number,
     preferCachedText?: boolean
   ) => Promise<string | null>;
+  requestDeleteConfirmation: (path: JsonEditPath) => Promise<boolean>;
+  requestRenameKey: (path: JsonEditPath, currentKey: string) => Promise<string | null>;
   resetSearchState: () => void;
   setEditJsonBusyLabel: (label: string | null) => void;
   setTabError: (tabId: string, error: string | null) => void;
@@ -54,6 +56,8 @@ export function useRightNodeActions({
   readEditableNodeAtOffset,
   requestWorkerEditJson,
   requestWorkerValue,
+  requestDeleteConfirmation,
+  requestRenameKey,
   resetSearchState,
   setEditJsonBusyLabel,
   setTabError,
@@ -172,7 +176,7 @@ export function useRightNodeActions({
 
       let workerText = '';
       if (isDelete) {
-        const confirmed = window.confirm('确定删除当前节点吗？');
+        const confirmed = await requestDeleteConfirmation(parsed.path);
         if (!confirmed) {
           return;
         }
@@ -182,7 +186,7 @@ export function useRightNodeActions({
           throw new Error('只有对象 key 可以重命名');
         }
 
-        const nextKey = window.prompt('输入新的 key 名称', currentKey);
+        const nextKey = await requestRenameKey(parsed.path, currentKey);
         if (nextKey === null) {
           return;
         }
@@ -232,6 +236,8 @@ export function useRightNodeActions({
     queueFormatAfterEditSave,
     readEditableNodeAtOffset,
     requestWorkerEditJson,
+    requestDeleteConfirmation,
+    requestRenameKey,
     resetSearchState,
     setEditJsonBusyLabel,
     setTabError,
