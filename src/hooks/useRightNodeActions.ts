@@ -34,7 +34,7 @@ interface UseRightNodeActionsArgs {
     offset: number,
     preferCachedText?: boolean
   ) => Promise<string | null>;
-  requestDeleteConfirmation: (path: JsonEditPath) => Promise<boolean>;
+  requestDeleteConfirmation: (path: JsonEditPath, preview: string) => Promise<boolean>;
   requestRenameKey: (path: JsonEditPath, currentKey: string) => Promise<string | null>;
   resetSearchState: () => void;
   setEditJsonBusyLabel: (label: string | null) => void;
@@ -176,7 +176,7 @@ export function useRightNodeActions({
 
       let workerText = '';
       if (isDelete) {
-        const confirmed = await requestDeleteConfirmation(parsed.path);
+        const confirmed = await requestDeleteConfirmation(parsed.path, parsed.value);
         if (!confirmed) {
           return;
         }

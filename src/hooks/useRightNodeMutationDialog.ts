@@ -22,12 +22,13 @@ export function useRightNodeMutationDialog() {
     setDialogState(null);
   }, []);
 
-  const requestDeleteNode = useCallback((path: JsonEditPath) => (
+  const requestDeleteNode = useCallback((path: JsonEditPath, preview: string) => (
     new Promise<boolean>((resolve) => {
       pendingResolverRef.current = { mode: 'delete', resolve };
       setDialogState({
         mode: 'delete',
         pathText: formatJsonPath(path),
+        preview,
       });
     })
   ), []);

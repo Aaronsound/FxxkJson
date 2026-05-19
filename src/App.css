@@ -1536,6 +1536,37 @@ button:disabled {
   color: #c8c8c8;
 }
 
+.right-node-mutation-warning {
+  color: #9a6200;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.modal-card-dark .right-node-mutation-warning {
+  color: #f0c36d;
+}
+
+.right-node-mutation-preview {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(95, 99, 104, 0.22);
+  border-radius: 4px;
+  background: rgba(73, 104, 150, 0.08);
+  color: inherit;
+  font-family: var(--json-editor-font-family);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal-card-dark .right-node-mutation-preview {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .diagnostics-log-card {
   width: min(1040px, 100%);
 }

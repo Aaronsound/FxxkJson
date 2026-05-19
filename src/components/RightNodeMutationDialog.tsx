@@ -4,6 +4,7 @@ export type RightNodeMutationDialogState =
   | {
       mode: 'delete';
       pathText: string;
+      preview: string;
     }
   | {
       mode: 'rename';
@@ -35,9 +36,26 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
   const isRename = state.mode === 'rename';
   const title = isRename ? '重命名 key' : '删除当前节点';
   const canSubmitRename = nextKey.trim().length > 0;
+  const hasOuterWhitespace = isRename && nextKey.length !== nextKey.trim().length;
+  const renameWarning = isRename
+    ? [
+      hasOuterWhitespace ? '首尾空格会作为 key 名称的一部分保存。' : null,
+      nextKey !== state.currentKey ? '如果同级对象里已有同名 key，JSON 将保留重复 key。' : null,
+    ].filter(Boolean).join(' ')
+    : '';
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="right-node-mutation-title">
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="right-node-mutation-title"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          onCancel();
+        }
+      }}
+    >
       <div className={isDarkMode ? 'modal-card modal-card-dark right-node-mutation-card' : 'modal-card right-node-mutation-card'}>
         <div className="modal-header">
           <h3 id="right-node-mutation-title">{title}</h3>
@@ -61,11 +79,17 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
                   }
                 }}
               />
+              {renameWarning && (
+                <span className="right-node-mutation-warning">{renameWarning}</span>
+              )}
             </label>
           ) : (
-            <p className="right-node-mutation-message">
-              删除后会立即更新当前 JSON 内容。
-            </p>
+            <>
+              <p className="right-node-mutation-message">
+                删除后会立即更新当前 JSON 内容。
+              </p>
+              <pre className="right-node-mutation-preview">{state.preview}</pre>
+            </>
           )}
         </div>
 
