@@ -212,6 +212,20 @@ async function clickSelector(cdp, selector) {
   }
 }
 
+async function clickButtonByText(cdp, text) {
+  const clicked = await evaluate(cdp, `(() => {
+    const button = Array.from(document.querySelectorAll('button'))
+      .find((item) => item.textContent?.trim() === ${JSON.stringify(text)});
+    if (!button) return false;
+    button.click();
+    return true;
+  })()`);
+
+  if (!clicked) {
+    throw new Error(`Could not click button ${text}`);
+  }
+}
+
 async function setFileInput(cdp, filePath) {
   const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
   const { nodeId } = await cdp.send('DOM.querySelector', {
@@ -255,6 +269,22 @@ async function createSampleServer(filePath) {
     close: () => new Promise((resolve) => server.close(resolve)),
     url: `http://127.0.0.1:${address.port}/sample.json`,
   };
+}
+
+async function getAvailablePort() {
+  const server = http.createServer();
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  const port = address && typeof address !== 'string' ? address.port : null;
+  await new Promise((resolve) => server.close(resolve));
+
+  if (!port) {
+    throw new Error('Could not allocate an Electron debug port');
+  }
+
+  return port;
 }
 
 async function importSampleByDrop(cdp, sampleUrl, fileName) {
@@ -305,7 +335,7 @@ async function run() {
   const sizeMb = parseSizeMb();
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hanjson-e2e-'));
   const samplePath = path.join(tempDir, `sample-${sizeMb}mb.json`);
-  const port = 9300 + Math.floor(Math.random() * 500);
+  const port = await getAvailablePort();
   const electronCli = require.resolve('electron/cli.js');
   const appMain = path.join(cwd, 'dist-electron/main.js');
   let child = null;
@@ -462,6 +492,33 @@ async function run() {
       'node edit saved',
       90000
     );
+    await waitFor(
+      () => evaluate(cdp, `(() => {
+        return document.body.innerText.includes('req-e2e-updated')
+          && document.body.innerText.includes('已定位到 offset')
+          && !document.querySelector('.modal-card');
+      })()`),
+      'right node save state restored after edit'
+    );
+
+    await clickSelector(cdp, '.add-tab');
+    await waitFor(
+      () => evaluate(cdp, `document.querySelectorAll('.tab-bar .tab').length >= 2`),
+      'second tab created'
+    );
+    await clickSelector(cdp, '.left-editor-pane .monaco-editor textarea');
+    await pressShortcut(cdp, 'a', 'KeyA');
+    await insertText(cdp, '{"broken": true,');
+    await clickButtonByText(cdp, '对比 JSON');
+    await waitFor(
+      () => evaluate(cdp, `Boolean(document.querySelector('.json-compare-card'))`),
+      'compare dialog opened'
+    );
+    await clickButtonByText(cdp, '开始对比');
+    await waitFor(
+      () => evaluate(cdp, `document.body.innerText.includes('解析失败')`),
+      'invalid JSON compare error'
+    );
 
     console.log('HanJson Electron E2E passed');
     console.table([
@@ -469,7 +526,9 @@ async function run() {
       { step: 'import', detail: 'desktop file input imported JSON' },
       { step: 'search', detail: 'right pane requestId search returned results' },
       { step: 'locate', detail: 'right node click highlighted left raw JSON' },
-      { step: 'edit', detail: 'right node edit saved back to original JSON' },
+      { step: 'edit', detail: 'large right node edit saved back to original JSON' },
+      { step: 'save state', detail: 'edited content and locate status remained available after save' },
+      { step: 'compare invalid', detail: 'JSON compare reports parse errors for invalid input' },
     ]);
   } catch (error) {
     if (cdp) {
@@ -482,6 +541,8 @@ async function run() {
           rightHighlights: document.querySelectorAll('.right-editor-pane .rightNodeSelectionHighlight').length,
           leftHighlights: document.querySelectorAll('.left-editor-pane .currentSearchHighlight, .left-editor-pane [data-large-raw-highlight="true"]').length,
           findCount: document.querySelector('.right-editor-pane .pane-find-count')?.textContent ?? null,
+          compareOpen: Boolean(document.querySelector('.json-compare-card')),
+          compareError: Array.from(document.querySelectorAll('.modal-error')).map((element) => element.textContent).join('\\n'),
           toolbarHint: document.querySelector('.toolbar-hint')?.textContent ?? null,
           bodyStart: document.body.innerText.slice(0, 700)
         }))()`);
