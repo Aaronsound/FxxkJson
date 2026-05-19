@@ -39,8 +39,5 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --fund=false
 
-      - name: Generate benchmark samples
-        run: npm run samples -- 5 20
-
       - name: Run performance regression check
-        run: npm run perf:regression -- --tolerance "$PERF_TOLERANCE"
+        run: npm run perf:ci -- --tolerance "$PERF_TOLERANCE"

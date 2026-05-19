@@ -28,6 +28,7 @@ function runNodeScript(scriptPath, args) {
 
 async function main() {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hanjson-perf-ci-'));
+  const forwardedArgs = process.argv.slice(2);
 
   try {
     await runNodeScript('./scripts/generate-json-samples.mjs', [
@@ -43,6 +44,7 @@ async function main() {
     await runNodeScript('./scripts/perf-regression.mjs', [
       '--baseline',
       BASELINE_PATH,
+      ...forwardedArgs,
       ...sampleFiles,
     ]);
   } finally {
