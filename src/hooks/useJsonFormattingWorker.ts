@@ -47,6 +47,10 @@ interface JsonImportSource {
   readText: () => Promise<string>;
 }
 
+function getWorkerSearchRequestKey(target: SearchTarget, tabId: string) {
+  return `${target}:${tabId}`;
+}
+
 interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
   largeModeRef: MutableRefObject<Record<string, boolean>>;
@@ -233,11 +237,15 @@ export function useJsonFormattingWorker({
     }
   };
 
+  const cancelInteractiveRequests = (tabId: string) => {
+    delete latestLocateRequestRef.current[tabId];
+    delete latestSearchRequestRef.current[getWorkerSearchRequestKey('left', tabId)];
+    delete latestSearchRequestRef.current[getWorkerSearchRequestKey('right', tabId)];
+  };
+
   const clearTabStructure = (tabId: string, status: StructureStatus = 'ready') => {
     workerStructureEnabledRef.current[tabId] = false;
-    delete latestLocateRequestRef.current[tabId];
-    delete latestSearchRequestRef.current[`left:${tabId}`];
-    delete latestSearchRequestRef.current[`right:${tabId}`];
+    cancelInteractiveRequests(tabId);
     postWorkerRequest({
       type: 'clear-structure',
       tabId,
@@ -300,7 +308,7 @@ export function useJsonFormattingWorker({
     }
 
     const requestId = ++searchRequestCounterRef.current;
-    const requestKey = `${target}:${tabId}`;
+    const requestKey = getWorkerSearchRequestKey(target, tabId);
     latestSearchRequestRef.current[requestKey] = requestId;
     postWorkerRequest({
       type: 'search',
@@ -420,9 +428,7 @@ export function useJsonFormattingWorker({
   const queueFormat = (tabId: string, text: string, immediate = false) => {
     clearPendingFormat(tabId);
     callbacksRef.current.setTabError(tabId, null);
-    delete latestLocateRequestRef.current[tabId];
-    delete latestSearchRequestRef.current[`left:${tabId}`];
-    delete latestSearchRequestRef.current[`right:${tabId}`];
+    cancelInteractiveRequests(tabId);
 
     if (!text.trim()) {
       callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
@@ -545,9 +551,7 @@ export function useJsonFormattingWorker({
   const queueRepair = (tabId: string, text: string) => {
     clearPendingFormat(tabId);
     callbacksRef.current.setTabError(tabId, null);
-    delete latestLocateRequestRef.current[tabId];
-    delete latestSearchRequestRef.current[`left:${tabId}`];
-    delete latestSearchRequestRef.current[`right:${tabId}`];
+    cancelInteractiveRequests(tabId);
 
     if (!text.trim()) {
       callbacksRef.current.setTabError(tabId, '没有可修复的 JSON 内容');
@@ -666,9 +670,7 @@ export function useJsonFormattingWorker({
     });
     delete formatTimersRef.current[tabId];
     delete latestRequestRef.current[tabId];
-    delete latestLocateRequestRef.current[tabId];
-    delete latestSearchRequestRef.current[`left:${tabId}`];
-    delete latestSearchRequestRef.current[`right:${tabId}`];
+    cancelInteractiveRequests(tabId);
     delete largeModeRef.current[tabId];
     delete largeFileLocateEnabledRef.current[tabId];
     delete structureStatusRef.current[tabId];
@@ -717,7 +719,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.setLargeRawViewerData(tabId, null);
       callbacksRef.current.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
-      delete latestLocateRequestRef.current[tabId];
+      cancelInteractiveRequests(tabId);
       postWorkerRequest({
         type: 'clear-structure',
         tabId,
@@ -1038,7 +1040,7 @@ export function useJsonFormattingWorker({
 
       if (type === 'search-result') {
         const target = event.data.target ?? 'right';
-        const requestKey = `${target}:${tabId}`;
+        const requestKey = getWorkerSearchRequestKey(target, tabId);
         if (
           tabId !== activeTabIdRef.current
           || latestSearchRequestRef.current[requestKey] !== requestId
