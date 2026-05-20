@@ -122,9 +122,17 @@ body {
   --json-fold-icon-border-width: 1.6px;
   --json-fold-icon-color: rgba(120, 96, 58, 0.72);
   --json-fold-hover-bg: rgba(73, 104, 150, 0.14);
-  --json-editor-font-family: Consolas, "Courier New", monospace;
-  --json-editor-font-size: 14px;
-  --json-editor-line-height: 19px;
+  --json-editor-font-family: Menlo, Monaco, "Courier New", monospace;
+  --json-editor-font-size: 12px;
+  --json-editor-line-height: 18px;
+  --json-editor-foreground: #000000;
+  --json-editor-background: #ffffff;
+  --json-editor-line-number: #237893;
+  --json-editor-token-key: #a31515;
+  --json-editor-token-string: #0451a5;
+  --json-editor-token-number: #0451a5;
+  --json-editor-token-literal: #0451a5;
+  --json-editor-token-punctuation: #000000;
 }
 .app-container.dark-mode {
   /* 深色模式覆盖变量 */
@@ -139,6 +147,14 @@ body {
   --input-focus-border: #888888;
   --json-fold-icon-color: rgba(224, 214, 194, 0.8);
   --json-fold-hover-bg: rgba(141, 180, 255, 0.16);
+  --json-editor-foreground: #d4d4d4;
+  --json-editor-background: #1e1e1e;
+  --json-editor-line-number: #858585;
+  --json-editor-token-key: #ff8f8f;
+  --json-editor-token-string: #75beff;
+  --json-editor-token-number: #75beff;
+  --json-editor-token-literal: #75beff;
+  --json-editor-token-punctuation: #d4d4d4;
 }
 
 /* ============================================= */
@@ -358,8 +374,8 @@ button:disabled {
   width: 100%;
   height: 100%;
   overflow: auto;
-  background: #ffffff;
-  color: #1f2937;
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
   font-family: var(--json-editor-font-family);
   font-size: var(--json-editor-font-size);
   line-height: var(--json-editor-line-height);
@@ -367,8 +383,8 @@ button:disabled {
 }
 
 .large-raw-viewer.dark {
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
 }
 
 .large-raw-spacer {
@@ -397,7 +413,7 @@ button:disabled {
   padding: 0 8px;
   box-sizing: border-box;
   background: #f3f4f6;
-  color: #4f46e5;
+  color: var(--json-editor-line-number);
   text-align: right;
   user-select: none;
   border-right: 1px solid #e5e7eb;
@@ -405,7 +421,7 @@ button:disabled {
 
 .large-raw-viewer.dark .large-raw-offset {
   background: #252526;
-  color: #9cdcfe;
+  color: var(--json-editor-line-number);
   border-right-color: #3c3c3c;
 }
 
@@ -496,8 +512,8 @@ button:disabled {
   width: 100%;
   height: 100%;
   overflow: auto;
-  background: #ffffff;
-  color: #000000;
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
   font-family: var(--json-editor-font-family);
   font-size: var(--json-editor-font-size);
   font-weight: normal;
@@ -506,8 +522,8 @@ button:disabled {
 }
 
 .large-json-viewer.dark {
-  background: #1e1e1e;
-  color: #d4d4d4;
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
 }
 
 .large-json-spacer {
@@ -673,7 +689,7 @@ button:disabled {
   flex: 0 0 auto;
   box-sizing: content-box;
   padding-right: 6px;
-  color: #237893;
+  color: var(--json-editor-line-number);
   font-family: inherit;
   font-size: inherit;
   font-weight: inherit;
@@ -684,7 +700,7 @@ button:disabled {
 }
 
 .large-json-viewer.dark .large-json-line-number {
-  color: #858585;
+  color: var(--json-editor-line-number);
 }
 
 .large-json-line-text {
@@ -704,27 +720,23 @@ button:disabled {
 }
 
 .large-json-token-key {
-  color: #a31515;
+  color: var(--json-editor-token-key);
 }
 
-.large-json-token-value {
-  color: #0451a5;
+.large-json-token-string {
+  color: var(--json-editor-token-string);
+}
+
+.large-json-token-number {
+  color: var(--json-editor-token-number);
+}
+
+.large-json-token-literal {
+  color: var(--json-editor-token-literal);
 }
 
 .large-json-token-punctuation {
-  color: #000000;
-}
-
-.large-json-viewer.dark .large-json-token-key {
-  color: #ff8f8f;
-}
-
-.large-json-viewer.dark .large-json-token-value {
-  color: #75beff;
-}
-
-.large-json-viewer.dark .large-json-token-punctuation {
-  color: #d4d4d4;
+  color: var(--json-editor-token-punctuation);
 }
 
 .large-json-search-match {

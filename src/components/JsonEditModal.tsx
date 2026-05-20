@@ -3,6 +3,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import PaneFindWidget from './PaneFindWidget';
 import { useEditModalSearch } from '../hooks/useEditModalSearch';
+import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 
@@ -217,7 +218,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             key={`modal-editor-${sessionKey}`}
             defaultLanguage="json"
             defaultValue={initialValue}
-            theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+            theme={getJsonEditorTheme(isDarkMode)}
             onMount={handleEditorMount}
             onChange={(value) => onValueChange(value ?? '')}
             options={{

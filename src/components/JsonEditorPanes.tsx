@@ -12,6 +12,7 @@ import type {
   LargeRawViewerData,
 } from '../types/jsonTool';
 import { getMonacoOptions } from '../utils/jsonEditorInteractions';
+import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
 
 interface JsonEditorPanesProps {
   activeLargeRawViewerData: LargeRawViewerData | null;
@@ -227,7 +228,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
         ) : (
           <Editor
             onMount={onLeftMount}
-            theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+            theme={getJsonEditorTheme(isDarkMode)}
             options={getMonacoOptions({
               largeMode: isLargeFileMode,
               wrapLongLines,
@@ -324,7 +325,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
         ) : !isBuildingDedicatedRightViewer ? (
           <Editor
             onMount={onRightMount}
-            theme={isDarkMode ? 'vs-dark' : 'vs-light'}
+            theme={getJsonEditorTheme(isDarkMode)}
             options={getMonacoOptions({
               largeMode: isLargeFileMode,
               wrapLongLines,

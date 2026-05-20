@@ -4,11 +4,16 @@ import process from 'node:process';
 import { describe, expect, it } from 'vitest';
 import { getMonacoOptions } from './jsonEditorInteractions';
 import {
+  JSON_EDITOR_DARK_COLORS,
+  JSON_EDITOR_DARK_THEME,
   JSON_EDITOR_FONT_FAMILY,
   JSON_EDITOR_FONT_SIZE,
   JSON_EDITOR_FONT_SIZE_CSS,
+  JSON_EDITOR_LIGHT_COLORS,
+  JSON_EDITOR_LIGHT_THEME,
   JSON_EDITOR_LINE_HEIGHT,
   JSON_EDITOR_LINE_HEIGHT_CSS,
+  getJsonEditorTheme,
 } from './jsonEditorTypography';
 
 describe('JSON editor typography', () => {
@@ -28,5 +33,14 @@ describe('JSON editor typography', () => {
     expect(appCss).toContain(`--json-editor-font-family: ${JSON_EDITOR_FONT_FAMILY};`);
     expect(appCss).toContain(`--json-editor-font-size: ${JSON_EDITOR_FONT_SIZE_CSS};`);
     expect(appCss).toContain(`--json-editor-line-height: ${JSON_EDITOR_LINE_HEIGHT_CSS};`);
+
+    expect(getJsonEditorTheme(false)).toBe(JSON_EDITOR_LIGHT_THEME);
+    expect(getJsonEditorTheme(true)).toBe(JSON_EDITOR_DARK_THEME);
+    expect(appCss).toContain(`--json-editor-foreground: ${JSON_EDITOR_LIGHT_COLORS.foreground};`);
+    expect(appCss).toContain(`--json-editor-token-key: ${JSON_EDITOR_LIGHT_COLORS.key};`);
+    expect(appCss).toContain(`--json-editor-token-string: ${JSON_EDITOR_LIGHT_COLORS.string};`);
+    expect(appCss).toContain(`--json-editor-foreground: ${JSON_EDITOR_DARK_COLORS.foreground};`);
+    expect(appCss).toContain(`--json-editor-token-key: ${JSON_EDITOR_DARK_COLORS.key};`);
+    expect(appCss).toContain(`--json-editor-token-string: ${JSON_EDITOR_DARK_COLORS.string};`);
   });
 });
