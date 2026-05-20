@@ -7,6 +7,11 @@ import {
   buildLineStarts,
   findTextSearchBatch,
 } from './searchText';
+import {
+  JSON_EDITOR_FONT_FAMILY,
+  JSON_EDITOR_FONT_SIZE,
+  JSON_EDITOR_LINE_HEIGHT,
+} from './jsonEditorTypography';
 
 interface JsonEditorOptionsArgs {
   largeMode: boolean;
@@ -106,6 +111,9 @@ export function getMonacoOptions({
 
   return {
     automaticLayout: true,
+    fontFamily: JSON_EDITOR_FONT_FAMILY,
+    fontSize: JSON_EDITOR_FONT_SIZE,
+    lineHeight: JSON_EDITOR_LINE_HEIGHT,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     largeFileOptimizations: preserveFoldingForLargeReadonly ? false : true,

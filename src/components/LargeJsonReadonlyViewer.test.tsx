@@ -5,6 +5,7 @@ import LargeJsonReadonlyViewer, {
   LargeJsonReadonlyViewerHandle,
 } from './LargeJsonReadonlyViewer';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
+import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 const fixtureText = [
   '{',
@@ -159,6 +160,13 @@ describe('LargeJsonReadonlyViewer', () => {
     const row = document.querySelector('.large-json-row');
     expect(row?.children[0]).toHaveClass('large-json-line-number');
     expect(row?.children[1]).toHaveClass('large-json-fold-button');
+  });
+
+  it('uses the shared editor line height for virtual rows', () => {
+    renderViewer();
+
+    const row = document.querySelector<HTMLElement>('.large-json-row');
+    expect(row?.style.height).toBe(`${JSON_EDITOR_LINE_HEIGHT}px`);
   });
 
   it('marks rows that overlap the selected right-side node range', () => {

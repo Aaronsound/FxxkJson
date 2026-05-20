@@ -30,8 +30,9 @@ import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
 import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
+import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
-const LINE_HEIGHT = 18;
+const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
 const OVERSCAN = 30;
 const MAX_LINE_TITLE_LENGTH = 1000;
 

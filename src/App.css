@@ -122,9 +122,9 @@ body {
   --json-fold-icon-border-width: 1.6px;
   --json-fold-icon-color: rgba(120, 96, 58, 0.72);
   --json-fold-hover-bg: rgba(73, 104, 150, 0.14);
-  --json-editor-font-family: Menlo, Monaco, "Courier New", monospace;
-  --json-editor-font-size: 12px;
-  --json-editor-line-height: 18px;
+  --json-editor-font-family: Consolas, "Courier New", monospace;
+  --json-editor-font-size: 14px;
+  --json-editor-line-height: 19px;
 }
 .app-container.dark-mode {
   /* 深色模式覆盖变量 */
