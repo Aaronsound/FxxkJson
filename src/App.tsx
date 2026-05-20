@@ -17,6 +17,8 @@ import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
+import RightEditorContextMenu from './components/RightEditorContextMenu';
+import type { RightEditorContextMenuState } from './components/RightEditorContextMenu';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
@@ -80,13 +82,6 @@ import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
-
-type RightEditorContextMenuState = {
-  x: number;
-  y: number;
-  tabId: string;
-  offset: number;
-} | null;
 
 const App: React.FC = () => {
   const {
@@ -181,7 +176,7 @@ const App: React.FC = () => {
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeAppInfo | null>(null);
   const [isArchitectureWarningDismissed, setIsArchitectureWarningDismissed] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
-  const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState>(null);
+  const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState | null>(null);
   const {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
@@ -2615,126 +2610,21 @@ const App: React.FC = () => {
       />
 
       {rightEditorContextMenu && !shouldUseDedicatedRightViewer && (
-        <div
-          className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
-          style={{
-            left: rightEditorContextMenu.x,
-            top: rightEditorContextMenu.y,
-          }}
-          onContextMenu={(event) => event.preventDefault()}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={() => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              toggleRightFoldAtOffset(tabId, offset);
-            }}
-          >
-            展开/收缩当前节点
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await copyNodeDetailAtOffset(tabId, offset, true, 'path');
-            }}
-          >
-            复制 JSON Path
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await copyNodeDetailAtOffset(tabId, offset, true, 'key');
-            }}
-          >
-            复制 key
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await copyValueAtOffset(tabId, offset, true);
-            }}
-          >
-            复制值
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await copyNodeDetailAtOffset(tabId, offset, true, 'compact-json');
-            }}
-          >
-            复制压缩 JSON
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await copyNodeDetailAtOffset(tabId, offset, true, 'formatted-json');
-            }}
-          >
-            复制格式化 JSON
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await handleOpenEditNodeAtOffset(tabId, offset, true);
-            }}
-          >
-            编辑当前值
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await applyRightNodeMutationAtOffset(tabId, offset, true, 'rename-node-key');
-            }}
-          >
-            重命名 key
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item danger"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await applyRightNodeMutationAtOffset(tabId, offset, true, 'delete-node');
-            }}
-          >
-            删除当前节点
-          </button>
-          <button
-            type="button"
-            className="large-json-context-menu-item"
-            onClick={async () => {
-              const { tabId, offset } = rightEditorContextMenu;
-              setRightEditorContextMenu(null);
-              await handleOpenUnescapedNodeAtOffset(tabId, offset, true);
-            }}
-          >
-            反转义当前值
-          </button>
-        </div>
+        <RightEditorContextMenu
+          contextMenu={rightEditorContextMenu}
+          isDarkMode={isDarkMode}
+          onClose={() => setRightEditorContextMenu(null)}
+          onToggleFold={toggleRightFoldAtOffset}
+          onCopyPath={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'path')}
+          onCopyKey={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'key')}
+          onCopyValue={(tabId, offset) => copyValueAtOffset(tabId, offset, true)}
+          onCopyCompactJson={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'compact-json')}
+          onCopyFormattedJson={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'formatted-json')}
+          onEditValue={(tabId, offset) => handleOpenEditNodeAtOffset(tabId, offset, true)}
+          onRenameKey={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'rename-node-key')}
+          onDeleteValue={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'delete-node')}
+          onUnescapeValue={(tabId, offset) => handleOpenUnescapedNodeAtOffset(tabId, offset, true)}
+        />
       )}
     </div>
   );
