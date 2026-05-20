@@ -27,7 +27,7 @@ function runNodeScript(scriptPath, args) {
 }
 
 async function main() {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hanjson-perf-ci-'));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'fxxkjson-perf-ci-'));
   const forwardedArgs = process.argv.slice(2);
 
   try {

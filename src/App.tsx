@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import AboutDialog from './components/AboutDialog';
@@ -80,9 +80,14 @@ import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
+import {
+  createTranslator,
+  getInitialLanguage,
+  LANGUAGE_STORAGE_KEY,
+} from './utils/i18n';
 import './App.css';
 
-const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'hanjson.performancePanel.visible.v2';
+const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'fxxkjson.performancePanel.visible.v2';
 
 const App: React.FC = () => {
   const {
@@ -163,6 +168,8 @@ const App: React.FC = () => {
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [language, setLanguage] = useState(getInitialLanguage);
+  const t = useMemo(() => createTranslator(language), [language]);
   const [wrapLongLines, setWrapLongLines] = useState(false);
   const [showPerformancePanel, setShowPerformancePanel] = useState(() => {
     if (typeof window === 'undefined') {
@@ -890,6 +897,11 @@ const App: React.FC = () => {
   }, [showPerformancePanel]);
 
   useEffect(() => {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+  }, [language]);
+
+  useEffect(() => {
     if (!activeTab) {
       return;
     }
@@ -1154,7 +1166,7 @@ const App: React.FC = () => {
     leftEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncLeftModel(currentTabId, getTabContent(currentTabId), true);
-    const leftEditorFocusContextKey = 'hanjsonLeftEditorFocused';
+    const leftEditorFocusContextKey = 'fxxkjsonLeftEditorFocused';
 
     editor.onDidDispose(() => {
       if (leftEditorRef.current === editor) {
@@ -1234,7 +1246,7 @@ const App: React.FC = () => {
     rightEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncRightModel(currentTabId, formattedTextByTabRef.current[currentTabId] ?? '', true);
-    const rightEditorFocusContextKey = 'hanjsonRightEditorFocused';
+    const rightEditorFocusContextKey = 'fxxkjsonRightEditorFocused';
     logRightEditorState('right-editor-mounted', currentTabId, {
       wrapLongLines,
     });
@@ -2331,8 +2343,8 @@ const App: React.FC = () => {
       {isDragImportActive && (
         <div className="drag-import-overlay">
           <div className={`drag-import-panel ${isDarkMode ? 'dark' : ''}`}>
-            <span className="drag-import-title">释放导入 JSON</span>
-            <span className="drag-import-subtitle">当前标签会读取拖入的 .json / .txt 文件</span>
+            <span className="drag-import-title">{t('drag.title')}</span>
+            <span className="drag-import-subtitle">{t('drag.subtitle')}</span>
           </div>
         </div>
       )}
@@ -2388,6 +2400,9 @@ const App: React.FC = () => {
         currentStructureStatus={currentStructureStatus}
         processingStageText={processingStageText}
         currentError={currentError}
+        language={language}
+        onLanguageChange={setLanguage}
+        t={t}
       />
 
       {showPerformancePanel && (
@@ -2419,9 +2434,9 @@ const App: React.FC = () => {
           error={editJsonError}
           busyLabel={editJsonBusyLabel}
           hasCopiedLiteral={hasCopiedLiteral}
-          title={editJsonSession.mode === 'node' ? '编辑当前节点' : '编辑 JSON'}
+          title={editJsonSession.mode === 'node' ? t('edit.nodeTitle') : t('edit.title')}
           pathText={editJsonSession.pathText}
-          saveLabel={editJsonSession.mode === 'node' ? '更新当前节点' : '更新为原始 JSON'}
+          saveLabel={editJsonSession.mode === 'node' ? t('edit.saveNode') : t('edit.saveJson')}
           onValueChange={(value) => {
             editJsonValueRef.current = value;
           }}
@@ -2430,6 +2445,7 @@ const App: React.FC = () => {
           onEscapeContent={handleEscapeEditJsonContent}
           onCopyLiteral={handleCopyEscapedJson}
           onClose={closeEditJson}
+          t={t}
         />
       )}
 
@@ -2440,6 +2456,7 @@ const App: React.FC = () => {
           onCancel={cancelMutationDialog}
           onConfirmDelete={confirmDeleteDialog}
           onConfirmRename={confirmRenameDialog}
+          t={t}
         />
       )}
 
@@ -2458,6 +2475,7 @@ const App: React.FC = () => {
           isDarkMode={isDarkMode}
           getTabText={getTabContent}
           onClose={() => setIsCompareOpen(false)}
+          t={t}
         />
       )}
 
@@ -2467,6 +2485,7 @@ const App: React.FC = () => {
           isDarkMode={isDarkMode}
           runtimeInfo={runtimeInfo}
           onClose={() => setIsAboutOpen(false)}
+          t={t}
         />
       )}
 
@@ -2556,6 +2575,7 @@ const App: React.FC = () => {
         onRightMount={handleRightMount}
         onRightSearchOptionsChange={handleRightSearchOptionsChange}
         onRightSearchTermChange={handleRightSearchTermChange}
+        t={t}
       />
 
       {rightEditorContextMenu && !shouldUseDedicatedRightViewer && (
@@ -2573,6 +2593,7 @@ const App: React.FC = () => {
           onRenameKey={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'rename-node-key')}
           onDeleteValue={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'delete-node')}
           onUnescapeValue={(tabId, offset) => handleOpenUnescapedNodeAtOffset(tabId, offset, true)}
+          t={t}
         />
       )}
     </div>

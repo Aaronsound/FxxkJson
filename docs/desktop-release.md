@@ -27,7 +27,7 @@ The workflow in `.github/workflows/desktop-release.yml` packages macOS and Windo
 ```bash
 git checkout main
 git pull origin main
-git tag -a v1.0.8 -m "HanJson desktop release v1.0.8"
+git tag -a v1.0.8 -m "FxxkJson desktop release v1.0.8"
 git push origin v1.0.8
 ```
 

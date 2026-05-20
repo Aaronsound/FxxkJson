@@ -40,7 +40,7 @@ function parseArgs(args) {
 function createSampleItem(index) {
   return {
     id: index,
-    name: `HanJson sample ${index}`,
+    name: `FxxkJson sample ${index}`,
     active: index % 2 === 0,
     score: index % 1000,
     tags: ['large', 'json', 'formatter', 'benchmark'],

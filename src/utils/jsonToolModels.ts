@@ -28,11 +28,11 @@ export function selectionCoversModel(editor: monaco.editor.IStandaloneCodeEditor
 }
 
 export function getLeftModelPath(tabId: string) {
-  return `inmemory://hanjson/raw/${tabId}.json`;
+  return `inmemory://fxxkjson/raw/${tabId}.json`;
 }
 
 export function getRightModelPath(tabId: string) {
-  return `inmemory://hanjson/formatted/${tabId}.json`;
+  return `inmemory://fxxkjson/formatted/${tabId}.json`;
 }
 
 export function getEditorLanguageByLength(textByteLength: number) {

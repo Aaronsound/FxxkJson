@@ -21,7 +21,7 @@ type PanelPosition = {
   y: number;
 };
 
-const PANEL_POSITION_STORAGE_KEY = 'hanjson.performancePanel.position.v4';
+const PANEL_POSITION_STORAGE_KEY = 'fxxkjson.performancePanel.position.v4';
 
 const stageLabels: Array<{ key: StageKey; label: string }> = [
   { key: 'readFileMs', label: '读取文件' },

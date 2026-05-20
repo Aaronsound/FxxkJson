@@ -9,14 +9,14 @@ import {
 
 describe('searchText', () => {
   it('loads complete search results across multiple batches', () => {
-    const text = Array.from({ length: 5 }, (_, index) => `HanJson item ${index}`).join('\n');
+    const text = Array.from({ length: 5 }, (_, index) => `FxxkJson item ${index}`).join('\n');
     const lineStarts = buildLineStarts(text);
 
     const firstBatch = findTextSearchBatch(
       text,
       lineStarts,
       lineStarts.length,
-      'HanJson',
+      'FxxkJson',
       DEFAULT_SEARCH_OPTIONS,
       0,
       2
@@ -26,7 +26,7 @@ describe('searchText', () => {
       text,
       lineStarts,
       lineStarts.length,
-      'HanJson',
+      'FxxkJson',
       DEFAULT_SEARCH_OPTIONS,
       firstBatch.nextStartOffset,
       2
@@ -36,7 +36,7 @@ describe('searchText', () => {
       text,
       lineStarts,
       lineStarts.length,
-      'HanJson',
+      'FxxkJson',
       DEFAULT_SEARCH_OPTIONS,
       secondBatch.nextStartOffset,
       2
@@ -56,14 +56,14 @@ describe('searchText', () => {
   });
 
   it('can cancel async batched searches before returning stale results', async () => {
-    const text = Array.from({ length: 1000 }, (_, index) => `HanJson item ${index}`).join('\n');
+    const text = Array.from({ length: 1000 }, (_, index) => `FxxkJson item ${index}`).join('\n');
     const lineStarts = buildLineStarts(text);
 
     const result = await findTextSearchBatchAsync(
       text,
       lineStarts,
       lineStarts.length,
-      'HanJson',
+      'FxxkJson',
       DEFAULT_SEARCH_OPTIONS,
       0,
       500,

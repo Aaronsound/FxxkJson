@@ -24,7 +24,7 @@ function createMatch(
 
 describe('largeJsonViewerRender', () => {
   it('tokenizes JSON keys, strings, numbers, and punctuation', () => {
-    const tokens = tokenizeJsonLine('  "name": "HanJson", "count": 2');
+    const tokens = tokenizeJsonLine('  "name": "FxxkJson", "count": 2');
 
     expect(tokens.some((token) => token.className?.includes('large-json-token-key'))).toBe(true);
     expect(tokens.some((token) => token.className?.includes('large-json-token-string'))).toBe(true);
@@ -33,7 +33,7 @@ describe('largeJsonViewerRender', () => {
   });
 
   it('splits syntax-highlighted segments around search matches', () => {
-    const line = '  "name": "HanJson"';
+    const line = '  "name": "FxxkJson"';
     const segments = buildHighlightedJsonLineSegments(
       line,
       [createMatch(3, 7, 4)],

@@ -41,7 +41,7 @@ function buildIssueSummary(
     : '(no app context)';
 
   return [
-    `HanJson diagnostics summary`,
+    `FxxkJson diagnostics summary`,
     `logPath=${path}`,
     `truncated=${truncated}`,
     '',

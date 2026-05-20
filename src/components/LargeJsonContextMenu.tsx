@@ -1,4 +1,5 @@
 import React from 'react';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 
 export interface LargeJsonContextMenuState {
   x: number;
@@ -22,7 +23,10 @@ interface LargeJsonContextMenuProps {
   onDeleteValue: (offset: number) => void | Promise<void>;
   onRenameKey: (offset: number) => void | Promise<void>;
   onUnescapeValue: (offset: number) => void | Promise<void>;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
+
+const defaultT = createTranslator('zh');
 
 const LargeJsonContextMenu: React.FC<LargeJsonContextMenuProps> = ({
   contextMenu,
@@ -39,6 +43,7 @@ const LargeJsonContextMenu: React.FC<LargeJsonContextMenuProps> = ({
   onDeleteValue,
   onRenameKey,
   onUnescapeValue,
+  t = defaultT,
 }) => {
   const runAction = async (action: (offset: number) => void | Promise<void>) => {
     await action(contextMenu.offset);
@@ -63,35 +68,35 @@ const LargeJsonContextMenu: React.FC<LargeJsonContextMenuProps> = ({
             onClose();
           }}
         >
-          {isCollapsed ? '展开当前节点' : '收缩当前节点'}
+          {isCollapsed ? t('context.expandNode') : t('context.collapseNode')}
         </button>
       )}
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyPath)}>
-        复制 JSON Path
+        {t('context.copyPath')}
       </button>
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyKey)}>
-        复制 key
+        {t('context.copyKey')}
       </button>
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyValue)}>
-        复制值
+        {t('context.copyValue')}
       </button>
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyCompactJson)}>
-        复制压缩 JSON
+        {t('context.copyCompact')}
       </button>
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyFormattedJson)}>
-        复制格式化 JSON
+        {t('context.copyFormatted')}
       </button>
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onEditValue)}>
-        编辑当前值
+        {t('context.editValue')}
       </button>
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onRenameKey)}>
-        重命名 key
+        {t('context.renameKey')}
       </button>
       <button type="button" className="large-json-context-menu-item danger" onClick={() => runAction(onDeleteValue)}>
-        删除当前节点
+        {t('context.deleteNode')}
       </button>
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onUnescapeValue)}>
-        反转义当前值
+        {t('context.unescapeValue')}
       </button>
     </div>
   );

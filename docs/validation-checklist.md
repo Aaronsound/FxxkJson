@@ -1,4 +1,4 @@
-# HanJson Validation Checklist
+# FxxkJson Validation Checklist
 
 Use this checklist after routine changes and before handing a build to someone else. The commands below work from the repository root.
 
@@ -51,7 +51,7 @@ Manual flow:
 1. Import `json/sample-5mb.json`.
 2. Confirm the right pane enters large-file viewer mode.
 3. Fold and unfold nodes from the toolbar and from row-level fold controls.
-4. Open right-pane search with `Cmd/Ctrl+F`, search for `HanJson`, then navigate next and previous matches.
+4. Open right-pane search with `Cmd/Ctrl+F`, search for `FxxkJson`, then navigate next and previous matches.
 5. Right-click a value in the large viewer and choose `Copy value`; paste it into a new tab and confirm it remains valid JSON.
 6. Enable `大文件启用右侧定位`, click content in the right pane, and confirm the left pane locates the corresponding raw JSON value.
 7. Repeat import smoke checks with `sample-10mb.json` and `sample-20mb.json`.

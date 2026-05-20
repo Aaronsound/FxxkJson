@@ -6,7 +6,7 @@ import {
 } from '../utils/searchQuickAccess';
 import type { RightPinnedPath } from '../utils/searchQuickAccess';
 
-const RIGHT_RECENT_SEARCHES_STORAGE_KEY = 'hanjson.rightSearch.recent.v1';
+const RIGHT_RECENT_SEARCHES_STORAGE_KEY = 'fxxkjson.rightSearch.recent.v1';
 const MAX_RECENT_SEARCHES = 8;
 const MAX_PINNED_PATHS = 16;
 const MAX_HEADER_PATH_LENGTH = 120;

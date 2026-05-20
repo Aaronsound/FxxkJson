@@ -18,9 +18,9 @@ describe('AboutDialog', () => {
       platform: 'darwin',
     }} onClose={onClose} />);
 
-    expect(screen.getByRole('dialog', { name: '关于 FuckJson' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '关于 FxxkJson' })).toBeInTheDocument();
     expect(screen.getByText('名称')).toBeInTheDocument();
-    expect(screen.getByText('FuckJson')).toBeInTheDocument();
+    expect(screen.getByText('FxxkJson')).toBeInTheDocument();
     expect(screen.getByText('v1.0.20')).toBeInTheDocument();
     expect(screen.getByText('arm64')).toBeInTheDocument();
     expect(screen.getByText('Alosan')).toBeInTheDocument();

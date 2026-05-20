@@ -34,7 +34,7 @@ function createSampleJson(targetBytes) {
   while (byteLength < targetBytes) {
     const record = JSON.stringify({
       id: index,
-      name: `HanJson e2e sample ${index}`,
+      name: `FxxkJson e2e sample ${index}`,
       active: index % 2 === 0,
       score: index % 1000,
       tags: ['electron', 'json', 'e2e', 'formatter'],
@@ -162,13 +162,13 @@ async function collectFailureArtifacts({ cdp, stderr }) {
 
 async function run() {
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.HANJSON_E2E_FORCE) {
-    console.log('HanJson Electron E2E skipped: no DISPLAY is available on Linux');
+    console.log('FxxkJson Electron E2E skipped: no DISPLAY is available on Linux');
     return;
   }
 
   const cwd = process.cwd();
   const sizeMb = parseSizeMb();
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'hanjson-e2e-'));
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'fxxkjson-e2e-'));
   const samplePath = path.join(tempDir, `sample-${sizeMb}mb.json`);
   const port = await getAvailablePort();
   const electronCli = require.resolve('electron/cli.js');
@@ -397,7 +397,7 @@ async function run() {
       'invalid JSON compare error'
     );
 
-    console.log('HanJson Electron E2E passed');
+    console.log('FxxkJson Electron E2E passed');
     console.table([
       { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
       { step: 'import', detail: 'desktop file input imported JSON' },

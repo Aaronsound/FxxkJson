@@ -1,4 +1,4 @@
-const DIAGNOSTICS_CONSOLE_STORAGE_KEY = 'hanjson.diagnostics.console.v1';
+const DIAGNOSTICS_CONSOLE_STORAGE_KEY = 'fxxkjson.diagnostics.console.v1';
 
 export function isDiagnosticsConsoleEnabled() {
   if (typeof window === 'undefined') {
@@ -13,5 +13,5 @@ export function logDiagnosticsToConsole(event: string, payload: Record<string, u
     return;
   }
 
-  console.info(`[HanJson][${event}]`, payload);
+  console.info(`[FxxkJson][${event}]`, payload);
 }

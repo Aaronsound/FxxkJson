@@ -12,14 +12,14 @@ describe('DiagnosticsLogPanel', () => {
 
   it('reads and renders the recent desktop runtime log', async () => {
     window.electronAPI = {
-      appendLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      appendLog: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
       readRecentLog: vi.fn().mockResolvedValue({
-        path: '/tmp/hanjson/runtime.log',
+        path: '/tmp/fxxkjson/runtime.log',
         content: '[2026-05-09] {"event":"format-success"}',
         truncated: false,
       }),
-      clearLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
-      showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      clearLog: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
+      showLogFile: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
       writeClipboardText: vi.fn().mockResolvedValue(true),
       openJsonFile: vi.fn().mockResolvedValue(null),
     };
@@ -29,24 +29,24 @@ describe('DiagnosticsLogPanel', () => {
     await waitFor(() => {
       expect(screen.getByDisplayValue(/format-success/)).toBeInTheDocument();
     });
-    expect(screen.getByText('/tmp/hanjson/runtime.log')).toBeInTheDocument();
+    expect(screen.getByText('/tmp/fxxkjson/runtime.log')).toBeInTheDocument();
     expect(window.electronAPI.readRecentLog).toHaveBeenCalledWith(160 * 1024);
   });
 
   it('filters error lines and copies a diagnostic summary', async () => {
     const writeClipboardText = vi.fn().mockResolvedValue(true);
     window.electronAPI = {
-      appendLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      appendLog: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
       readRecentLog: vi.fn().mockResolvedValue({
-        path: '/tmp/hanjson/runtime.log',
+        path: '/tmp/fxxkjson/runtime.log',
         content: [
           '[2026-05-09] {"event":"format-success"}',
           '[2026-05-09] {"event":"format-failed","error":"bad json"}',
         ].join('\n'),
         truncated: true,
       }),
-      clearLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
-      showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      clearLog: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
+      showLogFile: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
       writeClipboardText,
       openJsonFile: vi.fn().mockResolvedValue(null),
     };
@@ -79,7 +79,7 @@ describe('DiagnosticsLogPanel', () => {
     fireEvent.click(screen.getByText('复制诊断包'));
 
     await waitFor(() => {
-      expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('HanJson diagnostics summary'));
+      expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('FxxkJson diagnostics summary'));
     });
     expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('format-failed'));
     expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('tabTitle=large-sample.json'));
@@ -87,14 +87,14 @@ describe('DiagnosticsLogPanel', () => {
 
   it('clears the desktop runtime log', async () => {
     window.electronAPI = {
-      appendLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      appendLog: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
       readRecentLog: vi.fn().mockResolvedValue({
-        path: '/tmp/hanjson/runtime.log',
+        path: '/tmp/fxxkjson/runtime.log',
         content: '[2026-05-09] {"event":"format-success"}',
         truncated: false,
       }),
-      clearLog: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
-      showLogFile: vi.fn().mockResolvedValue('/tmp/hanjson/runtime.log'),
+      clearLog: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
+      showLogFile: vi.fn().mockResolvedValue('/tmp/fxxkjson/runtime.log'),
       writeClipboardText: vi.fn().mockResolvedValue(true),
       openJsonFile: vi.fn().mockResolvedValue(null),
     };

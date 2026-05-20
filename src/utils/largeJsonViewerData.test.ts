@@ -14,7 +14,7 @@ function buildLineRichFormattedSample(lineCount: number) {
 
   for (let index = 0; index < itemLines; index += 1) {
     const comma = index === itemLines - 1 ? '' : ',';
-    lines[index + 1] = `  {"id":${index},"name":"HanJson","payload":"sample"}${comma}`;
+    lines[index + 1] = `  {"id":${index},"name":"FxxkJson","payload":"sample"}${comma}`;
   }
 
   lines[lineCount - 1] = ']';
@@ -41,7 +41,7 @@ describe('largeJsonViewerData', () => {
   it('builds stable search matches with line offsets', () => {
     const text = [
       '{',
-      '  "name": "HanJson",',
+      '  "name": "FxxkJson",',
       '  "nested": {',
       '    "name": "viewer"',
       '  }',
@@ -75,8 +75,8 @@ describe('largeJsonViewerData', () => {
   it('finds matches case-insensitively without changing line offsets', () => {
     const text = [
       '{',
-      '  "name": "HanJson",',
-      '  "label": "hanjson viewer"',
+      '  "name": "FxxkJson",',
+      '  "label": "fxxkjson viewer"',
       '}',
     ].join('\n');
     const viewerData = buildLargeViewerData(text, 1);
@@ -86,7 +86,7 @@ describe('largeJsonViewerData', () => {
       text,
       viewerData!.lineStarts,
       viewerData!.lineCount,
-      'HANJSON',
+      'FXXKJSON',
       DEFAULT_SEARCH_OPTIONS
     );
 
@@ -94,12 +94,12 @@ describe('largeJsonViewerData', () => {
     expect(matches[0]).toMatchObject({
       lineNumber: 2,
       localStart: 11,
-      localEnd: 18,
+      localEnd: 19,
     });
     expect(matches[1]).toMatchObject({
       lineNumber: 3,
       localStart: 12,
-      localEnd: 19,
+      localEnd: 20,
     });
   });
 
@@ -144,7 +144,7 @@ describe('largeJsonViewerData', () => {
   it('caps large viewer search results when a max result count is provided', () => {
     const text = [
       '{',
-      '  "name": "HanJson",',
+      '  "name": "FxxkJson",',
       '  "name": "viewer",',
       '  "name": "large"',
       '}',
@@ -169,7 +169,7 @@ describe('largeJsonViewerData', () => {
   it('loads the next batch of search results from the previous batch offset', () => {
     const text = [
       '{',
-      '  "name": "HanJson",',
+      '  "name": "FxxkJson",',
       '  "name": "viewer",',
       '  "name": "large"',
       '}',

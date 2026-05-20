@@ -17,8 +17,8 @@ describe('diagnosticsLogger', () => {
     logDiagnosticsToConsole('event', { ok: true });
     expect(info).not.toHaveBeenCalled();
 
-    window.localStorage.setItem('hanjson.diagnostics.console.v1', 'true');
+    window.localStorage.setItem('fxxkjson.diagnostics.console.v1', 'true');
     logDiagnosticsToConsole('event', { ok: true });
-    expect(info).toHaveBeenCalledWith('[HanJson][event]', { ok: true });
+    expect(info).toHaveBeenCalledWith('[FxxkJson][event]', { ok: true });
   });
 });

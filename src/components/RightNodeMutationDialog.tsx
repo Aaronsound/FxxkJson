@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 
 export type RightNodeMutationDialogState =
   | {
@@ -18,7 +19,10 @@ interface RightNodeMutationDialogProps {
   onCancel: () => void;
   onConfirmDelete: () => void;
   onConfirmRename: (nextKey: string) => void;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
+
+const defaultT = createTranslator('zh');
 
 const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
   state,
@@ -26,6 +30,7 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
   onCancel,
   onConfirmDelete,
   onConfirmRename,
+  t = defaultT,
 }) => {
   const [nextKey, setNextKey] = useState(state.mode === 'rename' ? state.currentKey : '');
 
@@ -48,13 +53,13 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
   }, [onCancel]);
 
   const isRename = state.mode === 'rename';
-  const title = isRename ? '重命名 key' : '删除当前节点';
+  const title = isRename ? t('mutation.renameTitle') : t('mutation.deleteTitle');
   const canSubmitRename = nextKey.trim().length > 0;
   const hasOuterWhitespace = isRename && nextKey.length !== nextKey.trim().length;
   const renameWarning = isRename
     ? [
-      hasOuterWhitespace ? '首尾空格会作为 key 名称的一部分保存。' : null,
-      nextKey !== state.currentKey ? '如果同级对象里已有同名 key，JSON 将保留重复 key。' : null,
+      hasOuterWhitespace ? t('mutation.whitespaceWarning') : null,
+      nextKey !== state.currentKey ? t('mutation.duplicateWarning') : null,
     ].filter(Boolean).join(' ')
     : '';
 
@@ -74,7 +79,7 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
           <div className="modal-path" title={state.pathText}>{state.pathText}</div>
           {isRename ? (
             <label className="right-node-mutation-field">
-              <span>新的 key 名称</span>
+              <span>{t('mutation.newKey')}</span>
               <input
                 autoFocus
                 value={nextKey}
@@ -95,7 +100,7 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
           ) : (
             <>
               <p className="right-node-mutation-message">
-                删除后会立即更新当前 JSON 内容。
+                {t('mutation.deleteMessage')}
               </p>
               <pre className="right-node-mutation-preview">{state.preview}</pre>
             </>
@@ -103,14 +108,14 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
         </div>
 
         <div className="modal-actions">
-          <button type="button" onClick={onCancel}>取消</button>
+          <button type="button" onClick={onCancel}>{t('mutation.cancel')}</button>
           {isRename ? (
             <button type="button" onClick={() => onConfirmRename(nextKey)} disabled={!canSubmitRename}>
-              确认重命名
+              {t('mutation.confirmRename')}
             </button>
           ) : (
             <button type="button" className="danger-button" onClick={onConfirmDelete}>
-              确认删除
+              {t('mutation.confirmDelete')}
             </button>
           )}
         </div>

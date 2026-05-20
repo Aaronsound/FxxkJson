@@ -28,6 +28,7 @@ import {
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
 import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
@@ -65,7 +66,10 @@ interface LargeJsonReadonlyViewerProps {
   onRenameKey: (offset: number) => void | Promise<void>;
   onUnescapeValue: (offset: number) => void | Promise<void>;
   onOpenFind: () => void;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
+
+const defaultT = createTranslator('zh');
 
 export interface LargeJsonReadonlyViewerHandle {
   foldAll: () => void;
@@ -162,6 +166,7 @@ const LargeJsonReadonlyViewer = forwardRef<
   onRenameKey,
   onUnescapeValue,
   onOpenFind,
+  t = defaultT,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fullDocumentSelectedRef = useRef(false);
@@ -907,6 +912,7 @@ const LargeJsonReadonlyViewer = forwardRef<
           onRenameKey={onRenameKey}
           onDeleteValue={onDeleteValue}
           onUnescapeValue={onUnescapeValue}
+          t={t}
         />
       )}
     </div>

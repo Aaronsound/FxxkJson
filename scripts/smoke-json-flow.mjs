@@ -10,7 +10,7 @@ const FALLBACK_RECORD_COUNT = RIGHT_SEARCH_BATCH_SIZE + 105;
 function createFallbackSample() {
   return JSON.stringify(Array.from({ length: FALLBACK_RECORD_COUNT }, (_, index) => ({
     id: index,
-    name: `HanJson smoke sample ${index}`,
+    name: `FxxkJson smoke sample ${index}`,
     active: index % 2 === 0,
     nested: {
       requestId: `req-smoke-${String(index).padStart(4, '0')}`,
@@ -97,7 +97,7 @@ function editFirstRecord(text) {
     throw new Error('Smoke sample must be an object or an array of objects');
   }
 
-  firstRecord.__hanjsonSmoke = 'updated';
+  firstRecord.__fxxkjsonSmoke = 'updated';
   return JSON.stringify(json, null, 2);
 }
 
@@ -204,7 +204,7 @@ async function main() {
     throw new Error('Right search smoke did not load additional matches');
   }
 
-  if (!edited.includes('__hanjsonSmoke')) {
+  if (!edited.includes('__fxxkjsonSmoke')) {
     throw new Error('Edit smoke did not update the JSON payload');
   }
 
@@ -212,7 +212,7 @@ async function main() {
     throw new Error('Repair smoke did not produce valid formatted JSON');
   }
 
-  console.log('HanJson smoke flow passed');
+  console.log('FxxkJson smoke flow passed');
   console.table([
     { step: 'input', detail: input.label },
     { step: 'format', detail: `${formatted.length.toLocaleString()} chars` },
@@ -224,7 +224,7 @@ async function main() {
         : `${firstSearchBatch.matches.length.toLocaleString()} loaded`,
     },
     { step: 'right node action', detail: `${rightNodeAction.path} copied ${rightNodeAction.copiedValue}` },
-    { step: 'edit', detail: '__hanjsonSmoke updated' },
+    { step: 'edit', detail: '__fxxkjsonSmoke updated' },
     { step: 'repair', detail: 'malformed JSON repaired and formatted' },
   ]);
 }

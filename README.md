@@ -1,47 +1,29 @@
-# HanJson
+# FxxkJson
 
-Desktop JSON formatting and inspection tool built with Electron, React, Vite, and Monaco Editor.
+FxxkJson is a desktop JSON formatter, repair tool, search workspace, comparer, and large-file inspector built with Electron, React, Vite, and Monaco Editor.
 
-HanJson is focused on day-to-day JSON work: paste or import JSON on the left, inspect the formatted result on the right, search within either pane, and keep large files usable through a dedicated virtualized viewer.
+The app is designed for local-first JSON work: paste or import JSON on the left, inspect formatted output on the right, search and edit nodes, compare documents, and keep large files responsive with a virtualized viewer.
 
 ## Features
 
-- Real-time JSON formatting for pasted, typed, or imported content.
-- Multi-tab workspace with per-tab document state.
-- Left-pane search and replace, plus right-pane search for formatted output.
-- Dedicated large-file viewer for 5MB+ JSON with virtualized rows, fold/unfold, copy value, and optional right-to-left locate.
-- Worker-based formatting, search, value copy, and large-file indexing to keep the UI responsive.
-- Performance panel with recent formatting/import timing snapshots.
-- Diagnostics log panel with error filtering, issue-summary copy, and log clearing.
-- Light/dark mode, long-line wrapping, and Electron desktop packaging for macOS and Windows.
+- Format, repair, escape, unescape, edit, and compare JSON locally.
+- Multi-tab workspace with per-tab editor, search, fold, and selection state.
+- Left-pane search and replace plus right-pane formatted-result search.
+- Dedicated large-file viewer for 5MB+ JSON with virtualized rows, fold/unfold, copy, edit, delete, rename, and optional right-to-left locate.
+- Worker-based formatting, search, node editing, and large-file indexing to keep the UI responsive.
+- Performance panel, diagnostics log panel, light/dark mode, and long-line wrapping.
+- Electron desktop packaging for macOS and Windows.
 
-## Project Structure
+## Privacy
 
-```text
-.
-├── electron/
-│   ├── main.ts
-│   └── preload.ts
-├── src/
-│   ├── components/
-│   ├── hooks/
-│   ├── setup/
-│   ├── test/
-│   ├── types/
-│   ├── utils/
-│   ├── workers/
-│   ├── App.tsx
-│   └── index.tsx
-├── docs/
-├── scripts/
-├── vite.config.mts
-├── vitest.config.mts
-├── tsconfig.json
-├── tsconfig.electron.json
-└── package.json
-```
+FxxkJson processes JSON locally in the desktop app. The project does not include analytics, telemetry uploads, or remote JSON processing.
 
-## Commands
+## Requirements
+
+- Node.js 22+
+- npm
+
+## Development
 
 ```bash
 npm install
@@ -49,67 +31,55 @@ npm run dev        # run the Electron + Vite dev app
 npm run typecheck  # type-check renderer and Electron sources
 npm test           # run Vitest tests
 npm run build      # build renderer and Electron output
-npm run check      # typecheck + test + build
-npm run smoke      # run a lightweight JSON format/search/edit/repair smoke flow
-npm run samples    # generate ignored json/sample-*.json files
-npm run bench -- --samples
-npm run perf:regression
-npm run setup:electron # repair Electron binary download if install was interrupted
+npm run check      # typecheck + test + smoke + build
 npm start          # run the built desktop app after npm run build
 ```
 
-Packaging commands are available as `npm run dist:mac`, `npm run dist:win`, and `npm run dist`. Generated installers are written to `release/`.
+Packaging commands:
 
-## Install Notes
+```bash
+npm run dist:mac
+npm run dist:win
+npm run dist
+```
 
-The repository includes an npm Electron mirror setting in `.npmrc` to make fresh installs more reliable on slower networks. If `npm install` completes but Electron cannot start because the desktop binary is missing, run:
+Generated installers are written to `release/`.
+
+## Electron Download Mirror
+
+The repository no longer forces an npm mirror through `.npmrc`. If Electron binary download is slow or interrupted, either run:
 
 ```bash
 npm run setup:electron
 ```
 
-To override the mirror for one run, set `ELECTRON_MIRROR` before the command.
+or set a mirror for one install:
+
+```bash
+ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install
+```
 
 ## Large JSON Notes
 
 - Files at or above `5MB` enter large-file mode.
 - Formatted output at or above `5MB` uses the dedicated readonly viewer instead of a second Monaco model.
-- Optional right-to-left locate is available for large files, but expensive structure trees are deferred until locate/copy behavior is actually used.
+- Optional right-to-left locate is available for large files, with expensive structure trees deferred until locate/copy/edit behavior needs them.
 - Generated samples live in `json/`; that directory is intentionally ignored by git.
 - `npm run smoke` exercises a lightweight core flow without opening the desktop UI.
-- `npm run perf:regression` measures local 5MB/20MB sample performance and can compare against a local baseline.
+- `npm run perf:regression` measures local 5MB/20MB sample performance and can compare against a committed baseline.
 
----
+## Release Notes
 
-# HanJson 中文说明
+The desktop release workflow builds unsigned macOS and Windows packages from version tags. Public distribution may show macOS Gatekeeper or Windows SmartScreen warnings until code signing and notarization are configured.
 
-HanJson 是一个桌面端 JSON 格式化、搜索和大文件查看工具，基于 Electron、React、Vite 和 Monaco Editor 构建。
+## Contributing
 
-## 主要能力
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-- 左侧粘贴、输入或导入 JSON，右侧实时展示格式化结果。
-- 多标签页工作区，每个标签保留独立内容和状态。
-- 左侧支持搜索和替换，右侧支持格式化结果搜索。
-- 5MB 及以上 JSON 自动进入大文件模式，使用虚拟滚动 viewer，支持折叠、展开、复制值和可选右侧定位左侧。
-- 格式化、搜索、复制值和大文件索引运行在 Worker 中，尽量避免阻塞界面。
-- 性能面板展示导入、格式化、viewer 索引等耗时。
-- 诊断日志支持只看错误、复制问题摘要和清空日志，方便定位问题。
-- 支持深浅色模式、长行换行，以及 macOS/Windows 桌面端打包。
+## Security
 
-## 常用命令
+See [SECURITY.md](SECURITY.md).
 
-```bash
-npm install
-npm run dev        # 启动 Electron + Vite 开发版桌面应用
-npm run typecheck  # 检查渲染端和 Electron 端类型
-npm test           # 运行自动化测试
-npm run build      # 构建生产产物
-npm run check      # typecheck + test + build
-npm run smoke      # 运行轻量 JSON 格式化/搜索/编辑/修复冒烟流程
-npm run samples    # 生成本地大 JSON 样例
-npm run bench -- --samples
-npm run perf:regression
-npm start          # 构建后启动桌面端生产版本
-```
+## License
 
-打包命令：`npm run dist:mac`、`npm run dist:win`、`npm run dist`。产物输出到 `release/`。
+MIT. See [LICENSE](LICENSE).

@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import PaneFindWidget from './PaneFindWidget';
 import { useEditModalSearch } from '../hooks/useEditModalSearch';
 import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 
@@ -23,7 +24,10 @@ interface JsonEditModalProps {
   onEscapeContent: (value: string) => Promise<string>;
   onCopyLiteral: () => void;
   onClose: () => void;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
+
+const defaultT = createTranslator('zh');
 
 type JsonEditModalE2EWindow = Window & {
   __HANJSON_E2E__?: boolean;
@@ -48,6 +52,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   onEscapeContent,
   onCopyLiteral,
   onClose,
+  t = defaultT,
 }) => {
   const isBusy = Boolean(busyLabel);
   const modalRef = useRef<HTMLDivElement | null>(null);
@@ -100,7 +105,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           const model = editor.getModel();
           if (model) {
             editor.pushUndoStop();
-            editor.executeEdits('hanjson-e2e', [{
+            editor.executeEdits('fxxkjson-e2e', [{
               range: model.getFullModelRange(),
               text: nextValue,
               forceMoveMarkers: true,
@@ -204,7 +209,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
               matchCount={editSearch.searchMatches.length}
               hasMore={editSearch.searchHasMore}
               isDarkMode={isDarkMode}
-              placeholder="搜索编辑内容"
+              placeholder={t('edit.searchPlaceholder')}
               searchOptions={editSearch.searchOptions}
               onChange={editSearch.handleSearchTermChange}
               onSearchOptionsChange={editSearch.handleSearchOptionsChange}
@@ -238,19 +243,19 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           <button onClick={onSave} disabled={isBusy}>{saveLabel}</button>
           <div className="modal-copy-group">
             <button onClick={() => void handleTransformContent(onUnescapeContent)} disabled={isBusy}>
-              反转义内容
+              {t('edit.unescapeContent')}
             </button>
             <button onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
-              转义为字符串
+              {t('edit.escapeContent')}
             </button>
           </div>
           <div className="modal-copy-group">
-            <button onClick={onCopyLiteral} disabled={isBusy}>复制为字符串字面量</button>
+            <button onClick={onCopyLiteral} disabled={isBusy}>{t('edit.copyLiteral')}</button>
             {hasCopiedLiteral && (
-              <span className="modal-copy-hint">已复制字符串字面量</span>
+              <span className="modal-copy-hint">{t('edit.copiedLiteral')}</span>
             )}
           </div>
-          <button onClick={onClose} disabled={isBusy}>取消</button>
+          <button onClick={onClose} disabled={isBusy}>{t('edit.cancel')}</button>
         </div>
 
         {busyLabel && <div className="modal-error">{busyLabel}</div>}

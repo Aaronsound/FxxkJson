@@ -16,7 +16,7 @@ describe('useRightSearchQuickAccess', () => {
     });
 
     expect(result.current.rightRecentSearches).toEqual(['name', 'status']);
-    expect(JSON.parse(window.localStorage.getItem('hanjson.rightSearch.recent.v1') ?? '[]')).toEqual(['name', 'status']);
+    expect(JSON.parse(window.localStorage.getItem('fxxkjson.rightSearch.recent.v1') ?? '[]')).toEqual(['name', 'status']);
   });
 
   it('pins active node paths per tab', () => {

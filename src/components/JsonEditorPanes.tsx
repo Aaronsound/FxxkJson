@@ -13,6 +13,7 @@ import type {
 } from '../types/jsonTool';
 import { getMonacoOptions } from '../utils/jsonEditorInteractions';
 import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface JsonEditorPanesProps {
   activeLargeRawViewerData: LargeRawViewerData | null;
@@ -90,7 +91,10 @@ interface JsonEditorPanesProps {
   onRightMount: OnMount;
   onRightSearchOptionsChange: (options: JsonSearchOptions) => void;
   onRightSearchTermChange: (value: string) => void;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
+
+const defaultT = createTranslator('zh');
 
 const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   activeLargeRawViewerData,
@@ -168,6 +172,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   onRightMount,
   onRightSearchOptionsChange,
   onRightSearchTermChange,
+  t = defaultT,
 }) => (
   <Split
     sizes={[50, 50]}
@@ -202,7 +207,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             hasMore={leftSearchHasMore}
             isLoadingMore={isLeftSearchLoadingMore}
             isDarkMode={isDarkMode}
-            placeholder="搜索原始 JSON"
+            placeholder={t('pane.leftSearchPlaceholder')}
             searchOptions={leftSearchOptions}
             canReplace
             replaceValue={leftReplaceText}
@@ -239,7 +244,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
           />
         )}
         {shouldShowLeftPlaceholder && (
-          <div className="editor-center-placeholder">原始 JSON</div>
+          <div className="editor-center-placeholder">{t('pane.rawPlaceholder')}</div>
         )}
         {processingStageText && (
           <div className="editor-loading-overlay">
@@ -263,10 +268,10 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
         <span className="editor-pane-header-text">{rightPaneMetaText}</span>
         <div className="editor-pane-header-flags">
           <span className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}>
-            轻量折叠模式
+            {t('pane.lightFoldMode')}
           </span>
           <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
-            轻量模式
+            {t('pane.lightMode')}
           </span>
         </div>
       </div>
@@ -282,7 +287,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             favoritePaths={rightPinnedPaths}
             canPinPath={Boolean(rightSelectedRange)}
             isDarkMode={isDarkMode}
-            placeholder="搜索格式化结果"
+            placeholder={t('pane.rightSearchPlaceholder')}
             searchOptions={rightSearchOptions}
             onChange={onRightSearchTermChange}
             onSearchOptionsChange={onRightSearchOptionsChange}
@@ -321,6 +326,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             onRenameKey={onRenameRightKey}
             onUnescapeValue={onUnescapeRightValue}
             onOpenFind={onOpenRightFind}
+            t={t}
           />
         ) : !isBuildingDedicatedRightViewer ? (
           <Editor
@@ -338,11 +344,11 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
         ) : null}
         {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
           <div className="editor-center-placeholder">
-            {processingStageText ?? (isFormattingActiveTab ? '正在格式化...' : '格式化结果')}
+            {processingStageText ?? (isFormattingActiveTab ? t('pane.formatting') : t('pane.formattedPlaceholder'))}
           </div>
         )}
         {isBuildingDedicatedRightViewer && !isImportingActiveTab && (
-          <div className="editor-loading-overlay">{processingStageText ?? '正在构建大文件查看模式...'}</div>
+          <div className="editor-loading-overlay">{processingStageText ?? t('pane.buildingLargeViewer')}</div>
         )}
         {processingStageText && !isBuildingDedicatedRightViewer && (
           <div className="editor-loading-overlay">{processingStageText}</div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { StructureStatus } from '../types/jsonTool';
+import { createTranslator, type AppLanguage, type I18nKey } from '../utils/i18n';
 
 interface JsonToolToolbarProps {
   onImport: () => void;
@@ -32,7 +33,12 @@ interface JsonToolToolbarProps {
   currentStructureStatus: StructureStatus;
   processingStageText: string | null;
   currentError: string | null;
+  language?: AppLanguage;
+  onLanguageChange?: (language: AppLanguage) => void;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
+
+const defaultT = createTranslator('zh');
 
 function getToolbarHintMessage({
   importingFileName,
@@ -41,6 +47,7 @@ function getToolbarHintMessage({
   canEnableLargeFileLocate,
   usesLightweightLocate,
   currentStructureStatus,
+  t,
 }: Pick<
   JsonToolToolbarProps,
   | 'importingFileName'
@@ -49,9 +56,11 @@ function getToolbarHintMessage({
   | 'canEnableLargeFileLocate'
   | 'usesLightweightLocate'
   | 'currentStructureStatus'
->) {
+> & {
+  t: (key: I18nKey, params?: Record<string, string | number>) => string;
+}) {
   if (importingFileName) {
-    return `正在导入 ${importingFileName}...`;
+    return t('toolbar.importing', { fileName: importingFileName });
   }
 
   if (!isLargeFileMode && !isLargeFileLocateEnabled) {
@@ -59,42 +68,42 @@ function getToolbarHintMessage({
   }
 
   if (!isLargeFileMode) {
-    return '已预设大文件定位：下次导入 5MB 以上 JSON 时，会按当前选择启用结构定位或轻量定位。';
+    return t('toolbar.locatePreset');
   }
 
   if (!canEnableLargeFileLocate) {
-    return '大文件轻量模式已开启：当前没有可定位的原始内容。';
+    return t('toolbar.noLocateContent');
   }
 
   if (usesLightweightLocate) {
     if (!isLargeFileLocateEnabled) {
-      return '超大文件轻量模式已开启：当前未启用右侧定位，可勾选后使用轻量文本定位。';
+      return t('toolbar.lightweightLocateOff');
     }
 
     if (currentStructureStatus === 'building') {
-      return '超大文件轻量模式已开启：正在准备轻量定位，完成后可从右侧点击定位到左侧。';
+      return t('toolbar.lightweightLocateBuilding');
     }
 
     if (currentStructureStatus === 'ready') {
-      return '超大文件轻量模式已开启：已使用文本 token 映射右侧点击位置，重复内容可能定位到近似位置。';
+      return t('toolbar.lightweightLocateReady');
     }
 
-    return '超大文件轻量模式已开启：轻量定位暂不可用，仅保留轻量浏览与格式化。';
+    return t('toolbar.lightweightLocateDisabled');
   }
 
   if (!isLargeFileLocateEnabled) {
-    return '大文件轻量模式已开启：当前未建立定位索引，如需右侧点击定位左侧，请勾选“大文件启用右侧定位”。';
+    return t('toolbar.largeLocateOff');
   }
 
   if (currentStructureStatus === 'building') {
-    return '大文件轻量模式已开启：正在后台建立定位能力，完成后可从右侧点击定位到左侧。';
+    return t('toolbar.largeLocateBuilding');
   }
 
   if (currentStructureStatus === 'disabled') {
-    return '大文件轻量模式已开启：当前内容未能建立定位能力，仅保留轻量浏览与格式化。';
+    return t('toolbar.largeLocateDisabled');
   }
 
-  return '大文件轻量模式已开启：已保留右侧点击定位左侧的能力，并优先保证滚动和交互流畅。';
+  return t('toolbar.largeLocateReady');
 }
 
 const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
@@ -128,6 +137,9 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   currentStructureStatus,
   processingStageText,
   currentError,
+  language = 'zh',
+  onLanguageChange,
+  t = defaultT,
 }) => {
   const hintMessage = getToolbarHintMessage({
     importingFileName,
@@ -136,6 +148,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
     canEnableLargeFileLocate,
     usesLightweightLocate,
     currentStructureStatus,
+    t,
   });
 
   return (
@@ -143,44 +156,44 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
       <div className="toolbar-layout">
         <div className="toolbar-top-row">
           <section className="toolbar-section toolbar-section-actions">
-            <span className="toolbar-section-label">操作</span>
+            <span className="toolbar-section-label">{t('toolbar.actions')}</span>
             <div className="toolbar-section-body toolbar-actions-layout">
               <div className="toolbar-actions-primary">
                 <button className="toolbar-button-primary" onClick={onImport}>
-                  导入 JSON
+                  {t('toolbar.import')}
                 </button>
                 <button className="toolbar-button-primary" onClick={onFormat}>
-                  格式化
+                  {t('toolbar.format')}
                 </button>
                 <button className="toolbar-button-primary" onClick={onRepairJson} disabled={!canEditJson}>
-                  修复 JSON
+                  {t('toolbar.repair')}
                 </button>
               </div>
               <div className="toolbar-actions-secondary">
                 <button className="toolbar-button-secondary" onClick={onUnescapeJson} disabled={!canEditJson}>
-                  反转义
+                  {t('toolbar.unescape')}
                 </button>
                 <button className="toolbar-button-secondary" onClick={onEscapeJson} disabled={!canEditJson}>
-                  转义
+                  {t('toolbar.escape')}
                 </button>
                 <button className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
-                  编辑 JSON
+                  {t('toolbar.editJson')}
                 </button>
                 <button className="toolbar-button-secondary" onClick={onOpenCompare} disabled={!canCompareJson}>
-                  对比 JSON
+                  {t('toolbar.compareJson')}
                 </button>
                 <button className="toolbar-button-secondary" onClick={onOpenDiagnosticsLog}>
-                  诊断日志
+                  {t('toolbar.diagnostics')}
                 </button>
                 <button className="toolbar-button-secondary" onClick={onOpenAbout}>
-                  关于
+                  {t('toolbar.about')}
                 </button>
-                <button onClick={onClear}>清空</button>
+                <button onClick={onClear}>{t('toolbar.clear')}</button>
                 <button onClick={onFoldAll} disabled={!canControlRightPaneFolding}>
-                  折叠全部
+                  {t('toolbar.foldAll')}
                 </button>
                 <button onClick={onUnfoldAll} disabled={!canControlRightPaneFolding}>
-                  展开全部
+                  {t('toolbar.unfoldAll')}
                 </button>
               </div>
             </div>
@@ -190,7 +203,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
 
         <div className="toolbar-bottom-row">
           <section className="toolbar-section toolbar-section-view">
-            <span className="toolbar-section-label">视图</span>
+            <span className="toolbar-section-label">{t('toolbar.view')}</span>
             <div className="toolbar-section-body toolbar-view-row">
               <label className="toolbar-checkbox">
                 <input
@@ -198,7 +211,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                   checked={wrapLongLines}
                   onChange={(event) => onWrapLongLinesChange(event.target.checked)}
                 />
-                自动换行
+                {t('toolbar.wrap')}
               </label>
               <label className="toolbar-checkbox">
                 <input
@@ -207,7 +220,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                   disabled={isLargeFileMode && !canEnableLargeFileLocate}
                   onChange={(event) => onLargeFileLocateToggle(event.target.checked)}
                 />
-                大文件启用右侧定位
+                {t('toolbar.largeLocate')}
               </label>
               <label className="toolbar-checkbox">
                 <input
@@ -215,10 +228,17 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                   checked={showPerformancePanel}
                   onChange={(event) => onShowPerformancePanelChange(event.target.checked)}
                 />
-                显示性能面板
+                {t('toolbar.performance')}
               </label>
               <button className="toolbar-button-secondary" onClick={onToggleDarkMode}>
-                {isDarkMode ? '浅色模式' : '深色模式'}
+                {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
+              </button>
+              <button
+                className="toolbar-button-secondary"
+                onClick={() => onLanguageChange?.(language === 'zh' ? 'en' : 'zh')}
+                aria-label={t('toolbar.language')}
+              >
+                {t('toolbar.languageToggle')}
               </button>
             </div>
           </section>
