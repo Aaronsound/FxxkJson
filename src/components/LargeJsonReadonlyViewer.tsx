@@ -33,6 +33,7 @@ import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
 
 const LINE_HEIGHT = 18;
 const OVERSCAN = 30;
+const MAX_LINE_TITLE_LENGTH = 1000;
 
 interface LocalSelectionRange {
   start: number;
@@ -123,6 +124,14 @@ function getLineNumberForOffset(lineStarts: Uint32Array, offset: number) {
   }
 
   return result + 1;
+}
+
+function getLineTitle(lineText: string) {
+  if (lineText.length <= MAX_LINE_TITLE_LENGTH) {
+    return lineText;
+  }
+
+  return `${lineText.slice(0, MAX_LINE_TITLE_LENGTH)}...`;
 }
 
 const LargeJsonReadonlyViewer = forwardRef<
@@ -843,7 +852,7 @@ const LargeJsonReadonlyViewer = forwardRef<
           className={`large-json-line-text ${wrapLongLines ? 'wrap' : ''}`}
           data-line-number={lineNumber}
           data-collapsed={isCollapsed ? 'true' : undefined}
-          title={lineText}
+          title={getLineTitle(lineText)}
           onMouseUp={(event) => {
             if (event.button !== 0) {
               return;

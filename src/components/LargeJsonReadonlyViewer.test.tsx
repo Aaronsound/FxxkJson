@@ -135,6 +135,24 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(document.querySelector('.large-json-token-value')?.textContent).toBe('1');
   });
 
+  it('truncates very long line titles to keep DOM attributes lightweight', () => {
+    const longValue = 'x'.repeat(5000);
+    const text = [
+      '{',
+      `  "payload": "${longValue}"`,
+      '}',
+    ].join('\n');
+
+    renderViewer({ text });
+
+    const line = document.querySelector<HTMLElement>('.large-json-line-text[data-line-number="2"]');
+    expect(line).not.toBeNull();
+    const title = line?.getAttribute('title') ?? '';
+    expect(title.length).toBeLessThan(1100);
+    expect(title.endsWith('...')).toBe(true);
+    expect(title.length).toBeLessThan((line?.textContent ?? '').length);
+  });
+
   it('keeps the gutter order aligned with Monaco: line number before fold control', () => {
     renderViewer();
 
