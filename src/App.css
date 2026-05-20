@@ -360,9 +360,9 @@ button:disabled {
   overflow: auto;
   background: #ffffff;
   color: #1f2937;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 14px;
-  line-height: 19px;
+  font-family: var(--json-editor-font-family);
+  font-size: var(--json-editor-font-size);
+  line-height: var(--json-editor-line-height);
   outline: none;
 }
 
@@ -1449,7 +1449,7 @@ button:disabled {
   max-width: 100%;
   overflow: hidden;
   color: #4f6f58;
-  font-family: Menlo, Monaco, "Courier New", monospace;
+  font-family: var(--json-editor-font-family);
   font-size: 12px;
   line-height: 1.4;
   text-overflow: ellipsis;
@@ -1582,7 +1582,7 @@ button:disabled {
   min-width: 0;
   overflow: hidden;
   color: #6b7280;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--json-editor-font-family);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1765,7 +1765,7 @@ button:disabled {
 
 .json-compare-row code {
   overflow-wrap: anywhere;
-  font-family: Consolas, "Courier New", monospace;
+  font-family: var(--json-editor-font-family);
   white-space: pre-wrap;
 }
 

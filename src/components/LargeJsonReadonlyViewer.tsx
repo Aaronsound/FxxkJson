@@ -21,7 +21,6 @@ import {
   findSearchMatchesInLargeJson,
 } from '../utils/largeJsonViewerData';
 import {
-  binarySearchSegment,
   buildHighlightedJsonLineSegments,
   clamp,
   getCollapsedPreview,
@@ -30,6 +29,7 @@ import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
 import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
+import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
@@ -317,28 +317,19 @@ const LargeJsonReadonlyViewer = forwardRef<
       && normalizedSelectedRange.start < Math.max(lineEnd, lineStart + 1);
   }, [data.lineCount, data.lineStarts, normalizedSelectedRange, text.length]);
 
-  const getActualLineNumber = useCallback((visibleIndex: number) => {
-    const segment = binarySearchSegment(visibleSegments, visibleIndex);
-    if (!segment) {
-      return null;
-    }
-
-    return segment.actualStart + (visibleIndex - segment.visibleStart);
-  }, [visibleSegments]);
-
-  const getVisibleIndexForActualLine = useCallback((lineNumber: number) => {
-    for (const segment of visibleSegments) {
-      if (lineNumber < segment.actualStart) {
-        break;
-      }
-
-      if (lineNumber <= segment.actualEnd) {
-        return segment.visibleStart + (lineNumber - segment.actualStart);
-      }
-    }
-
-    return null;
-  }, [visibleSegments]);
+  const {
+    endVisibleIndex,
+    getActualLineNumber,
+    getVisibleIndexForActualLine,
+    startVisibleIndex,
+  } = useLargeJsonVisibleWindow({
+    rowHeight,
+    scrollTop,
+    viewportHeight,
+    visibleLineCount,
+    visibleSegments,
+    overscan: OVERSCAN,
+  });
 
   const resolveOffsetFromPoint = useCallback((
     event: ReactMouseEvent<HTMLElement>,
@@ -696,11 +687,6 @@ const LargeJsonReadonlyViewer = forwardRef<
     return () => observer.disconnect();
   }, []);
 
-  const startVisibleIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN);
-  const endVisibleIndex = Math.min(
-    Math.max(0, visibleLineCount - 1),
-    Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN
-  );
   const lineNumberWidth = `${Math.max(3, String(data.lineCount).length)}ch`;
 
   const renderLineText = useCallback((

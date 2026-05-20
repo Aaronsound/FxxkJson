@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 20
     env:
       HANJSON_E2E_SIZE_MB: ${{ github.event_name == 'workflow_dispatch' && inputs.size_mb || '2' }}
+      HANJSON_E2E_ARTIFACT_DIR: electron-e2e-artifacts
 
     steps:
       - name: Checkout
@@ -44,3 +45,11 @@ jobs:
 
       - name: Run Electron E2E
         run: xvfb-run --auto-servernum npm run e2e:electron -- --size-mb "$HANJSON_E2E_SIZE_MB"
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-e2e-diagnostics
+          path: electron-e2e-artifacts
+          if-no-files-found: ignore

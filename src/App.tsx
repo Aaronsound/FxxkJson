@@ -23,6 +23,7 @@ import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
 import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
+import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import {
@@ -170,7 +171,6 @@ const App: React.FC = () => {
 
     return window.localStorage.getItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY) !== 'false';
   });
-  const [isDragImportActive, setIsDragImportActive] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeAppInfo | null>(null);
@@ -201,7 +201,6 @@ const App: React.FC = () => {
   const largeRawViewerRef = useRef<LargeRawReadonlyViewerHandle | null>(null);
   const largeViewerRef = useRef<LargeJsonReadonlyViewerHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const dragImportDepthRef = useRef(0);
   const rawTextByTabRef = useRef<Record<string, string>>({
     [INITIAL_TAB_ID]: '',
   });
@@ -807,6 +806,18 @@ const App: React.FC = () => {
     revealLeftRange,
     clearLeftHighlights,
     clearRightHighlights,
+  });
+
+  const {
+    handleImportDragEnter,
+    handleImportDragLeave,
+    handleImportDragOver,
+    handleImportDrop,
+    isDragImportActive,
+  } = useJsonImportDropZone({
+    activeTab,
+    importJsonFile,
+    setTabError,
   });
 
   useEffect(() => {
@@ -1550,68 +1561,6 @@ const App: React.FC = () => {
 
     if (!file) {
       setTabError(activeTab.id, '请选择 .json 或 .txt 文件');
-      return;
-    }
-
-    await importJsonFile(activeTab.id, file);
-  };
-
-  const hasDraggedFiles = (event: React.DragEvent<HTMLDivElement>) => (
-    Array.from(event.dataTransfer.types).includes('Files')
-  );
-
-  const handleImportDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.dataTransfer.dropEffect = 'copy';
-    dragImportDepthRef.current += 1;
-    setIsDragImportActive(true);
-  };
-
-  const handleImportDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.dataTransfer.dropEffect = 'copy';
-  };
-
-  const handleImportDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    dragImportDepthRef.current = Math.max(0, dragImportDepthRef.current - 1);
-    if (dragImportDepthRef.current === 0) {
-      setIsDragImportActive(false);
-    }
-  };
-
-  const handleImportDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    dragImportDepthRef.current = 0;
-    setIsDragImportActive(false);
-
-    if (!activeTab) {
-      return;
-    }
-
-    const file = getFirstJsonImportFile(event.dataTransfer.files);
-    if (!file) {
-      setTabError(activeTab.id, '请拖入 .json 或 .txt 文件');
       return;
     }
 

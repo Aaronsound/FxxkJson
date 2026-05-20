@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createReadStream } from 'node:fs';
-import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -108,6 +108,56 @@ async function importSampleByDrop(cdp, sampleUrl, fileName) {
     target.dispatchEvent(event);
     return true;
   })()`);
+}
+
+async function collectFailureArtifacts({ cdp, stderr }) {
+  const artifactDir = process.env.HANJSON_E2E_ARTIFACT_DIR;
+  if (!artifactDir) {
+    return;
+  }
+
+  await mkdir(artifactDir, { recursive: true });
+
+  if (stderr) {
+    await writeFile(path.join(artifactDir, 'electron-stderr.log'), stderr, 'utf8');
+  }
+
+  if (!cdp) {
+    return;
+  }
+
+  try {
+    const diagnostics = await evaluate(cdp, `(() => JSON.stringify({
+      locateChecked: Array.from(document.querySelectorAll('label.toolbar-checkbox'))
+        .find((label) => label.textContent?.includes('大文件启用右侧定位'))
+        ?.querySelector('input')?.checked ?? null,
+      rightLineCount: document.querySelectorAll('.right-editor-pane .large-json-line-text').length,
+      rightHighlights: document.querySelectorAll('.right-editor-pane .rightNodeSelectionHighlight').length,
+      leftHighlights: document.querySelectorAll('.left-editor-pane .currentSearchHighlight, .left-editor-pane [data-large-raw-highlight="true"]').length,
+      findCount: document.querySelector('.right-editor-pane .pane-find-count')?.textContent ?? null,
+      compareOpen: Boolean(document.querySelector('.json-compare-card')),
+      compareError: Array.from(document.querySelectorAll('.modal-error')).map((element) => element.textContent).join('\\n'),
+      toolbarHint: document.querySelector('.toolbar-hint')?.textContent ?? null,
+      bodyStart: document.body.innerText.slice(0, 700)
+    }, null, 2))()`);
+    await writeFile(path.join(artifactDir, 'renderer-diagnostics.json'), diagnostics, 'utf8');
+    console.error(`Renderer diagnostics: ${diagnostics}`);
+  } catch (diagnosticError) {
+    console.error(`Renderer diagnostics failed: ${diagnosticError.message}`);
+  }
+
+  try {
+    const screenshot = await cdp.send('Page.captureScreenshot', {
+      captureBeyondViewport: true,
+      format: 'png',
+    });
+    await writeFile(
+      path.join(artifactDir, 'renderer-screenshot.png'),
+      Buffer.from(screenshot.data, 'base64')
+    );
+  } catch (screenshotError) {
+    console.error(`Renderer screenshot failed: ${screenshotError.message}`);
+  }
 }
 
 async function run() {
@@ -360,26 +410,7 @@ async function run() {
       { step: 'compare invalid', detail: 'JSON compare reports parse errors for invalid input' },
     ]);
   } catch (error) {
-    if (cdp) {
-      try {
-        const diagnostics = await evaluate(cdp, `(() => JSON.stringify({
-          locateChecked: Array.from(document.querySelectorAll('label.toolbar-checkbox'))
-            .find((label) => label.textContent?.includes('大文件启用右侧定位'))
-            ?.querySelector('input')?.checked ?? null,
-          rightLineCount: document.querySelectorAll('.right-editor-pane .large-json-line-text').length,
-          rightHighlights: document.querySelectorAll('.right-editor-pane .rightNodeSelectionHighlight').length,
-          leftHighlights: document.querySelectorAll('.left-editor-pane .currentSearchHighlight, .left-editor-pane [data-large-raw-highlight="true"]').length,
-          findCount: document.querySelector('.right-editor-pane .pane-find-count')?.textContent ?? null,
-          compareOpen: Boolean(document.querySelector('.json-compare-card')),
-          compareError: Array.from(document.querySelectorAll('.modal-error')).map((element) => element.textContent).join('\\n'),
-          toolbarHint: document.querySelector('.toolbar-hint')?.textContent ?? null,
-          bodyStart: document.body.innerText.slice(0, 700)
-        }))()`);
-        console.error(`Renderer diagnostics: ${diagnostics}`);
-      } catch (diagnosticError) {
-        console.error(`Renderer diagnostics failed: ${diagnosticError.message}`);
-      }
-    }
+    await collectFailureArtifacts({ cdp, stderr });
     if (stderr) {
       console.error(stderr);
     }

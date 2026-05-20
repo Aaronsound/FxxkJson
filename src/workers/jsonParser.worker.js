@@ -5,15 +5,12 @@ import {
   buildLargeViewerData,
 } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
-import { formatJsonText, parseJsonForFormatting, repairJsonText } from '../utils/jsonFormat';
-import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
+import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { getDeferredStructureWarmupDelayMs } from '../utils/jsonWorkerPlan';
 import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
-import {
-  saveJsonPreservingOriginalFormat,
-} from '../utils/preserveJsonFormat';
 import { createJsonNodeEditOperations } from './jsonNodeEditOperations';
+import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
 import { getJsonWorkerMessageHandler } from '../utils/jsonWorkerMessageRouting';
 import {
   getTextByteLength,
@@ -49,50 +46,6 @@ function getStructureWarmupDelayForTexts(rawText, formattedText, baseDelayMs) {
     Math.max(getTextByteLength(rawText ?? ''), getTextByteLength(formattedText ?? '')),
     baseDelayMs
   );
-}
-
-function formatJsonForEdit(tabId, text) {
-  const { value, normalizedNestedString } = parseJsonForFormatting(text);
-
-  if (normalizedNestedString) {
-    editJsonCache.delete(tabId);
-  } else {
-    editJsonCache.set(tabId, {
-      originalText: text,
-      originalValue: value,
-    });
-  }
-
-  return JSON.stringify(value, null, 2);
-}
-
-function saveJsonForEdit(tabId, text, originalText) {
-  if (typeof originalText === 'string') {
-    const cached = editJsonCache.get(tabId);
-    const saved = saveJsonPreservingOriginalFormat(
-      originalText,
-      text,
-      cached?.originalText === originalText
-        ? { originalValue: cached.originalValue }
-        : undefined
-    );
-
-    editJsonCache.delete(tabId);
-    return saved;
-  }
-
-  return formatJsonForEdit(tabId, text);
-}
-
-function copyJsonAsStringLiteral(text) {
-  return JSON.stringify(JSON.stringify(JSON.parse(text)));
-}
-
-function transformJsonEscape(operation, text) {
-  const result = operation === 'escape-json'
-    ? escapeJsonText(text)
-    : unescapeJsonText(text);
-  return result.text;
 }
 
 function ensureStructureTrees(tabId, cached) {
@@ -220,6 +173,11 @@ const jsonNodeEditOperations = createJsonNodeEditOperations({
   scheduleDeferredStructureWarmup,
   structureCache,
   viewerCache,
+});
+
+const jsonWorkerEditJsonOperations = createJsonWorkerEditJsonOperations({
+  editJsonCache,
+  jsonNodeEditOperations,
 });
 const jsonWorkerSearchOperations = createJsonWorkerSearchOperations({
   latestSearchRequestByKey,
@@ -452,81 +410,6 @@ function handleClearStructureMessage(message) {
   cancelInteractiveRequests(message.tabId);
 }
 
-function handleEditJsonMessage(message) {
-  const { requestId, tabId, operation, text, originalText, path, offset } = message;
-
-  try {
-    const data = (() => {
-      if (operation === 'copy-literal') {
-        return copyJsonAsStringLiteral(text);
-      }
-
-      if (operation === 'escape-json' || operation === 'unescape-json') {
-        return transformJsonEscape(operation, text);
-      }
-
-      if (operation === 'read-node') {
-        return jsonNodeEditOperations.readJsonNodeForEdit(tabId, text, offset);
-      }
-
-      if (operation === 'save-node') {
-        const result = jsonNodeEditOperations.saveJsonNodeForEdit(tabId, text, originalText, path);
-
-        postMessage({
-          type: 'edit-json-result',
-          requestId,
-          tabId,
-          operation,
-          success: true,
-          data: result.rawText,
-          formattedText: result.formattedText,
-          structureWarming: result.structureWarming,
-          rawViewerData: result.rawViewerData,
-          viewerData: result.viewerData,
-          viewerIndexMs: result.viewerIndexMs,
-        });
-        return null;
-      }
-
-      if (operation === 'delete-node') {
-        return jsonNodeEditOperations.deleteJsonNodeForEdit(tabId, originalText, path);
-      }
-
-      if (operation === 'rename-node-key') {
-        return jsonNodeEditOperations.renameJsonNodeKeyForEdit(tabId, text, originalText, path);
-      }
-
-      if (operation === 'save') {
-        return saveJsonForEdit(tabId, text, originalText);
-      }
-
-      return formatJsonForEdit(tabId, text);
-    })();
-
-    if (data === null) {
-      return;
-    }
-
-    postMessage({
-      type: 'edit-json-result',
-      requestId,
-      tabId,
-      operation,
-      success: true,
-      data,
-    });
-  } catch (err) {
-    postMessage({
-      type: 'edit-json-result',
-      requestId,
-      tabId,
-      operation,
-      success: false,
-      error: err instanceof Error ? err.message : 'JSON 处理失败',
-    });
-  }
-}
-
 function handleFormatMessage(message) {
   const {
     requestId,
@@ -753,7 +636,7 @@ function handleReadValueDirectMessage(message) {
 
 const workerMessageHandlers = {
   'clear-structure': handleClearStructureMessage,
-  'edit-json': handleEditJsonMessage,
+  'edit-json': jsonWorkerEditJsonOperations.handleEditJsonMessage,
   format: handleFormatMessage,
   locate: jsonWorkerLocateOperations.handleLocateMessage,
   'locate-right-direct': jsonWorkerLocateOperations.handleLocateRightDirectMessage,
