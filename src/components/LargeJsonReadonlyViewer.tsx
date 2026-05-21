@@ -19,6 +19,14 @@ import {
 import type { JsonSearchOptions, LargeJsonViewerRegion } from '../types/jsonTool';
 import { findSearchMatchesInLargeJson } from '../utils/largeJsonViewerData';
 import { buildHighlightedJsonLineSegments, clamp, getCollapsedPreview } from '../utils/largeJsonViewerRender';
+import {
+  getFirstMeaningfulOffset,
+  getLargeJsonLineTitle,
+  getLineNumberForOffset,
+  getLineNumberFromElement,
+  getLineTextElementFromNode,
+  getTextOffsetWithin,
+} from '../utils/largeJsonViewerDom';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
@@ -29,7 +37,6 @@ import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
 const OVERSCAN = 30;
-const MAX_LINE_TITLE_LENGTH = 1000;
 
 interface LocalSelectionRange {
   start: number;
@@ -70,67 +77,6 @@ export interface LargeJsonReadonlyViewerHandle {
   unfoldAll: () => void;
   focus: () => void;
   revealOffset: (offset: number) => void;
-}
-
-function getTextOffsetWithin(root: HTMLElement, node: Node, offset: number, fallbackLength: number) {
-  const range = document.createRange();
-
-  try {
-    range.selectNodeContents(root);
-    range.setEnd(node, offset);
-    return clamp(range.toString().length, 0, fallbackLength);
-  } catch {
-    return fallbackLength;
-  } finally {
-    range.detach();
-  }
-}
-
-function getLineTextElementFromNode(node: Node, container: HTMLElement) {
-  const element = node instanceof Element ? node : node.parentElement;
-  const lineElement = element?.closest<HTMLElement>('.large-json-line-text') ?? null;
-
-  if (!lineElement || !container.contains(lineElement)) {
-    return null;
-  }
-
-  return lineElement;
-}
-
-function getLineNumberFromElement(element: HTMLElement) {
-  const lineNumber = Number(element.dataset.lineNumber);
-  return Number.isFinite(lineNumber) ? lineNumber : null;
-}
-
-function getFirstMeaningfulOffset(lineText: string) {
-  const match = lineText.match(/\S/);
-  return match?.index ?? 0;
-}
-
-function getLineNumberForOffset(lineStarts: Uint32Array, offset: number) {
-  let low = 0;
-  let high = lineStarts.length - 1;
-  let result = 0;
-
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    if (lineStarts[mid] <= offset) {
-      result = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-
-  return result + 1;
-}
-
-function getLineTitle(lineText: string) {
-  if (lineText.length <= MAX_LINE_TITLE_LENGTH) {
-    return lineText;
-  }
-
-  return `${lineText.slice(0, MAX_LINE_TITLE_LENGTH)}...`;
 }
 
 const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJsonReadonlyViewerProps>(
@@ -815,7 +761,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
             className={`large-json-line-text ${wrapLongLines ? 'wrap' : ''}`}
             data-line-number={lineNumber}
             data-collapsed={isCollapsed ? 'true' : undefined}
-            title={getLineTitle(lineText)}
+            title={getLargeJsonLineTitle(lineText)}
             onMouseUp={(event) => {
               if (event.button !== 0) {
                 return;

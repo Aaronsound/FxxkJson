@@ -1,11 +1,6 @@
 import { MutableRefObject, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import {
-  EDIT_SAVE_FORMAT_DELAY_MS,
-  FORMAT_DEBOUNCE_MS,
-  LARGE_FILE_THRESHOLD,
-  LARGE_FILE_FORMAT_DEBOUNCE_MS,
-} from '../types/jsonTool';
+import { EDIT_SAVE_FORMAT_DELAY_MS, FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS } from '../types/jsonTool';
 import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -19,17 +14,12 @@ import type {
 } from '../types/jsonTool';
 import { PerformanceSession } from './useJsonPerformanceTracking';
 import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
-import { disposeModel, getFileName, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
+import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
+import { disposeModel, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
 import { getUtf8ByteLength, shouldUseDedicatedRightViewer, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 import { createJsonWorkerClient } from '../utils/jsonWorkerClient';
 import { getFormatWorkerResult, getRepairWorkerResult } from '../utils/jsonWorkerResponse';
-
-interface JsonImportSource {
-  name: string;
-  size: number;
-  readText: () => Promise<string>;
-}
 
 interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
@@ -501,122 +491,21 @@ export function useJsonFormattingWorker({
     callbacksRef.current.removeTabState(tabId);
   };
 
-  const importJsonSource = async (tabId: string, source: JsonImportSource) => {
-    const presumedLargeMode = source.size >= LARGE_FILE_THRESHOLD;
-
-    try {
-      callbacksRef.current.beginPerformanceSession(
-        tabId,
-        'import',
-        source.name,
-        source.size,
-        source.size,
-        presumedLargeMode
-      );
-      callbacksRef.current.logEvent('import-start', {
-        tabId,
-        fileName: source.name,
-        fileSize: source.size,
-      });
-      callbacksRef.current.setTabError(tabId, null);
-      callbacksRef.current.setTabImporting(tabId, source.name);
-      callbacksRef.current.setTabFormatting(tabId, false);
-      callbacksRef.current.setProcessingStage(tabId, 'reading');
-      callbacksRef.current.setLocateFeedback(tabId, null);
-      callbacksRef.current.renameTab(tabId, getFileName(source.name));
-      callbacksRef.current.setTabLargeMode(tabId, presumedLargeMode);
-      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
-      callbacksRef.current.setLargeViewerData(tabId, null);
-      callbacksRef.current.setLargeRawViewerData(tabId, null);
-      callbacksRef.current.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
-      workerStructureEnabledRef.current[tabId] = false;
-      cancelInteractiveRequests(tabId);
+  const importFlowRef = useRef<ReturnType<typeof createJsonWorkerImportFlow> | null>(null);
+  importFlowRef.current ??= createJsonWorkerImportFlow({
+    cancelInteractiveRequests,
+    getCallbacks: () => callbacksRef.current,
+    largeFileLocateEnabledRef,
+    postClearStructure: (tabId) => {
       postWorkerRequest({
         type: 'clear-structure',
         tabId,
       });
-      callbacksRef.current.resetSearchState();
-
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 0);
-      });
-
-      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
-        session.readStartedAt = performance.now();
-      });
-      const content = await source.readText();
-      const rawBytes = getUtf8ByteLength(content);
-      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
-        session.readCompletedAt = performance.now();
-        session.rawBytes = rawBytes;
-      });
-      callbacksRef.current.logEvent('import-read-complete', {
-        tabId,
-        fileName: source.name,
-        rawLength: rawBytes,
-      });
-      const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
-      const plan = buildJsonWorkerProcessingPlan(content, locateRequested);
-
-      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
-        session.leftModelStartedAt = performance.now();
-        session.largeMode = plan.largeMode;
-        session.structureEnabled = plan.workerLocateEnabled;
-      });
-      callbacksRef.current.setProcessingStage(tabId, 'syncing-left');
-      callbacksRef.current.updateTabContent(tabId, content, true);
-      callbacksRef.current.updateFormattedContent(tabId, '', true);
-      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
-        session.leftModelCompletedAt = performance.now();
-      });
-      callbacksRef.current.setTabLargeMode(tabId, plan.largeMode);
-      callbacksRef.current.setTabFormatting(tabId, true);
-      callbacksRef.current.setTabImporting(tabId, null);
-      callbacksRef.current.setProcessingStage(tabId, 'formatting');
-      workerStructureEnabledRef.current[tabId] = plan.workerLocateEnabled;
-      callbacksRef.current.setStructureStatus(
-        tabId,
-        plan.workerLocateEnabled ? 'building' : plan.largeMode ? 'disabled' : 'ready'
-      );
-      queueFormatAfterImport(tabId, content);
-    } catch (error) {
-      callbacksRef.current.mutatePerformanceSession(
-        tabId,
-        (session) => {
-          session.status = 'failed';
-          session.error = error instanceof Error ? error.message : String(error);
-        },
-        true
-      );
-      callbacksRef.current.logEvent('import-failed', {
-        tabId,
-        fileName: source.name,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      callbacksRef.current.setTabImporting(tabId, null);
-      callbacksRef.current.setTabFormatting(tabId, false);
-      callbacksRef.current.setProcessingStage(tabId, 'idle');
-      callbacksRef.current.setLocateFeedback(tabId, null);
-      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
-      callbacksRef.current.setLargeViewerData(tabId, null);
-      callbacksRef.current.setLargeRawViewerData(tabId, null);
-      callbacksRef.current.setTabError(tabId, error instanceof Error ? `导入失败：${error.message}` : '导入失败');
-    }
-  };
-
-  const importJsonFile = async (tabId: string, file: File) =>
-    importJsonSource(tabId, {
-      name: file.name,
-      size: file.size,
-      readText: () => file.text(),
-    });
-
-  const importJsonText = async (tabId: string, name: string, size: number, content: string) =>
-    importJsonSource(tabId, {
-      name,
-      size,
-      readText: async () => content,
-    });
+    },
+    queueFormatAfterImport,
+    workerStructureEnabledRef,
+  });
+  const { importJsonFile, importJsonText } = importFlowRef.current;
 
   useEffect(() => {
     const worker = new Worker(new URL('../workers/jsonParser.worker.js', import.meta.url), { type: 'module' });

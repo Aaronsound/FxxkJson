@@ -34,7 +34,8 @@ npm run typecheck  # type-check renderer and Electron sources
 npm test           # run Vitest tests
 npm run coverage   # print a Vitest coverage summary
 npm run build      # build renderer and Electron output
-npm run check      # formatting + lint + typecheck + test + smoke + build
+npm run bundle:size # report built renderer asset sizes
+npm run check      # formatting + lint + typecheck + coverage + smoke + build + bundle report
 npm start          # run the built desktop app after npm run build
 ```
 

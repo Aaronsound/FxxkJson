@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import AboutDialog from './components/AboutDialog';
@@ -18,14 +18,16 @@ import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
 import RightEditorContextMenu from './components/RightEditorContextMenu';
-import type { RightEditorContextMenuState } from './components/RightEditorContextMenu';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
 import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
+import { useJsonImportActions } from './hooks/useJsonImportActions';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
 import { useJsonPaneSearchActions } from './hooks/useJsonPaneSearchActions';
+import { useJsonToolPreferences } from './hooks/useJsonToolPreferences';
 import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
+import { useRightEditorContextMenuState } from './hooks/useRightEditorContextMenuState';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeEditOpeners } from './hooks/useRightNodeEditOpeners';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
@@ -57,7 +59,6 @@ import {
 } from './utils/jsonEditorMountActions';
 import { getUtf8ByteLength, isLargeDocument, shouldUseLargeMode } from './utils/jsonDocumentMetrics';
 import { formatBytes, formatDuration, getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
-import { getFirstJsonImportFile } from './utils/importFiles';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
@@ -65,10 +66,7 @@ import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
-import { createTranslator, getInitialLanguage, LANGUAGE_STORAGE_KEY } from './utils/i18n';
 import './App.css';
-
-const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'fxxkjson.performancePanel.visible.v2';
 
 const App: React.FC = () => {
   const {
@@ -148,23 +146,22 @@ const App: React.FC = () => {
   const [leftRawHighlightRange, setLeftRawHighlightRange] = useState<{ start: number; end: number } | null>(null);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [language, setLanguage] = useState(getInitialLanguage);
-  const t = useMemo(() => createTranslator(language), [language]);
-  const [wrapLongLines, setWrapLongLines] = useState(false);
-  const [showPerformancePanel, setShowPerformancePanel] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true;
-    }
-
-    return window.localStorage.getItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY) !== 'false';
-  });
+  const {
+    isDarkMode,
+    language,
+    setIsDarkMode,
+    setLanguage,
+    setShowPerformancePanel,
+    setWrapLongLines,
+    showPerformancePanel,
+    t,
+    wrapLongLines,
+  } = useJsonToolPreferences();
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeAppInfo | null>(null);
   const [isArchitectureWarningDismissed, setIsArchitectureWarningDismissed] = useState(false);
   const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
-  const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState | null>(null);
   const {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
@@ -297,6 +294,10 @@ const App: React.FC = () => {
   const shouldUseDedicatedLeftViewer = Boolean(activeRawText && activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD);
   const isBuildingDedicatedRightViewer = Boolean(
     formattedValue && !shouldUseDedicatedRightViewer && activeLargeViewerStatus === 'building'
+  );
+  const { rightEditorContextMenu, setRightEditorContextMenu } = useRightEditorContextMenuState(
+    activeTabId,
+    shouldUseDedicatedRightViewer
   );
   const canControlRightPaneFolding = Boolean(
     formattedValue && !isBuildingDedicatedRightViewer && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
@@ -758,33 +759,6 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setRightEditorContextMenu(null);
-  }, [activeTabId, shouldUseDedicatedRightViewer]);
-
-  useEffect(() => {
-    if (!rightEditorContextMenu) {
-      return;
-    }
-
-    const closeContextMenu = () => setRightEditorContextMenu(null);
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeContextMenu();
-      }
-    };
-
-    window.addEventListener('pointerdown', closeContextMenu);
-    window.addEventListener('scroll', closeContextMenu, true);
-    window.addEventListener('keydown', handleKeyDown, true);
-
-    return () => {
-      window.removeEventListener('pointerdown', closeContextMenu);
-      window.removeEventListener('scroll', closeContextMenu, true);
-      window.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [rightEditorContextMenu]);
-
-  useEffect(() => {
     const previousTabId = previousActiveTabIdRef.current;
 
     if (previousTabId && previousTabId !== activeTabId) {
@@ -794,15 +768,6 @@ const App: React.FC = () => {
 
     previousActiveTabIdRef.current = activeTabId;
   }, [activeTabId]);
-
-  useEffect(() => {
-    window.localStorage.setItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY, String(showPerformancePanel));
-  }, [showPerformancePanel]);
-
-  useEffect(() => {
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-    document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
-  }, [language]);
 
   useEffect(() => {
     if (!activeTab) {
@@ -1412,44 +1377,13 @@ const App: React.FC = () => {
     queueFormat(activeTab.id, nextContent);
   };
 
-  const handleImport = async () => {
-    if (!activeTab) {
-      return;
-    }
-
-    if (window.electronAPI?.openJsonFile) {
-      try {
-        const file = await window.electronAPI.openJsonFile();
-        if (!file) {
-          return;
-        }
-
-        await importJsonText(activeTab.id, file.name, file.size, file.content);
-      } catch (error) {
-        setTabError(activeTab.id, error instanceof Error ? `导入失败：${error.message}` : '导入失败');
-      }
-      return;
-    }
-
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = event.target.files;
-    const file = getFirstJsonImportFile(selectedFiles);
-    event.target.value = '';
-
-    if (!activeTab || !selectedFiles || selectedFiles.length === 0) {
-      return;
-    }
-
-    if (!file) {
-      setTabError(activeTab.id, '请选择 .json 或 .txt 文件');
-      return;
-    }
-
-    await importJsonFile(activeTab.id, file);
-  };
+  const { handleFileSelection, handleImport } = useJsonImportActions({
+    activeTab,
+    fileInputRef,
+    importJsonFile,
+    importJsonText,
+    setTabError,
+  });
 
   const handleFormat = () => {
     if (!activeTab) {

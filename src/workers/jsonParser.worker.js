@@ -9,7 +9,7 @@ import { getDeferredStructureWarmupDelayMs } from '../utils/jsonWorkerPlan';
 import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
 import { createJsonNodeEditOperations } from './jsonNodeEditOperations';
 import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
-import { getJsonWorkerMessageHandler } from '../utils/jsonWorkerMessageRouting';
+import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../utils/jsonWorkerMessageRouting';
 import { getTextByteLength, postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
 import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
 import {
@@ -611,6 +611,10 @@ const workerMessageHandlers = {
 };
 
 self.onmessage = (event) => {
+  if (!isJsonWorkerRequestMessage(event.data)) {
+    return;
+  }
+
   /** @type {WorkerRequestMessage} */
   const message = event.data;
   const handler = getJsonWorkerMessageHandler(workerMessageHandlers, message);

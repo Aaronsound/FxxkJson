@@ -1,7 +1,20 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkerMessage, WorkerRequestMessage } from '../types/jsonTool';
-import { getJsonWorkerMessageHandler, getJsonWorkerResultHandler } from './jsonWorkerMessageRouting';
+import {
+  getJsonWorkerMessageHandler,
+  getJsonWorkerResultHandler,
+  isJsonWorkerRequestMessage,
+} from './jsonWorkerMessageRouting';
+
+describe('isJsonWorkerRequestMessage', () => {
+  it('accepts supported worker requests and rejects malformed envelopes', () => {
+    expect(isJsonWorkerRequestMessage({ type: 'clear-structure', tabId: 'tab-1' })).toBe(true);
+    expect(isJsonWorkerRequestMessage({ type: 'search', tabId: 'tab-1', requestId: 1 })).toBe(true);
+    expect(isJsonWorkerRequestMessage({ type: 'search', tabId: 'tab-1' })).toBe(false);
+    expect(isJsonWorkerRequestMessage({ type: 'unknown', tabId: 'tab-1', requestId: 1 })).toBe(false);
+  });
+});
 
 describe('getJsonWorkerMessageHandler', () => {
   it('returns the handler for a known worker message type', () => {

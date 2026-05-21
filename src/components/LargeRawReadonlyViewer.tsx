@@ -1,6 +1,7 @@
-import React, { useCallback, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useCallback, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { LargeRawViewerData } from '../types/jsonTool';
 import { buildLargeRawViewerData, findRawSegmentIndex } from '../utils/largeRawViewerData';
+import './LargeRawReadonlyViewer.css';
 
 const LINE_HEIGHT = 19;
 const OVERSCAN = 20;

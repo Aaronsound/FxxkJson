@@ -27,6 +27,12 @@ export default defineConfig({
       enabled: false,
       provider: 'v8',
       reporter: ['text-summary', 'json-summary'],
+      thresholds: {
+        branches: 63,
+        functions: 78,
+        lines: 74,
+        statements: 74,
+      },
     },
   },
 });

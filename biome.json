@@ -28,6 +28,9 @@
       "a11y": {
         "useButtonType": "error"
       },
+      "correctness": {
+        "noUnusedImports": "error"
+      },
       "suspicious": {
         "noDebugger": "error"
       }

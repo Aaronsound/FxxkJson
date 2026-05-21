@@ -37,8 +37,5 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --fund=false
 
-      - name: Run project checks
+      - name: Run project checks and coverage
         run: npm run check
-
-      - name: Report coverage summary
-        run: npm run coverage
