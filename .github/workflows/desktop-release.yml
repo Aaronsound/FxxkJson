@@ -55,6 +55,18 @@ jobs:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           body: |
+            ## 本次更新
+
+            - 项目名称统一为 FxxkJson。
+            - 新增中文 / English 界面切换，默认中文，可在顶部工具栏切换。
+            - 补充开源准备文件与贡献、问题反馈、安全说明。
+
+            ## What's New
+
+            - Renamed the project to FxxkJson across the app and repository metadata.
+            - Added Chinese / English UI switching, defaulting to Chinese with a toolbar toggle.
+            - Added open-source readiness files for contributing, issue reporting, pull requests, security, and licensing.
+
             ## macOS 下载说明
 
             - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
@@ -62,6 +74,14 @@ jobs:
             - Windows：下载 `windows-x64-*.exe`
 
             如果 M 系列 Mac 误装 x64 包，应用会通过 Rosetta 转译运行，导入和格式化大 JSON 可能明显变慢。
+
+            ## Download Notes
+
+            - Apple Silicon Macs (M1 / M2 / M3 / M4): download `macos-arm64-*.dmg`.
+            - Intel Macs: download `macos-x64-*.dmg`.
+            - Windows: download `windows-x64-*.exe`.
+
+            If an Apple Silicon Mac installs the x64 package, the app will run through Rosetta and large JSON import or formatting may be noticeably slower.
           draft: true
           prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
 
@@ -200,6 +220,18 @@ jobs:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           body: |
+            ## 本次更新
+
+            - 项目名称统一为 FxxkJson。
+            - 新增中文 / English 界面切换，默认中文，可在顶部工具栏切换。
+            - 补充开源准备文件与贡献、问题反馈、安全说明。
+
+            ## What's New
+
+            - Renamed the project to FxxkJson across the app and repository metadata.
+            - Added Chinese / English UI switching, defaulting to Chinese with a toolbar toggle.
+            - Added open-source readiness files for contributing, issue reporting, pull requests, security, and licensing.
+
             ## macOS 下载说明
 
             - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
@@ -207,6 +239,14 @@ jobs:
             - Windows：下载 `windows-x64-*.exe`
 
             如果 M 系列 Mac 误装 x64 包，应用会通过 Rosetta 转译运行，导入和格式化大 JSON 可能明显变慢。
+
+            ## Download Notes
+
+            - Apple Silicon Macs (M1 / M2 / M3 / M4): download `macos-arm64-*.dmg`.
+            - Intel Macs: download `macos-x64-*.dmg`.
+            - Windows: download `windows-x64-*.exe`.
+
+            If an Apple Silicon Mac installs the x64 package, the app will run through Rosetta and large JSON import or formatting may be noticeably slower.
           draft: true
           prerelease: ${{ contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'alpha') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'beta') || contains(github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name, 'dev') }}
           files: |
