@@ -213,23 +213,28 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
         <textarea className="diagnostics-log-output" readOnly value={previewText} spellCheck={false} />
 
         <div className="modal-actions">
-          <button onClick={loadLog} disabled={isLoading}>
+          <button type="button" onClick={loadLog} disabled={isLoading}>
             刷新
           </button>
-          <button onClick={() => copyLog(displayContent, '已复制当前内容')} disabled={!displayContent}>
+          <button type="button" onClick={() => copyLog(displayContent, '已复制当前内容')} disabled={!displayContent}>
             复制当前内容
           </button>
           <button
+            type="button"
             onClick={() => copyLog(buildIssueSummary(snapshot, displayContent, context), '已复制诊断包')}
             disabled={!logContent && context.length === 0}
           >
             复制诊断包
           </button>
-          <button onClick={clearLog} disabled={isLoading}>
+          <button type="button" onClick={clearLog} disabled={isLoading}>
             清空日志
           </button>
-          <button onClick={showLogFile}>定位文件</button>
-          <button onClick={onClose}>关闭</button>
+          <button type="button" onClick={showLogFile}>
+            定位文件
+          </button>
+          <button type="button" onClick={onClose}>
+            关闭
+          </button>
           {copyNotice && <span className="modal-copy-hint">{copyNotice}</span>}
         </div>
 

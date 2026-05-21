@@ -25,6 +25,8 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     coverage: {
       enabled: false,
+      provider: 'v8',
+      reporter: ['text-summary', 'json-summary'],
     },
   },
 });

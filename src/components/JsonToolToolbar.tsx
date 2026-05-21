@@ -159,40 +159,57 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
             <span className="toolbar-section-label">{t('toolbar.actions')}</span>
             <div className="toolbar-section-body toolbar-actions-layout">
               <div className="toolbar-actions-primary">
-                <button className="toolbar-button-primary" onClick={onImport}>
+                <button type="button" className="toolbar-button-primary" onClick={onImport}>
                   {t('toolbar.import')}
                 </button>
-                <button className="toolbar-button-primary" onClick={onFormat}>
+                <button type="button" className="toolbar-button-primary" onClick={onFormat}>
                   {t('toolbar.format')}
                 </button>
-                <button className="toolbar-button-primary" onClick={onRepairJson} disabled={!canEditJson}>
+                <button type="button" className="toolbar-button-primary" onClick={onRepairJson} disabled={!canEditJson}>
                   {t('toolbar.repair')}
                 </button>
               </div>
               <div className="toolbar-actions-secondary">
-                <button className="toolbar-button-secondary" onClick={onUnescapeJson} disabled={!canEditJson}>
+                <button
+                  type="button"
+                  className="toolbar-button-secondary"
+                  onClick={onUnescapeJson}
+                  disabled={!canEditJson}
+                >
                   {t('toolbar.unescape')}
                 </button>
-                <button className="toolbar-button-secondary" onClick={onEscapeJson} disabled={!canEditJson}>
+                <button
+                  type="button"
+                  className="toolbar-button-secondary"
+                  onClick={onEscapeJson}
+                  disabled={!canEditJson}
+                >
                   {t('toolbar.escape')}
                 </button>
-                <button className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
+                <button type="button" className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
                   {t('toolbar.editJson')}
                 </button>
-                <button className="toolbar-button-secondary" onClick={onOpenCompare} disabled={!canCompareJson}>
+                <button
+                  type="button"
+                  className="toolbar-button-secondary"
+                  onClick={onOpenCompare}
+                  disabled={!canCompareJson}
+                >
                   {t('toolbar.compareJson')}
                 </button>
-                <button className="toolbar-button-secondary" onClick={onOpenDiagnosticsLog}>
+                <button type="button" className="toolbar-button-secondary" onClick={onOpenDiagnosticsLog}>
                   {t('toolbar.diagnostics')}
                 </button>
-                <button className="toolbar-button-secondary" onClick={onOpenAbout}>
+                <button type="button" className="toolbar-button-secondary" onClick={onOpenAbout}>
                   {t('toolbar.about')}
                 </button>
-                <button onClick={onClear}>{t('toolbar.clear')}</button>
-                <button onClick={onFoldAll} disabled={!canControlRightPaneFolding}>
+                <button type="button" onClick={onClear}>
+                  {t('toolbar.clear')}
+                </button>
+                <button type="button" onClick={onFoldAll} disabled={!canControlRightPaneFolding}>
                   {t('toolbar.foldAll')}
                 </button>
-                <button onClick={onUnfoldAll} disabled={!canControlRightPaneFolding}>
+                <button type="button" onClick={onUnfoldAll} disabled={!canControlRightPaneFolding}>
                   {t('toolbar.unfoldAll')}
                 </button>
               </div>
@@ -229,10 +246,11 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 />
                 {t('toolbar.performance')}
               </label>
-              <button className="toolbar-button-secondary" onClick={onToggleDarkMode}>
+              <button type="button" className="toolbar-button-secondary" onClick={onToggleDarkMode}>
                 {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
               </button>
               <button
+                type="button"
                 className="toolbar-button-secondary"
                 onClick={() => onLanguageChange?.(language === 'zh' ? 'en' : 'zh')}
                 aria-label={t('toolbar.language')}

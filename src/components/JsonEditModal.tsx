@@ -245,24 +245,24 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         </div>
 
         <div className="modal-actions">
-          <button onClick={onSave} disabled={isBusy}>
+          <button type="button" onClick={onSave} disabled={isBusy}>
             {saveLabel}
           </button>
           <div className="modal-copy-group">
-            <button onClick={() => void handleTransformContent(onUnescapeContent)} disabled={isBusy}>
+            <button type="button" onClick={() => void handleTransformContent(onUnescapeContent)} disabled={isBusy}>
               {t('edit.unescapeContent')}
             </button>
-            <button onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
+            <button type="button" onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
               {t('edit.escapeContent')}
             </button>
           </div>
           <div className="modal-copy-group">
-            <button onClick={onCopyLiteral} disabled={isBusy}>
+            <button type="button" onClick={onCopyLiteral} disabled={isBusy}>
               {t('edit.copyLiteral')}
             </button>
             {hasCopiedLiteral && <span className="modal-copy-hint">{t('edit.copiedLiteral')}</span>}
           </div>
-          <button onClick={onClose} disabled={isBusy}>
+          <button type="button" onClick={onClose} disabled={isBusy}>
             {t('edit.cancel')}
           </button>
         </div>

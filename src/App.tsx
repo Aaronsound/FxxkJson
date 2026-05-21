@@ -24,8 +24,10 @@ import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
 import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
+import { useJsonPaneSearchActions } from './hooks/useJsonPaneSearchActions';
 import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
+import { useRightNodeEditOpeners } from './hooks/useRightNodeEditOpeners';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import { getCompactPathLabel, useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import {
@@ -42,7 +44,6 @@ import {
 } from './types/jsonTool';
 import type {
   EditJsonWorkerOperation,
-  JsonSearchOptions,
   LargeJsonViewerData,
   LargeRawViewerData,
   RightNodeSelection,
@@ -55,18 +56,11 @@ import {
   registerSelectAllDeleteCommands,
 } from './utils/jsonEditorMountActions';
 import { getUtf8ByteLength, isLargeDocument, shouldUseLargeMode } from './utils/jsonDocumentMetrics';
-import {
-  formatBytes,
-  formatDuration,
-  getMonacoOptions,
-  getMonacoSearchBatch,
-  getReplacementText,
-} from './utils/jsonEditorInteractions';
+import { formatBytes, formatDuration, getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
 import { getFirstJsonImportFile } from './utils/importFiles';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
 import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
-import { parseEditableNodePayload } from './utils/jsonEditNodePayload';
 import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
@@ -1579,29 +1573,14 @@ const App: React.FC = () => {
     }
   };
 
-  const readEditableNodeAtOffset = useCallback(
-    async (tabId: string, offset: number, preferCachedText: boolean, invalidMessage: string) => {
-      const readAndParse = async (sourceText: string) => {
-        const payload = await requestWorkerEditJson(tabId, 'read-node', sourceText, undefined, undefined, offset);
-
-        return parseEditableNodePayload(payload, invalidMessage);
-      };
-
-      if (preferCachedText) {
-        try {
-          return await readAndParse('');
-        } catch (error) {
-          const fallbackText = formattedTextByTabRef.current[tabId] ?? '';
-          if (!fallbackText) {
-            throw error;
-          }
-        }
-      }
-
-      return readAndParse(formattedTextByTabRef.current[tabId] ?? '');
-    },
-    [requestWorkerEditJson]
-  );
+  const { handleOpenEditNodeAtOffset, handleOpenUnescapedNodeAtOffset, readEditableNodeAtOffset } =
+    useRightNodeEditOpeners({
+      formattedTextByTabRef,
+      openNodeEditSession,
+      requestWorkerEditJson,
+      setEditJsonBusyLabel,
+      setTabError,
+    });
 
   const { applyRightNodeMutationAtOffset, copyNodeDetailAtOffset, copyValueAtOffset } = useRightNodeActions({
     applyRawUpdate(tabId, updated) {
@@ -1620,39 +1599,6 @@ const App: React.FC = () => {
     setEditJsonBusyLabel,
     setTabError,
   });
-
-  const handleOpenEditNodeAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
-    setEditJsonBusyLabel('正在准备当前节点...');
-    try {
-      const parsed = await readEditableNodeAtOffset(tabId, offset, preferCachedText, '当前节点无法编辑');
-
-      openNodeEditSession(parsed.value, parsed.path);
-    } catch (error) {
-      setTabError(tabId, error instanceof Error ? `打开当前节点编辑失败：${error.message}` : '打开当前节点编辑失败');
-    } finally {
-      setEditJsonBusyLabel(null);
-    }
-  };
-
-  const handleOpenUnescapedNodeAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
-    setEditJsonBusyLabel('正在反转义当前节点...');
-    try {
-      const parsed = await readEditableNodeAtOffset(tabId, offset, preferCachedText, '当前节点无法反转义');
-
-      const nodeValue = JSON.parse(parsed.value);
-      if (typeof nodeValue !== 'string') {
-        throw new Error('当前节点不是字符串值');
-      }
-
-      const transformed = await requestWorkerEditJson(tabId, 'unescape-json', parsed.value);
-      JSON.parse(transformed);
-      openNodeEditSession(transformed, parsed.path);
-    } catch (error) {
-      setTabError(tabId, error instanceof Error ? `反转义当前节点失败：${error.message}` : '反转义当前节点失败');
-    } finally {
-      setEditJsonBusyLabel(null);
-    }
-  };
 
   const handleSaveEditJson = async () => {
     if (!activeTab) {
@@ -1901,171 +1847,61 @@ const App: React.FC = () => {
     openRightFind,
   });
 
-  const handleLeftSearchOptionsChange = (value: JsonSearchOptions) => {
-    setLeftSearchOptions(value);
-    resetLeftSearchPaging();
-  };
-
-  const handleRightSearchOptionsChange = (value: JsonSearchOptions) => {
-    setRightSearchOptions(value);
-    setLargeViewerMatches([]);
-    setLargeViewerMatchCount(0);
-    resetRightSearchPaging();
-  };
-
-  const replaceLeftMatch = () => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-    const range = leftMatches[normalizedLeftMatchIndex];
-
-    if (!editor || !model || !range) {
-      return;
-    }
-
-    editor.executeEdits('pane-find-replace', [
-      {
-        range,
-        text: getReplacementText(model, range, leftSearchTerm, leftSearchOptions, leftReplaceText),
-        forceMoveMarkers: true,
-      },
-    ]);
-    editor.focus();
-  };
-
-  const replaceAllLeftMatches = () => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-
-    if (!editor || !model || leftMatches.length === 0) {
-      return;
-    }
-
-    const sortedRanges = [...leftMatches].sort(
-      (left, right) =>
-        model.getOffsetAt({
-          lineNumber: right.startLineNumber,
-          column: right.startColumn,
-        }) -
-        model.getOffsetAt({
-          lineNumber: left.startLineNumber,
-          column: left.startColumn,
-        })
-    );
-
-    editor.executeEdits(
-      'pane-find-replace-all',
-      sortedRanges.map((range) => ({
-        range,
-        text: getReplacementText(model, range, leftSearchTerm, leftSearchOptions, leftReplaceText),
-        forceMoveMarkers: true,
-      }))
-    );
-    setLeftMatchIndex(0);
-    editor.focus();
-  };
-
-  const gotoNextLeft = () => {
-    if (activeLeftMatchCount === 0) {
-      return;
-    }
-
-    setLeftMatchIndex((current) => (current + 1) % activeLeftMatchCount);
-  };
-
-  const gotoPrevLeft = () => {
-    if (activeLeftMatchCount === 0) {
-      return;
-    }
-
-    setLeftMatchIndex((current) => (current - 1 + activeLeftMatchCount) % activeLeftMatchCount);
-  };
-
-  const gotoNextRight = () => {
-    if (activeRightMatchCount === 0) {
-      return;
-    }
-
-    setRightMatchIndex((current) => (current + 1) % activeRightMatchCount);
-  };
-
-  const gotoPrevRight = () => {
-    if (activeRightMatchCount === 0) {
-      return;
-    }
-
-    setRightMatchIndex((current) => (current - 1 + activeRightMatchCount) % activeRightMatchCount);
-  };
-
-  const loadMoreLeftSearch = () => {
-    if (!activeTab || !leftSearchTerm || !leftSearchHasMore || isLeftSearchLoadingMore) {
-      return;
-    }
-
-    setIsLeftSearchLoadingMore(true);
-    requestWorkerSearch(
-      activeTab.id,
-      leftSearchTerm,
-      leftSearchOptions,
-      leftSearchNextOffset,
-      true,
-      'left',
-      undefined,
-      activeDocumentMeta.rawRevision
-    );
-  };
-
-  const loadMoreRightSearch = () => {
-    if (!rightSearchTerm || !rightSearchHasMore || isRightSearchLoadingMore) {
-      return;
-    }
-
-    if (shouldUseDedicatedRightViewer) {
-      if (!activeTab) {
-        return;
-      }
-
-      setIsRightSearchLoadingMore(true);
-      requestWorkerSearch(activeTab.id, rightSearchTerm, rightSearchOptions, rightSearchNextOffset, true);
-      return;
-    }
-
-    const editor = rightEditorRef.current;
-    const model = editor?.getModel();
-
-    if (!editor || !model || isBuildingDedicatedRightViewer) {
-      return;
-    }
-
-    const result = getMonacoSearchBatch(model, rightSearchTerm, rightSearchOptions, rightSearchNextOffset);
-    const nextMatches = [...rightMatches, ...result.ranges];
-    const activeIndex =
-      nextMatches.length > 0 ? ((rightMatchIndex % nextMatches.length) + nextMatches.length) % nextMatches.length : 0;
-
-    setRightMatches(nextMatches);
-    setRightSearchHasMore(result.hasMore);
-    setRightSearchNextOffset(result.nextStartOffset);
-    rightDecorationIdsRef.current = editor.deltaDecorations(
-      rightDecorationIdsRef.current,
-      nextMatches.map((range, index) => ({
-        range,
-        options: {
-          inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
-        },
-      }))
-    );
-  };
-
-  const handleLeftSearchTermChange = (value: string) => {
-    setLeftSearchTerm(value);
-    resetLeftSearchPaging();
-  };
-
-  const handleRightSearchTermChange = (value: string) => {
-    setRightSearchTerm(value);
-    setLargeViewerMatches([]);
-    setLargeViewerMatchCount(0);
-    resetRightSearchPaging();
-  };
+  const {
+    gotoNextLeft,
+    gotoNextRight,
+    gotoPrevLeft,
+    gotoPrevRight,
+    handleLeftSearchOptionsChange,
+    handleLeftSearchTermChange,
+    handleRightSearchOptionsChange,
+    handleRightSearchTermChange,
+    loadMoreLeftSearch,
+    loadMoreRightSearch,
+    replaceAllLeftMatches,
+    replaceLeftMatch,
+  } = useJsonPaneSearchActions({
+    activeDocumentMeta,
+    activeLeftMatchCount,
+    activeRightMatchCount,
+    activeTab,
+    isBuildingDedicatedRightViewer,
+    isLeftSearchLoadingMore,
+    isRightSearchLoadingMore,
+    leftEditorRef,
+    leftMatches,
+    leftReplaceText,
+    leftSearchHasMore,
+    leftSearchNextOffset,
+    leftSearchOptions,
+    leftSearchTerm,
+    normalizedLeftMatchIndex,
+    requestWorkerSearch,
+    resetLeftSearchPaging,
+    resetRightSearchPaging,
+    rightDecorationIdsRef,
+    rightEditorRef,
+    rightMatchIndex,
+    rightMatches,
+    rightSearchHasMore,
+    rightSearchNextOffset,
+    rightSearchOptions,
+    rightSearchTerm,
+    setIsLeftSearchLoadingMore,
+    setIsRightSearchLoadingMore,
+    setLargeViewerMatchCount,
+    setLargeViewerMatches,
+    setLeftMatchIndex,
+    setLeftSearchOptions,
+    setLeftSearchTerm,
+    setRightMatchIndex,
+    setRightMatches,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
+    setRightSearchOptions,
+    setRightSearchTerm,
+    shouldUseDedicatedRightViewer,
+  });
 
   if (!activeTab) {
     return null;

@@ -32,6 +32,7 @@ npm run format:check # verify repository formatting
 npm run lint       # run Biome lint checks
 npm run typecheck  # type-check renderer and Electron sources
 npm test           # run Vitest tests
+npm run coverage   # print a Vitest coverage summary
 npm run build      # build renderer and Electron output
 npm run check      # formatting + lint + typecheck + test + smoke + build
 npm start          # run the built desktop app after npm run build

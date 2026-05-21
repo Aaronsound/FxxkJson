@@ -39,3 +39,6 @@ jobs:
 
       - name: Run project checks
         run: npm run check
+
+      - name: Report coverage summary
+        run: npm run coverage

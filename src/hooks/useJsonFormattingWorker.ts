@@ -7,9 +7,6 @@ import {
   LARGE_FILE_FORMAT_DEBOUNCE_MS,
 } from '../types/jsonTool';
 import type {
-  EditJsonWorkerOperation,
-  JsonEditPath,
-  JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -17,12 +14,11 @@ import type {
   PerformanceTrigger,
   ProcessingStage,
   RightNodeSelection,
-  SearchTarget,
   StructureStatus,
   WorkerMessage,
-  WorkerRequestMessage,
 } from '../types/jsonTool';
 import { PerformanceSession } from './useJsonPerformanceTracking';
+import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
 import { disposeModel, getFileName, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
 import { getUtf8ByteLength, shouldUseDedicatedRightViewer, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
@@ -33,10 +29,6 @@ interface JsonImportSource {
   name: string;
   size: number;
   readText: () => Promise<string>;
-}
-
-function getWorkerSearchRequestKey(target: SearchTarget, tabId: string) {
-  return `${target}:${tabId}`;
 }
 
 interface UseJsonFormattingWorkerArgs {
@@ -146,20 +138,6 @@ export function useJsonFormattingWorker({
   const formatTimersRef = useRef<Record<string, number>>({});
   const latestRequestRef = useRef<Record<string, number>>({});
   const requestCounterRef = useRef(0);
-  const locateRequestCounterRef = useRef(0);
-  const latestLocateRequestRef = useRef<Record<string, number>>({});
-  const searchRequestCounterRef = useRef(0);
-  const latestSearchRequestRef = useRef<Record<string, number>>({});
-  const pendingValueRequestsRef = useRef<Record<number, (value: string | null) => void>>({});
-  const pendingEditJsonRequestsRef = useRef<
-    Record<
-      number,
-      {
-        reject: (error: Error) => void;
-        resolve: (value: WorkerMessage) => void;
-      }
-    >
-  >({});
   const callbacksRef = useRef({
     beginPerformanceSession,
     clearLeftHighlights,
@@ -217,6 +195,17 @@ export function useJsonFormattingWorker({
     updateFormattedContent,
     updateTabContent,
   };
+  const interactiveFlowRef = useRef<ReturnType<typeof createJsonWorkerInteractiveFlow> | null>(null);
+  interactiveFlowRef.current ??= createJsonWorkerInteractiveFlow({
+    activeTabIdRef,
+    formattedTextByTabRef,
+    getCallbacks: () => callbacksRef.current,
+    postWorkerRequest,
+    structureStatusRef,
+    workerRef,
+    workerStructureEnabledRef,
+  });
+  const interactiveFlow = interactiveFlowRef.current;
 
   const clearPendingFormat = (tabId: string) => {
     const timeoutId = formatTimersRef.current[tabId];
@@ -227,9 +216,7 @@ export function useJsonFormattingWorker({
   };
 
   const cancelInteractiveRequests = (tabId: string) => {
-    delete latestLocateRequestRef.current[tabId];
-    delete latestSearchRequestRef.current[getWorkerSearchRequestKey('left', tabId)];
-    delete latestSearchRequestRef.current[getWorkerSearchRequestKey('right', tabId)];
+    interactiveFlow.cancelRequests(tabId);
   };
 
   const clearTabStructure = (tabId: string, status: StructureStatus = 'ready') => {
@@ -243,161 +230,11 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setProcessingStage(tabId, 'idle');
   };
 
-  const requestWorkerLocate = (tabId: string, offset: number) => {
-    if (!workerRef.current) {
-      callbacksRef.current.setLocateFeedback(tabId, {
-        status: 'failed',
-        message: structureStatusRef.current[tabId] === 'building' ? '定位索引中' : '当前位置无法映射',
-        updatedAt: Date.now(),
-      });
-      callbacksRef.current.setRightNodeSelection(tabId, null);
-      return;
-    }
-
-    const requestId = ++locateRequestCounterRef.current;
-    latestLocateRequestRef.current[tabId] = requestId;
-    const canUseFullLocate = workerStructureEnabledRef.current[tabId] && structureStatusRef.current[tabId] === 'ready';
-    // A locate request consumes the ready index. Keep the index status stable
-    // so right-side clicks do not look like they rebuild the index every time.
-    callbacksRef.current.setLocateFeedback(tabId, {
-      status: 'pending',
-      message: `正在定位 offset ${Math.max(0, Math.floor(offset)).toLocaleString()}`,
-      updatedAt: Date.now(),
-    });
-    callbacksRef.current.setRightNodeSelection(tabId, null);
-    postWorkerRequest({
-      type: canUseFullLocate ? 'locate' : 'locate-right-direct',
-      requestId,
-      tabId,
-      offset,
-    });
-  };
-
-  const requestWorkerSearch = (
-    tabId: string,
-    query: string,
-    searchOptions: JsonSearchOptions,
-    startOffset = 0,
-    append = false,
-    target: SearchTarget = 'right',
-    text?: string,
-    rawRevision?: number
-  ) => {
-    if (!workerRef.current) {
-      if (target === 'left') {
-        callbacksRef.current.setLeftSearchResults(tabId, []);
-      } else {
-        callbacksRef.current.setLargeViewerSearchResults(tabId, []);
-      }
-      return;
-    }
-
-    const requestId = ++searchRequestCounterRef.current;
-    const requestKey = getWorkerSearchRequestKey(target, tabId);
-    latestSearchRequestRef.current[requestKey] = requestId;
-    postWorkerRequest({
-      type: 'search',
-      requestId,
-      tabId,
-      target,
-      query,
-      searchOptions,
-      startOffset,
-      append,
-      text,
-      rawRevision,
-    });
-  };
-
-  const requestWorkerValue = (tabId: string, offset: number, preferCachedText = false) =>
-    new Promise<string | null>((resolve) => {
-      if (!workerRef.current) {
-        resolve(null);
-        return;
-      }
-
-      const requestId = ++locateRequestCounterRef.current;
-      pendingValueRequestsRef.current[requestId] = resolve;
-
-      if (workerStructureEnabledRef.current[tabId] && structureStatusRef.current[tabId] === 'ready') {
-        postWorkerRequest({
-          type: 'read-value',
-          requestId,
-          tabId,
-          offset,
-        });
-        return;
-      }
-
-      if (preferCachedText) {
-        postWorkerRequest({
-          type: 'read-value-direct',
-          requestId,
-          tabId,
-          offset,
-        });
-        return;
-      }
-
-      const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-      if (!formattedText) {
-        delete pendingValueRequestsRef.current[requestId];
-        resolve(null);
-        return;
-      }
-
-      postWorkerRequest({
-        type: 'read-value-direct',
-        requestId,
-        tabId,
-        offset,
-        text: formattedText,
-      });
-    });
-
-  const requestWorkerEditJsonResult = (
-    tabId: string,
-    operation: EditJsonWorkerOperation,
-    text: string,
-    originalText?: string,
-    path?: JsonEditPath,
-    offset?: number
-  ) =>
-    new Promise<WorkerMessage>((resolve, reject) => {
-      if (!workerRef.current) {
-        reject(new Error('JSON worker is not ready'));
-        return;
-      }
-
-      const requestId = ++locateRequestCounterRef.current;
-      pendingEditJsonRequestsRef.current[requestId] = { reject, resolve };
-      postWorkerRequest({
-        type: 'edit-json',
-        requestId,
-        tabId,
-        operation,
-        text,
-        originalText,
-        path,
-        offset,
-      });
-    });
-
-  const requestWorkerEditJson = (
-    tabId: string,
-    operation: EditJsonWorkerOperation,
-    text: string,
-    originalText?: string,
-    path?: JsonEditPath,
-    offset?: number
-  ) =>
-    requestWorkerEditJsonResult(tabId, operation, text, originalText, path, offset).then((message) => {
-      if (typeof message.data !== 'string') {
-        throw new Error('JSON worker returned an empty result');
-      }
-
-      return message.data;
-    });
+  const requestWorkerLocate = interactiveFlow.requestLocate;
+  const requestWorkerSearch = interactiveFlow.requestSearch;
+  const requestWorkerValue = interactiveFlow.requestValue;
+  const requestWorkerEditJson = interactiveFlow.requestEditJson;
+  const requestWorkerEditJsonResult = interactiveFlow.requestEditJsonResult;
 
   const queueFormat = (tabId: string, text: string, immediate = false) => {
     clearPendingFormat(tabId);
@@ -799,6 +636,10 @@ export function useJsonFormattingWorker({
     worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       const { type, requestId, tabId } = event.data;
 
+      if (interactiveFlow.handleResult(event.data)) {
+        return;
+      }
+
       if (type === 'format-result') {
         const result = getFormatWorkerResult(event.data, readWorkerText);
         const { error } = result;
@@ -1015,132 +856,13 @@ export function useJsonFormattingWorker({
         }
         return;
       }
-
-      if (type === 'search-result') {
-        const target = event.data.target ?? 'right';
-        const requestKey = getWorkerSearchRequestKey(target, tabId);
-        if (tabId !== activeTabIdRef.current || latestSearchRequestRef.current[requestKey] !== requestId) {
-          return;
-        }
-
-        const applyResults =
-          target === 'left'
-            ? callbacksRef.current.setLeftSearchResults
-            : callbacksRef.current.setLargeViewerSearchResults;
-
-        applyResults(
-          tabId,
-          event.data.matches ?? [],
-          Boolean(event.data.hasMore),
-          event.data.nextStartOffset ?? 0,
-          Boolean(event.data.append)
-        );
-        return;
-      }
-
-      if (type === 'locate-result') {
-        if (tabId !== activeTabIdRef.current || latestLocateRequestRef.current[tabId] !== requestId) {
-          return;
-        }
-
-        if (workerStructureEnabledRef.current[tabId]) {
-          callbacksRef.current.setStructureStatus(tabId, 'ready');
-        }
-        callbacksRef.current.setProcessingStage(tabId, 'idle');
-
-        const rightStartOffset = event.data.rightStartOffset;
-        const rightEndOffset = event.data.rightEndOffset;
-        const hasRightRange = typeof rightStartOffset === 'number' && typeof rightEndOffset === 'number';
-
-        if (event.data.rightOnly && event.data.found && hasRightRange) {
-          callbacksRef.current.setLocateFeedback(tabId, {
-            status: 'success',
-            message: `已选中右侧节点 offset ${rightStartOffset.toLocaleString()}`,
-            updatedAt: Date.now(),
-          });
-          callbacksRef.current.setRightNodeSelection(tabId, {
-            path: event.data.path ?? null,
-            pathText: event.data.pathText ?? null,
-            startOffset: rightStartOffset,
-            endOffset: rightEndOffset,
-            updatedAt: Date.now(),
-          });
-          return;
-        }
-
-        if (
-          event.data.found &&
-          typeof event.data.startOffset === 'number' &&
-          typeof event.data.endOffset === 'number'
-        ) {
-          callbacksRef.current.setLocateFeedback(tabId, {
-            status: 'success',
-            message: `已定位到 offset ${event.data.startOffset.toLocaleString()}`,
-            startOffset: event.data.startOffset,
-            endOffset: event.data.endOffset,
-            updatedAt: Date.now(),
-          });
-          if (hasRightRange) {
-            callbacksRef.current.setRightNodeSelection(tabId, {
-              path: event.data.path ?? null,
-              pathText: event.data.pathText ?? null,
-              startOffset: rightStartOffset,
-              endOffset: rightEndOffset,
-              updatedAt: Date.now(),
-            });
-          } else {
-            callbacksRef.current.setRightNodeSelection(tabId, null);
-          }
-          callbacksRef.current.revealLeftRange(event.data.startOffset, event.data.endOffset);
-        } else {
-          callbacksRef.current.setLocateFeedback(tabId, {
-            status: 'failed',
-            message: '该位置无法映射',
-            updatedAt: Date.now(),
-          });
-          callbacksRef.current.setRightNodeSelection(tabId, null);
-        }
-        return;
-      }
-
-      if (type === 'value-result') {
-        const resolve = pendingValueRequestsRef.current[requestId];
-        if (!resolve) {
-          return;
-        }
-
-        delete pendingValueRequestsRef.current[requestId];
-        resolve(event.data.found ? (event.data.value ?? null) : null);
-        return;
-      }
-
-      if (type === 'edit-json-result') {
-        const pending = pendingEditJsonRequestsRef.current[requestId];
-        if (!pending) {
-          return;
-        }
-
-        delete pendingEditJsonRequestsRef.current[requestId];
-        if (event.data.success && typeof event.data.data === 'string') {
-          pending.resolve(event.data);
-        } else {
-          pending.reject(new Error(event.data.error ?? 'JSON 处理失败'));
-        }
-      }
     };
 
     return () => {
       Object.keys(formatTimersRef.current).forEach(clearPendingFormat);
       callbacksRef.current.clearLeftHighlights();
       callbacksRef.current.clearRightHighlights();
-      Object.keys(pendingValueRequestsRef.current).forEach((requestId) => {
-        pendingValueRequestsRef.current[Number(requestId)]?.(null);
-        delete pendingValueRequestsRef.current[Number(requestId)];
-      });
-      Object.keys(pendingEditJsonRequestsRef.current).forEach((requestId) => {
-        pendingEditJsonRequestsRef.current[Number(requestId)]?.reject(new Error('JSON worker stopped'));
-        delete pendingEditJsonRequestsRef.current[Number(requestId)];
-      });
+      interactiveFlow.stop();
       worker.terminate();
       workerRef.current = null;
     };

@@ -25,6 +25,9 @@
     "enabled": true,
     "rules": {
       "recommended": false,
+      "a11y": {
+        "useButtonType": "error"
+      },
       "suspicious": {
         "noDebugger": "error"
       }
