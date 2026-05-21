@@ -30,19 +30,19 @@ Current builds are unsigned, so macOS Gatekeeper or Windows SmartScreen may show
 
 ### Main Window
 
-![FxxkJson main window](docs/assets/main-window.png)
+![FxxkJson main window](docs/assets/main-window-en.png)
 
 ### Large JSON Viewer
 
-![Large JSON viewer](docs/assets/large-json-viewer.png)
+![Large JSON viewer](docs/assets/large-json-viewer-en.png)
 
 ### Node Context Menu
 
-![Context menu](docs/assets/context-menu.png)
+![Context menu](docs/assets/context-menu-en.png)
 
 ### JSON Compare
 
-![JSON compare dialog](docs/assets/compare-dialog.png)
+![JSON compare dialog](docs/assets/compare-dialog-en.png)
 
 ## What It Does
 
