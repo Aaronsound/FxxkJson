@@ -1,7 +1,4 @@
-import type {
-  JsonSearchOptions,
-  LargeJsonSearchMatch,
-} from '../types/jsonTool';
+import type { JsonSearchOptions, LargeJsonSearchMatch } from '../types/jsonTool';
 
 export interface TextSearchBatch {
   matches: LargeJsonSearchMatch[];
@@ -55,9 +52,8 @@ function getLineMatch(
 
   const lineNumber = lineIndex + 1;
   const lineStartOffset = lineStarts[lineIndex] ?? 0;
-  const lineEndOffset = lineNumber < lineCount
-    ? Math.max(lineStartOffset, (lineStarts[lineNumber] ?? text.length) - 1)
-    : text.length;
+  const lineEndOffset =
+    lineNumber < lineCount ? Math.max(lineStartOffset, (lineStarts[lineNumber] ?? text.length) - 1) : text.length;
 
   return {
     start,
@@ -104,15 +100,7 @@ export function findTextSearchMatches(
   options: JsonSearchOptions,
   maxResults = Number.POSITIVE_INFINITY
 ): LargeJsonSearchMatch[] {
-  return findTextSearchBatch(
-    text,
-    lineStarts,
-    lineCount,
-    searchTerm,
-    options,
-    0,
-    maxResults
-  ).matches;
+  return findTextSearchBatch(text, lineStarts, lineCount, searchTerm, options, 0, maxResults).matches;
 }
 
 export function findTextSearchBatch(
@@ -192,15 +180,7 @@ export async function findTextSearchBatchAsync(
   }
 
   if (options.useRegex) {
-    const result = findTextSearchBatch(
-      text,
-      lineStarts,
-      lineCount,
-      searchTerm,
-      options,
-      startOffset,
-      maxResults
-    );
+    const result = findTextSearchBatch(text, lineStarts, lineCount, searchTerm, options, startOffset, maxResults);
 
     return shouldCancel() ? cancelledSearchBatch(result.nextStartOffset, text.length) : result;
   }

@@ -37,9 +37,7 @@ async function main() {
       ...FIXED_SAMPLE_SIZES_MB.map(String),
     ]);
 
-    const sampleFiles = FIXED_SAMPLE_SIZES_MB.map((sizeMb) => (
-      path.join(tempDir, `sample-${sizeMb}mb.json`)
-    ));
+    const sampleFiles = FIXED_SAMPLE_SIZES_MB.map((sizeMb) => path.join(tempDir, `sample-${sizeMb}mb.json`));
 
     await runNodeScript('./scripts/perf-regression.mjs', [
       '--baseline',
@@ -53,6 +51,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

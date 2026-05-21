@@ -1,9 +1,7 @@
 import React, { createRef } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import LargeJsonReadonlyViewer, {
-  LargeJsonReadonlyViewerHandle,
-} from './LargeJsonReadonlyViewer';
+import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
@@ -138,11 +136,7 @@ describe('LargeJsonReadonlyViewer', () => {
 
   it('truncates very long line titles to keep DOM attributes lightweight', () => {
     const longValue = 'x'.repeat(5000);
-    const text = [
-      '{',
-      `  "payload": "${longValue}"`,
-      '}',
-    ].join('\n');
+    const text = ['{', `  "payload": "${longValue}"`, '}'].join('\n');
 
     renderViewer({ text });
 
@@ -198,9 +192,9 @@ describe('LargeJsonReadonlyViewer', () => {
       },
     });
 
-    const highlightedText = Array.from(
-      document.querySelectorAll('.large-json-node-selection-highlight')
-    ).map((node) => node.textContent).join('\n');
+    const highlightedText = Array.from(document.querySelectorAll('.large-json-node-selection-highlight'))
+      .map((node) => node.textContent)
+      .join('\n');
 
     expect(highlightedText).toContain('{');
     expect(highlightedText).toContain('"items"');
@@ -219,9 +213,13 @@ describe('LargeJsonReadonlyViewer', () => {
       },
     });
 
-    const highlightedText = Array.from(document.querySelectorAll(
-      '.large-json-line-text[data-line-number="2"][data-collapsed="true"] .large-json-node-selection-highlight'
-    )).map((node) => node.textContent).join('');
+    const highlightedText = Array.from(
+      document.querySelectorAll(
+        '.large-json-line-text[data-line-number="2"][data-collapsed="true"] .large-json-node-selection-highlight'
+      )
+    )
+      .map((node) => node.textContent)
+      .join('');
 
     expect(highlightedText).toContain('"outer"');
     expect(highlightedText).toContain('{');

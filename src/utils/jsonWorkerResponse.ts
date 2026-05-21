@@ -7,10 +7,7 @@ type ReadWorkerTextField = (
   bufferKey: 'dataBuffer' | 'repairedTextBuffer'
 ) => string | null;
 
-export function getFormatWorkerResult(
-  message: WorkerMessage,
-  readText: ReadWorkerText
-) {
+export function getFormatWorkerResult(message: WorkerMessage, readText: ReadWorkerText) {
   const formattedText = readText(message);
   return {
     error: message.error ?? null,
@@ -30,11 +27,7 @@ export function getRepairWorkerResult(
   return {
     error: message.error ?? null,
     formattedText,
-    isSuccessful: Boolean(
-      message.success
-      && typeof formattedText === 'string'
-      && typeof repairedText === 'string'
-    ),
+    isSuccessful: Boolean(message.success && typeof formattedText === 'string' && typeof repairedText === 'string'),
     rawViewerData: message.rawViewerData ?? null,
     repairedText,
   };

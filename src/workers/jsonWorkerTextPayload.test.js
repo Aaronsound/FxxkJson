@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  appendTextPayload,
-  getTextByteLength,
-  readMessageText,
-} from './jsonWorkerTextPayload';
+import { appendTextPayload, getTextByteLength, readMessageText } from './jsonWorkerTextPayload';
 
 describe('jsonWorkerTextPayload', () => {
   it('reads string and buffer worker message text', () => {
@@ -19,8 +15,8 @@ describe('jsonWorkerTextPayload', () => {
   });
 
   it('keeps small payloads as strings', () => {
-    const message: Record<string, unknown> = {};
-    const transfer: ArrayBuffer[] = [];
+    const message = {};
+    const transfer = [];
 
     appendTextPayload(message, transfer, 'data', 'dataBuffer', '{}');
 

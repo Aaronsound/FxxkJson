@@ -56,10 +56,7 @@ export function binarySearchSegment(segments: VisibleSegment[], visibleIndex: nu
   return null;
 }
 
-export function buildVisibleSegments(
-  lineCount: number,
-  collapsedIntervals: CollapsedInterval[]
-): VisibleSegment[] {
+export function buildVisibleSegments(lineCount: number, collapsedIntervals: CollapsedInterval[]): VisibleSegment[] {
   const segments: VisibleSegment[] = [];
   let actualLine = 1;
   let visibleLine = 0;
@@ -155,9 +152,10 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
     if (char === '"') {
       const end = getJsonStringEnd(lineText, index);
       const nextNonWhitespace = getNextNonWhitespaceIndex(lineText, end);
-      const className = lineText[nextNonWhitespace] === ':'
-        ? 'large-json-token large-json-token-key'
-        : 'large-json-token large-json-token-value large-json-token-string';
+      const className =
+        lineText[nextNonWhitespace] === ':'
+          ? 'large-json-token large-json-token-key'
+          : 'large-json-token large-json-token-value large-json-token-string';
 
       pushToken(index, end, className);
       index = end;
@@ -167,11 +165,7 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
     if (char === '-' || /\d/.test(char)) {
       const match = lineText.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
       if (match) {
-        pushToken(
-          index,
-          index + match[0].length,
-          'large-json-token large-json-token-value large-json-token-number'
-        );
+        pushToken(index, index + match[0].length, 'large-json-token large-json-token-value large-json-token-number');
         index += match[0].length;
         continue;
       }
@@ -179,11 +173,7 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
 
     const literal = ['true', 'false', 'null'].find((candidate) => lineText.startsWith(candidate, index));
     if (literal) {
-      pushToken(
-        index,
-        index + literal.length,
-        'large-json-token large-json-token-value large-json-token-literal'
-      );
+      pushToken(index, index + literal.length, 'large-json-token large-json-token-value large-json-token-literal');
       index += literal.length;
       continue;
     }

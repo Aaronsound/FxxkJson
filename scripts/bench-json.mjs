@@ -186,17 +186,17 @@ async function benchFile(filePath) {
   const rawTreeResult = measure('rawTree', () => parseTree(rawText));
   const formattedTreeResult = measure('formattedTree', () => parseTree(formattedText));
   const rightSearchQuery = getRightSearchQuery(formattedText);
-  const rightSearchBatchResult = measure('rightSearchBatch', () => (
+  const rightSearchBatchResult = measure('rightSearchBatch', () =>
     findLiteralSearchBatch(formattedText, rightSearchQuery)
-  ));
-  const rightSearchLoadMoreResult = measure('rightSearchLoadMore', () => (
+  );
+  const rightSearchLoadMoreResult = measure('rightSearchLoadMore', () =>
     rightSearchBatchResult.value.hasMore
       ? findLiteralSearchBatch(formattedText, rightSearchQuery, rightSearchBatchResult.value.nextStartOffset)
       : { count: 0, hasMore: false, nextStartOffset: rightSearchBatchResult.value.nextStartOffset }
-  ));
-  const nodeValueReadResult = measure('nodeValueRead', () => (
+  );
+  const nodeValueReadResult = measure('nodeValueRead', () =>
     readFirstRequestValue(formattedText, formattedTreeResult.value)
-  ));
+  );
   const nodeEditPatchResult = measure('nodeEditPatch', () => {
     const node = nodeValueReadResult.value;
     if (!node) {
@@ -244,7 +244,10 @@ function printResult(result) {
     { stage: 'raw-tree', duration: formatDuration(result.rawTreeMs) },
     { stage: 'formatted-tree', duration: formatDuration(result.formattedTreeMs) },
     { stage: `right-search-${result.rightSearchBatchCount}`, duration: formatDuration(result.rightSearchBatchMs) },
-    { stage: `right-search-more-${result.rightSearchLoadMoreCount}`, duration: formatDuration(result.rightSearchLoadMoreMs) },
+    {
+      stage: `right-search-more-${result.rightSearchLoadMoreCount}`,
+      duration: formatDuration(result.rightSearchLoadMoreMs),
+    },
     { stage: 'node-value-read', duration: formatDuration(result.nodeValueReadMs) },
     { stage: 'node-edit-patch', duration: formatDuration(result.nodeEditPatchMs) },
   ]);
@@ -272,9 +275,7 @@ async function main() {
   const outputJson = args.includes('--json');
   const fileArgs = args.filter((arg) => arg !== '--json' && arg !== '--samples');
   const shouldUseSamples = args.includes('--samples') || fileArgs.length === 0;
-  const filesToBench = shouldUseSamples && fileArgs.length === 0
-    ? await getDefaultSampleFiles()
-    : fileArgs;
+  const filesToBench = shouldUseSamples && fileArgs.length === 0 ? await getDefaultSampleFiles() : fileArgs;
 
   if (filesToBench.length === 0) {
     console.error('Usage: npm run bench -- [file.json ...] [--samples] [--json]');
@@ -305,30 +306,28 @@ async function main() {
 
   if (results.length > 1) {
     console.log('\nSummary');
-    console.table(results.map((result) => ({
-      file: result.fileName,
-      rawSize: formatBytes(result.rawBytes),
-      formattedSize: formatBytes(result.formattedBytes),
-      readFile: formatDuration(result.readFileMs),
-      formatTotal: formatDuration(result.totalFormatMs),
-      rawTree: formatDuration(result.rawTreeMs),
-      formattedTree: formatDuration(result.formattedTreeMs),
-      viewerIndex: formatDuration(result.viewerIndexMs),
-      rightSearch: formatDuration(result.rightSearchBatchMs),
-      rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
-      nodeRead: formatDuration(result.nodeValueReadMs),
-      nodePatch: formatDuration(result.nodeEditPatchMs),
-      viewerLines: result.viewerLineCount.toLocaleString(),
-      viewerRegions: result.viewerRegionCount.toLocaleString(),
-    })));
+    console.table(
+      results.map((result) => ({
+        file: result.fileName,
+        rawSize: formatBytes(result.rawBytes),
+        formattedSize: formatBytes(result.formattedBytes),
+        readFile: formatDuration(result.readFileMs),
+        formatTotal: formatDuration(result.totalFormatMs),
+        rawTree: formatDuration(result.rawTreeMs),
+        formattedTree: formatDuration(result.formattedTreeMs),
+        viewerIndex: formatDuration(result.viewerIndexMs),
+        rightSearch: formatDuration(result.rightSearchBatchMs),
+        rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
+        nodeRead: formatDuration(result.nodeValueReadMs),
+        nodePatch: formatDuration(result.nodeEditPatchMs),
+        viewerLines: result.viewerLineCount.toLocaleString(),
+        viewerRegions: result.viewerRegionCount.toLocaleString(),
+      }))
+    );
   }
 }
 
-export {
-  benchFile,
-  formatBytes,
-  formatDuration,
-};
+export { benchFile, formatBytes, formatDuration };
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();

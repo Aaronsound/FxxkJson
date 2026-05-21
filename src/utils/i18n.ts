@@ -32,9 +32,11 @@ const messages = {
     'toolbar.noLocateContent': '大文件轻量模式已开启：当前没有可定位的原始内容。',
     'toolbar.lightweightLocateOff': '超大文件轻量模式已开启：当前未启用右侧定位，可勾选后使用轻量文本定位。',
     'toolbar.lightweightLocateBuilding': '超大文件轻量模式已开启：正在准备轻量定位，完成后可从右侧点击定位到左侧。',
-    'toolbar.lightweightLocateReady': '超大文件轻量模式已开启：已使用文本 token 映射右侧点击位置，重复内容可能定位到近似位置。',
+    'toolbar.lightweightLocateReady':
+      '超大文件轻量模式已开启：已使用文本 token 映射右侧点击位置，重复内容可能定位到近似位置。',
     'toolbar.lightweightLocateDisabled': '超大文件轻量模式已开启：轻量定位暂不可用，仅保留轻量浏览与格式化。',
-    'toolbar.largeLocateOff': '大文件轻量模式已开启：当前未建立定位索引，如需右侧点击定位左侧，请勾选“大文件启用右侧定位”。',
+    'toolbar.largeLocateOff':
+      '大文件轻量模式已开启：当前未建立定位索引，如需右侧点击定位左侧，请勾选“大文件启用右侧定位”。',
     'toolbar.largeLocateBuilding': '大文件轻量模式已开启：正在后台建立定位能力，完成后可从右侧点击定位到左侧。',
     'toolbar.largeLocateDisabled': '大文件轻量模式已开启：当前内容未能建立定位能力，仅保留轻量浏览与格式化。',
     'toolbar.largeLocateReady': '大文件轻量模式已开启：已保留右侧点击定位左侧的能力，并优先保证滚动和交互流畅。',
@@ -112,7 +114,8 @@ const messages = {
     'about.rosetta': '（Rosetta 转译）',
     'about.author': '作者',
     'about.email': '邮箱',
-    'about.warning': '当前正在通过 Rosetta 运行 x64 版本。M 系列 Mac 建议安装 macos-arm64 包，导入和格式化大 JSON 会更流畅。',
+    'about.warning':
+      '当前正在通过 Rosetta 运行 x64 版本。M 系列 Mac 建议安装 macos-arm64 包，导入和格式化大 JSON 会更流畅。',
     'about.features': '功能介绍',
     'about.close': '关闭',
     'about.feature.largeJson': '支持大 JSON 导入、格式化和轻量浏览，20MB 级文件也能保持顺畅滚动。',
@@ -146,16 +149,24 @@ const messages = {
     'toolbar.language': 'Language',
     'toolbar.languageToggle': '中文',
     'toolbar.importing': 'Importing {fileName}...',
-    'toolbar.locatePreset': 'Large-file locate is preset. The next JSON over 5MB will use structural or lightweight locate based on this choice.',
+    'toolbar.locatePreset':
+      'Large-file locate is preset. The next JSON over 5MB will use structural or lightweight locate based on this choice.',
     'toolbar.noLocateContent': 'Large-file lightweight mode is on. There is no original content to locate.',
-    'toolbar.lightweightLocateOff': 'Huge-file lightweight mode is on. Enable right-side locate to use lightweight text locate.',
-    'toolbar.lightweightLocateBuilding': 'Huge-file lightweight mode is on. Preparing lightweight locate so right-side clicks can locate the raw JSON.',
-    'toolbar.lightweightLocateReady': 'Huge-file lightweight mode is on. Text-token mapping is active; repeated content may locate approximately.',
-    'toolbar.lightweightLocateDisabled': 'Huge-file lightweight mode is on. Lightweight locate is unavailable; browsing and formatting remain enabled.',
-    'toolbar.largeLocateOff': 'Large-file lightweight mode is on. Enable right-side locate to map formatted clicks back to the raw JSON.',
+    'toolbar.lightweightLocateOff':
+      'Huge-file lightweight mode is on. Enable right-side locate to use lightweight text locate.',
+    'toolbar.lightweightLocateBuilding':
+      'Huge-file lightweight mode is on. Preparing lightweight locate so right-side clicks can locate the raw JSON.',
+    'toolbar.lightweightLocateReady':
+      'Huge-file lightweight mode is on. Text-token mapping is active; repeated content may locate approximately.',
+    'toolbar.lightweightLocateDisabled':
+      'Huge-file lightweight mode is on. Lightweight locate is unavailable; browsing and formatting remain enabled.',
+    'toolbar.largeLocateOff':
+      'Large-file lightweight mode is on. Enable right-side locate to map formatted clicks back to the raw JSON.',
     'toolbar.largeLocateBuilding': 'Large-file lightweight mode is on. Building locate data in the background.',
-    'toolbar.largeLocateDisabled': 'Large-file lightweight mode is on. Locate data could not be built; browsing and formatting remain enabled.',
-    'toolbar.largeLocateReady': 'Large-file lightweight mode is on. Right-side click locate remains available while keeping scrolling smooth.',
+    'toolbar.largeLocateDisabled':
+      'Large-file lightweight mode is on. Locate data could not be built; browsing and formatting remain enabled.',
+    'toolbar.largeLocateReady':
+      'Large-file lightweight mode is on. Right-side click locate remains available while keeping scrolling smooth.',
 
     'pane.leftSearchPlaceholder': 'Search raw JSON',
     'pane.rightSearchPlaceholder': 'Search formatted result',
@@ -230,13 +241,15 @@ const messages = {
     'about.rosetta': ' (Rosetta translated)',
     'about.author': 'Author',
     'about.email': 'Email',
-    'about.warning': 'The x64 build is currently running through Rosetta. On Apple Silicon Macs, install the macos-arm64 package for smoother startup, import, and large JSON formatting.',
+    'about.warning':
+      'The x64 build is currently running through Rosetta. On Apple Silicon Macs, install the macos-arm64 package for smoother startup, import, and large JSON formatting.',
     'about.features': 'Features',
     'about.close': 'Close',
     'about.feature.largeJson': 'Import, format, and browse large JSON smoothly, including 20MB-level files.',
     'about.feature.rightView': 'Search, fold, copy values, edit nodes, and locate raw JSON from the formatted view.',
     'about.feature.editing': 'Repair JSON, escape and unescape strings, edit and save while preserving formatting.',
-    'about.feature.diagnostics': 'Use performance details and diagnostics logs to troubleshoot large-file processing, search, and locate issues.',
+    'about.feature.diagnostics':
+      'Use performance details and diagnostics logs to troubleshoot large-file processing, search, and locate issues.',
 
     'drag.title': 'Drop to import JSON',
     'drag.subtitle': 'The active tab will read the dropped .json / .txt file',

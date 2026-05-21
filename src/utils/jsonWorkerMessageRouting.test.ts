@@ -1,10 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkerMessage, WorkerRequestMessage } from '../types/jsonTool';
-import {
-  getJsonWorkerMessageHandler,
-  getJsonWorkerResultHandler,
-} from './jsonWorkerMessageRouting';
+import { getJsonWorkerMessageHandler, getJsonWorkerResultHandler } from './jsonWorkerMessageRouting';
 
 describe('getJsonWorkerMessageHandler', () => {
   it('returns the handler for a known worker message type', () => {

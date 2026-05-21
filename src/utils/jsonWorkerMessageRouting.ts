@@ -5,16 +5,10 @@ export type JsonWorkerMessageHandlerMap = Partial<Record<WorkerRequestMessage['t
 export type JsonWorkerResultHandler = (message: WorkerMessage) => void;
 export type JsonWorkerResultHandlerMap = Partial<Record<WorkerMessage['type'], JsonWorkerResultHandler>>;
 
-export function getJsonWorkerMessageHandler(
-  handlers: JsonWorkerMessageHandlerMap,
-  message: WorkerRequestMessage
-) {
+export function getJsonWorkerMessageHandler(handlers: JsonWorkerMessageHandlerMap, message: WorkerRequestMessage) {
   return handlers[message.type] ?? null;
 }
 
-export function getJsonWorkerResultHandler(
-  handlers: JsonWorkerResultHandlerMap,
-  message: WorkerMessage
-) {
+export function getJsonWorkerResultHandler(handlers: JsonWorkerResultHandlerMap, message: WorkerMessage) {
   return handlers[message.type] ?? null;
 }

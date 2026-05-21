@@ -26,10 +26,7 @@ import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
-import {
-  getCompactPathLabel,
-  useRightSearchQuickAccess,
-} from './hooks/useRightSearchQuickAccess';
+import { getCompactPathLabel, useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import {
   DEFAULT_TAB_TITLE,
   EMPTY_DOCUMENT_META,
@@ -49,21 +46,14 @@ import type {
   LargeRawViewerData,
   RightNodeSelection,
 } from './types/jsonTool';
-import {
-  createTab,
-  selectionCoversModel,
-} from './utils/jsonToolModels';
+import { createTab, selectionCoversModel } from './utils/jsonToolModels';
 import {
   bindEditorFocusContext,
   getContentAfterSelectionReplace,
   registerPaneFindAction,
   registerSelectAllDeleteCommands,
 } from './utils/jsonEditorMountActions';
-import {
-  getUtf8ByteLength,
-  isLargeDocument,
-  shouldUseLargeMode,
-} from './utils/jsonDocumentMetrics';
+import { getUtf8ByteLength, isLargeDocument, shouldUseLargeMode } from './utils/jsonDocumentMetrics';
 import {
   formatBytes,
   formatDuration,
@@ -80,11 +70,7 @@ import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
-import {
-  createTranslator,
-  getInitialLanguage,
-  LANGUAGE_STORAGE_KEY,
-} from './utils/i18n';
+import { createTranslator, getInitialLanguage, LANGUAGE_STORAGE_KEY } from './utils/i18n';
 import './App.css';
 
 const PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY = 'fxxkjson.performancePanel.visible.v2';
@@ -273,106 +259,63 @@ const App: React.FC = () => {
   } = useRightNodeMutationDialog();
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
-  const {
-    activeRightPinnedPathItems,
-    getPinnedPath,
-    pinRightPath,
-    rememberRightSearchTerm,
-    rightRecentSearches,
-  } = useRightSearchQuickAccess(activeTab?.id ?? null);
-  const activeDocumentMeta = activeTab
-    ? documentMetaByTab[activeTab.id] ?? EMPTY_DOCUMENT_META
-    : EMPTY_DOCUMENT_META;
-  const activeRawText = activeTab
-    ? rawTextByTabRef.current[activeTab.id] ?? ''
-    : '';
-  const currentError = activeTab ? errorsByTab[activeTab.id] ?? null : null;
-  const importingFileName = activeTab
-    ? importingByTab[activeTab.id] ?? null
-    : null;
+  const { activeRightPinnedPathItems, getPinnedPath, pinRightPath, rememberRightSearchTerm, rightRecentSearches } =
+    useRightSearchQuickAccess(activeTab?.id ?? null);
+  const activeDocumentMeta = activeTab ? (documentMetaByTab[activeTab.id] ?? EMPTY_DOCUMENT_META) : EMPTY_DOCUMENT_META;
+  const activeRawText = activeTab ? (rawTextByTabRef.current[activeTab.id] ?? '') : '';
+  const currentError = activeTab ? (errorsByTab[activeTab.id] ?? null) : null;
+  const importingFileName = activeTab ? (importingByTab[activeTab.id] ?? null) : null;
   const isImportingActiveTab = Boolean(importingFileName);
-  const formattedValue = activeTab ? formattedTextByTabRef.current[activeTab.id] ?? '' : '';
-  const isFormattingActiveTab = activeTab
-    ? Boolean(isFormattingByTab[activeTab.id])
-    : false;
+  const formattedValue = activeTab ? (formattedTextByTabRef.current[activeTab.id] ?? '') : '';
+  const isFormattingActiveTab = activeTab ? Boolean(isFormattingByTab[activeTab.id]) : false;
   const isLargeFileMode = activeTab
     ? Boolean(
-      largeModeByTab[activeTab.id]
-      || activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD
-      || activeDocumentMeta.formattedLength >= LARGE_FILE_THRESHOLD
-    )
+        largeModeByTab[activeTab.id] ||
+          activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD ||
+          activeDocumentMeta.formattedLength >= LARGE_FILE_THRESHOLD
+      )
     : false;
-  const currentStructureStatus = activeTab
-    ? structureStatusByTab[activeTab.id] ?? 'ready'
-    : 'ready';
-  const activeProcessingStage = activeTab
-    ? processingStageByTab[activeTab.id] ?? 'idle'
-    : 'idle';
-  const activeLocateFeedback = activeTab
-    ? locateFeedbackByTab[activeTab.id] ?? null
-    : null;
-  const activeRightNodeSelection = activeTab
-    ? rightNodeSelectionByTab[activeTab.id] ?? null
-    : null;
+  const currentStructureStatus = activeTab ? (structureStatusByTab[activeTab.id] ?? 'ready') : 'ready';
+  const activeProcessingStage = activeTab ? (processingStageByTab[activeTab.id] ?? 'idle') : 'idle';
+  const activeLocateFeedback = activeTab ? (locateFeedbackByTab[activeTab.id] ?? null) : null;
+  const activeRightNodeSelection = activeTab ? (rightNodeSelectionByTab[activeTab.id] ?? null) : null;
   const activeRightSelectedRange = activeRightNodeSelection
     ? {
-      start: activeRightNodeSelection.startOffset,
-      end: activeRightNodeSelection.endOffset,
-    }
+        start: activeRightNodeSelection.startOffset,
+        end: activeRightNodeSelection.endOffset,
+      }
     : null;
-  const isLargeFileLocateEnabled = activeTab
-    ? Boolean(largeFileLocateEnabledByTab[activeTab.id])
-    : false;
-  const canEnableLargeFileLocate = activeTab
-    ? activeDocumentMeta.rawLength > 0
-    : false;
-  const usesLightweightLocate = activeTab
-    ? activeDocumentMeta.rawLength > STRUCTURE_SYNC_THRESHOLD
-    : false;
+  const isLargeFileLocateEnabled = activeTab ? Boolean(largeFileLocateEnabledByTab[activeTab.id]) : false;
+  const canEnableLargeFileLocate = activeTab ? activeDocumentMeta.rawLength > 0 : false;
+  const usesLightweightLocate = activeTab ? activeDocumentMeta.rawLength > STRUCTURE_SYNC_THRESHOLD : false;
   const canEditJson = Boolean(activeRawText.trim());
   const canUseRightPaneFolding = activeTab
     ? activeDocumentMeta.rawLength > 0 && activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
     : false;
-  const shouldEnableRightPaneFolding = activeTab
-    ? activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
-    : true;
-  const activePerformanceSnapshot = activeTab
-    ? performanceByTab[activeTab.id] ?? null
-    : null;
-  const activeLargeViewerData = activeTab
-    ? largeViewerDataByTab[activeTab.id] ?? null
-    : null;
-  const activeLargeRawViewerData = activeTab
-    ? largeRawViewerDataByTab[activeTab.id] ?? null
-    : null;
-  const activeLargeViewerStatus = activeTab
-    ? largeViewerStatusByTab[activeTab.id] ?? 'idle'
-    : 'idle';
-  const activeLargeViewerCollapsedLines = activeTab
-    ? largeViewerCollapsedLinesByTab[activeTab.id] ?? []
-    : [];
+  const shouldEnableRightPaneFolding = activeTab ? activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD : true;
+  const activePerformanceSnapshot = activeTab ? (performanceByTab[activeTab.id] ?? null) : null;
+  const activeLargeViewerData = activeTab ? (largeViewerDataByTab[activeTab.id] ?? null) : null;
+  const activeLargeRawViewerData = activeTab ? (largeRawViewerDataByTab[activeTab.id] ?? null) : null;
+  const activeLargeViewerStatus = activeTab ? (largeViewerStatusByTab[activeTab.id] ?? 'idle') : 'idle';
+  const activeLargeViewerCollapsedLines = activeTab ? (largeViewerCollapsedLinesByTab[activeTab.id] ?? []) : [];
   const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
   const shouldUseDedicatedLeftViewer = Boolean(activeRawText && activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD);
   const isBuildingDedicatedRightViewer = Boolean(
-    formattedValue
-    && !shouldUseDedicatedRightViewer
-    && activeLargeViewerStatus === 'building'
+    formattedValue && !shouldUseDedicatedRightViewer && activeLargeViewerStatus === 'building'
   );
   const canControlRightPaneFolding = Boolean(
-    formattedValue
-    && !isBuildingDedicatedRightViewer
-    && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
+    formattedValue && !isBuildingDedicatedRightViewer && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
   );
-  const activeRightMatchCount = shouldUseDedicatedRightViewer
-    ? largeViewerMatchCount
-    : rightMatches.length;
+  const activeRightMatchCount = shouldUseDedicatedRightViewer ? largeViewerMatchCount : rightMatches.length;
   const activeLeftMatchCount = leftMatches.length;
-  const normalizedLeftMatchIndex = activeLeftMatchCount > 0
-    ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
-    : 0;
-  const normalizedRightMatchIndex = activeRightMatchCount > 0
-    ? ((rightMatchIndex % activeRightMatchCount) + activeRightMatchCount) % activeRightMatchCount
-    : 0;
+  const normalizedLeftMatchIndex =
+    activeLeftMatchCount > 0
+      ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
+      : 0;
+  const normalizedRightMatchIndex =
+    activeRightMatchCount > 0
+      ? ((rightMatchIndex % activeRightMatchCount) + activeRightMatchCount) % activeRightMatchCount
+      : 0;
   const processingStageText = getProcessingStageText(activeProcessingStage, importingFileName);
   const leftPaneMetaText = [
     activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
@@ -380,7 +323,9 @@ const App: React.FC = () => {
       ? `导入 ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
       : null,
     activeLocateFeedback?.message ?? null,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const rightPaneStatusText = getRightPaneStatusText({
     canEnableLargeFileLocate,
     canUseRightPaneFolding,
@@ -395,11 +340,11 @@ const App: React.FC = () => {
     formatDuration(activePerformanceSnapshot?.formatWorkerMs)
       ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
       : null,
-    activeRightNodeSelection?.pathText
-      ? `路径 ${getCompactPathLabel(activeRightNodeSelection.pathText)}`
-      : null,
+    activeRightNodeSelection?.pathText ? `路径 ${getCompactPathLabel(activeRightNodeSelection.pathText)}` : null,
     rightPaneStatusText,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const diagnosticsContext = buildDiagnosticsContext({
     activeDocumentMeta,
     activeLeftMatchCount,
@@ -463,11 +408,7 @@ const App: React.FC = () => {
     void editor.getAction('editor.toggleFold')?.run();
   };
 
-  const logRightEditorState = (
-    event: string,
-    tabId: string,
-    extra: Record<string, unknown> = {}
-  ) => {
+  const logRightEditorState = (event: string, tabId: string, extra: Record<string, unknown> = {}) => {
     const editor = rightEditorRef.current;
     const model = editor?.getModel();
     const rawText = rawTextByTabRef.current[tabId] ?? '';
@@ -490,10 +431,7 @@ const App: React.FC = () => {
     logDiagnosticsToConsole(event, payload);
     logEvent(event, payload);
   };
-  const {
-    syncLeftModel,
-    syncRightModel,
-  } = useJsonEditorModelSync({
+  const { syncLeftModel, syncRightModel } = useJsonEditorModelSync({
     activeTabIdRef,
     largeModeRef,
     largeViewerDataByTab,
@@ -551,12 +489,7 @@ const App: React.FC = () => {
 
     const start = model.getPositionAt(Math.max(0, offset));
     const end = model.getPositionAt(Math.max(offset + 1, endOffset));
-    const range = new monaco.Range(
-      start.lineNumber,
-      start.column,
-      end.lineNumber,
-      end.column
-    );
+    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
     editor.revealRangeInCenter(range);
     editor.setSelection(range);
     editor.focus();
@@ -659,12 +592,7 @@ const App: React.FC = () => {
     const ranges = matches.map((match) => {
       const start = model.getPositionAt(match.start);
       const end = model.getPositionAt(match.end);
-      return new monaco.Range(
-        start.lineNumber,
-        start.column,
-        end.lineNumber,
-        end.column
-      );
+      return new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
     });
 
     setLeftMatches((current) => (append ? [...current, ...ranges] : ranges));
@@ -728,30 +656,17 @@ const App: React.FC = () => {
 
     const start = leftModel.getPositionAt(startOffset);
     const end = leftModel.getPositionAt(endOffset);
-    const range = new monaco.Range(
-      start.lineNumber,
-      start.column,
-      end.lineNumber,
-      end.column
-    );
+    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
 
     leftEditor.revealRangeInCenter(range);
-    leftEditor.setSelection(
-      new monaco.Selection(
-        start.lineNumber,
-        start.column,
-        end.lineNumber,
-        end.column
-      )
-    );
+    leftEditor.setSelection(new monaco.Selection(start.lineNumber, start.column, end.lineNumber, end.column));
 
-    leftDecorationIdsRef.current = leftEditor.deltaDecorations(
-      leftDecorationIdsRef.current,
-      [{
+    leftDecorationIdsRef.current = leftEditor.deltaDecorations(leftDecorationIdsRef.current, [
+      {
         range,
         options: { inlineClassName: 'currentSearchHighlight' },
-      }]
-    );
+      },
+    ]);
 
     if (highlightTimeoutRef.current !== null) {
       window.clearTimeout(highlightTimeoutRef.current);
@@ -815,17 +730,12 @@ const App: React.FC = () => {
     clearRightHighlights,
   });
 
-  const {
-    handleImportDragEnter,
-    handleImportDragLeave,
-    handleImportDragOver,
-    handleImportDrop,
-    isDragImportActive,
-  } = useJsonImportDropZone({
-    activeTab,
-    importJsonFile,
-    setTabError,
-  });
+  const { handleImportDragEnter, handleImportDragLeave, handleImportDragOver, handleImportDrop, isDragImportActive } =
+    useJsonImportDropZone({
+      activeTab,
+      importJsonFile,
+      setTabError,
+    });
 
   useEffect(() => {
     activeTabIdRef.current = activeTabId;
@@ -834,7 +744,8 @@ const App: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
 
-    window.electronAPI?.getRuntimeInfo?.()
+    window.electronAPI
+      ?.getRuntimeInfo?.()
       .then((info) => {
         if (isMounted) {
           setRuntimeInfo(info);
@@ -890,10 +801,7 @@ const App: React.FC = () => {
   }, [activeTabId]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY,
-      String(showPerformancePanel)
-    );
+    window.localStorage.setItem(PERFORMANCE_PANEL_VISIBILITY_STORAGE_KEY, String(showPerformancePanel));
   }, [showPerformancePanel]);
 
   useEffect(() => {
@@ -920,10 +828,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!shouldUseDedicatedLeftViewer) {
-      leftEditorRef.current?.updateOptions(getMonacoOptions({
-        largeMode: isLargeFileMode,
-        wrapLongLines,
-      }));
+      leftEditorRef.current?.updateOptions(
+        getMonacoOptions({
+          largeMode: isLargeFileMode,
+          wrapLongLines,
+        })
+      );
       leftEditorRef.current?.layout();
     }
     if (!shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
@@ -938,11 +848,15 @@ const App: React.FC = () => {
       rightEditorRef.current?.layout();
     }
     if (activeTab && !shouldUseDedicatedRightViewer) {
-      logRightEditorState(activeTab.id === activeTabId ? 'right-editor-options-refreshed' : 'right-editor-options-skipped', activeTab.id, {
-        isLargeFileMode,
-        shouldEnableRightPaneFolding,
-        wrapLongLines,
-      });
+      logRightEditorState(
+        activeTab.id === activeTabId ? 'right-editor-options-refreshed' : 'right-editor-options-skipped',
+        activeTab.id,
+        {
+          isLargeFileMode,
+          shouldEnableRightPaneFolding,
+          wrapLongLines,
+        }
+      );
     }
   }, [
     activeTab,
@@ -1030,12 +944,7 @@ const App: React.FC = () => {
     if (shouldSendRawText) {
       leftSearchWorkerRevisionRef.current[activeTab.id] = rawRevision;
     }
-  }, [
-    activeDocumentMeta.rawRevision,
-    activeTab,
-    leftSearchOptions,
-    leftSearchTerm,
-  ]);
+  }, [activeDocumentMeta.rawRevision, activeTab, leftSearchOptions, leftSearchTerm]);
 
   useEffect(() => {
     const editor = leftEditorRef.current;
@@ -1046,21 +955,16 @@ const App: React.FC = () => {
       return;
     }
 
-    const activeIndex = leftMatches.length > 0
-      ? ((leftMatchIndex % leftMatches.length) + leftMatches.length) % leftMatches.length
-      : 0;
+    const activeIndex =
+      leftMatches.length > 0 ? ((leftMatchIndex % leftMatches.length) + leftMatches.length) % leftMatches.length : 0;
     const nextDecorations = leftMatches.map((range, index) => ({
       range,
       options: {
-        inlineClassName:
-          index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
+        inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
       },
     }));
 
-    leftDecorationIdsRef.current = editor.deltaDecorations(
-      leftDecorationIdsRef.current,
-      nextDecorations
-    );
+    leftDecorationIdsRef.current = editor.deltaDecorations(leftDecorationIdsRef.current, nextDecorations);
 
     if (leftMatches.length === 0) {
       return;
@@ -1076,12 +980,7 @@ const App: React.FC = () => {
         activeMatch.endColumn
       )
     );
-  }, [
-    activeTabId,
-    leftMatches,
-    leftMatchIndex,
-    leftSearchTerm,
-  ]);
+  }, [activeTabId, leftMatches, leftMatchIndex, leftSearchTerm]);
 
   useEffect(() => {
     const editor = rightEditorRef.current;
@@ -1104,22 +1003,16 @@ const App: React.FC = () => {
     setRightSearchHasMore(result.hasMore);
     setRightSearchNextOffset(result.nextStartOffset);
     setIsRightSearchLoadingMore(false);
-    const activeIndex = matches.length > 0
-      ? ((rightMatchIndex % matches.length) + matches.length) % matches.length
-      : 0;
+    const activeIndex = matches.length > 0 ? ((rightMatchIndex % matches.length) + matches.length) % matches.length : 0;
 
     const nextDecorations = matches.map((range, index) => ({
       range,
       options: {
-        inlineClassName:
-          index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
+        inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
       },
     }));
 
-    rightDecorationIdsRef.current = editor.deltaDecorations(
-      rightDecorationIdsRef.current,
-      nextDecorations
-    );
+    rightDecorationIdsRef.current = editor.deltaDecorations(rightDecorationIdsRef.current, nextDecorations);
 
     if (matches.length === 0) {
       return;
@@ -1218,9 +1111,7 @@ const App: React.FC = () => {
         }
 
         const coversModel = selectionCoversModel(editor);
-        const nextContent = coversModel
-          ? text
-          : getContentAfterSelectionReplace(model, selection, text);
+        const nextContent = coversModel ? text : getContentAfterSelectionReplace(model, selection, text);
         beginPastePerformanceSession(currentTabId, nextContent);
 
         if (coversModel) {
@@ -1233,11 +1124,13 @@ const App: React.FC = () => {
           return;
         }
 
-        mountedEditor.executeEdits('paste', [{
-          range: selection,
-          text,
-          forceMoveMarkers: true,
-        }]);
+        mountedEditor.executeEdits('paste', [
+          {
+            range: selection,
+            text,
+            forceMoveMarkers: true,
+          },
+        ]);
       },
     });
   };
@@ -1324,19 +1217,16 @@ const App: React.FC = () => {
       const currentTabId = activeTabIdRef.current;
 
       if (
-        largeModeRef.current[currentTabId]
-        || !workerStructureEnabledRef.current[currentTabId]
-        || structureStatusRef.current[currentTabId] !== 'ready'
+        largeModeRef.current[currentTabId] ||
+        !workerStructureEnabledRef.current[currentTabId] ||
+        structureStatusRef.current[currentTabId] !== 'ready'
       ) {
         return;
       }
 
       const rightModel = editor.getModel();
 
-      if (
-        !rightModel ||
-        (event.position.lineNumber === 1 && event.position.column === 1)
-      ) {
+      if (!rightModel || (event.position.lineNumber === 1 && event.position.column === 1)) {
         return;
       }
 
@@ -1476,12 +1366,7 @@ const App: React.FC = () => {
           return;
         }
 
-        await applyRightNodeMutationAtOffset(
-          actionOffset.tabId,
-          actionOffset.offset,
-          true,
-          'rename-node-key'
-        );
+        await applyRightNodeMutationAtOffset(actionOffset.tabId, actionOffset.offset, true, 'rename-node-key');
       },
     });
 
@@ -1496,12 +1381,7 @@ const App: React.FC = () => {
           return;
         }
 
-        await applyRightNodeMutationAtOffset(
-          actionOffset.tabId,
-          actionOffset.offset,
-          true,
-          'delete-node'
-        );
+        await applyRightNodeMutationAtOffset(actionOffset.tabId, actionOffset.offset, true, 'delete-node');
       },
     });
 
@@ -1551,10 +1431,7 @@ const App: React.FC = () => {
 
         await importJsonText(activeTab.id, file.name, file.size, file.content);
       } catch (error) {
-        setTabError(
-          activeTab.id,
-          error instanceof Error ? `导入失败：${error.message}` : '导入失败'
-        );
+        setTabError(activeTab.id, error instanceof Error ? `导入失败：${error.message}` : '导入失败');
       }
       return;
     }
@@ -1616,14 +1493,7 @@ const App: React.FC = () => {
     }
 
     const largeMode = isLargeDocument(currentText);
-    beginPerformanceSession(
-      activeTab.id,
-      'repair',
-      activeTab.title,
-      null,
-      getUtf8ByteLength(currentText),
-      largeMode
-    );
+    beginPerformanceSession(activeTab.id, 'repair', activeTab.title, null, getUtf8ByteLength(currentText), largeMode);
     setTabLargeMode(activeTab.id, largeMode);
     queueRepair(activeTab.id, currentText);
   };
@@ -1641,9 +1511,8 @@ const App: React.FC = () => {
     const model = editor?.getModel() ?? null;
     const selection = editor?.getSelection() ?? null;
     const hasSelection = Boolean(model && selection && !selection.isEmpty());
-    const sourceText = hasSelection && model && selection
-      ? model.getValueInRange(selection)
-      : getTabContent(currentTabId);
+    const sourceText =
+      hasSelection && model && selection ? model.getValueInRange(selection) : getTabContent(currentTabId);
 
     if (!sourceText.trim()) {
       setTabError(currentTabId, `没有可${label}的内容`);
@@ -1653,20 +1522,23 @@ const App: React.FC = () => {
     setEditJsonBusyLabel(`正在${label}...`);
     try {
       const transformed = await requestWorkerEditJson(currentTabId, operation, sourceText);
-      const nextContent = hasSelection && model && selection
-        ? getContentAfterSelectionReplace(model, selection, transformed)
-        : transformed;
+      const nextContent =
+        hasSelection && model && selection
+          ? getContentAfterSelectionReplace(model, selection, transformed)
+          : transformed;
       const largeMode = isLargeDocument(nextContent);
 
       setTabLargeMode(currentTabId, largeMode);
       setTabError(currentTabId, null);
 
       if (hasSelection && editor && selection) {
-        editor.executeEdits('json-escape-transform', [{
-          range: selection,
-          text: transformed,
-          forceMoveMarkers: true,
-        }]);
+        editor.executeEdits('json-escape-transform', [
+          {
+            range: selection,
+            text: transformed,
+            forceMoveMarkers: true,
+          },
+        ]);
         resetSearchState();
         return;
       }
@@ -1675,10 +1547,7 @@ const App: React.FC = () => {
       resetSearchState();
       queueFormat(currentTabId, transformed, true);
     } catch (error) {
-      setTabError(
-        currentTabId,
-        error instanceof Error ? `${label}失败：${error.message}` : `${label}失败`
-      );
+      setTabError(currentTabId, error instanceof Error ? `${label}失败：${error.message}` : `${label}失败`);
     } finally {
       setEditJsonBusyLabel(null);
     }
@@ -1703,53 +1572,37 @@ const App: React.FC = () => {
       const formatted = await requestWorkerEditJson(activeTab.id, 'format', raw);
       openDocumentEditSession(formatted);
     } catch (error) {
-      setTabError(
-        activeTab.id,
-        error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败'
-      );
+      setTabError(activeTab.id, error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败');
     } finally {
       setEditJsonBusyLabel(null);
     }
   };
 
-  const readEditableNodeAtOffset = useCallback(async (
-    tabId: string,
-    offset: number,
-    preferCachedText: boolean,
-    invalidMessage: string
-  ) => {
-    const readAndParse = async (sourceText: string) => {
-      const payload = await requestWorkerEditJson(
-        tabId,
-        'read-node',
-        sourceText,
-        undefined,
-        undefined,
-        offset
-      );
+  const readEditableNodeAtOffset = useCallback(
+    async (tabId: string, offset: number, preferCachedText: boolean, invalidMessage: string) => {
+      const readAndParse = async (sourceText: string) => {
+        const payload = await requestWorkerEditJson(tabId, 'read-node', sourceText, undefined, undefined, offset);
 
-      return parseEditableNodePayload(payload, invalidMessage);
-    };
+        return parseEditableNodePayload(payload, invalidMessage);
+      };
 
-    if (preferCachedText) {
-      try {
-        return await readAndParse('');
-      } catch (error) {
-        const fallbackText = formattedTextByTabRef.current[tabId] ?? '';
-        if (!fallbackText) {
-          throw error;
+      if (preferCachedText) {
+        try {
+          return await readAndParse('');
+        } catch (error) {
+          const fallbackText = formattedTextByTabRef.current[tabId] ?? '';
+          if (!fallbackText) {
+            throw error;
+          }
         }
       }
-    }
 
-    return readAndParse(formattedTextByTabRef.current[tabId] ?? '');
-  }, [requestWorkerEditJson]);
+      return readAndParse(formattedTextByTabRef.current[tabId] ?? '');
+    },
+    [requestWorkerEditJson]
+  );
 
-  const {
-    applyRightNodeMutationAtOffset,
-    copyNodeDetailAtOffset,
-    copyValueAtOffset,
-  } = useRightNodeActions({
+  const { applyRightNodeMutationAtOffset, copyNodeDetailAtOffset, copyValueAtOffset } = useRightNodeActions({
     applyRawUpdate(tabId, updated) {
       updateTabContent(tabId, updated, true);
       setTabLargeMode(tabId, isLargeDocument(updated));
@@ -1767,44 +1620,23 @@ const App: React.FC = () => {
     setTabError,
   });
 
-  const handleOpenEditNodeAtOffset = async (
-    tabId: string,
-    offset: number,
-    preferCachedText = false
-  ) => {
+  const handleOpenEditNodeAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
     setEditJsonBusyLabel('正在准备当前节点...');
     try {
-      const parsed = await readEditableNodeAtOffset(
-        tabId,
-        offset,
-        preferCachedText,
-        '当前节点无法编辑'
-      );
+      const parsed = await readEditableNodeAtOffset(tabId, offset, preferCachedText, '当前节点无法编辑');
 
       openNodeEditSession(parsed.value, parsed.path);
     } catch (error) {
-      setTabError(
-        tabId,
-        error instanceof Error ? `打开当前节点编辑失败：${error.message}` : '打开当前节点编辑失败'
-      );
+      setTabError(tabId, error instanceof Error ? `打开当前节点编辑失败：${error.message}` : '打开当前节点编辑失败');
     } finally {
       setEditJsonBusyLabel(null);
     }
   };
 
-  const handleOpenUnescapedNodeAtOffset = async (
-    tabId: string,
-    offset: number,
-    preferCachedText = false
-  ) => {
+  const handleOpenUnescapedNodeAtOffset = async (tabId: string, offset: number, preferCachedText = false) => {
     setEditJsonBusyLabel('正在反转义当前节点...');
     try {
-      const parsed = await readEditableNodeAtOffset(
-        tabId,
-        offset,
-        preferCachedText,
-        '当前节点无法反转义'
-      );
+      const parsed = await readEditableNodeAtOffset(tabId, offset, preferCachedText, '当前节点无法反转义');
 
       const nodeValue = JSON.parse(parsed.value);
       if (typeof nodeValue !== 'string') {
@@ -1815,10 +1647,7 @@ const App: React.FC = () => {
       JSON.parse(transformed);
       openNodeEditSession(transformed, parsed.path);
     } catch (error) {
-      setTabError(
-        tabId,
-        error instanceof Error ? `反转义当前节点失败：${error.message}` : '反转义当前节点失败'
-      );
+      setTabError(tabId, error instanceof Error ? `反转义当前节点失败：${error.message}` : '反转义当前节点失败');
     } finally {
       setEditJsonBusyLabel(null);
     }
@@ -1847,14 +1676,7 @@ const App: React.FC = () => {
         throw new Error('JSON worker returned an empty result');
       }
       const largeMode = isLargeDocument(updated);
-      beginPerformanceSession(
-        currentTabId,
-        'edit-save',
-        currentTabTitle,
-        null,
-        getUtf8ByteLength(updated),
-        largeMode
-      );
+      beginPerformanceSession(currentTabId, 'edit-save', currentTabTitle, null, getUtf8ByteLength(updated), largeMode);
 
       mutatePerformanceSession(currentTabId, (session) => {
         session.leftModelStartedAt = performance.now();
@@ -1878,35 +1700,39 @@ const App: React.FC = () => {
           currentTabId,
           saveResult.structureWarming
             ? 'building'
-            : (workerStructureEnabledRef.current[currentTabId] ? 'ready' : (largeMode ? 'disabled' : 'ready'))
+            : workerStructureEnabledRef.current[currentTabId]
+              ? 'ready'
+              : largeMode
+                ? 'disabled'
+                : 'ready'
         );
         setProcessingStage(currentTabId, saveResult.structureWarming ? 'building-index' : 'idle');
         setTabFormatting(currentTabId, false);
-        mutatePerformanceSession(currentTabId, (session) => {
-          session.pendingFormat = false;
-          session.requestId = null;
-          session.formatQueuedAt = rightModelStartedAt;
-          session.formatStartedAt = rightModelStartedAt;
-          session.formatCompletedAt = rightModelStartedAt;
-          session.rightModelStartedAt = rightModelStartedAt;
-          session.rightModelCompletedAt = rightModelCompletedAt;
-          session.formattedBytes = getUtf8ByteLength(saveResult.formattedText ?? '');
-          session.viewerIndexMs = typeof saveResult.viewerIndexMs === 'number'
-            ? saveResult.viewerIndexMs
-            : null;
-          session.viewerReadyAt = rightModelCompletedAt;
-          session.structureCompletedAt = rightModelCompletedAt;
-          session.structureEnabled = Boolean(workerStructureEnabledRef.current[currentTabId]);
-          session.status = 'ready';
-          session.error = null;
-        }, true);
+        mutatePerformanceSession(
+          currentTabId,
+          (session) => {
+            session.pendingFormat = false;
+            session.requestId = null;
+            session.formatQueuedAt = rightModelStartedAt;
+            session.formatStartedAt = rightModelStartedAt;
+            session.formatCompletedAt = rightModelStartedAt;
+            session.rightModelStartedAt = rightModelStartedAt;
+            session.rightModelCompletedAt = rightModelCompletedAt;
+            session.formattedBytes = getUtf8ByteLength(saveResult.formattedText ?? '');
+            session.viewerIndexMs = typeof saveResult.viewerIndexMs === 'number' ? saveResult.viewerIndexMs : null;
+            session.viewerReadyAt = rightModelCompletedAt;
+            session.structureCompletedAt = rightModelCompletedAt;
+            session.structureEnabled = Boolean(workerStructureEnabledRef.current[currentTabId]);
+            session.status = 'ready';
+            session.error = null;
+          },
+          true
+        );
       } else {
         queueFormatAfterEditSave(currentTabId, updated);
       }
     } catch (error) {
-      setEditJsonError(
-        error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败'
-      );
+      setEditJsonError(error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败');
       setEditJsonBusyLabel(null);
     }
   };
@@ -1933,22 +1759,17 @@ const App: React.FC = () => {
       setEditJsonError(null);
       return transformed;
     } catch (error) {
-      setEditJsonError(
-        error instanceof Error ? `${label}编辑内容失败：${error.message}` : `${label}编辑内容失败`
-      );
+      setEditJsonError(error instanceof Error ? `${label}编辑内容失败：${error.message}` : `${label}编辑内容失败`);
       throw error;
     } finally {
       setEditJsonBusyLabel(null);
     }
   };
 
-  const handleUnescapeEditJsonContent = (value: string) => (
-    handleTransformEditJsonContent('unescape-json', '反转义', value)
-  );
+  const handleUnescapeEditJsonContent = (value: string) =>
+    handleTransformEditJsonContent('unescape-json', '反转义', value);
 
-  const handleEscapeEditJsonContent = (value: string) => (
-    handleTransformEditJsonContent('escape-json', '转义', value)
-  );
+  const handleEscapeEditJsonContent = (value: string) => handleTransformEditJsonContent('escape-json', '转义', value);
 
   const handleCopyEscapedJson = async () => {
     if (!activeTab) {
@@ -1962,9 +1783,7 @@ const App: React.FC = () => {
       setEditJsonError(null);
       showCopyLiteralNotice();
     } catch (error) {
-      setEditJsonError(
-        error instanceof Error ? `复制字符串字面量失败：${error.message}` : '复制字符串字面量失败'
-      );
+      setEditJsonError(error instanceof Error ? `复制字符串字面量失败：${error.message}` : '复制字符串字面量失败');
     } finally {
       setEditJsonBusyLabel(null);
     }
@@ -2008,8 +1827,10 @@ const App: React.FC = () => {
     const currentTabId = activeTabIdRef.current;
 
     if (currentTabId) {
-      leftViewStateByTabRef.current[currentTabId] = leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[currentTabId] ?? null;
-      rightViewStateByTabRef.current[currentTabId] = rightEditorRef.current?.saveViewState() ?? rightViewStateByTabRef.current[currentTabId] ?? null;
+      leftViewStateByTabRef.current[currentTabId] =
+        leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[currentTabId] ?? null;
+      rightViewStateByTabRef.current[currentTabId] =
+        rightEditorRef.current?.saveViewState() ?? rightViewStateByTabRef.current[currentTabId] ?? null;
     }
 
     rawTextByTabRef.current[nextId] = '';
@@ -2091,10 +1912,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleFindShortcut = (event: KeyboardEvent) => {
-      const isFindShortcut = event.key.toLowerCase() === 'f'
-        && (event.ctrlKey || event.metaKey)
-        && !event.shiftKey
-        && !event.altKey;
+      const isFindShortcut =
+        event.key.toLowerCase() === 'f' && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey;
 
       if (!isFindShortcut) {
         return;
@@ -2147,17 +1966,13 @@ const App: React.FC = () => {
       return;
     }
 
-    editor.executeEdits('pane-find-replace', [{
-      range,
-      text: getReplacementText(
-        model,
+    editor.executeEdits('pane-find-replace', [
+      {
         range,
-        leftSearchTerm,
-        leftSearchOptions,
-        leftReplaceText
-      ),
-      forceMoveMarkers: true,
-    }]);
+        text: getReplacementText(model, range, leftSearchTerm, leftSearchOptions, leftReplaceText),
+        forceMoveMarkers: true,
+      },
+    ]);
     editor.focus();
   };
 
@@ -2169,27 +1984,23 @@ const App: React.FC = () => {
       return;
     }
 
-    const sortedRanges = [...leftMatches].sort((left, right) => (
-      model.getOffsetAt({
-        lineNumber: right.startLineNumber,
-        column: right.startColumn,
-      }) - model.getOffsetAt({
-        lineNumber: left.startLineNumber,
-        column: left.startColumn,
-      })
-    ));
+    const sortedRanges = [...leftMatches].sort(
+      (left, right) =>
+        model.getOffsetAt({
+          lineNumber: right.startLineNumber,
+          column: right.startColumn,
+        }) -
+        model.getOffsetAt({
+          lineNumber: left.startLineNumber,
+          column: left.startColumn,
+        })
+    );
 
     editor.executeEdits(
       'pane-find-replace-all',
       sortedRanges.map((range) => ({
         range,
-        text: getReplacementText(
-          model,
-          range,
-          leftSearchTerm,
-          leftSearchOptions,
-          leftReplaceText
-        ),
+        text: getReplacementText(model, range, leftSearchTerm, leftSearchOptions, leftReplaceText),
         forceMoveMarkers: true,
       }))
     );
@@ -2258,13 +2069,7 @@ const App: React.FC = () => {
       }
 
       setIsRightSearchLoadingMore(true);
-      requestWorkerSearch(
-        activeTab.id,
-        rightSearchTerm,
-        rightSearchOptions,
-        rightSearchNextOffset,
-        true
-      );
+      requestWorkerSearch(activeTab.id, rightSearchTerm, rightSearchOptions, rightSearchNextOffset, true);
       return;
     }
 
@@ -2275,16 +2080,10 @@ const App: React.FC = () => {
       return;
     }
 
-    const result = getMonacoSearchBatch(
-      model,
-      rightSearchTerm,
-      rightSearchOptions,
-      rightSearchNextOffset
-    );
+    const result = getMonacoSearchBatch(model, rightSearchTerm, rightSearchOptions, rightSearchNextOffset);
     const nextMatches = [...rightMatches, ...result.ranges];
-    const activeIndex = nextMatches.length > 0
-      ? ((rightMatchIndex % nextMatches.length) + nextMatches.length) % nextMatches.length
-      : 0;
+    const activeIndex =
+      nextMatches.length > 0 ? ((rightMatchIndex % nextMatches.length) + nextMatches.length) % nextMatches.length : 0;
 
     setRightMatches(nextMatches);
     setRightSearchHasMore(result.hasMore);
@@ -2294,8 +2093,7 @@ const App: React.FC = () => {
       nextMatches.map((range, index) => ({
         range,
         options: {
-          inlineClassName:
-            index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
+          inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
         },
       }))
     );

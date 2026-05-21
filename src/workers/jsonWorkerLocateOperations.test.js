@@ -13,11 +13,14 @@ describe('jsonWorkerLocateOperations', () => {
     const { parseTree } = await import('jsonc-parser');
     const rawText = '{"name":"demo"}';
     const formattedText = '{\n  "name": "demo"\n}';
-    const resolved = getResolvedNodes({
-      rawTree: parseTree(rawText),
-      formattedTree: parseTree(formattedText),
-      formattedText,
-    }, formattedText.indexOf('"demo"'));
+    const resolved = getResolvedNodes(
+      {
+        rawTree: parseTree(rawText),
+        formattedTree: parseTree(formattedText),
+        formattedText,
+      },
+      formattedText.indexOf('"demo"')
+    );
 
     expect(resolved?.path).toEqual(['name']);
     expect(resolved?.leftNode.offset).toBe(rawText.indexOf('"demo"'));

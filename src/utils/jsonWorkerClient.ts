@@ -1,14 +1,9 @@
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
-import type {
-  WorkerMessage,
-  WorkerRequestMessage,
-  WorkerRequestTextPayload,
-} from '../types/jsonTool';
+import type { WorkerMessage, WorkerRequestMessage, WorkerRequestTextPayload } from '../types/jsonTool';
 import { getUtf8ByteLength } from './jsonDocumentMetrics';
 
 function isArrayBuffer(value: unknown): value is ArrayBuffer {
-  return value instanceof ArrayBuffer
-    || Object.prototype.toString.call(value) === '[object ArrayBuffer]';
+  return value instanceof ArrayBuffer || Object.prototype.toString.call(value) === '[object ArrayBuffer]';
 }
 
 export function createJsonWorkerClient(getWorker: () => Worker | null) {
@@ -25,10 +20,7 @@ export function createJsonWorkerClient(getWorker: () => Worker | null) {
     return textDecoder;
   };
 
-  const postRequest = (
-    message: WorkerRequestMessage,
-    transfer: Transferable[] = []
-  ) => {
+  const postRequest = (message: WorkerRequestMessage, transfer: Transferable[] = []) => {
     getWorker()?.postMessage(message, transfer);
   };
 
@@ -67,9 +59,7 @@ export function createJsonWorkerClient(getWorker: () => Worker | null) {
     return null;
   };
 
-  const readText = (message: WorkerMessage) => (
-    readTextField(message, 'data', 'dataBuffer')
-  );
+  const readText = (message: WorkerMessage) => readTextField(message, 'data', 'dataBuffer');
 
   return {
     createTextPayload,

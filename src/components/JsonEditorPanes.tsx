@@ -243,14 +243,8 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
             loading={null}
           />
         )}
-        {shouldShowLeftPlaceholder && (
-          <div className="editor-center-placeholder">{t('pane.rawPlaceholder')}</div>
-        )}
-        {processingStageText && (
-          <div className="editor-loading-overlay">
-            {processingStageText}
-          </div>
-        )}
+        {shouldShowLeftPlaceholder && <div className="editor-center-placeholder">{t('pane.rawPlaceholder')}</div>}
+        {processingStageText && <div className="editor-loading-overlay">{processingStageText}</div>}
       </div>
     </div>
 
@@ -267,12 +261,12 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
       <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
         <span className="editor-pane-header-text">{rightPaneMetaText}</span>
         <div className="editor-pane-header-flags">
-          <span className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}>
+          <span
+            className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}
+          >
             {t('pane.lightFoldMode')}
           </span>
-          <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>
-            {t('pane.lightMode')}
-          </span>
+          <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>{t('pane.lightMode')}</span>
         </div>
       </div>
       <div className="editor-pane-body">

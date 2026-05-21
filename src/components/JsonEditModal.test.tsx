@@ -13,12 +13,7 @@ const mockEditorState = vi.hoisted(() => {
 
     endColumn: number;
 
-    constructor(
-      startLineNumber: number,
-      startColumn: number,
-      endLineNumber: number,
-      endColumn: number
-    ) {
+    constructor(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
       this.startLineNumber = startLineNumber;
       this.startColumn = startColumn;
       this.endLineNumber = endLineNumber;
@@ -232,9 +227,7 @@ function renderModal(initialValue: string) {
 
 function openFind() {
   act(() => {
-    mockEditorState.editor?.commands.get(
-      mockEditorState.keyMod.CtrlCmd | mockEditorState.keyCode.KeyF
-    )?.();
+    mockEditorState.editor?.commands.get(mockEditorState.keyMod.CtrlCmd | mockEditorState.keyCode.KeyF)?.();
   });
 }
 
@@ -268,15 +261,17 @@ describe('JsonEditModal search position', () => {
   });
 
   it('keeps a late search match active after editing its value', async () => {
-    const { container } = renderModal([
-      '{',
-      '  "items": [',
-      '    { "name": "first" },',
-      '    { "name": "second" },',
-      '    { "name": "third" }',
-      '  ]',
-      '}',
-    ].join('\n'));
+    const { container } = renderModal(
+      [
+        '{',
+        '  "items": [',
+        '    { "name": "first" },',
+        '    { "name": "second" },',
+        '    { "name": "third" }',
+        '  ]',
+        '}',
+      ].join('\n')
+    );
 
     await searchForName(container);
     fireEvent.click(screen.getByRole('button', { name: '下一个' }));
@@ -306,15 +301,17 @@ describe('JsonEditModal search position', () => {
   });
 
   it('moves to the nearby next match after deleting the active key/value', async () => {
-    const { container } = renderModal([
-      '{',
-      '  "items": [',
-      '    { "name": "first" },',
-      '    { "name": "second" },',
-      '    { "name": "third" }',
-      '  ]',
-      '}',
-    ].join('\n'));
+    const { container } = renderModal(
+      [
+        '{',
+        '  "items": [',
+        '    { "name": "first" },',
+        '    { "name": "second" },',
+        '    { "name": "third" }',
+        '  ]',
+        '}',
+      ].join('\n')
+    );
 
     await searchForName(container);
     fireEvent.click(screen.getByRole('button', { name: '下一个' }));
@@ -323,14 +320,7 @@ describe('JsonEditModal search position', () => {
     const revealCountBeforeDelete = mockEditorState.editor?.revealRangeInCenter.mock.calls.length;
     fireEvent.change(screen.getByLabelText('mock-json-editor'), {
       target: {
-        value: [
-          '{',
-          '  "items": [',
-          '    { "name": "first" },',
-          '    { "name": "third" }',
-          '  ]',
-          '}',
-        ].join('\n'),
+        value: ['{', '  "items": [', '    { "name": "first" },', '    { "name": "third" }', '  ]', '}'].join('\n'),
       },
     });
     await act(async () => {

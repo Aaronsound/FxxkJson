@@ -19,10 +19,7 @@ export function getSearchDecorationWindow<T>(
     return matches.map((range, matchIndex) => ({ matchIndex, range }));
   }
 
-  const startIndex = Math.max(
-    0,
-    Math.min(normalizedIndex - radius, matches.length - maxDecorations)
-  );
+  const startIndex = Math.max(0, Math.min(normalizedIndex - radius, matches.length - maxDecorations));
   const endIndex = Math.min(matches.length, startIndex + maxDecorations);
 
   return matches.slice(startIndex, endIndex).map((range, index) => ({

@@ -198,7 +198,6 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
               </div>
             </div>
           </section>
-
         </div>
 
         <div className="toolbar-bottom-row">

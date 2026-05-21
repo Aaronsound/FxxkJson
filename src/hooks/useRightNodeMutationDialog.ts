@@ -22,27 +22,31 @@ export function useRightNodeMutationDialog() {
     setDialogState(null);
   }, []);
 
-  const requestDeleteNode = useCallback((path: JsonEditPath, preview: string) => (
-    new Promise<boolean>((resolve) => {
-      pendingResolverRef.current = { mode: 'delete', resolve };
-      setDialogState({
-        mode: 'delete',
-        pathText: formatJsonPath(path),
-        preview,
-      });
-    })
-  ), []);
+  const requestDeleteNode = useCallback(
+    (path: JsonEditPath, preview: string) =>
+      new Promise<boolean>((resolve) => {
+        pendingResolverRef.current = { mode: 'delete', resolve };
+        setDialogState({
+          mode: 'delete',
+          pathText: formatJsonPath(path),
+          preview,
+        });
+      }),
+    []
+  );
 
-  const requestRenameKey = useCallback((path: JsonEditPath, currentKey: string) => (
-    new Promise<string | null>((resolve) => {
-      pendingResolverRef.current = { mode: 'rename', resolve };
-      setDialogState({
-        mode: 'rename',
-        currentKey,
-        pathText: formatJsonPath(path),
-      });
-    })
-  ), []);
+  const requestRenameKey = useCallback(
+    (path: JsonEditPath, currentKey: string) =>
+      new Promise<string | null>((resolve) => {
+        pendingResolverRef.current = { mode: 'rename', resolve };
+        setDialogState({
+          mode: 'rename',
+          currentKey,
+          pathText: formatJsonPath(path),
+        });
+      }),
+    []
+  );
 
   const cancelMutationDialog = useCallback(() => {
     const pending = pendingResolverRef.current;
@@ -62,13 +66,16 @@ export function useRightNodeMutationDialog() {
     clearPending();
   }, [clearPending]);
 
-  const confirmRenameDialog = useCallback((nextKey: string) => {
-    const pending = pendingResolverRef.current;
-    if (pending?.mode === 'rename') {
-      pending.resolve(nextKey);
-    }
-    clearPending();
-  }, [clearPending]);
+  const confirmRenameDialog = useCallback(
+    (nextKey: string) => {
+      const pending = pendingResolverRef.current;
+      if (pending?.mode === 'rename') {
+        pending.resolve(nextKey);
+      }
+      clearPending();
+    },
+    [clearPending]
+  );
 
   return {
     cancelMutationDialog,

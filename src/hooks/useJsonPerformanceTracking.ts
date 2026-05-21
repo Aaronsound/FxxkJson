@@ -1,9 +1,5 @@
 import { MutableRefObject, useEffect, useRef, useState } from 'react';
-import {
-  PerformanceSnapshot,
-  PerformanceSnapshotStatus,
-  PerformanceTrigger,
-} from '../types/jsonTool';
+import { PerformanceSnapshot, PerformanceSnapshotStatus, PerformanceTrigger } from '../types/jsonTool';
 
 export type PerformanceSession = {
   runId: string;
@@ -39,15 +35,10 @@ type UseJsonPerformanceTrackingArgs = {
 };
 
 function measureDuration(start?: number, end?: number) {
-  return typeof start === 'number' && typeof end === 'number'
-    ? Math.round((end - start) * 10) / 10
-    : null;
+  return typeof start === 'number' && typeof end === 'number' ? Math.round((end - start) * 10) / 10 : null;
 }
 
-export function useJsonPerformanceTracking({
-  activeTabIdRef,
-  initialTabId,
-}: UseJsonPerformanceTrackingArgs) {
+export function useJsonPerformanceTracking({ activeTabIdRef, initialTabId }: UseJsonPerformanceTrackingArgs) {
   const [performanceByTab, setPerformanceByTab] = useState<Record<string, PerformanceSnapshot | null>>({
     [initialTabId]: null,
   });
@@ -55,13 +46,17 @@ export function useJsonPerformanceTracking({
   const performanceSessionsRef = useRef<Record<string, PerformanceSession>>({});
 
   const logEvent = (event: string, details: Record<string, unknown> = {}) => {
-    window.electronAPI?.appendLog(JSON.stringify({
-      event,
-      activeTabId: activeTabIdRef.current,
-      ...details,
-    })).catch(() => {
-      // Ignore logging failures in the renderer path.
-    });
+    window.electronAPI
+      ?.appendLog(
+        JSON.stringify({
+          event,
+          activeTabId: activeTabIdRef.current,
+          ...details,
+        })
+      )
+      .catch(() => {
+        // Ignore logging failures in the renderer path.
+      });
   };
 
   const syncPerformanceSnapshot = (tabId: string, shouldLog = false) => {
@@ -84,9 +79,7 @@ export function useJsonPerformanceTracking({
       formatQueueMs: measureDuration(session.formatQueuedAt, session.formatStartedAt),
       formatWorkerMs: measureDuration(session.formatStartedAt, session.formatCompletedAt),
       rightModelSyncMs: measureDuration(session.rightModelStartedAt, session.rightModelCompletedAt),
-      viewerIndexMs: typeof session.viewerIndexMs === 'number'
-        ? Math.round(session.viewerIndexMs * 10) / 10
-        : null,
+      viewerIndexMs: typeof session.viewerIndexMs === 'number' ? Math.round(session.viewerIndexMs * 10) / 10 : null,
       totalToFormattedMs: measureDuration(session.startedAt, session.rightModelCompletedAt),
       totalToViewerReadyMs: measureDuration(session.startedAt, session.viewerReadyAt),
       structureIndexMs: measureDuration(session.formatCompletedAt, session.structureCompletedAt),
@@ -99,10 +92,9 @@ export function useJsonPerformanceTracking({
 
     if (shouldLog) {
       if (snapshot.status !== 'running') {
-        setPerformanceHistory((current) => [
-          snapshot,
-          ...current.filter((item) => item.runId !== snapshot.runId),
-        ].slice(0, 12));
+        setPerformanceHistory((current) =>
+          [snapshot, ...current.filter((item) => item.runId !== snapshot.runId)].slice(0, 12)
+        );
       }
 
       logEvent('performance-snapshot', {
@@ -182,9 +174,10 @@ export function useJsonPerformanceTracking({
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       logEvent('renderer-unhandled-rejection', {
-        reason: event.reason instanceof Error
-          ? { message: event.reason.message, stack: event.reason.stack }
-          : String(event.reason),
+        reason:
+          event.reason instanceof Error
+            ? { message: event.reason.message, stack: event.reason.stack }
+            : String(event.reason),
       });
     };
 

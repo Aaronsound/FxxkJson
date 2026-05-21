@@ -1,8 +1,5 @@
 import { findNodeAtLocation, getLocation } from 'jsonc-parser';
-import {
-  getIdentityLocateRange,
-  getLightweightTokenLocateRange,
-} from '../utils/lightweightLocate';
+import { getIdentityLocateRange, getLightweightTokenLocateRange } from '../utils/lightweightLocate';
 import { getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import { formatJsonPath } from '../utils/jsonPath';
 
@@ -13,11 +10,7 @@ export function getLocateCandidateOffsets(text, offset) {
   const lineStart = text.lastIndexOf('\n', Math.max(0, safeOffset - 1)) + 1;
   const nextLineBreak = text.indexOf('\n', safeOffset);
   const lineEnd = nextLineBreak === -1 ? text.length : nextLineBreak;
-  const candidates = [
-    safeOffset,
-    Math.max(0, safeOffset - 1),
-    Math.min(text.length, safeOffset + 1),
-  ];
+  const candidates = [safeOffset, Math.max(0, safeOffset - 1), Math.min(text.length, safeOffset + 1)];
 
   let firstNonWhitespace = lineStart;
   while (firstNonWhitespace < lineEnd && /\s/.test(text[firstNonWhitespace])) {
@@ -46,20 +39,13 @@ export function getLocateCandidateOffsets(text, offset) {
     candidates.push(previousNonWhitespace);
   }
 
-  return candidates.filter((candidate, index, values) => (
-    candidate >= 0
-    && candidate <= text.length
-    && values.indexOf(candidate) === index
-  ));
+  return candidates.filter(
+    (candidate, index, values) => candidate >= 0 && candidate <= text.length && values.indexOf(candidate) === index
+  );
 }
 
 export function getResolvedNodes(cached, offset) {
-  if (
-    !cached
-    || typeof cached.formattedText !== 'string'
-    || !cached.rawTree
-    || !cached.formattedTree
-  ) {
+  if (!cached || typeof cached.formattedText !== 'string' || !cached.rawTree || !cached.formattedTree) {
     return null;
   }
 
@@ -79,19 +65,14 @@ export function getResolvedNodes(cached, offset) {
 }
 
 function getDirectLocateRange(cached, offset) {
-  if (
-    !cached
-    || !cached.directLocate
-    || !cached.viewerData
-    || !(cached.viewerData.lineStarts instanceof Uint32Array)
-  ) {
+  if (!cached || !cached.directLocate || !cached.viewerData || !(cached.viewerData.lineStarts instanceof Uint32Array)) {
     return null;
   }
 
   if (
-    cached.directLocateMode === 'token-search'
-    && typeof cached.rawText === 'string'
-    && typeof cached.formattedText === 'string'
+    cached.directLocateMode === 'token-search' &&
+    typeof cached.rawText === 'string' &&
+    typeof cached.formattedText === 'string'
   ) {
     return getLightweightTokenLocateRange(
       cached.rawText,
@@ -111,10 +92,10 @@ function getDirectLocateRange(cached, offset) {
 
 function getDirectRightLocateRange(cached, offset) {
   if (
-    !cached
-    || typeof cached.formattedText !== 'string'
-    || !cached.viewerData
-    || !(cached.viewerData.lineStarts instanceof Uint32Array)
+    !cached ||
+    typeof cached.formattedText !== 'string' ||
+    !cached.viewerData ||
+    !(cached.viewerData.lineStarts instanceof Uint32Array)
   ) {
     const safeOffset = Math.max(0, Math.floor(offset));
     return {
@@ -123,19 +104,15 @@ function getDirectRightLocateRange(cached, offset) {
     };
   }
 
-  return getIdentityLocateRange(
-    cached.formattedText.length,
-    cached.viewerData,
-    offset
-  );
+  return getIdentityLocateRange(cached.formattedText.length, cached.viewerData, offset);
 }
 
 function getPathCalibratedDirectLocateRange(tabId, cached, offset, getDirectValueTree) {
   if (
-    !cached
-    || !cached.directLocate
-    || typeof cached.rawText !== 'string'
-    || typeof cached.formattedText !== 'string'
+    !cached ||
+    !cached.directLocate ||
+    typeof cached.rawText !== 'string' ||
+    typeof cached.formattedText !== 'string'
   ) {
     return null;
   }
@@ -197,12 +174,7 @@ export function createJsonWorkerLocateOperations({
     }
 
     const cached = structureCache.get(tabId);
-    const pathCalibratedRange = getPathCalibratedDirectLocateRange(
-      tabId,
-      cached,
-      offset,
-      getDirectValueTree
-    );
+    const pathCalibratedRange = getPathCalibratedDirectLocateRange(tabId, cached, offset, getDirectValueTree);
 
     if (!isLatestLocateRequest(tabId, requestId)) {
       return;

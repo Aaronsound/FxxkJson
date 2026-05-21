@@ -32,16 +32,12 @@ export function useRightNodeSelectionHighlight({
 
     const modelLength = model.getValueLength();
     const startOffset = Math.max(0, Math.min(selection.startOffset, modelLength));
-    const endOffset = Math.max(
-      startOffset,
-      Math.min(selection.endOffset, modelLength)
-    );
+    const endOffset = Math.max(startOffset, Math.min(selection.endOffset, modelLength));
     const startPosition = model.getPositionAt(startOffset);
     const endPosition = model.getPositionAt(endOffset);
 
-    decorationIdsRef.current = editor.deltaDecorations(
-      decorationIdsRef.current,
-      [{
+    decorationIdsRef.current = editor.deltaDecorations(decorationIdsRef.current, [
+      {
         range: new monaco.Range(
           startPosition.lineNumber,
           startPosition.column,
@@ -52,15 +48,18 @@ export function useRightNodeSelectionHighlight({
           inlineClassName: 'rightNodeSelectionHighlight',
           stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
         },
-      }]
-    );
+      },
+    ]);
   }, [editorRef, isDisabled, selection]);
 
-  useEffect(() => () => {
-    const editor = editorRef.current;
-    if (editor && decorationIdsRef.current.length > 0) {
-      editor.deltaDecorations(decorationIdsRef.current, []);
-      decorationIdsRef.current = [];
-    }
-  }, [editorRef]);
+  useEffect(
+    () => () => {
+      const editor = editorRef.current;
+      if (editor && decorationIdsRef.current.length > 0) {
+        editor.deltaDecorations(decorationIdsRef.current, []);
+        decorationIdsRef.current = [];
+      }
+    },
+    [editorRef]
+  );
 }

@@ -18,7 +18,7 @@ html body .gutter.gutter-vertical:hover {
 /*       编辑器搜索结果高亮样式（monaco）       */
 /* ============================================= */
 .searchHighlight {
-  background-color: rgba(255, 235, 59, 0.5) !important;   /* 半透明黄 */
+  background-color: rgba(255, 235, 59, 0.5) !important; /* 半透明黄 */
 }
 .currentSearchHighlight {
   background-color: rgba(255, 235, 59, 0.88) !important;
@@ -47,13 +47,15 @@ html body .gutter.gutter-vertical:hover {
 /* ============================================= */
 /*       可选：全局基础样式调整（可自行增删）    */
 /* ============================================= */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
 }
 body {
-  background-color: #f0f0f0;  /* 整体淡灰背景 */
+  background-color: #f0f0f0; /* 整体淡灰背景 */
 }
 
 .drag-import-overlay {
@@ -162,7 +164,7 @@ body {
 /* ============================================= */
 .toolbar {
   display: flex;
-  flex-wrap: wrap;            /* 允许换行 */
+  flex-wrap: wrap; /* 允许换行 */
   align-items: center;
   flex: 0 0 auto;
   padding: 8px 12px;
@@ -233,7 +235,7 @@ button:hover:not(:disabled) {
 
 button:disabled {
   opacity: 0.5;
-  cursor: not-allowed;  
+  cursor: not-allowed;
 }
 
 .danger-button {
@@ -347,9 +349,9 @@ button:disabled {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  pointer-events: none;       /* 不拦截鼠标 */
+  pointer-events: none; /* 不拦截鼠标 */
   color: rgba(128, 128, 128, 0.7);
-  font-size: 24px;            /* 字号大一点 */
+  font-size: 24px; /* 字号大一点 */
   font-weight: 500;
   z-index: 1;
 }
@@ -584,7 +586,7 @@ button:disabled {
 }
 
 .large-json-fold-button.visible::before {
-  content: '';
+  content: "";
   display: block;
   width: var(--json-fold-icon-size);
   height: var(--json-fold-icon-size);
@@ -650,7 +652,7 @@ button:disabled {
 .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded::before,
 .monaco-editor .margin-view-overlays .codicon-folding-collapsed::before,
 .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed::before {
-  content: '' !important;
+  content: "" !important;
   display: block;
   width: var(--json-fold-icon-size);
   height: var(--json-fold-icon-size);
@@ -807,7 +809,11 @@ button:disabled {
   padding: 16px;
   background: #ffffff;
   color: #1f1f1f;
-  font: 13px/1.6 Consolas, "SFMono-Regular", "Courier New", monospace;
+  font:
+    13px / 1.6 Consolas,
+    "SFMono-Regular",
+    "Courier New",
+    monospace;
   white-space: pre;
   overflow: auto;
 }
@@ -1176,7 +1182,9 @@ button:disabled {
   border: 1px solid rgba(97, 83, 52, 0.12);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.56);
-  box-shadow: 0 8px 20px rgba(78, 61, 29, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  box-shadow:
+    0 8px 20px rgba(78, 61, 29, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
 }
 
 .toolbar-section-label {
@@ -1287,7 +1295,9 @@ button:disabled {
 .app-container.dark-mode .toolbar-section {
   border-color: rgba(217, 193, 140, 0.14);
   background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .app-container.dark-mode .toolbar-checkbox {
@@ -1359,13 +1369,15 @@ button:disabled {
 }
 
 .tab-bar .tab {
-  flex: 0 0 auto;           /* 不缩放 */
+  flex: 0 0 auto; /* 不缩放 */
   margin-right: 8px;
   padding: 6px 12px;
   cursor: pointer;
   user-select: none;
   border-radius: 4px 4px 0 0;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
   color: var(--input-text);
   background: transparent;
 }
@@ -1374,7 +1386,6 @@ button:disabled {
 .tab-bar .tab:not(.active):hover {
   background-color: var(--btn-hover-bg);
 }
-
 
 /* 激活态突出（带背景、阴影、边框） */
 .tab-bar .tab.active {
@@ -1394,10 +1405,9 @@ button:disabled {
   border-radius: 4px 4px 0 0;
 }
 
-
 /* 底部高亮条 */
 .tab-bar .tab.active::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 0;
   left: 10%;
@@ -1633,7 +1643,12 @@ button:disabled {
   border-radius: 6px;
   background: #111827;
   color: #f9fafb;
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font:
+    12px / 1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
   outline: none;
   white-space: pre;
 }
@@ -1981,7 +1996,10 @@ button:disabled {
   color: #888;
   opacity: 0;
   cursor: pointer;
-  transition: opacity 0.2s, background-color 0.2s, color 0.2s;
+  transition:
+    opacity 0.2s,
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .tab-close:hover {

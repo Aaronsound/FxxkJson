@@ -43,9 +43,7 @@ const RightEditorContextMenu: React.FC<RightEditorContextMenuProps> = ({
   onUnescapeValue,
   t = defaultT,
 }) => {
-  const runAction = async (
-    action: (tabId: string, offset: number) => void | Promise<void>
-  ) => {
+  const runAction = async (action: (tabId: string, offset: number) => void | Promise<void>) => {
     const { tabId, offset } = contextMenu;
     onClose();
     await action(tabId, offset);

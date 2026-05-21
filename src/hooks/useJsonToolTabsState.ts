@@ -14,10 +14,7 @@ interface UseJsonToolTabsStateOptions {
   initialTabTitle: string;
 }
 
-export function useJsonToolTabsState({
-  initialTabId,
-  initialTabTitle,
-}: UseJsonToolTabsStateOptions) {
+export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonToolTabsStateOptions) {
   const [tabs, setTabs] = useState<Tab[]>([createTab(initialTabId, initialTabTitle)]);
   const [activeTabId, setActiveTabId] = useState(initialTabId);
   const [renamingTab, setRenamingTab] = useState<RenamingTabState | null>(null);
@@ -67,10 +64,7 @@ export function useJsonToolTabsState({
     setStructureStatusByTab((current) => ({ ...current, [tabId]: status }));
   };
 
-  const setDocumentMeta = (
-    tabId: string,
-    updater: (current: TabDocumentMeta) => TabDocumentMeta
-  ) => {
+  const setDocumentMeta = (tabId: string, updater: (current: TabDocumentMeta) => TabDocumentMeta) => {
     setDocumentMetaByTab((current) => ({
       ...current,
       [tabId]: updater(current[tabId] ?? EMPTY_DOCUMENT_META),
@@ -79,13 +73,7 @@ export function useJsonToolTabsState({
 
   const renameTab = (tabId: string, nextTitle: string) => {
     const trimmedTitle = nextTitle.trim() || DEFAULT_TAB_TITLE;
-    setTabs((currentTabs) => (
-      currentTabs.map((tab) => (
-        tab.id === tabId
-          ? { ...tab, title: trimmedTitle }
-          : tab
-      ))
-    ));
+    setTabs((currentTabs) => currentTabs.map((tab) => (tab.id === tabId ? { ...tab, title: trimmedTitle } : tab)));
   };
 
   const startRenamingTab = (tab: Tab) => {

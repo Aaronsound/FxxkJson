@@ -5,11 +5,7 @@ export function getSearchRequestKey(tabId, target) {
   return `${target}:${tabId}`;
 }
 
-export function createJsonWorkerSearchOperations({
-  latestSearchRequestByKey,
-  rawSearchCache,
-  viewerCache,
-}) {
+export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, rawSearchCache, viewerCache }) {
   function isLatestSearchRequest(tabId, target, requestId) {
     return latestSearchRequestByKey.get(getSearchRequestKey(tabId, target)) === requestId;
   }
@@ -37,15 +33,7 @@ export function createJsonWorkerSearchOperations({
   }
 
   async function runSearchRequest(message) {
-    const {
-      requestId,
-      tabId,
-      target = 'right',
-      query,
-      searchOptions,
-      startOffset = 0,
-      append = false,
-    } = message;
+    const { requestId, tabId, target = 'right', query, searchOptions, startOffset = 0, append = false } = message;
     const shouldCancel = () => !isLatestSearchRequest(tabId, target, requestId);
 
     if (shouldCancel()) {
@@ -63,12 +51,9 @@ export function createJsonWorkerSearchOperations({
 
       const cachedRaw = rawSearchCache.get(tabId);
       if (
-        !cachedRaw
-        || typeof cachedRaw.rawText !== 'string'
-        || (
-          typeof message.rawRevision === 'number'
-          && cachedRaw.rawRevision !== message.rawRevision
-        )
+        !cachedRaw ||
+        typeof cachedRaw.rawText !== 'string' ||
+        (typeof message.rawRevision === 'number' && cachedRaw.rawRevision !== message.rawRevision)
       ) {
         postEmptySearchResult(message);
         return;
@@ -118,11 +103,7 @@ export function createJsonWorkerSearchOperations({
 
     const cachedViewer = viewerCache.get(tabId);
 
-    if (
-      !cachedViewer
-      || typeof cachedViewer.formattedText !== 'string'
-      || !cachedViewer.viewerData
-    ) {
+    if (!cachedViewer || typeof cachedViewer.formattedText !== 'string' || !cachedViewer.viewerData) {
       postEmptySearchResult(message);
       return;
     }

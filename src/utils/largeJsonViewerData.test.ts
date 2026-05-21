@@ -39,14 +39,7 @@ describe('largeJsonViewerData', () => {
   });
 
   it('builds stable search matches with line offsets', () => {
-    const text = [
-      '{',
-      '  "name": "FxxkJson",',
-      '  "nested": {',
-      '    "name": "viewer"',
-      '  }',
-      '}',
-    ].join('\n');
+    const text = ['{', '  "name": "FxxkJson",', '  "nested": {', '    "name": "viewer"', '  }', '}'].join('\n');
 
     const viewerData = buildLargeViewerData(text, 1);
     expect(viewerData).not.toBeNull();
@@ -73,12 +66,7 @@ describe('largeJsonViewerData', () => {
   });
 
   it('finds matches case-insensitively without changing line offsets', () => {
-    const text = [
-      '{',
-      '  "name": "FxxkJson",',
-      '  "label": "fxxkjson viewer"',
-      '}',
-    ].join('\n');
+    const text = ['{', '  "name": "FxxkJson",', '  "label": "fxxkjson viewer"', '}'].join('\n');
     const viewerData = buildLargeViewerData(text, 1);
     expect(viewerData).not.toBeNull();
 
@@ -104,37 +92,20 @@ describe('largeJsonViewerData', () => {
   });
 
   it('applies whole-word and regex search options in the large viewer data helper', () => {
-    const text = [
-      '{',
-      '  "id": "abc",',
-      '  "requestId": "abc-001"',
-      '}',
-    ].join('\n');
+    const text = ['{', '  "id": "abc",', '  "requestId": "abc-001"', '}'].join('\n');
     const viewerData = buildLargeViewerData(text, 1);
     expect(viewerData).not.toBeNull();
 
-    const wholeWordMatches = findSearchMatchesInLargeJson(
-      text,
-      viewerData!.lineStarts,
-      viewerData!.lineCount,
-      'id',
-      {
-        ...DEFAULT_SEARCH_OPTIONS,
-        wholeWord: true,
-      }
-    );
+    const wholeWordMatches = findSearchMatchesInLargeJson(text, viewerData!.lineStarts, viewerData!.lineCount, 'id', {
+      ...DEFAULT_SEARCH_OPTIONS,
+      wholeWord: true,
+    });
     expect(wholeWordMatches).toHaveLength(1);
 
-    const regexMatches = findSearchMatchesInLargeJson(
-      text,
-      viewerData!.lineStarts,
-      viewerData!.lineCount,
-      'abc-\\d+',
-      {
-        ...DEFAULT_SEARCH_OPTIONS,
-        useRegex: true,
-      }
-    );
+    const regexMatches = findSearchMatchesInLargeJson(text, viewerData!.lineStarts, viewerData!.lineCount, 'abc-\\d+', {
+      ...DEFAULT_SEARCH_OPTIONS,
+      useRegex: true,
+    });
     expect(regexMatches).toHaveLength(1);
     expect(regexMatches[0]).toMatchObject({
       lineNumber: 3,
@@ -142,13 +113,7 @@ describe('largeJsonViewerData', () => {
   });
 
   it('caps large viewer search results when a max result count is provided', () => {
-    const text = [
-      '{',
-      '  "name": "FxxkJson",',
-      '  "name": "viewer",',
-      '  "name": "large"',
-      '}',
-    ].join('\n');
+    const text = ['{', '  "name": "FxxkJson",', '  "name": "viewer",', '  "name": "large"', '}'].join('\n');
     const viewerData = buildLargeViewerData(text, 1);
     expect(viewerData).not.toBeNull();
 
@@ -167,13 +132,7 @@ describe('largeJsonViewerData', () => {
   });
 
   it('loads the next batch of search results from the previous batch offset', () => {
-    const text = [
-      '{',
-      '  "name": "FxxkJson",',
-      '  "name": "viewer",',
-      '  "name": "large"',
-      '}',
-    ].join('\n');
+    const text = ['{', '  "name": "FxxkJson",', '  "name": "viewer",', '  "name": "large"', '}'].join('\n');
     const viewerData = buildLargeViewerData(text, 1);
     expect(viewerData).not.toBeNull();
 

@@ -32,7 +32,7 @@ export default defineConfig({
           },
         },
       },
-    ])
+    ]),
   ],
   build: {
     outDir: 'dist-renderer',
@@ -53,5 +53,5 @@ export default defineConfig({
         },
       },
     },
-  }
+  },
 });

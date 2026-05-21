@@ -1,11 +1,11 @@
 /**
  * 这个文件用于初始化 Monaco Editor 的 Worker 逻辑。
- * 
+ *
  * 核心背景：
  * - Monaco Editor 在执行语法分析、折叠、补全、错误提示等操作时，内部是通过 Web Worker 实现的。
  * - 默认情况下，Monaco 在运行时动态去加载这些 Worker 文件。
  * - 但是在 Electron + Vite 打包环境中，如果不做配置，Monaco 无法自动正确找到 Worker 文件路径。
- * 
+ *
  * 本文件的作用：
  * - 主动 import 相关语言的 Worker 模块，利用 Vite 原生的 `?worker` 语法，让 Vite 自动把 Worker 分包成独立文件；
  * - 通过设置 `MonacoEnvironment.getWorker()`，告诉 Monaco Editor 如何返回对应的 Worker 实例；
@@ -44,6 +44,6 @@ export function setupMonacoWorker() {
       }
       // 默认返回通用编辑器 Worker
       return new EditorWorker();
-    }
+    },
   };
 }

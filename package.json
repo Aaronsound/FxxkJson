@@ -18,7 +18,10 @@
     "build": "vite build",
     "start": "electron ./dist-electron/main.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
-    "check": "npm run check:text && npm run typecheck && npm test && npm run smoke && npm run build",
+    "lint": "biome lint .",
+    "format": "biome format . --write",
+    "format:check": "biome format .",
+    "check": "npm run check:text && npm run format:check && npm run lint && npm run typecheck && npm test && npm run smoke && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "node ./scripts/bench-json.mjs",
@@ -45,6 +48,7 @@
     "react-split": "^2.0.14"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.15",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20.19.40",

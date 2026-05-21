@@ -7,10 +7,7 @@ import {
   renameJsonObjectKeyPreservingOriginalFormat,
   saveJsonNodePreservingOriginalFormat,
 } from '../utils/preserveJsonFormat';
-import {
-  createNodeEditCacheEntry,
-  getCachedNodeRange,
-} from './jsonNodeEditCache';
+import { createNodeEditCacheEntry, getCachedNodeRange } from './jsonNodeEditCache';
 
 function getCachedFormattedText(tabId, structureCache, viewerCache) {
   const cachedStructure = structureCache.get(tabId);
@@ -39,22 +36,22 @@ export function createJsonNodeEditOperations({
   viewerCache,
 }) {
   function readJsonNodeForEdit(tabId, text, offset) {
-    const sourceText = typeof text === 'string' && text.trim()
-      ? text
-      : getCachedFormattedText(tabId, structureCache, viewerCache);
+    const sourceText =
+      typeof text === 'string' && text.trim() ? text : getCachedFormattedText(tabId, structureCache, viewerCache);
     if (
-      typeof sourceText !== 'string'
-      || !sourceText.trim()
-      || typeof offset !== 'number'
-      || !Number.isFinite(offset)
+      typeof sourceText !== 'string' ||
+      !sourceText.trim() ||
+      typeof offset !== 'number' ||
+      !Number.isFinite(offset)
     ) {
       throw new Error('当前节点无法编辑');
     }
 
     const cachedStructure = structureCache.get(tabId);
-    const tree = cachedStructure?.formattedText === sourceText && cachedStructure.formattedTree
-      ? cachedStructure.formattedTree
-      : parseTree(sourceText);
+    const tree =
+      cachedStructure?.formattedText === sourceText && cachedStructure.formattedTree
+        ? cachedStructure.formattedTree
+        : parseTree(sourceText);
 
     if (!tree) {
       throw new Error('当前节点无法编辑');
@@ -71,20 +68,25 @@ export function createJsonNodeEditOperations({
           structureCache.set(tabId, cachedStructure);
         }
 
-        const rawNode = cachedStructure?.formattedText === sourceText && cachedStructure.rawTree
-          ? findNodeAtLocation(cachedStructure.rawTree, location.path)
-          : null;
-        const rawTextLength = typeof cachedStructure?.rawText === 'string'
-          ? cachedStructure.rawText.length
-          : cachedStructure?.rawTree?.length;
+        const rawNode =
+          cachedStructure?.formattedText === sourceText && cachedStructure.rawTree
+            ? findNodeAtLocation(cachedStructure.rawTree, location.path)
+            : null;
+        const rawTextLength =
+          typeof cachedStructure?.rawText === 'string'
+            ? cachedStructure.rawText.length
+            : cachedStructure?.rawTree?.length;
 
-        nodeEditCache.set(tabId, createNodeEditCacheEntry({
-          formattedText: sourceText,
-          path: [...location.path],
-          formattedNode: node,
-          rawNode,
-          rawTextLength,
-        }));
+        nodeEditCache.set(
+          tabId,
+          createNodeEditCacheEntry({
+            formattedText: sourceText,
+            path: [...location.path],
+            formattedNode: node,
+            rawNode,
+            rawTextLength,
+          })
+        );
 
         return JSON.stringify({
           path: location.path,
@@ -97,8 +99,8 @@ export function createJsonNodeEditOperations({
   }
 
   function patchCachedFormattedNode(tabId, text, path, rawText) {
-    const formattedText = getCachedFormattedText(tabId, structureCache, viewerCache)
-      ?? nodeEditCache.get(tabId)?.formattedText;
+    const formattedText =
+      getCachedFormattedText(tabId, structureCache, viewerCache) ?? nodeEditCache.get(tabId)?.formattedText;
 
     if (typeof formattedText !== 'string') {
       return {
@@ -109,12 +111,9 @@ export function createJsonNodeEditOperations({
       };
     }
 
-    const nextFormattedText = saveJsonNodePreservingOriginalFormat(
-      formattedText,
-      path,
-      text,
-      { range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText) }
-    );
+    const nextFormattedText = saveJsonNodePreservingOriginalFormat(formattedText, path, text, {
+      range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText),
+    });
     const viewerIndexStartedAt = performance.now();
     const viewerData = buildLargeViewerData(nextFormattedText);
     const viewerIndexMs = performance.now() - viewerIndexStartedAt;
@@ -181,15 +180,10 @@ export function createJsonNodeEditOperations({
       throw new Error('当前节点无法保存');
     }
 
-    const rawText = saveJsonNodePreservingOriginalFormat(
-      originalText,
-      path,
-      text,
-      { range: getCachedNodeRange(nodeEditCache, tabId, path, 'raw', originalText) }
-    );
-    const rawViewerData = rawText.length >= LARGE_FILE_THRESHOLD
-      ? buildLargeRawViewerData(rawText)
-      : null;
+    const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text, {
+      range: getCachedNodeRange(nodeEditCache, tabId, path, 'raw', originalText),
+    });
+    const rawViewerData = rawText.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
     const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText);
 
     nodeEditCache.delete(tabId);

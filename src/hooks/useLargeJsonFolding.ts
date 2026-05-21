@@ -9,11 +9,7 @@ interface UseLargeJsonFoldingArgs {
   onCollapsedLinesChange: (lines: number[]) => void;
 }
 
-export function useLargeJsonFolding({
-  collapsedLines,
-  data,
-  onCollapsedLinesChange,
-}: UseLargeJsonFoldingArgs) {
+export function useLargeJsonFolding({ collapsedLines, data, onCollapsedLinesChange }: UseLargeJsonFoldingArgs) {
   const regionsByStartLine = useMemo(() => {
     const map = new Map<number, LargeJsonViewerRegion>();
     data.regions.forEach((region) => {
@@ -76,28 +72,30 @@ export function useLargeJsonFolding({
     [collapsedIntervals, data.lineCount]
   );
 
-  const visibleLineCount = useMemo(() => (
-    visibleSegments.length === 0
-      ? 0
-      : visibleSegments[visibleSegments.length - 1].visibleEnd + 1
-  ), [visibleSegments]);
+  const visibleLineCount = useMemo(
+    () => (visibleSegments.length === 0 ? 0 : visibleSegments[visibleSegments.length - 1].visibleEnd + 1),
+    [visibleSegments]
+  );
 
   const collapsedLineSet = useMemo(() => new Set(normalizedCollapsedLines), [normalizedCollapsedLines]);
 
-  const toggleLine = useCallback((lineNumber: number) => {
-    if (!regionsByStartLine.has(lineNumber)) {
-      return;
-    }
+  const toggleLine = useCallback(
+    (lineNumber: number) => {
+      if (!regionsByStartLine.has(lineNumber)) {
+        return;
+      }
 
-    const next = new Set(collapsedLineSet);
-    if (next.has(lineNumber)) {
-      next.delete(lineNumber);
-    } else {
-      next.add(lineNumber);
-    }
+      const next = new Set(collapsedLineSet);
+      if (next.has(lineNumber)) {
+        next.delete(lineNumber);
+      } else {
+        next.add(lineNumber);
+      }
 
-    onCollapsedLinesChange(Array.from(next).sort((left, right) => left - right));
-  }, [collapsedLineSet, onCollapsedLinesChange, regionsByStartLine]);
+      onCollapsedLinesChange(Array.from(next).sort((left, right) => left - right));
+    },
+    [collapsedLineSet, onCollapsedLinesChange, regionsByStartLine]
+  );
 
   const foldAll = useCallback(() => {
     onCollapsedLinesChange(data.regions.map((region) => region.startLine));

@@ -1,9 +1,5 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import {
-  DEFAULT_TAB_TITLE,
-  LARGE_FILE_THRESHOLD,
-  Tab,
-} from '../types/jsonTool';
+import { DEFAULT_TAB_TITLE, LARGE_FILE_THRESHOLD, Tab } from '../types/jsonTool';
 export {
   canUseStructureSync,
   getUtf8ByteLength,

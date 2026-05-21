@@ -49,10 +49,12 @@ async function readRecentRuntimeLog(maxBytes = 160 * 1024) {
 }
 
 function logRuntimeEvent(event: string, details: object = {}) {
-  appendRuntimeLog(JSON.stringify({
-    event,
-    ...details,
-  })).catch(() => {
+  appendRuntimeLog(
+    JSON.stringify({
+      event,
+      ...details,
+    })
+  ).catch(() => {
     // Ignore logging failures in the main process.
   });
 }
@@ -62,20 +64,18 @@ function blockPackagedExternalRequests() {
     return;
   }
 
-  session.defaultSession.webRequest.onBeforeRequest({
-    urls: [
-      'http://*/*',
-      'https://*/*',
-      'ws://*/*',
-      'wss://*/*',
-    ],
-  }, (details, callback) => {
-    logRuntimeEvent('blocked-external-request', {
-      url: details.url,
-      resourceType: details.resourceType,
-    });
-    callback({ cancel: true });
-  });
+  session.defaultSession.webRequest.onBeforeRequest(
+    {
+      urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'],
+    },
+    (details, callback) => {
+      logRuntimeEvent('blocked-external-request', {
+        url: details.url,
+        resourceType: details.resourceType,
+      });
+      callback({ cancel: true });
+    }
+  );
 }
 
 async function isRunningUnderRosetta() {
@@ -148,11 +148,12 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    const isFindShortcut = input.type === 'keyDown'
-      && input.key?.toLowerCase() === 'f'
-      && (input.control || input.meta)
-      && !input.shift
-      && !input.alt;
+    const isFindShortcut =
+      input.type === 'keyDown' &&
+      input.key?.toLowerCase() === 'f' &&
+      (input.control || input.meta) &&
+      !input.shift &&
+      !input.alt;
 
     if (!isFindShortcut) {
       return;
@@ -192,9 +193,7 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason) => {
   logRuntimeEvent('main-unhandled-rejection', {
-    reason: reason instanceof Error
-      ? { message: reason.message, stack: reason.stack }
-      : String(reason),
+    reason: reason instanceof Error ? { message: reason.message, stack: reason.stack } : String(reason),
   });
 });
 
@@ -203,9 +202,7 @@ ipcMain.handle('log:append', async (_event, payload: string) => {
   return logFilePath;
 });
 
-ipcMain.handle('log:readRecent', async (_event, maxBytes?: number) => (
-  readRecentRuntimeLog(maxBytes)
-));
+ipcMain.handle('log:readRecent', async (_event, maxBytes?: number) => readRecentRuntimeLog(maxBytes));
 
 ipcMain.handle('log:clear', async () => {
   await fs.mkdir(logDir, { recursive: true });

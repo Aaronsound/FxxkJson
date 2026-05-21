@@ -6,14 +6,10 @@ export interface EditableNodePayload {
 }
 
 export function isJsonEditPath(value: unknown): value is JsonEditPath {
-  return Array.isArray(value)
-    && value.every((segment) => typeof segment === 'string' || typeof segment === 'number');
+  return Array.isArray(value) && value.every((segment) => typeof segment === 'string' || typeof segment === 'number');
 }
 
-export function parseEditableNodePayload(
-  payload: string,
-  invalidMessage = '当前节点无法编辑'
-): EditableNodePayload {
+export function parseEditableNodePayload(payload: string, invalidMessage = '当前节点无法编辑'): EditableNodePayload {
   const parsed = JSON.parse(payload) as { path?: unknown; value?: unknown };
 
   if (!isJsonEditPath(parsed.path) || typeof parsed.value !== 'string') {

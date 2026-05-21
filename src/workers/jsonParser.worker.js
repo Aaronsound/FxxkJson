@@ -1,9 +1,7 @@
 /* eslint-disable no-restricted-globals */
 /** @typedef {import('../types/jsonTool').WorkerRequestMessage} WorkerRequestMessage */
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
-import {
-  buildLargeViewerData,
-} from '../utils/largeJsonViewerData';
+import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
@@ -12,16 +10,8 @@ import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
 import { createJsonNodeEditOperations } from './jsonNodeEditOperations';
 import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
 import { getJsonWorkerMessageHandler } from '../utils/jsonWorkerMessageRouting';
-import {
-  getTextByteLength,
-  postRepairResult,
-  postTextResult,
-  readMessageText,
-} from './jsonWorkerTextPayload';
-import {
-  createJsonWorkerSearchOperations,
-  getSearchRequestKey,
-} from './jsonWorkerSearchOperations';
+import { getTextByteLength, postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
 import {
   createJsonWorkerLocateOperations,
   getLocateCandidateOffsets,
@@ -90,10 +80,7 @@ function ensureStructureTrees(tabId, cached) {
 
 function getDirectValueTree(tabId, requestId, text) {
   const cachedTree = directValueTreeCache.get(tabId);
-  if (
-    cachedTree
-    && cachedTree.requestId === requestId
-  ) {
+  if (cachedTree && cachedTree.requestId === requestId) {
     return cachedTree.formattedTree;
   }
 
@@ -128,11 +115,7 @@ function scheduleDeferredStructureWarmup(tabId, requestId, delayMs = 350) {
     deferredStructureWarmupTimers.delete(tabId);
     const current = structureCache.get(tabId);
 
-    if (
-      latestFormatRequestByTab.get(tabId) !== requestId
-      || !current
-      || current.requestId !== requestId
-    ) {
+    if (latestFormatRequestByTab.get(tabId) !== requestId || !current || current.requestId !== requestId) {
       return;
     }
 
@@ -144,10 +127,7 @@ function scheduleDeferredStructureWarmup(tabId, requestId, delayMs = 350) {
     }
 
     const latest = structureCache.get(tabId);
-    if (
-      latestFormatRequestByTab.get(tabId) !== requestId
-      || (latest && latest.requestId !== requestId)
-    ) {
+    if (latestFormatRequestByTab.get(tabId) !== requestId || (latest && latest.requestId !== requestId)) {
       return;
     }
 
@@ -204,10 +184,10 @@ function scheduleDirectValueTreeWarmup(tabId, requestId, text) {
     const cachedViewer = viewerCache.get(tabId);
 
     if (
-      latestFormatRequestByTab.get(tabId) !== requestId
-      || !cachedViewer
-      || cachedViewer.requestId !== requestId
-      || cachedViewer.formattedText !== text
+      latestFormatRequestByTab.get(tabId) !== requestId ||
+      !cachedViewer ||
+      cachedViewer.requestId !== requestId ||
+      cachedViewer.formattedText !== text
     ) {
       return;
     }
@@ -411,28 +391,22 @@ function handleClearStructureMessage(message) {
 }
 
 function handleFormatMessage(message) {
-  const {
-    requestId,
-    tabId,
-    enableStructure,
-    enableDirectLocate,
-    deferStructure = false,
-    buildViewer,
-  } = message;
+  const { requestId, tabId, enableStructure, enableDirectLocate, deferStructure = false, buildViewer } = message;
   const text = readMessageText(message);
   prepareFormatRequest(tabId, requestId, text);
   try {
-    const rawViewerData = text.length >= LARGE_FILE_THRESHOLD
-      ? buildLargeRawViewerData(text)
-      : null;
+    const rawViewerData = text.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
     const { formatted, normalizedNestedString } = formatJsonText(text);
-    postTextResult({
-      type: 'format-result',
-      requestId,
-      tabId,
-      success: true,
-      rawViewerData,
-    }, formatted);
+    postTextResult(
+      {
+        type: 'format-result',
+        requestId,
+        tabId,
+        success: true,
+        rawViewerData,
+      },
+      formatted
+    );
 
     buildFormatArtifacts({
       requestId,
@@ -462,29 +436,24 @@ function handleFormatMessage(message) {
 }
 
 function handleRepairMessage(message) {
-  const {
-    requestId,
-    tabId,
-    enableStructure,
-    enableDirectLocate,
-    deferStructure = false,
-    buildViewer,
-  } = message;
+  const { requestId, tabId, enableStructure, enableDirectLocate, deferStructure = false, buildViewer } = message;
   const text = readMessageText(message);
   prepareFormatRequest(tabId, requestId, text);
   try {
     const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
-    const rawViewerData = repaired.length >= LARGE_FILE_THRESHOLD
-      ? buildLargeRawViewerData(repaired)
-      : null;
+    const rawViewerData = repaired.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
 
-    postRepairResult({
-      type: 'repair-result',
-      requestId,
-      tabId,
-      success: true,
-      rawViewerData,
-    }, formatted, repaired);
+    postRepairResult(
+      {
+        type: 'repair-result',
+        requestId,
+        tabId,
+        success: true,
+        rawViewerData,
+      },
+      formatted,
+      repaired
+    );
 
     buildFormatArtifacts({
       requestId,
@@ -556,10 +525,7 @@ function handleReadValueMessage(message) {
   const { rightNode } = resolvedNodes;
   // Copy the exact JSON literal under the cursor so pasting into a new tab
   // keeps valid JSON semantics for strings, numbers, arrays, objects, etc.
-  const value = cached.formattedText.slice(
-    rightNode.offset,
-    rightNode.offset + rightNode.length
-  );
+  const value = cached.formattedText.slice(rightNode.offset, rightNode.offset + rightNode.length);
 
   postMessage({
     type: 'value-result',
@@ -573,9 +539,7 @@ function handleReadValueMessage(message) {
 function handleReadValueDirectMessage(message) {
   const { requestId, tabId, offset, text } = message;
   const cachedViewer = viewerCache.get(tabId);
-  const sourceText = typeof text === 'string' && text
-    ? text
-    : cachedViewer?.formattedText;
+  const sourceText = typeof text === 'string' && text ? text : cachedViewer?.formattedText;
   const sourceRequestId = cachedViewer?.requestId ?? requestId;
 
   if (typeof sourceText !== 'string' || !sourceText) {

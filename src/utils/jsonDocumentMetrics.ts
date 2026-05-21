@@ -34,15 +34,15 @@ export function exceedsLineCountThreshold(text: string, threshold = DEDICATED_RI
 }
 
 export function shouldUseDedicatedRightViewer(rawText: string, formattedText = '') {
-  return getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD
-    || getUtf8ByteLength(formattedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD
-    || exceedsLineCountThreshold(formattedText);
+  return (
+    getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
+    getUtf8ByteLength(formattedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
+    exceedsLineCountThreshold(formattedText)
+  );
 }
 
 export function shouldUseLargeMode(rawText: string, formattedText = '') {
-  return isLargeDocument(rawText)
-    || isLargeDocument(formattedText)
-    || exceedsLineCountThreshold(formattedText);
+  return isLargeDocument(rawText) || isLargeDocument(formattedText) || exceedsLineCountThreshold(formattedText);
 }
 
 export function canUseStructureSync(text: string) {
@@ -52,7 +52,5 @@ export function canUseStructureSync(text: string) {
 
 export function shouldBuildWorkerStructure(text: string, largeFileLocateEnabled: boolean) {
   const byteLength = getUtf8ByteLength(text);
-  return byteLength > 0
-    && byteLength <= STRUCTURE_SYNC_THRESHOLD
-    && largeFileLocateEnabled;
+  return byteLength > 0 && byteLength <= STRUCTURE_SYNC_THRESHOLD && largeFileLocateEnabled;
 }

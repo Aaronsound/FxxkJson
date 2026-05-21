@@ -3,30 +3,32 @@ import { buildDiagnosticsContext } from './diagnosticsContext';
 
 describe('buildDiagnosticsContext', () => {
   it('returns no context without an active tab', () => {
-    expect(buildDiagnosticsContext({
-      activeDocumentMeta: { rawLength: 0, formattedLength: 0, rawRevision: 0, formattedRevision: 0 },
-      activeLeftMatchCount: 0,
-      activePerformanceSnapshot: null,
-      activeProcessingStage: 'idle',
-      activeRightMatchCount: 0,
-      activeRightNodeSelection: null,
-      activeTab: null,
-      currentError: null,
-      currentStructureStatus: 'ready',
-      importingFileName: null,
-      isFormattingActiveTab: false,
-      isLargeFileLocateEnabled: false,
-      isLargeFileMode: false,
-      leftSearchHasMore: false,
-      leftSearchTerm: '',
-      normalizedLeftMatchIndex: 0,
-      normalizedRightMatchIndex: 0,
-      rightSearchHasMore: false,
-      rightSearchTerm: '',
-      shouldUseDedicatedLeftViewer: false,
-      shouldUseDedicatedRightViewer: false,
-      usesLightweightLocate: false,
-    })).toEqual([]);
+    expect(
+      buildDiagnosticsContext({
+        activeDocumentMeta: { rawLength: 0, formattedLength: 0, rawRevision: 0, formattedRevision: 0 },
+        activeLeftMatchCount: 0,
+        activePerformanceSnapshot: null,
+        activeProcessingStage: 'idle',
+        activeRightMatchCount: 0,
+        activeRightNodeSelection: null,
+        activeTab: null,
+        currentError: null,
+        currentStructureStatus: 'ready',
+        importingFileName: null,
+        isFormattingActiveTab: false,
+        isLargeFileLocateEnabled: false,
+        isLargeFileMode: false,
+        leftSearchHasMore: false,
+        leftSearchTerm: '',
+        normalizedLeftMatchIndex: 0,
+        normalizedRightMatchIndex: 0,
+        rightSearchHasMore: false,
+        rightSearchTerm: '',
+        shouldUseDedicatedLeftViewer: false,
+        shouldUseDedicatedRightViewer: false,
+        usesLightweightLocate: false,
+      })
+    ).toEqual([]);
   });
 
   it('summarizes search counts and selected paths', () => {

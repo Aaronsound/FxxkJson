@@ -80,12 +80,8 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const shouldShowResultList = resultItems.length > 0;
   const shouldShowQuickItems = recentSearches.length > 0 || favoritePaths.length > 0 || canPinPath;
-  const countText = matchCount > 0
-    ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}`
-    : '0/0';
-  const searchProgressText = value
-    ? (hasMore ? `已加载 ${matchCount} 条` : `共 ${matchCount} 条`)
-    : '';
+  const countText = matchCount > 0 ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}` : '0/0';
+  const searchProgressText = value ? (hasMore ? `已加载 ${matchCount} 条` : `共 ${matchCount} 条`) : '';
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -138,16 +134,9 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
           >
             {countText}
           </span>
-          {searchProgressText && (
-            <span className="pane-find-progress">{searchProgressText}</span>
-          )}
+          {searchProgressText && <span className="pane-find-progress">{searchProgressText}</span>}
           {hasMore && (
-            <button
-              type="button"
-              className="pane-find-button"
-              onClick={onLoadMore}
-              disabled={isLoadingMore}
-            >
+            <button type="button" className="pane-find-button" onClick={onLoadMore} disabled={isLoadingMore}>
               {isLoadingMore ? '加载中...' : '加载更多'}
             </button>
           )}
@@ -180,20 +169,10 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
               .*
             </button>
           </div>
-          <button
-            type="button"
-            className="pane-find-button"
-            onClick={onPrev}
-            disabled={matchCount === 0}
-          >
+          <button type="button" className="pane-find-button" onClick={onPrev} disabled={matchCount === 0}>
             上一个
           </button>
-          <button
-            type="button"
-            className="pane-find-button"
-            onClick={onNext}
-            disabled={matchCount === 0}
-          >
+          <button type="button" className="pane-find-button" onClick={onNext} disabled={matchCount === 0}>
             下一个
           </button>
           <button
@@ -232,20 +211,10 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
             />
             <span className="pane-find-count" aria-hidden="true" />
             <div className="pane-find-replace-actions">
-              <button
-                type="button"
-                className="pane-find-button"
-                onClick={onReplace}
-                disabled={matchCount === 0}
-              >
+              <button type="button" className="pane-find-button" onClick={onReplace} disabled={matchCount === 0}>
                 替换
               </button>
-              <button
-                type="button"
-                className="pane-find-button"
-                onClick={onReplaceAll}
-                disabled={matchCount === 0}
-              >
+              <button type="button" className="pane-find-button" onClick={onReplaceAll} disabled={matchCount === 0}>
                 全部替换
               </button>
             </div>
@@ -258,11 +227,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
                 <div className="pane-find-quick-label">收藏路径</div>
                 <div className="pane-find-chips">
                   {canPinPath && (
-                    <button
-                      type="button"
-                      className="pane-find-chip primary"
-                      onClick={onPinPath}
-                    >
+                    <button type="button" className="pane-find-chip primary" onClick={onPinPath}>
                       固定当前路径
                     </button>
                   )}
@@ -302,9 +267,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
         )}
         {shouldShowResultList && (
           <div className="pane-find-results" aria-label={resultListLabel ?? '搜索结果'}>
-            {resultListLabel && (
-              <div className="pane-find-results-label">{resultListLabel}</div>
-            )}
+            {resultListLabel && <div className="pane-find-results-label">{resultListLabel}</div>}
             <div className="pane-find-results-list">
               {resultItems.map((item) => (
                 <button
@@ -315,9 +278,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
                   title={item.detail ? `${item.label} ${item.detail}` : item.label}
                 >
                   <span className="pane-find-result-label">{item.label}</span>
-                  {item.detail && (
-                    <span className="pane-find-result-detail">{item.detail}</span>
-                  )}
+                  {item.detail && <span className="pane-find-result-detail">{item.detail}</span>}
                 </button>
               ))}
             </div>

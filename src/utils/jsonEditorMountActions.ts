@@ -15,10 +15,7 @@ interface RegisterSelectAllDeleteArgs {
   selectionCoversModel: () => boolean;
 }
 
-export function bindEditorFocusContext(
-  editor: Monaco.editor.IStandaloneCodeEditor,
-  focusContextKey: string
-) {
+export function bindEditorFocusContext(editor: Monaco.editor.IStandaloneCodeEditor, focusContextKey: string) {
   const focusContext = editor.createContextKey(focusContextKey, editor.hasTextFocus());
 
   editor.onDidFocusEditorText(() => {
@@ -45,12 +42,7 @@ export function getContentAfterSelectionReplace(
 export function registerPaneFindAction(
   monacoApi: MonacoApi,
   editor: Monaco.editor.IStandaloneCodeEditor,
-  {
-    actionId,
-    focusContextKey,
-    label,
-    onOpen,
-  }: RegisterFindActionArgs
+  { actionId, focusContextKey, label, onOpen }: RegisterFindActionArgs
 ) {
   editor.addAction({
     id: actionId,
@@ -67,27 +59,31 @@ export function registerPaneFindAction(
 export function registerSelectAllDeleteCommands(
   monacoApi: MonacoApi,
   editor: Monaco.editor.IStandaloneCodeEditor,
-  {
-    focusContextKey,
-    onClearAll,
-    selectionCoversModel,
-  }: RegisterSelectAllDeleteArgs
+  { focusContextKey, onClearAll, selectionCoversModel }: RegisterSelectAllDeleteArgs
 ) {
-  editor.addCommand(monacoApi.KeyCode.Delete, () => {
-    if (selectionCoversModel()) {
-      onClearAll();
-      return;
-    }
+  editor.addCommand(
+    monacoApi.KeyCode.Delete,
+    () => {
+      if (selectionCoversModel()) {
+        onClearAll();
+        return;
+      }
 
-    editor.trigger('', 'deleteRight', null);
-  }, focusContextKey);
+      editor.trigger('', 'deleteRight', null);
+    },
+    focusContextKey
+  );
 
-  editor.addCommand(monacoApi.KeyCode.Backspace, () => {
-    if (selectionCoversModel()) {
-      onClearAll();
-      return;
-    }
+  editor.addCommand(
+    monacoApi.KeyCode.Backspace,
+    () => {
+      if (selectionCoversModel()) {
+        onClearAll();
+        return;
+      }
 
-    editor.trigger('', 'deleteLeft', null);
-  }, focusContextKey);
+      editor.trigger('', 'deleteLeft', null);
+    },
+    focusContextKey
+  );
 }

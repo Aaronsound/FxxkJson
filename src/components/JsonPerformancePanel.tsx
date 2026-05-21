@@ -161,11 +161,7 @@ function readStoredPosition() {
   }
 }
 
-const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
-  snapshot,
-  history = [],
-  isDarkMode,
-}) => {
+const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, history = [], isDarkMode }) => {
   const [expanded, setExpanded] = useState(false);
   const [position, setPosition] = useState<PanelPosition | null>(() => readStoredPosition());
   const [isDragging, setIsDragging] = useState(false);
@@ -176,10 +172,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
     () => (snapshot ? getBottleneck(snapshot) : { key: null, label: '--', duration: '--' }),
     [snapshot]
   );
-  const diagnosis = useMemo(
-    () => (snapshot ? getPerformanceDiagnosis(snapshot) : ''),
-    [snapshot]
-  );
+  const diagnosis = useMemo(() => (snapshot ? getPerformanceDiagnosis(snapshot) : ''), [snapshot]);
 
   const clampPosition = (nextX: number, nextY: number) => {
     if (typeof window === 'undefined') {
@@ -222,10 +215,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
         return;
       }
 
-      const next = clampPosition(
-        event.clientX - dragOffset.x,
-        event.clientY - dragOffset.y
-      );
+      const next = clampPosition(event.clientX - dragOffset.x, event.clientY - dragOffset.y);
       setPosition(next);
     };
 
@@ -251,9 +241,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
     }
 
     const handleViewportChange = () => {
-      setPosition((current) => (
-        current ? clampPosition(current.x, current.y) : current
-      ));
+      setPosition((current) => (current ? clampPosition(current.x, current.y) : current));
     };
 
     window.addEventListener('resize', handleViewportChange);
@@ -271,9 +259,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      setPosition((current) => (
-        current ? clampPosition(current.x, current.y) : current
-      ));
+      setPosition((current) => (current ? clampPosition(current.x, current.y) : current));
     });
 
     return () => {
@@ -303,7 +289,9 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
         isDarkMode ? 'performance-panel-dark' : '',
         expanded ? 'performance-panel-expanded' : 'performance-panel-collapsed',
         isDragging ? 'performance-panel-dragging' : '',
-      ].filter(Boolean).join(' ')}
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <div
         className="performance-panel-topbar"
@@ -331,11 +319,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
           <strong>性能分析</strong>
           <span className="performance-panel-status-chip">{getStatusLabel(snapshot)}</span>
         </div>
-        <button
-          type="button"
-          className="performance-toggle-button"
-          onClick={() => setExpanded((current) => !current)}
-        >
+        <button type="button" className="performance-toggle-button" onClick={() => setExpanded((current) => !current)}>
           {expanded ? '收起' : '展开'}
         </button>
       </div>
@@ -382,9 +366,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
             </div>
           </div>
 
-          <div className="performance-diagnosis">
-            {diagnosis}
-          </div>
+          <div className="performance-diagnosis">{diagnosis}</div>
 
           <div className="performance-stage-grid">
             {stageLabels.map((stage) => (
@@ -415,11 +397,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
             <span>定位索引：{snapshot.structureEnabled ? '启用' : '未启用'}</span>
           </div>
 
-          {snapshot.error && (
-            <div className="performance-error">
-              {snapshot.error}
-            </div>
-          )}
+          {snapshot.error && <div className="performance-error">{snapshot.error}</div>}
         </>
       )}
     </aside>

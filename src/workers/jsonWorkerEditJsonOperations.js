@@ -1,8 +1,6 @@
 import { parseJsonForFormatting } from '../utils/jsonFormat';
 import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
-import {
-  saveJsonPreservingOriginalFormat,
-} from '../utils/preserveJsonFormat';
+import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
 
 function formatJsonForEdit(tabId, text, editJsonCache) {
   const { value, normalizedNestedString } = parseJsonForFormatting(text);
@@ -25,9 +23,7 @@ function saveJsonForEdit(tabId, text, originalText, editJsonCache) {
     const saved = saveJsonPreservingOriginalFormat(
       originalText,
       text,
-      cached?.originalText === originalText
-        ? { originalValue: cached.originalValue }
-        : undefined
+      cached?.originalText === originalText ? { originalValue: cached.originalValue } : undefined
     );
 
     editJsonCache.delete(tabId);
@@ -42,16 +38,11 @@ function copyJsonAsStringLiteral(text) {
 }
 
 function transformJsonEscape(operation, text) {
-  const result = operation === 'escape-json'
-    ? escapeJsonText(text)
-    : unescapeJsonText(text);
+  const result = operation === 'escape-json' ? escapeJsonText(text) : unescapeJsonText(text);
   return result.text;
 }
 
-export function createJsonWorkerEditJsonOperations({
-  editJsonCache,
-  jsonNodeEditOperations,
-}) {
+export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEditOperations }) {
   function handleEditJsonMessage(message) {
     const { requestId, tabId, operation, text, originalText, path, offset } = message;
 

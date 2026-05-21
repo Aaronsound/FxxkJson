@@ -3,15 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const ROOT = process.cwd();
-const SKIP_DIRS = new Set([
-  '.git',
-  '.npm-cache',
-  'dist-electron',
-  'dist-renderer',
-  'json',
-  'node_modules',
-  'release',
-]);
+const SKIP_DIRS = new Set(['.git', '.npm-cache', 'dist-electron', 'dist-renderer', 'json', 'node_modules', 'release']);
 const INCLUDED_EXTENSIONS = new Set([
   '.css',
   '.cjs',
@@ -123,6 +115,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

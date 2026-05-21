@@ -16,9 +16,7 @@ export interface RenamingTabState {
   value: string;
 }
 
-export type WorkerRequestTextPayload =
-  | { text: string; textBuffer?: never }
-  | { text?: never; textBuffer: ArrayBuffer };
+export type WorkerRequestTextPayload = { text: string; textBuffer?: never } | { text?: never; textBuffer: ArrayBuffer };
 
 interface WorkerRequestBase {
   requestId: number;
@@ -61,7 +59,15 @@ export type WorkerRequestMessage =
     });
 
 export interface WorkerMessage {
-  type: 'format-result' | 'repair-result' | 'structure-ready' | 'locate-result' | 'value-result' | 'viewer-ready' | 'search-result' | 'edit-json-result';
+  type:
+    | 'format-result'
+    | 'repair-result'
+    | 'structure-ready'
+    | 'locate-result'
+    | 'value-result'
+    | 'viewer-ready'
+    | 'search-result'
+    | 'edit-json-result';
   requestId: number;
   tabId: string;
   target?: SearchTarget;
@@ -110,7 +116,14 @@ export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'repair' | 'edit-save' | 'paste';
 export type PerformanceSnapshotStatus = 'running' | 'ready' | 'failed';
 export type LargeViewerStatus = 'idle' | 'building' | 'ready';
-export type ProcessingStage = 'idle' | 'reading' | 'syncing-left' | 'formatting' | 'repairing' | 'building-viewer' | 'building-index';
+export type ProcessingStage =
+  | 'idle'
+  | 'reading'
+  | 'syncing-left'
+  | 'formatting'
+  | 'repairing'
+  | 'building-viewer'
+  | 'building-index';
 
 export interface LargeJsonViewerRegion {
   startLine: number;

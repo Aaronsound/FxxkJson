@@ -1,20 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  addRecentSearchTerm,
-  upsertPinnedPath,
-} from './searchQuickAccess';
+import { addRecentSearchTerm, upsertPinnedPath } from './searchQuickAccess';
 
 describe('searchQuickAccess', () => {
   it('keeps recent searches unique and newest first', () => {
-    expect(addRecentSearchTerm(['traceId', 'request'], 'request', 3)).toEqual([
-      'request',
-      'traceId',
-    ]);
-    expect(addRecentSearchTerm(['traceId', 'request'], 'status', 2)).toEqual([
-      'status',
-      'traceId',
-    ]);
+    expect(addRecentSearchTerm(['traceId', 'request'], 'request', 3)).toEqual(['request', 'traceId']);
+    expect(addRecentSearchTerm(['traceId', 'request'], 'status', 2)).toEqual(['status', 'traceId']);
   });
 
   it('ignores tiny recent search terms', () => {

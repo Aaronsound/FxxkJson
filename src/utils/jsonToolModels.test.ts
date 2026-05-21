@@ -1,9 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  LARGE_FILE_THRESHOLD,
-  STRUCTURE_SYNC_THRESHOLD,
-} from '../types/jsonTool';
+import { LARGE_FILE_THRESHOLD, STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
 import {
   canUseStructureSync,
   getUtf8ByteLength,
@@ -45,7 +42,7 @@ describe('jsonToolModels', () => {
   it('only builds worker structure for supported document sizes', () => {
     const small = '{"ok":true}';
     const large = 'a'.repeat(LARGE_FILE_THRESHOLD);
-    const nominalTwentyMbFixture = 'a'.repeat((20 * 1024 * 1024) + 191);
+    const nominalTwentyMbFixture = 'a'.repeat(20 * 1024 * 1024 + 191);
     const tooLarge = 'a'.repeat(STRUCTURE_SYNC_THRESHOLD + 1);
 
     expect(shouldBuildWorkerStructure('', false)).toBe(false);

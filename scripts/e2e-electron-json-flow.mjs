@@ -96,7 +96,9 @@ async function getAvailablePort() {
 }
 
 async function importSampleByDrop(cdp, sampleUrl, fileName) {
-  return evaluate(cdp, `(async () => {
+  return evaluate(
+    cdp,
+    `(async () => {
     const response = await fetch(${JSON.stringify(sampleUrl)});
     const text = await response.text();
     const file = new File([text], ${JSON.stringify(fileName)}, { type: 'application/json' });
@@ -107,7 +109,8 @@ async function importSampleByDrop(cdp, sampleUrl, fileName) {
     Object.defineProperty(event, 'dataTransfer', { value: transfer });
     target.dispatchEvent(event);
     return true;
-  })()`);
+  })()`
+  );
 }
 
 async function collectFailureArtifacts({ cdp, stderr }) {
@@ -127,7 +130,9 @@ async function collectFailureArtifacts({ cdp, stderr }) {
   }
 
   try {
-    const diagnostics = await evaluate(cdp, `(() => JSON.stringify({
+    const diagnostics = await evaluate(
+      cdp,
+      `(() => JSON.stringify({
       locateChecked: Array.from(document.querySelectorAll('label.toolbar-checkbox'))
         .find((label) => label.textContent?.includes('大文件启用右侧定位'))
         ?.querySelector('input')?.checked ?? null,
@@ -139,7 +144,8 @@ async function collectFailureArtifacts({ cdp, stderr }) {
       compareError: Array.from(document.querySelectorAll('.modal-error')).map((element) => element.textContent).join('\\n'),
       toolbarHint: document.querySelector('.toolbar-hint')?.textContent ?? null,
       bodyStart: document.body.innerText.slice(0, 700)
-    }, null, 2))()`);
+    }, null, 2))()`
+    );
     await writeFile(path.join(artifactDir, 'renderer-diagnostics.json'), diagnostics, 'utf8');
     console.error(`Renderer diagnostics: ${diagnostics}`);
   } catch (diagnosticError) {
@@ -151,10 +157,7 @@ async function collectFailureArtifacts({ cdp, stderr }) {
       captureBeyondViewport: true,
       format: 'png',
     });
-    await writeFile(
-      path.join(artifactDir, 'renderer-screenshot.png'),
-      Buffer.from(screenshot.data, 'base64')
-    );
+    await writeFile(path.join(artifactDir, 'renderer-screenshot.png'), Buffer.from(screenshot.data, 'base64'));
   } catch (screenshotError) {
     console.error(`Renderer screenshot failed: ${screenshotError.message}`);
   }
@@ -183,11 +186,7 @@ async function run() {
     await writeFile(samplePath, sample, 'utf8');
     sampleServer = await createSampleServer(samplePath);
 
-    child = spawn(process.execPath, [
-      electronCli,
-      `--remote-debugging-port=${port}`,
-      appMain,
-    ], {
+    child = spawn(process.execPath, [electronCli, `--remote-debugging-port=${port}`, appMain], {
       cwd,
       env: {
         ...process.env,
@@ -213,7 +212,9 @@ async function run() {
       'app shell'
     );
     await evaluate(cdp, 'window.__HANJSON_E2E__ = true');
-    await evaluate(cdp, `(() => {
+    await evaluate(
+      cdp,
+      `(() => {
       const checkbox = Array.from(document.querySelectorAll('label.toolbar-checkbox'))
         .find((label) => label.textContent?.includes('大文件启用右侧定位'))
         ?.querySelector('input');
@@ -221,7 +222,8 @@ async function run() {
         checkbox.click();
       }
       return Boolean(checkbox);
-    })()`);
+    })()`
+    );
     await importSampleByDrop(cdp, sampleServer.url, path.basename(samplePath));
 
     await waitFor(
@@ -230,11 +232,14 @@ async function run() {
       90000
     );
 
-    await evaluate(cdp, `(() => {
+    await evaluate(
+      cdp,
+      `(() => {
       const target = document.querySelector('.right-editor-pane .large-json-viewer, .right-editor-pane .monaco-editor textarea, .right-editor-pane .monaco-editor');
       target?.focus?.();
       return Boolean(target);
-    })()`);
+    })()`
+    );
     await pressShortcut(cdp, 'f', 'KeyF');
     await waitFor(
       () => evaluate(cdp, `Boolean(document.querySelector('.right-editor-pane .pane-find-input'))`),
@@ -242,14 +247,20 @@ async function run() {
     );
     await insertText(cdp, 'requestId');
     await waitFor(
-      () => evaluate(cdp, `(() => {
+      () =>
+        evaluate(
+          cdp,
+          `(() => {
         const text = document.querySelector('.right-editor-pane .pane-find-count')?.textContent ?? '';
         return text !== '0/0' && text.includes('/');
-      })()`),
+      })()`
+        ),
       'right search results'
     );
 
-    const clickedNode = await evaluate(cdp, `(() => {
+    const clickedNode = await evaluate(
+      cdp,
+      `(() => {
       const line = Array.from(document.querySelectorAll('.right-editor-pane .large-json-line-text'))
         .find((element) => element.getAttribute('title')?.includes('requestId'));
       if (!line) return false;
@@ -261,22 +272,29 @@ async function run() {
         clientY: rect.top + Math.min(10, rect.height / 2)
       }));
       return true;
-    })()`);
+    })()`
+    );
 
     if (!clickedNode) {
       throw new Error('Could not click a right-side requestId node');
     }
 
     await waitFor(
-      () => evaluate(cdp, `Boolean(
+      () =>
+        evaluate(
+          cdp,
+          `Boolean(
         document.querySelector('.right-editor-pane .rightNodeSelectionHighlight')
         && document.body.innerText.includes('已定位到 offset')
-      )`),
+      )`
+        ),
       'right click locate highlight'
     );
 
     const openRequestIdContextMenu = async () => {
-      const openedContextMenu = await evaluate(cdp, `(() => {
+      const openedContextMenu = await evaluate(
+        cdp,
+        `(() => {
         const line = Array.from(document.querySelectorAll('.right-editor-pane .large-json-line-text'))
           .find((element) => element.getAttribute('title')?.includes('requestId'));
         if (!line) return false;
@@ -288,48 +306,74 @@ async function run() {
           clientY: rect.top + Math.min(10, rect.height / 2)
         }));
         return true;
-      })()`);
+      })()`
+      );
 
       if (!openedContextMenu) {
         throw new Error('Could not open right-side context menu');
       }
 
       await waitFor(
-        () => evaluate(cdp, `Boolean(Array.from(document.querySelectorAll('.large-json-context-menu-item')).find((button) => button.textContent?.trim() === '编辑当前值'))`),
+        () =>
+          evaluate(
+            cdp,
+            `Boolean(Array.from(document.querySelectorAll('.large-json-context-menu-item')).find((button) => button.textContent?.trim() === '编辑当前值'))`
+          ),
         'right context menu'
       );
     };
 
     await openRequestIdContextMenu();
-    await evaluate(cdp, `Array.from(document.querySelectorAll('.large-json-context-menu-item'))
-      .find((button) => button.textContent?.trim() === '删除当前节点')?.click()`);
+    await evaluate(
+      cdp,
+      `Array.from(document.querySelectorAll('.large-json-context-menu-item'))
+      .find((button) => button.textContent?.trim() === '删除当前节点')?.click()`
+    );
     await waitFor(
-      () => evaluate(cdp, `document.body.innerText.includes('删除当前节点') && document.body.innerText.includes('req-e2e-000000')`),
+      () =>
+        evaluate(
+          cdp,
+          `document.body.innerText.includes('删除当前节点') && document.body.innerText.includes('req-e2e-000000')`
+        ),
       'delete node confirmation preview'
     );
     await evaluate(cdp, `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
     await waitFor(
-      () => evaluate(cdp, `!document.querySelector('.right-node-mutation-card') && document.body.innerText.includes('req-e2e-000000')`),
+      () =>
+        evaluate(
+          cdp,
+          `!document.querySelector('.right-node-mutation-card') && document.body.innerText.includes('req-e2e-000000')`
+        ),
       'delete node dialog escaped'
     );
 
     await openRequestIdContextMenu();
-    await evaluate(cdp, `Array.from(document.querySelectorAll('.large-json-context-menu-item'))
-      .find((button) => button.textContent?.trim() === '重命名 key')?.click()`);
+    await evaluate(
+      cdp,
+      `Array.from(document.querySelectorAll('.large-json-context-menu-item'))
+      .find((button) => button.textContent?.trim() === '重命名 key')?.click()`
+    );
     await waitFor(
       () => evaluate(cdp, `Boolean(document.querySelector('.right-node-mutation-card input'))`),
       'rename key dialog'
     );
-    await evaluate(cdp, `(() => {
+    await evaluate(
+      cdp,
+      `(() => {
       const input = document.querySelector('.right-node-mutation-card input');
       if (!input) return false;
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
       setter?.call(input, ' renamedRequestId ');
       input.dispatchEvent(new Event('input', { bubbles: true }));
       return true;
-    })()`);
+    })()`
+    );
     await waitFor(
-      () => evaluate(cdp, `document.body.innerText.includes('首尾空格') && document.body.innerText.includes('已有同名 key')`),
+      () =>
+        evaluate(
+          cdp,
+          `document.body.innerText.includes('首尾空格') && document.body.innerText.includes('已有同名 key')`
+        ),
       'rename key warnings'
     );
     await clickButtonByText(cdp, '取消');
@@ -339,13 +383,18 @@ async function run() {
     );
 
     await openRequestIdContextMenu();
-    await evaluate(cdp, `Array.from(document.querySelectorAll('.large-json-context-menu-item'))
-      .find((button) => button.textContent?.trim() === '编辑当前值')?.click()`);
+    await evaluate(
+      cdp,
+      `Array.from(document.querySelectorAll('.large-json-context-menu-item'))
+      .find((button) => button.textContent?.trim() === '编辑当前值')?.click()`
+    );
     await waitFor(
       () => evaluate(cdp, `Boolean(document.querySelector('.modal-card .monaco-editor textarea'))`),
       'node edit modal'
     );
-    const directEdit = await evaluate(cdp, `(() => {
+    const directEdit = await evaluate(
+      cdp,
+      `(() => {
       if (window.__HANJSON_E2E_EDIT_MODAL__?.setValue) {
         window.__HANJSON_E2E_EDIT_MODAL__.setValue('"req-e2e-updated"');
         return true;
@@ -356,33 +405,39 @@ async function run() {
       if (!model) return false;
       model.setValue('"req-e2e-updated"');
       return true;
-    })()`);
+    })()`
+    );
     if (!directEdit) {
       await clickSelector(cdp, '.modal-card .monaco-editor textarea');
       await pressShortcut(cdp, 'a', 'KeyA');
       await insertText(cdp, JSON.stringify('req-e2e-updated'));
     }
-    await evaluate(cdp, `Array.from(document.querySelectorAll('.modal-actions button'))
-      .find((button) => button.textContent?.includes('更新当前节点'))?.click()`);
+    await evaluate(
+      cdp,
+      `Array.from(document.querySelectorAll('.modal-actions button'))
+      .find((button) => button.textContent?.includes('更新当前节点'))?.click()`
+    );
     await waitFor(
-      () => evaluate(cdp, `document.body.innerText.includes('req-e2e-updated') && !document.querySelector('.modal-card')`),
+      () =>
+        evaluate(cdp, `document.body.innerText.includes('req-e2e-updated') && !document.querySelector('.modal-card')`),
       'node edit saved',
       90000
     );
     await waitFor(
-      () => evaluate(cdp, `(() => {
+      () =>
+        evaluate(
+          cdp,
+          `(() => {
         return document.body.innerText.includes('req-e2e-updated')
           && document.body.innerText.includes('已定位到 offset')
           && !document.querySelector('.modal-card');
-      })()`),
+      })()`
+        ),
       'right node save state restored after edit'
     );
 
     await clickSelector(cdp, '.add-tab');
-    await waitFor(
-      () => evaluate(cdp, `document.querySelectorAll('.tab-bar .tab').length >= 2`),
-      'second tab created'
-    );
+    await waitFor(() => evaluate(cdp, `document.querySelectorAll('.tab-bar .tab').length >= 2`), 'second tab created');
     await clickSelector(cdp, '.left-editor-pane .monaco-editor textarea');
     await pressShortcut(cdp, 'a', 'KeyA');
     await insertText(cdp, '{"broken": true,');
@@ -392,10 +447,7 @@ async function run() {
       'compare dialog opened'
     );
     await clickButtonByText(cdp, '开始对比');
-    await waitFor(
-      () => evaluate(cdp, `document.body.innerText.includes('解析失败')`),
-      'invalid JSON compare error'
-    );
+    await waitFor(() => evaluate(cdp, `document.body.innerText.includes('解析失败')`), 'invalid JSON compare error');
 
     console.log('FxxkJson Electron E2E passed');
     console.table([

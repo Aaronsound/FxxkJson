@@ -59,20 +59,19 @@ async function main() {
   const installScriptPath = require.resolve('electron/install.js');
   const existingBinaryPath = await getElectronBinaryPath(electronPackageDir);
 
-  if (existingBinaryPath && await pathExists(existingBinaryPath)) {
+  if (existingBinaryPath && (await pathExists(existingBinaryPath))) {
     console.log(`[setup:electron] Electron binary found: ${existingBinaryPath}`);
     return;
   }
 
-  const electronMirror = process.env.ELECTRON_MIRROR
-    || process.env.npm_config_electron_mirror
-    || DEFAULT_ELECTRON_MIRROR;
+  const electronMirror =
+    process.env.ELECTRON_MIRROR || process.env.npm_config_electron_mirror || DEFAULT_ELECTRON_MIRROR;
 
   console.log(`[setup:electron] Electron binary is missing. Downloading with mirror: ${electronMirror}`);
   await runInstallScript(installScriptPath, electronMirror);
 
   const installedBinaryPath = await getElectronBinaryPath(electronPackageDir);
-  if (!installedBinaryPath || !await pathExists(installedBinaryPath)) {
+  if (!installedBinaryPath || !(await pathExists(installedBinaryPath))) {
     throw new Error('Electron install finished, but the executable was not found.');
   }
 
@@ -80,6 +79,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

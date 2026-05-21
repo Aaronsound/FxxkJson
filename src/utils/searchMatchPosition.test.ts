@@ -1,10 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  findSearchIndexAtOrAfterOffset,
-  getSafeOffsetAt,
-  type SearchOffsetModel,
-} from './searchMatchPosition';
+import { findSearchIndexAtOrAfterOffset, getSafeOffsetAt, type SearchOffsetModel } from './searchMatchPosition';
 
 function createOffsetModel(lines: string[]): SearchOffsetModel {
   const lineStarts = lines.reduce<number[]>((starts, line, index) => {
@@ -26,12 +22,7 @@ function createOffsetModel(lines: string[]): SearchOffsetModel {
 
 describe('searchMatchPosition', () => {
   it('keeps the active match when content edits happen after that match', () => {
-    const model = createOffsetModel([
-      '{',
-      '  "name": "first edited",',
-      '  "name": "second"',
-      '}',
-    ]);
+    const model = createOffsetModel(['{', '  "name": "first edited",', '  "name": "second"', '}']);
     const ranges = [
       { startLineNumber: 2, startColumn: 4 },
       { startLineNumber: 3, startColumn: 4 },
@@ -42,12 +33,7 @@ describe('searchMatchPosition', () => {
   });
 
   it('continues from the next nearby match when the active key/value is deleted', () => {
-    const model = createOffsetModel([
-      '{',
-      '  "name": "second",',
-      '  "name": "third"',
-      '}',
-    ]);
+    const model = createOffsetModel(['{', '  "name": "second",', '  "name": "third"', '}']);
     const ranges = [
       { startLineNumber: 2, startColumn: 4 },
       { startLineNumber: 3, startColumn: 4 },
@@ -58,12 +44,7 @@ describe('searchMatchPosition', () => {
   });
 
   it('falls back to the last match instead of jumping to the first when editing near the end', () => {
-    const model = createOffsetModel([
-      '{',
-      '  "name": "first",',
-      '  "name": "last"',
-      '}',
-    ]);
+    const model = createOffsetModel(['{', '  "name": "first",', '  "name": "last"', '}']);
     const ranges = [
       { startLineNumber: 2, startColumn: 4 },
       { startLineNumber: 3, startColumn: 4 },

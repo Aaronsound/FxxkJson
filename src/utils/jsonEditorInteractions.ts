@@ -1,17 +1,8 @@
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import {
-  SEARCH_BATCH_SIZE,
-} from '../types/jsonTool';
+import { SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
-import {
-  buildLineStarts,
-  findTextSearchBatch,
-} from './searchText';
-import {
-  JSON_EDITOR_FONT_FAMILY,
-  JSON_EDITOR_FONT_SIZE,
-  JSON_EDITOR_LINE_HEIGHT,
-} from './jsonEditorTypography';
+import { buildLineStarts, findTextSearchBatch } from './searchText';
+import { JSON_EDITOR_FONT_FAMILY, JSON_EDITOR_FONT_SIZE, JSON_EDITOR_LINE_HEIGHT } from './jsonEditorTypography';
 
 interface JsonEditorOptionsArgs {
   largeMode: boolean;
@@ -69,12 +60,7 @@ export function getMonacoSearchBatch(
     ranges: result.matches.map((match) => {
       const start = model.getPositionAt(match.start);
       const end = model.getPositionAt(match.end);
-      return new monaco.Range(
-        start.lineNumber,
-        start.column,
-        end.lineNumber,
-        end.column
-      );
+      return new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
     }),
   };
 }
@@ -92,10 +78,7 @@ export function getReplacementText(
 
   try {
     const source = model.getValueInRange(range);
-    return source.replace(
-      new RegExp(searchTerm, searchOptions.matchCase ? '' : 'i'),
-      replaceText
-    );
+    return source.replace(new RegExp(searchTerm, searchOptions.matchCase ? '' : 'i'), replaceText);
   } catch {
     return replaceText;
   }

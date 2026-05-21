@@ -1,11 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
-import {
-  buildLineStarts,
-  findTextSearchBatch,
-  findTextSearchBatchAsync,
-} from './searchText';
+import { buildLineStarts, findTextSearchBatch, findTextSearchBatchAsync } from './searchText';
 
 describe('searchText', () => {
   it('loads complete search results across multiple batches', () => {
@@ -48,11 +44,7 @@ describe('searchText', () => {
     expect(secondBatch.hasMore).toBe(true);
     expect(thirdBatch.matches).toHaveLength(1);
     expect(thirdBatch.hasMore).toBe(false);
-    expect([
-      ...firstBatch.matches,
-      ...secondBatch.matches,
-      ...thirdBatch.matches,
-    ]).toHaveLength(5);
+    expect([...firstBatch.matches, ...secondBatch.matches, ...thirdBatch.matches]).toHaveLength(5);
   });
 
   it('can cancel async batched searches before returning stale results', async () => {

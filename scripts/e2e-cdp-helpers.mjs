@@ -140,7 +140,9 @@ export async function insertText(cdp, text) {
 }
 
 export async function clickSelector(cdp, selector) {
-  const clicked = await evaluate(cdp, `(() => {
+  const clicked = await evaluate(
+    cdp,
+    `(() => {
     const element = document.querySelector(${JSON.stringify(selector)});
     if (!element) return false;
     const rect = element.getBoundingClientRect();
@@ -163,7 +165,8 @@ export async function clickSelector(cdp, selector) {
       clientY: rect.top + Math.min(10, rect.height / 2)
     }));
     return true;
-  })()`);
+  })()`
+  );
 
   if (!clicked) {
     throw new Error(`Could not click ${selector}`);
@@ -171,13 +174,16 @@ export async function clickSelector(cdp, selector) {
 }
 
 export async function clickButtonByText(cdp, text) {
-  const clicked = await evaluate(cdp, `(() => {
+  const clicked = await evaluate(
+    cdp,
+    `(() => {
     const button = Array.from(document.querySelectorAll('button'))
       .find((item) => item.textContent?.trim() === ${JSON.stringify(text)});
     if (!button) return false;
     button.click();
     return true;
-  })()`);
+  })()`
+  );
 
   if (!clicked) {
     throw new Error(`Could not click button ${text}`);
@@ -185,15 +191,10 @@ export async function clickButtonByText(cdp, text) {
 }
 
 export async function connectToElectronPage(port) {
-  const targets = await waitFor(
-    async () => getJson(`http://127.0.0.1:${port}/json/list`),
-    'Electron debug target'
+  const targets = await waitFor(async () => getJson(`http://127.0.0.1:${port}/json/list`), 'Electron debug target');
+  const page = targets.find(
+    (target) => target.type === 'page' && target.webSocketDebuggerUrl && !target.url.startsWith('devtools://')
   );
-  const page = targets.find((target) => (
-    target.type === 'page'
-    && target.webSocketDebuggerUrl
-    && !target.url.startsWith('devtools://')
-  ));
 
   if (!page) {
     throw new Error('Could not find Electron renderer target');
