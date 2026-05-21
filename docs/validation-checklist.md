@@ -11,6 +11,7 @@ npm run smoke
 
 Expected result:
 
+- Repository formatting and lint checks pass.
 - Renderer and Electron type checks pass.
 - Vitest passes.
 - Production build completes.

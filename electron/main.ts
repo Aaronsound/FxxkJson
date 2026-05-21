@@ -1,5 +1,5 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, session, shell } from 'electron';
-import type { OpenDialogOptions } from 'electron';
+import type { IpcMainInvokeEvent, OpenDialogOptions, WebContents } from 'electron';
 import { execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
@@ -9,6 +9,8 @@ let mainWindow: BrowserWindow | null = null;
 const logDir = path.join(app.getPath('userData'), 'logs');
 const logFilePath = path.join(logDir, 'runtime.log');
 const execFileAsync = promisify(execFile);
+const MAX_LOG_APPEND_LENGTH = 64 * 1024;
+const MAX_LOG_READ_BYTES = 1024 * 1024;
 
 async function appendRuntimeLog(entry: string) {
   await fs.mkdir(logDir, { recursive: true });
@@ -78,6 +80,24 @@ function blockPackagedExternalRequests() {
   );
 }
 
+function hardenDefaultSession() {
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+}
+
+function guardMainWindowContents(webContents: WebContents) {
+  webContents.setWindowOpenHandler(({ url }) => {
+    logRuntimeEvent('blocked-window-open', { url });
+    return { action: 'deny' };
+  });
+
+  webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    logRuntimeEvent('blocked-navigation', { url });
+  });
+}
+
 async function isRunningUnderRosetta() {
   if (process.platform !== 'darwin' || process.arch !== 'x64') {
     return false;
@@ -106,6 +126,7 @@ function createWindow() {
       sandbox: true,
     },
   });
+  guardMainWindowContents(mainWindow.webContents);
 
   const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 
@@ -169,6 +190,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  hardenDefaultSession();
   blockPackagedExternalRequests();
   createWindow();
 });
@@ -197,39 +219,81 @@ process.on('unhandledRejection', (reason) => {
   });
 });
 
-ipcMain.handle('log:append', async (_event, payload: string) => {
-  await appendRuntimeLog(payload);
+function isTrustedMainWindowSender(event: IpcMainInvokeEvent) {
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
+}
+
+function handleTrustedIpc<Args extends unknown[], Result>(
+  channel: string,
+  handler: (...args: Args) => Promise<Result> | Result
+) {
+  ipcMain.handle(channel, async (event, ...args: Args) => {
+    if (!isTrustedMainWindowSender(event)) {
+      logRuntimeEvent('blocked-ipc-sender', { channel });
+      throw new Error(`Blocked IPC sender for ${channel}`);
+    }
+
+    return handler(...args);
+  });
+}
+
+function getLogAppendPayload(payload: unknown) {
+  if (typeof payload !== 'string') {
+    throw new TypeError('Log payload must be text');
+  }
+
+  return payload.slice(0, MAX_LOG_APPEND_LENGTH);
+}
+
+function getLogReadLimit(maxBytes: unknown) {
+  if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes)) {
+    return undefined;
+  }
+
+  return Math.min(MAX_LOG_READ_BYTES, Math.max(0, Math.floor(maxBytes)));
+}
+
+function getClipboardText(text: unknown) {
+  if (typeof text !== 'string') {
+    throw new TypeError('Clipboard payload must be text');
+  }
+
+  return text;
+}
+
+handleTrustedIpc('log:append', async (payload: unknown) => {
+  await appendRuntimeLog(getLogAppendPayload(payload));
   return logFilePath;
 });
 
-ipcMain.handle('log:readRecent', async (_event, maxBytes?: number) => readRecentRuntimeLog(maxBytes));
+handleTrustedIpc('log:readRecent', async (maxBytes?: unknown) => readRecentRuntimeLog(getLogReadLimit(maxBytes)));
 
-ipcMain.handle('log:clear', async () => {
+handleTrustedIpc('log:clear', async () => {
   await fs.mkdir(logDir, { recursive: true });
   await fs.writeFile(logFilePath, '', 'utf8');
   return logFilePath;
 });
 
-ipcMain.handle('log:showInFolder', async () => {
+handleTrustedIpc('log:showInFolder', async () => {
   await fs.mkdir(logDir, { recursive: true });
   await fs.appendFile(logFilePath, '', 'utf8');
   shell.showItemInFolder(logFilePath);
   return logFilePath;
 });
 
-ipcMain.handle('clipboard:writeText', async (_event, text: string) => {
-  clipboard.writeText(text);
+handleTrustedIpc('clipboard:writeText', async (text: unknown) => {
+  clipboard.writeText(getClipboardText(text));
   return true;
 });
 
-ipcMain.handle('app:runtimeInfo', async () => ({
+handleTrustedIpc('app:runtimeInfo', async () => ({
   arch: process.arch,
   isMacTranslated: await isRunningUnderRosetta(),
   isPackaged: app.isPackaged,
   platform: process.platform,
 }));
 
-ipcMain.handle('file:openJson', async () => {
+handleTrustedIpc('file:openJson', async () => {
   const dialogOptions: OpenDialogOptions = {
     properties: ['openFile'],
     filters: [

@@ -28,10 +28,12 @@ FxxkJson processes JSON locally in the desktop app. The project does not include
 ```bash
 npm install
 npm run dev        # run the Electron + Vite dev app
+npm run format:check # verify repository formatting
+npm run lint       # run Biome lint checks
 npm run typecheck  # type-check renderer and Electron sources
 npm test           # run Vitest tests
 npm run build      # build renderer and Electron output
-npm run check      # typecheck + test + smoke + build
+npm run check      # formatting + lint + typecheck + test + smoke + build
 npm start          # run the built desktop app after npm run build
 ```
 

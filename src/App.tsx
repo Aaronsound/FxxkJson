@@ -24,6 +24,7 @@ import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
 import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
+import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import { getCompactPathLabel, useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
@@ -1895,55 +1896,10 @@ const App: React.FC = () => {
     }
   };
 
-  const openContextualFind = useCallback(() => {
-    const activeElement = document.activeElement;
-
-    if (activeElement instanceof HTMLElement && activeElement.closest('.modal-overlay')) {
-      return;
-    }
-
-    if (activeElement instanceof HTMLElement && activeElement.closest('.left-editor-pane')) {
-      openLeftFind();
-      return;
-    }
-
-    openRightFind();
-  }, [openLeftFind, openRightFind]);
-
-  useEffect(() => {
-    const handleFindShortcut = (event: KeyboardEvent) => {
-      const isFindShortcut =
-        event.key.toLowerCase() === 'f' && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey;
-
-      if (!isFindShortcut) {
-        return;
-      }
-
-      const target = event.target;
-      if (target instanceof HTMLElement && target.closest('.modal-overlay')) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      openContextualFind();
-    };
-
-    window.addEventListener('keydown', handleFindShortcut, true);
-    return () => {
-      window.removeEventListener('keydown', handleFindShortcut, true);
-    };
-  }, [openContextualFind]);
-
-  useEffect(() => {
-    const unsubscribe = window.electronAPI?.onFindShortcut?.(() => {
-      openContextualFind();
-    });
-
-    return () => {
-      unsubscribe?.();
-    };
-  }, [openContextualFind]);
+  useContextualFindShortcut({
+    openLeftFind,
+    openRightFind,
+  });
 
   const handleLeftSearchOptionsChange = (value: JsonSearchOptions) => {
     setLeftSearchOptions(value);
