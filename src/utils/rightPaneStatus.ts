@@ -1,4 +1,7 @@
 import type { StructureStatus } from '../types/jsonTool';
+import type { I18nKey } from './i18n';
+
+type StatusTranslator = (key: I18nKey) => string;
 
 interface RightPaneStatusArgs {
   canEnableLargeFileLocate: boolean;
@@ -6,6 +9,7 @@ interface RightPaneStatusArgs {
   currentStructureStatus: StructureStatus;
   isLargeFileLocateEnabled: boolean;
   isLargeFileMode: boolean;
+  t: StatusTranslator;
   usesDedicatedRightViewer: boolean;
   usesLightweightLocate: boolean;
 }
@@ -16,30 +20,35 @@ export function getRightPaneStatusText({
   currentStructureStatus,
   isLargeFileLocateEnabled,
   isLargeFileMode,
+  t,
   usesDedicatedRightViewer,
   usesLightweightLocate,
 }: RightPaneStatusArgs) {
   if (!isLargeFileMode) {
-    return canUseRightPaneFolding ? '支持折叠' : null;
+    return canUseRightPaneFolding ? t('pane.statusFolding') : null;
   }
 
-  const foldingPrefix = usesDedicatedRightViewer ? '轻量折叠 · ' : '';
+  const foldingPrefix = usesDedicatedRightViewer ? `${t('pane.statusLightFolding')} · ` : '';
 
   if (!canEnableLargeFileLocate) {
-    return `${foldingPrefix}定位已关闭`;
+    return `${foldingPrefix}${t('pane.statusLocateClosed')}`;
   }
 
   if (!isLargeFileLocateEnabled) {
-    return `${foldingPrefix}定位未启用`;
+    return `${foldingPrefix}${t('pane.statusLocateOff')}`;
   }
 
   if (currentStructureStatus === 'building') {
-    return `${foldingPrefix}${usesLightweightLocate ? '轻量定位准备中' : '定位索引中'}`;
+    return `${foldingPrefix}${t(
+      usesLightweightLocate ? 'pane.statusLightLocateBuilding' : 'pane.statusLocateBuilding'
+    )}`;
   }
 
   if (currentStructureStatus === 'ready') {
-    return `${foldingPrefix}${usesLightweightLocate ? '轻量定位已启用' : '定位已启用'}`;
+    return `${foldingPrefix}${t(
+      usesLightweightLocate ? 'pane.statusLightLocateReady' : 'pane.statusLocateReady'
+    )}`;
   }
 
-  return `${foldingPrefix}定位已关闭`;
+  return `${foldingPrefix}${t('pane.statusLocateClosed')}`;
 }

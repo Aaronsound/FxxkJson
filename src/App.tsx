@@ -375,9 +375,9 @@ const App: React.FC = () => {
     : 0;
   const processingStageText = getProcessingStageText(activeProcessingStage, importingFileName);
   const leftPaneMetaText = [
-    activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
+    activeDocumentMeta.rawLength > 0 ? `${t('pane.metaMemory')} ${formatBytes(activeDocumentMeta.rawLength)}` : null,
     formatDuration(activePerformanceSnapshot?.readFileMs)
-      ? `导入 ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
+      ? `${t('pane.metaImport')} ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
       : null,
     activeLocateFeedback?.message ?? null,
   ].filter(Boolean).join(' · ');
@@ -387,16 +387,17 @@ const App: React.FC = () => {
     currentStructureStatus,
     isLargeFileLocateEnabled,
     isLargeFileMode,
+    t,
     usesDedicatedRightViewer: shouldUseDedicatedRightViewer,
     usesLightweightLocate,
   });
   const rightPaneMetaText = [
-    activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
+    activeDocumentMeta.formattedLength > 0 ? `${t('pane.metaMemory')} ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
     formatDuration(activePerformanceSnapshot?.formatWorkerMs)
-      ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
+      ? `${t('pane.metaFormat')} ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
       : null,
     activeRightNodeSelection?.pathText
-      ? `路径 ${getCompactPathLabel(activeRightNodeSelection.pathText)}`
+      ? `${t('pane.metaPath')} ${getCompactPathLabel(activeRightNodeSelection.pathText)}`
       : null,
     rightPaneStatusText,
   ].filter(Boolean).join(' · ');
