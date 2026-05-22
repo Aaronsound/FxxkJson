@@ -84,4 +84,27 @@ describe('searchText', () => {
     expect(result.cancelled).toBe(true);
     expect(result.matches).toHaveLength(0);
   });
+
+  it('yields and cancels regex batches before stale matches finish scanning', async () => {
+    const text = Array.from({ length: 1000 }, (_, index) => `FxxkJson item ${index}`).join('\n');
+    const lineStarts = buildLineStarts(text);
+    let checks = 0;
+
+    const result = await findTextSearchBatchAsync(
+      text,
+      lineStarts,
+      lineStarts.length,
+      'FxxkJson item \\d+',
+      { matchCase: true, wholeWord: false, useRegex: true },
+      0,
+      500,
+      () => {
+        checks += 1;
+        return checks > 252;
+      }
+    );
+
+    expect(result.cancelled).toBe(true);
+    expect(result.matches).toHaveLength(0);
+  });
 });

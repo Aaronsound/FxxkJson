@@ -80,9 +80,18 @@ describe('createJsonWorkerInteractiveFlow', () => {
   it('applies only the latest active-tab search result', () => {
     const { callbacks, flow, requests } = createFlow();
 
-    flow.requestSearch('tab-a', 'old', DEFAULT_SEARCH_OPTIONS);
-    flow.requestSearch('tab-a', 'new', DEFAULT_SEARCH_OPTIONS);
-    flow.requestSearch('tab-a', 'left', DEFAULT_SEARCH_OPTIONS, 20, true, 'left', '{"name":"new"}', 2);
+    flow.requestSearch({ tabId: 'tab-a', query: 'old', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    flow.requestSearch({ tabId: 'tab-a', query: 'new', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    flow.requestSearch({
+      tabId: 'tab-a',
+      query: 'left',
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+      startOffset: 20,
+      append: true,
+      target: 'left',
+      text: '{"name":"new"}',
+      rawRevision: 2,
+    });
 
     const firstRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
     const leftRequestId = 'requestId' in requests[2] ? requests[2].requestId : -1;
@@ -120,7 +129,7 @@ describe('createJsonWorkerInteractiveFlow', () => {
     );
     await expect(value).resolves.toBe('"demo"');
 
-    const edit = flow.requestEditJson('tab-a', 'escape-json', '{"ok":true}');
+    const edit = flow.requestEditJson({ tabId: 'tab-a', operation: 'escape-json', text: '{"ok":true}' });
     const editRequestId = 'requestId' in requests[1] ? requests[1].requestId : -1;
     flow.handleResult(
       asResult({

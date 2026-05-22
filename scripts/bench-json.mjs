@@ -147,6 +147,14 @@ function findLiteralSearchBatch(text, query, startOffset = 0, maxResults = RIGHT
   };
 }
 
+function replaceLiteralMatches(text, query, replacement) {
+  return text.split(query).join(replacement);
+}
+
+function replaceRegexMatches(text, query, replacement) {
+  return text.replace(new RegExp(query, 'g'), replacement);
+}
+
 function getRightSearchQuery(formattedText) {
   return formattedText.includes('requestId') ? 'requestId' : '"id"';
 }
@@ -194,6 +202,19 @@ async function benchFile(filePath) {
       ? findLiteralSearchBatch(formattedText, rightSearchQuery, rightSearchBatchResult.value.nextStartOffset)
       : { count: 0, hasMore: false, nextStartOffset: rightSearchBatchResult.value.nextStartOffset }
   );
+  const leftSearchQuery = getRightSearchQuery(rawText);
+  const leftSearchBatchResult = measure('leftSearchBatch', () => findLiteralSearchBatch(rawText, leftSearchQuery));
+  const leftSearchLoadMoreResult = measure('leftSearchLoadMore', () =>
+    leftSearchBatchResult.value.hasMore
+      ? findLiteralSearchBatch(rawText, leftSearchQuery, leftSearchBatchResult.value.nextStartOffset)
+      : { count: 0, hasMore: false, nextStartOffset: leftSearchBatchResult.value.nextStartOffset }
+  );
+  const leftReplaceAllResult = measure('leftReplaceAll', () =>
+    replaceLiteralMatches(rawText, leftSearchQuery, `${leftSearchQuery}-replaced`)
+  );
+  const leftRegexReplaceAllResult = measure('leftRegexReplaceAll', () =>
+    replaceRegexMatches(rawText, 'req-([a-z]+)-(\\d+)', 'trace-$1-$2')
+  );
   const nodeValueReadResult = measure('nodeValueRead', () =>
     readFirstRequestValue(formattedText, formattedTreeResult.value)
   );
@@ -223,6 +244,12 @@ async function benchFile(filePath) {
     rightSearchBatchCount: rightSearchBatchResult.value.count,
     rightSearchLoadMoreMs: rightSearchLoadMoreResult.ms,
     rightSearchLoadMoreCount: rightSearchLoadMoreResult.value.count,
+    leftSearchBatchMs: leftSearchBatchResult.ms,
+    leftSearchBatchCount: leftSearchBatchResult.value.count,
+    leftSearchLoadMoreMs: leftSearchLoadMoreResult.ms,
+    leftSearchLoadMoreCount: leftSearchLoadMoreResult.value.count,
+    leftReplaceAllMs: leftReplaceAllResult.ms,
+    leftRegexReplaceAllMs: leftRegexReplaceAllResult.ms,
     nodeValueReadMs: nodeValueReadResult.ms,
     nodeEditPatchMs: nodeEditPatchResult.ms,
     rawBytes,
@@ -248,6 +275,13 @@ function printResult(result) {
       stage: `right-search-more-${result.rightSearchLoadMoreCount}`,
       duration: formatDuration(result.rightSearchLoadMoreMs),
     },
+    { stage: `left-search-${result.leftSearchBatchCount}`, duration: formatDuration(result.leftSearchBatchMs) },
+    {
+      stage: `left-search-more-${result.leftSearchLoadMoreCount}`,
+      duration: formatDuration(result.leftSearchLoadMoreMs),
+    },
+    { stage: 'left-replace-all', duration: formatDuration(result.leftReplaceAllMs) },
+    { stage: 'left-regex-replace-all', duration: formatDuration(result.leftRegexReplaceAllMs) },
     { stage: 'node-value-read', duration: formatDuration(result.nodeValueReadMs) },
     { stage: 'node-edit-patch', duration: formatDuration(result.nodeEditPatchMs) },
   ]);
@@ -318,6 +352,10 @@ async function main() {
         viewerIndex: formatDuration(result.viewerIndexMs),
         rightSearch: formatDuration(result.rightSearchBatchMs),
         rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
+        leftSearch: formatDuration(result.leftSearchBatchMs),
+        leftSearchMore: formatDuration(result.leftSearchLoadMoreMs),
+        leftReplaceAll: formatDuration(result.leftReplaceAllMs),
+        leftRegexReplaceAll: formatDuration(result.leftRegexReplaceAllMs),
         nodeRead: formatDuration(result.nodeValueReadMs),
         nodePatch: formatDuration(result.nodeEditPatchMs),
         viewerLines: result.viewerLineCount.toLocaleString(),

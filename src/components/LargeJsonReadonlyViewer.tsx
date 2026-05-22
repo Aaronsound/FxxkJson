@@ -18,18 +18,17 @@ import {
 } from '../types/jsonTool';
 import type { JsonSearchOptions, LargeJsonViewerRegion } from '../types/jsonTool';
 import { findSearchMatchesInLargeJson } from '../utils/largeJsonViewerData';
-import { buildHighlightedJsonLineSegments, clamp, getCollapsedPreview } from '../utils/largeJsonViewerRender';
+import { buildHighlightedJsonLineSegments, clamp } from '../utils/largeJsonViewerRender';
 import {
   getFirstMeaningfulOffset,
-  getLargeJsonLineTitle,
   getLineNumberForOffset,
   getLineNumberFromElement,
   getLineTextElementFromNode,
   getTextOffsetWithin,
 } from '../utils/largeJsonViewerDom';
-import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
+import { LargeJsonVisibleRows } from './LargeJsonVisibleRows';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
 import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
@@ -710,90 +709,6 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       [effectiveMatchIndex, matchesByLine]
     );
 
-    const renderedRows = [];
-
-    for (let visibleIndex = startVisibleIndex; visibleIndex <= endVisibleIndex; visibleIndex += 1) {
-      const lineNumber = getActualLineNumber(visibleIndex);
-      if (lineNumber === null) {
-        continue;
-      }
-
-      const region = regionsByStartLine.get(lineNumber);
-      const isCollapsed = collapsedLineSet.has(lineNumber);
-      const baseLineText = getLineText(lineNumber);
-      const lineText = region && isCollapsed ? getCollapsedPreview(baseLineText) : baseLineText;
-      const isSelected = isLineSelected(lineNumber);
-      const selectedLineRange = getLineSelectionRange(lineNumber, baseLineText, lineText, region, isCollapsed);
-
-      renderedRows.push(
-        <div
-          key={`${lineNumber}-${visibleIndex}`}
-          className={`large-json-row ${wrapLongLines ? 'wrap' : ''} ${isSelected ? 'selected' : ''}`}
-          onMouseUp={(event) => {
-            if (event.button !== 0) {
-              return;
-            }
-
-            if (event.target instanceof HTMLElement && event.target.closest('.large-json-fold-button')) {
-              return;
-            }
-
-            const offset = (data.lineStarts[lineNumber - 1] ?? 0) + getFirstMeaningfulOffset(baseLineText);
-            onLocateOffset(offset);
-          }}
-          style={{
-            top: `${visibleIndex * rowHeight}px`,
-            height: `${rowHeight}px`,
-          }}
-        >
-          <span className="large-json-line-number" style={{ width: lineNumberWidth }}>
-            {lineNumber}
-          </span>
-          <button
-            type="button"
-            className={`large-json-fold-button ${region ? 'visible' : ''} ${isCollapsed ? 'collapsed' : 'expanded'}`}
-            onClick={() => toggleLine(lineNumber)}
-            onMouseDown={(event) => event.preventDefault()}
-            disabled={!region}
-            aria-label={isCollapsed ? 'Expand node' : 'Collapse node'}
-          />
-          <span
-            className={`large-json-line-text ${wrapLongLines ? 'wrap' : ''}`}
-            data-line-number={lineNumber}
-            data-collapsed={isCollapsed ? 'true' : undefined}
-            title={getLargeJsonLineTitle(lineText)}
-            onMouseUp={(event) => {
-              if (event.button !== 0) {
-                return;
-              }
-
-              const offset = resolveOffsetFromPoint(event, lineNumber, baseLineText);
-              event.stopPropagation();
-              onLocateOffset(offset);
-            }}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const offset = resolveOffsetFromPoint(event, lineNumber, baseLineText);
-              const menuPosition = getViewportContextMenuPosition(
-                event.clientX,
-                event.clientY,
-                regionsByStartLine.has(lineNumber) ? 10 : 9
-              );
-              setContextMenu({
-                x: menuPosition.x,
-                y: menuPosition.y,
-                offset,
-                foldLine: regionsByStartLine.has(lineNumber) ? lineNumber : null,
-              });
-            }}
-          >
-            {renderLineText(lineNumber, lineText, selectedLineRange)}
-          </span>
-        </div>
-      );
-    }
-
     return (
       <div
         ref={containerRef}
@@ -808,7 +723,25 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         onCopy={handleCopy}
       >
         <div className="large-json-spacer" style={{ height: `${Math.max(visibleLineCount, 1) * rowHeight}px` }}>
-          {renderedRows}
+          <LargeJsonVisibleRows
+            collapsedLineSet={collapsedLineSet}
+            data={data}
+            endVisibleIndex={endVisibleIndex}
+            getActualLineNumber={getActualLineNumber}
+            getLineSelectionRange={getLineSelectionRange}
+            getLineText={getLineText}
+            isLineSelected={isLineSelected}
+            lineNumberWidth={lineNumberWidth}
+            onLocateOffset={onLocateOffset}
+            regionsByStartLine={regionsByStartLine}
+            renderLineText={renderLineText}
+            resolveOffsetFromPoint={resolveOffsetFromPoint}
+            rowHeight={rowHeight}
+            setContextMenu={setContextMenu}
+            startVisibleIndex={startVisibleIndex}
+            toggleLine={toggleLine}
+            wrapLongLines={wrapLongLines}
+          />
         </div>
         {contextMenu && (
           <LargeJsonContextMenu

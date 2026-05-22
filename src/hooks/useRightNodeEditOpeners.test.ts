@@ -32,16 +32,18 @@ describe('useRightNodeEditOpeners', () => {
       value: '"cached fallback"',
     });
 
-    expect(args.requestWorkerEditJson).toHaveBeenNthCalledWith(1, 'tab-1', 'read-node', '', undefined, undefined, 12);
-    expect(args.requestWorkerEditJson).toHaveBeenNthCalledWith(
-      2,
-      'tab-1',
-      'read-node',
-      '{ "items": [] }',
-      undefined,
-      undefined,
-      12
-    );
+    expect(args.requestWorkerEditJson).toHaveBeenNthCalledWith(1, {
+      tabId: 'tab-1',
+      operation: 'read-node',
+      text: '',
+      offset: 12,
+    });
+    expect(args.requestWorkerEditJson).toHaveBeenNthCalledWith(2, {
+      tabId: 'tab-1',
+      operation: 'read-node',
+      text: '{ "items": [] }',
+      offset: 12,
+    });
   });
 
   it('opens a node edit session from the worker payload', async () => {

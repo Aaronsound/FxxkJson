@@ -1,15 +1,10 @@
 import { useCallback } from 'react';
 import type { MutableRefObject } from 'react';
-import type { JsonEditPath } from '../types/jsonTool';
+import type { EditJsonWorkerRequest, JsonEditPath } from '../types/jsonTool';
 import { parseEditableNodePayload } from '../utils/jsonEditNodePayload';
 
 type RequestWorkerEditJson = (
-  tabId: string,
-  operation: 'read-node' | 'unescape-json',
-  text: string,
-  originalText?: string,
-  path?: JsonEditPath,
-  offset?: number
+  request: EditJsonWorkerRequest & { operation: 'read-node' | 'unescape-json' }
 ) => Promise<string>;
 
 interface UseRightNodeEditOpenersArgs {
@@ -30,7 +25,12 @@ export function useRightNodeEditOpeners({
   const readEditableNodeAtOffset = useCallback(
     async (tabId: string, offset: number, preferCachedText: boolean, invalidMessage: string) => {
       const readAndParse = async (sourceText: string) => {
-        const payload = await requestWorkerEditJson(tabId, 'read-node', sourceText, undefined, undefined, offset);
+        const payload = await requestWorkerEditJson({
+          tabId,
+          operation: 'read-node',
+          text: sourceText,
+          offset,
+        });
         return parseEditableNodePayload(payload, invalidMessage);
       };
 
@@ -71,7 +71,7 @@ export function useRightNodeEditOpeners({
         throw new Error('当前节点不是字符串值');
       }
 
-      const transformed = await requestWorkerEditJson(tabId, 'unescape-json', parsed.value);
+      const transformed = await requestWorkerEditJson({ tabId, operation: 'unescape-json', text: parsed.value });
       JSON.parse(transformed);
       openNodeEditSession(transformed, parsed.path);
     } catch (error) {

@@ -6,6 +6,18 @@ export function getSearchRequestKey(tabId, target) {
 }
 
 export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, rawSearchCache, viewerCache }) {
+  function getNormalizedText(cached, key, text, searchOptions) {
+    if (searchOptions.matchCase || searchOptions.useRegex) {
+      return undefined;
+    }
+
+    if (typeof cached[key] !== 'string') {
+      cached[key] = text.toLowerCase();
+    }
+
+    return cached[key];
+  }
+
   function isLatestSearchRequest(tabId, target, requestId) {
     return latestSearchRequestByKey.get(getSearchRequestKey(tabId, target)) === requestId;
   }
@@ -46,6 +58,7 @@ export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, raw
           rawText: message.text,
           rawRevision: message.rawRevision ?? null,
           lineStarts: null,
+          lowerRawText: null,
         });
       }
 
@@ -69,15 +82,17 @@ export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, raw
           return;
         }
 
+        const effectiveSearchOptions = searchOptions ?? DEFAULT_SEARCH_OPTIONS;
         const result = await findTextSearchBatchAsync(
           cachedRaw.rawText,
           cachedRaw.lineStarts,
           cachedRaw.lineStarts.length,
           typeof query === 'string' ? query : '',
-          searchOptions ?? DEFAULT_SEARCH_OPTIONS,
+          effectiveSearchOptions,
           startOffset,
           SEARCH_BATCH_SIZE,
-          shouldCancel
+          shouldCancel,
+          getNormalizedText(cachedRaw, 'lowerRawText', cachedRaw.rawText, effectiveSearchOptions)
         );
 
         if (result.cancelled || shouldCancel()) {
@@ -109,15 +124,17 @@ export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, raw
     }
 
     try {
+      const effectiveSearchOptions = searchOptions ?? DEFAULT_SEARCH_OPTIONS;
       const result = await findTextSearchBatchAsync(
         cachedViewer.formattedText,
         cachedViewer.viewerData.lineStarts,
         cachedViewer.viewerData.lineCount,
         typeof query === 'string' ? query : '',
-        searchOptions ?? DEFAULT_SEARCH_OPTIONS,
+        effectiveSearchOptions,
         startOffset,
         SEARCH_BATCH_SIZE,
-        shouldCancel
+        shouldCancel,
+        getNormalizedText(cachedViewer, 'lowerFormattedText', cachedViewer.formattedText, effectiveSearchOptions)
       );
 
       if (result.cancelled || shouldCancel()) {

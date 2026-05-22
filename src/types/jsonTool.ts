@@ -31,6 +31,29 @@ interface WorkerFormatOptions {
   structureWarmupDelayMs?: number;
 }
 
+export interface WorkerSearchRequest {
+  tabId: string;
+  query: string;
+  searchOptions: JsonSearchOptions;
+  startOffset?: number;
+  append?: boolean;
+  target?: SearchTarget;
+  text?: string;
+  rawRevision?: number;
+}
+
+export interface EditJsonWorkerRequest {
+  tabId: string;
+  operation: EditJsonWorkerOperation;
+  text: string;
+  originalText?: string;
+  path?: JsonEditPath;
+  offset?: number;
+  searchTerm?: string;
+  searchOptions?: JsonSearchOptions;
+  replacement?: string;
+}
+
 export type WorkerRequestMessage =
   | { type: 'clear-structure'; tabId: string }
   | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format' })
@@ -38,12 +61,12 @@ export type WorkerRequestMessage =
   | (WorkerRequestBase & {
       type: 'search';
       target: SearchTarget;
-      query: string;
-      searchOptions: JsonSearchOptions;
+      query: WorkerSearchRequest['query'];
+      searchOptions: WorkerSearchRequest['searchOptions'];
       startOffset: number;
       append: boolean;
-      text?: string;
-      rawRevision?: number;
+      text?: WorkerSearchRequest['text'];
+      rawRevision?: WorkerSearchRequest['rawRevision'];
     })
   | (WorkerRequestBase & { type: 'locate'; offset: number })
   | (WorkerRequestBase & { type: 'locate-right-direct'; offset: number })
@@ -51,14 +74,14 @@ export type WorkerRequestMessage =
   | (WorkerRequestBase & { type: 'read-value-direct'; offset: number; text?: string })
   | (WorkerRequestBase & {
       type: 'edit-json';
-      operation: EditJsonWorkerOperation;
-      text: string;
-      originalText?: string;
-      path?: JsonEditPath;
-      offset?: number;
-      searchTerm?: string;
-      searchOptions?: JsonSearchOptions;
-      replacement?: string;
+      operation: EditJsonWorkerRequest['operation'];
+      text: EditJsonWorkerRequest['text'];
+      originalText?: EditJsonWorkerRequest['originalText'];
+      path?: EditJsonWorkerRequest['path'];
+      offset?: EditJsonWorkerRequest['offset'];
+      searchTerm?: EditJsonWorkerRequest['searchTerm'];
+      searchOptions?: EditJsonWorkerRequest['searchOptions'];
+      replacement?: EditJsonWorkerRequest['replacement'];
     });
 
 export interface WorkerMessage {

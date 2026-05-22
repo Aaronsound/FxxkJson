@@ -16,10 +16,10 @@ import { PerformanceSession } from './useJsonPerformanceTracking';
 import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
 import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
 import { disposeModel, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
-import { getUtf8ByteLength, shouldUseDedicatedRightViewer, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
+import { getUtf8ByteLength, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 import { createJsonWorkerClient } from '../utils/jsonWorkerClient';
-import { getFormatWorkerResult, getRepairWorkerResult } from '../utils/jsonWorkerResponse';
+import { handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
 
 interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
@@ -529,222 +529,16 @@ export function useJsonFormattingWorker({
         return;
       }
 
-      if (type === 'format-result') {
-        const result = getFormatWorkerResult(event.data, readWorkerText);
-        const { error } = result;
-        const data = result.formattedText;
-        const performanceSession = performanceSessionsRef.current[tabId];
-
-        if (latestRequestRef.current[tabId] !== requestId) {
-          return;
-        }
-
-        if (result.isSuccessful && data) {
-          const rawText = rawTextByTabRef.current[tabId] ?? '';
-          const largeMode = shouldUseLargeMode(rawText, data);
-          const formatCompletedAt = performance.now();
-          callbacksRef.current.logEvent('format-success', {
-            tabId,
-            requestId,
-            formattedLength: getUtf8ByteLength(data),
-          });
-          callbacksRef.current.setTabFormatting(tabId, false);
-          callbacksRef.current.setTabLargeMode(tabId, largeMode);
-          callbacksRef.current.setLargeRawViewerData(tabId, result.rawViewerData);
-          const shouldBuildLargeViewer = shouldUseDedicatedRightViewer(rawText, data);
-          callbacksRef.current.setLargeViewerStatus(tabId, shouldBuildLargeViewer ? 'building' : 'idle');
-          callbacksRef.current.setProcessingStage(
-            tabId,
-            shouldBuildLargeViewer
-              ? 'building-viewer'
-              : performanceSession?.structureEnabled
-                ? 'building-index'
-                : 'idle'
-          );
-          if (performanceSession?.requestId === requestId) {
-            performanceSession.formatCompletedAt = formatCompletedAt;
-            performanceSession.rightModelStartedAt = performance.now();
-            performanceSession.formattedBytes = getUtf8ByteLength(data);
-            performanceSession.largeMode = largeMode;
-          }
-          callbacksRef.current.updateFormattedContent(tabId, data, true);
-          if (performanceSession?.requestId === requestId) {
-            performanceSession.rightModelCompletedAt = performance.now();
-            performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
-            performanceSession.error = null;
-            callbacksRef.current.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
-          }
-          callbacksRef.current.setTabError(tabId, null);
-          return;
-        }
-
-        callbacksRef.current.setTabFormatting(tabId, false);
-        callbacksRef.current.setProcessingStage(tabId, 'idle');
-        callbacksRef.current.setLocateFeedback(tabId, null);
-        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
-        callbacksRef.current.setLargeViewerData(tabId, null);
-        callbacksRef.current.setLargeRawViewerData(tabId, null);
-        callbacksRef.current.mutatePerformanceSession(
-          tabId,
-          (session) => {
-            if (session.requestId !== requestId) {
-              return;
-            }
-
-            session.formatCompletedAt = performance.now();
-            session.status = 'failed';
-            session.error = error ?? 'JSON parse failed';
-          },
-          true
-        );
-        callbacksRef.current.logEvent('format-failed', {
-          tabId,
-          requestId,
-          error: error ?? 'JSON parse failed',
-        });
-        callbacksRef.current.updateFormattedContent(tabId, '', true);
-        callbacksRef.current.setTabError(tabId, error ?? 'JSON 解析失败');
-        callbacksRef.current.setStructureStatus(tabId, 'disabled');
-        return;
-      }
-
-      if (type === 'repair-result') {
-        const result = getRepairWorkerResult(event.data, readWorkerText, readWorkerTextField);
-        const { error, formattedText, repairedText } = result;
-        const performanceSession = performanceSessionsRef.current[tabId];
-
-        if (latestRequestRef.current[tabId] !== requestId) {
-          return;
-        }
-
-        if (result.isSuccessful && typeof formattedText === 'string' && typeof repairedText === 'string') {
-          const largeMode = shouldUseLargeMode(repairedText, formattedText);
-          const now = performance.now();
-          callbacksRef.current.logEvent('repair-success', {
-            tabId,
-            requestId,
-            repairedLength: getUtf8ByteLength(repairedText),
-            formattedLength: getUtf8ByteLength(formattedText),
-          });
-          callbacksRef.current.setTabFormatting(tabId, false);
-          callbacksRef.current.setTabLargeMode(tabId, largeMode);
-          const shouldBuildLargeViewer = shouldUseDedicatedRightViewer(repairedText, formattedText);
-          callbacksRef.current.setLargeViewerStatus(tabId, shouldBuildLargeViewer ? 'building' : 'idle');
-          callbacksRef.current.setProcessingStage(
-            tabId,
-            shouldBuildLargeViewer
-              ? 'building-viewer'
-              : performanceSession?.structureEnabled
-                ? 'building-index'
-                : 'idle'
-          );
-          if (performanceSession?.requestId === requestId) {
-            performanceSession.leftModelStartedAt = now;
-            performanceSession.leftModelCompletedAt = now;
-            performanceSession.formatCompletedAt = now;
-            performanceSession.rightModelStartedAt = performance.now();
-            performanceSession.rawBytes = getUtf8ByteLength(repairedText);
-            performanceSession.formattedBytes = getUtf8ByteLength(formattedText);
-            performanceSession.largeMode = largeMode;
-          }
-          callbacksRef.current.updateTabContent(tabId, repairedText, true);
-          callbacksRef.current.setLargeRawViewerData(tabId, result.rawViewerData);
-          callbacksRef.current.updateFormattedContent(tabId, formattedText, true);
-          callbacksRef.current.resetSearchState();
-          if (performanceSession?.requestId === requestId) {
-            performanceSession.rightModelCompletedAt = performance.now();
-            performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
-            performanceSession.error = null;
-            callbacksRef.current.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
-          }
-          callbacksRef.current.setTabError(tabId, null);
-          return;
-        }
-
-        callbacksRef.current.setTabFormatting(tabId, false);
-        callbacksRef.current.setProcessingStage(tabId, 'idle');
-        callbacksRef.current.setLocateFeedback(tabId, null);
-        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
-        callbacksRef.current.setLargeViewerData(tabId, null);
-        callbacksRef.current.setLargeRawViewerData(tabId, null);
-        callbacksRef.current.mutatePerformanceSession(
-          tabId,
-          (session) => {
-            if (session.requestId !== requestId) {
-              return;
-            }
-
-            session.formatCompletedAt = performance.now();
-            session.status = 'failed';
-            session.error = error ?? 'JSON repair failed';
-          },
-          true
-        );
-        callbacksRef.current.logEvent('repair-failed', {
-          tabId,
-          requestId,
-          error: error ?? 'JSON repair failed',
-        });
-        callbacksRef.current.setTabError(tabId, error ? `修复失败：${error}` : 'JSON 修复失败');
-        callbacksRef.current.setStructureStatus(tabId, 'disabled');
-        return;
-      }
-
-      if (type === 'viewer-ready') {
-        if (latestRequestRef.current[tabId] !== requestId) {
-          return;
-        }
-
-        const performanceSession = performanceSessionsRef.current[tabId];
-        if (performanceSession?.requestId === requestId) {
-          performanceSession.viewerIndexMs =
-            typeof event.data.viewerIndexMs === 'number' ? event.data.viewerIndexMs : null;
-          performanceSession.viewerReadyAt = performance.now();
-          if (!performanceSession.structureEnabled) {
-            performanceSession.status = 'ready';
-          }
-          callbacksRef.current.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
-        }
-
-        callbacksRef.current.setLargeViewerData(tabId, event.data.viewerData ?? null);
-        callbacksRef.current.setLargeViewerStatus(tabId, event.data.viewerData ? 'ready' : 'idle');
-        callbacksRef.current.setProcessingStage(
-          tabId,
-          performanceSession?.structureEnabled && structureStatusRef.current[tabId] === 'building'
-            ? 'building-index'
-            : 'idle'
-        );
-        return;
-      }
-
-      if (type === 'structure-ready') {
-        if (latestRequestRef.current[tabId] !== requestId) {
-          return;
-        }
-
-        const performanceSession = performanceSessionsRef.current[tabId];
-        callbacksRef.current.mutatePerformanceSession(
-          tabId,
-          (session) => {
-            if (session.requestId !== requestId) {
-              return;
-            }
-
-            session.structureCompletedAt = performance.now();
-            session.status = 'ready';
-          },
-          true
-        );
-        callbacksRef.current.setStructureStatus(tabId, event.data.ready ? 'ready' : 'disabled');
-        const rawText = rawTextByTabRef.current[tabId] ?? '';
-        const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-        const shouldWaitForViewer = shouldUseDedicatedRightViewer(rawText, formattedText);
-        const viewerReady = !shouldWaitForViewer || Boolean(performanceSession?.viewerReadyAt);
-        if (viewerReady) {
-          callbacksRef.current.setProcessingStage(tabId, 'idle');
-        }
-        return;
-      }
+      handleJsonFormattingWorkerResult(event.data, {
+        callbacks: callbacksRef.current,
+        formattedTextByTabRef,
+        latestRequestRef,
+        performanceSessionsRef,
+        rawTextByTabRef,
+        readWorkerText,
+        readWorkerTextField,
+        structureStatusRef,
+      });
     };
 
     return () => {

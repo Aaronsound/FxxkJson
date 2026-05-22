@@ -113,7 +113,7 @@ export async function evaluate(cdp, expression) {
   return result.result?.value;
 }
 
-export async function pressShortcut(cdp, key, code) {
+export async function pressShortcut(cdp, key, code, modifiers = KEY_MODIFIER) {
   const upperKey = key.toUpperCase();
   const keyCode = upperKey.length === 1 ? upperKey.charCodeAt(0) : undefined;
   await cdp.send('Input.dispatchKeyEvent', {
@@ -122,7 +122,7 @@ export async function pressShortcut(cdp, key, code) {
     code,
     windowsVirtualKeyCode: keyCode,
     nativeVirtualKeyCode: keyCode,
-    modifiers: KEY_MODIFIER,
+    modifiers,
     commands: code === 'KeyA' ? ['selectAll'] : undefined,
   });
   await cdp.send('Input.dispatchKeyEvent', {
@@ -131,7 +131,7 @@ export async function pressShortcut(cdp, key, code) {
     code,
     windowsVirtualKeyCode: keyCode,
     nativeVirtualKeyCode: keyCode,
-    modifiers: KEY_MODIFIER,
+    modifiers,
   });
 }
 

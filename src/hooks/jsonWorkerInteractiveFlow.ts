@@ -1,8 +1,6 @@
 import type { MutableRefObject } from 'react';
 import type {
-  EditJsonWorkerOperation,
-  JsonEditPath,
-  JsonSearchOptions,
+  EditJsonWorkerRequest,
   LargeJsonSearchMatch,
   LocateFeedback,
   RightNodeSelection,
@@ -10,6 +8,7 @@ import type {
   StructureStatus,
   WorkerMessage,
   WorkerRequestMessage,
+  WorkerSearchRequest,
 } from '../types/jsonTool';
 
 type WorkerRef = MutableRefObject<Worker | null>;
@@ -109,16 +108,16 @@ export function createJsonWorkerInteractiveFlow({
     });
   };
 
-  const requestSearch = (
-    tabId: string,
-    query: string,
-    searchOptions: JsonSearchOptions,
+  const requestSearch = ({
+    tabId,
+    query,
+    searchOptions,
     startOffset = 0,
     append = false,
-    target: SearchTarget = 'right',
-    text?: string,
-    rawRevision?: number
-  ) => {
+    target = 'right',
+    text,
+    rawRevision,
+  }: WorkerSearchRequest) => {
     const callbacks = getCallbacks();
     if (!workerRef.current) {
       if (target === 'left') {
@@ -191,17 +190,17 @@ export function createJsonWorkerInteractiveFlow({
       });
     });
 
-  const requestEditJsonResult = (
-    tabId: string,
-    operation: EditJsonWorkerOperation,
-    text: string,
-    originalText?: string,
-    path?: JsonEditPath,
-    offset?: number,
-    searchTerm?: string,
-    searchOptions?: JsonSearchOptions,
-    replacement?: string
-  ) =>
+  const requestEditJsonResult = ({
+    tabId,
+    operation,
+    text,
+    originalText,
+    path,
+    offset,
+    searchTerm,
+    searchOptions,
+    replacement,
+  }: EditJsonWorkerRequest) =>
     new Promise<WorkerMessage>((resolve, reject) => {
       if (!workerRef.current) {
         reject(new Error('JSON worker is not ready'));
@@ -225,28 +224,8 @@ export function createJsonWorkerInteractiveFlow({
       });
     });
 
-  const requestEditJson = (
-    tabId: string,
-    operation: EditJsonWorkerOperation,
-    text: string,
-    originalText?: string,
-    path?: JsonEditPath,
-    offset?: number,
-    searchTerm?: string,
-    searchOptions?: JsonSearchOptions,
-    replacement?: string
-  ) =>
-    requestEditJsonResult(
-      tabId,
-      operation,
-      text,
-      originalText,
-      path,
-      offset,
-      searchTerm,
-      searchOptions,
-      replacement
-    ).then((message) => {
+  const requestEditJson = (request: EditJsonWorkerRequest) =>
+    requestEditJsonResult(request).then((message) => {
       if (typeof message.data !== 'string') {
         throw new Error('JSON worker returned an empty result');
       }

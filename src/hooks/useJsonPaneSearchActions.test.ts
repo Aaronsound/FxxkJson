@@ -106,18 +106,22 @@ describe('useJsonPaneSearchActions', () => {
     result.current.loadMoreLeftSearch();
 
     expect(args.setIsRightSearchLoadingMore).toHaveBeenCalledWith(true);
-    expect(args.requestWorkerSearch).toHaveBeenNthCalledWith(1, 'tab-1', 'needle', DEFAULT_SEARCH_OPTIONS, 12, true);
-    expect(args.requestWorkerSearch).toHaveBeenNthCalledWith(
-      2,
-      'tab-1',
-      'before',
-      DEFAULT_SEARCH_OPTIONS,
-      19,
-      true,
-      'left',
-      undefined,
-      3
-    );
+    expect(args.requestWorkerSearch).toHaveBeenNthCalledWith(1, {
+      tabId: 'tab-1',
+      query: 'needle',
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+      startOffset: 12,
+      append: true,
+    });
+    expect(args.requestWorkerSearch).toHaveBeenNthCalledWith(2, {
+      tabId: 'tab-1',
+      query: 'before',
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+      startOffset: 19,
+      append: true,
+      target: 'left',
+      rawRevision: 3,
+    });
   });
 
   it('delegates current left replacement when the raw viewer owns the match', () => {

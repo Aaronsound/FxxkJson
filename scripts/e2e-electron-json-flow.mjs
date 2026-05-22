@@ -53,6 +53,22 @@ function createSampleJson(targetBytes) {
   return `[${records.join(',')}]`;
 }
 
+async function getAvailablePort() {
+  const server = http.createServer();
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  const port = address && typeof address !== 'string' ? address.port : null;
+  await new Promise((resolve) => server.close(resolve));
+
+  if (!port) {
+    throw new Error('Could not allocate an Electron debug port');
+  }
+
+  return port;
+}
+
 async function createSampleServer(filePath) {
   const server = http.createServer(async (_request, response) => {
     const stats = await stat(filePath);
@@ -77,22 +93,6 @@ async function createSampleServer(filePath) {
     close: () => new Promise((resolve) => server.close(resolve)),
     url: `http://127.0.0.1:${address.port}/sample.json`,
   };
-}
-
-async function getAvailablePort() {
-  const server = http.createServer();
-  await new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', resolve);
-  });
-  const address = server.address();
-  const port = address && typeof address !== 'string' ? address.port : null;
-  await new Promise((resolve) => server.close(resolve));
-
-  if (!port) {
-    throw new Error('Could not allocate an Electron debug port');
-  }
-
-  return port;
 }
 
 async function importSampleByDrop(cdp, sampleUrl, fileName) {
@@ -185,7 +185,6 @@ async function run() {
     const sample = createSampleJson(sizeMb * 1024 * 1024);
     await writeFile(samplePath, sample, 'utf8');
     sampleServer = await createSampleServer(samplePath);
-
     child = spawn(process.execPath, [electronCli, `--remote-debugging-port=${port}`, appMain], {
       cwd,
       env: {
@@ -235,6 +234,37 @@ async function run() {
     await evaluate(
       cdp,
       `(() => {
+      const target = document.querySelector('.left-editor-pane .monaco-editor textarea')
+        ?? document.querySelector('.left-editor-pane .large-raw-viewer')
+        ?? document.querySelector('.left-editor-pane .monaco-editor');
+      target?.focus?.();
+      return Boolean(target);
+    })()`
+    );
+    await pressShortcut(cdp, 'f', 'KeyF');
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `Boolean(document.querySelector('.left-editor-pane .pane-find-input[placeholder="搜索原始 JSON"]')
+          && document.querySelector('.left-editor-pane .pane-find-input[placeholder="替换为"]'))`
+        ),
+      'left search and replace widget'
+    );
+    await insertText(cdp, 'requestId');
+    await waitFor(
+      () =>
+        evaluate(cdp, `(document.querySelector('.left-editor-pane .pane-find-count')?.textContent ?? '') !== '0/0'`),
+      'left search results'
+    );
+    await evaluate(cdp, `document.querySelector('.left-editor-pane .pane-find-input[placeholder="替换为"]')?.focus()`);
+    await insertText(cdp, 'traceId');
+    await clickButtonByText(cdp, '全部替换');
+    await waitFor(() => evaluate(cdp, `document.body.innerText.includes('traceId')`), 'left replace all', 90000);
+
+    await evaluate(
+      cdp,
+      `(() => {
       const target = document.querySelector('.right-editor-pane .large-json-viewer, .right-editor-pane .monaco-editor textarea, .right-editor-pane .monaco-editor');
       target?.focus?.();
       return Boolean(target);
@@ -245,7 +275,7 @@ async function run() {
       () => evaluate(cdp, `Boolean(document.querySelector('.right-editor-pane .pane-find-input'))`),
       'right search widget'
     );
-    await insertText(cdp, 'requestId');
+    await insertText(cdp, 'traceId');
     await waitFor(
       () =>
         evaluate(
@@ -262,7 +292,7 @@ async function run() {
       cdp,
       `(() => {
       const line = Array.from(document.querySelectorAll('.right-editor-pane .large-json-line-text'))
-        .find((element) => element.getAttribute('title')?.includes('requestId'));
+        .find((element) => element.getAttribute('title')?.includes('traceId'));
       if (!line) return false;
       const rect = line.getBoundingClientRect();
       line.dispatchEvent(new MouseEvent('mouseup', {
@@ -276,7 +306,7 @@ async function run() {
     );
 
     if (!clickedNode) {
-      throw new Error('Could not click a right-side requestId node');
+      throw new Error('Could not click a right-side traceId node');
     }
 
     await waitFor(
@@ -296,7 +326,7 @@ async function run() {
         cdp,
         `(() => {
         const line = Array.from(document.querySelectorAll('.right-editor-pane .large-json-line-text'))
-          .find((element) => element.getAttribute('title')?.includes('requestId'));
+          .find((element) => element.getAttribute('title')?.includes('traceId'));
         if (!line) return false;
         const rect = line.getBoundingClientRect();
         line.dispatchEvent(new MouseEvent('contextmenu', {
@@ -453,7 +483,7 @@ async function run() {
     console.table([
       { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
       { step: 'import', detail: 'desktop file input imported JSON' },
-      { step: 'search', detail: 'right pane requestId search returned results' },
+      { step: 'search', detail: 'right pane traceId search returned results' },
       { step: 'locate', detail: 'right node click highlighted left raw JSON' },
       { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
       { step: 'rename warnings', detail: 'right node rename dialog shows whitespace and duplicate-key warnings' },
@@ -472,8 +502,8 @@ async function run() {
     if (child && !child.killed) {
       child.kill();
     }
-    await sampleServer?.close();
     await rm(tempDir, { recursive: true, force: true });
+    await sampleServer?.close();
   }
 }
 

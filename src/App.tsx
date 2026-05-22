@@ -25,6 +25,7 @@ import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
 import { useJsonImportActions } from './hooks/useJsonImportActions';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
 import { useJsonPaneSearchActions } from './hooks/useJsonPaneSearchActions';
+import { useLeftPaneSearchResults } from './hooks/useLeftPaneSearchResults';
 import { useJsonToolPreferences } from './hooks/useJsonToolPreferences';
 import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
 import { useRightEditorContextMenuState } from './hooks/useRightEditorContextMenuState';
@@ -37,15 +38,14 @@ import {
   EMPTY_DOCUMENT_META,
   INITIAL_TAB_ID,
   LARGE_FILE_THRESHOLD,
-  LargeJsonSearchMatch,
   LocateFeedback,
   ProcessingStage,
-  SEARCH_HIGHLIGHT_DURATION,
   StructureStatus,
   STRUCTURE_SYNC_THRESHOLD,
 } from './types/jsonTool';
 import type {
   EditJsonWorkerOperation,
+  LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeRawViewerData,
   RightNodeSelection,
@@ -144,8 +144,6 @@ const App: React.FC = () => {
     setSearchTerm: setRightSearchTerm,
   } = rightPaneSearch;
   const [leftReplaceText, setLeftReplaceText] = useState('');
-  const [leftRawHighlightRange, setLeftRawHighlightRange] = useState<{ start: number; end: number } | null>(null);
-  const [largeRawViewerMatches, setLargeRawViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const {
@@ -209,10 +207,8 @@ const App: React.FC = () => {
   const workerStructureEnabledRef = useRef<Record<string, boolean>>({
     [INITIAL_TAB_ID]: false,
   });
-  const leftDecorationIdsRef = useRef<string[]>([]);
   const rightDecorationIdsRef = useRef<string[]>([]);
   const rightContextMenuOffsetByTabRef = useRef<Record<string, number | null>>({});
-  const highlightTimeoutRef = useRef<number | null>(null);
   const leftViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
   const rightViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
   const previousActiveTabIdRef = useRef(INITIAL_TAB_ID);
@@ -305,11 +301,29 @@ const App: React.FC = () => {
     formattedValue && !isBuildingDedicatedRightViewer && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
   );
   const activeRightMatchCount = shouldUseDedicatedRightViewer ? largeViewerMatchCount : rightMatches.length;
-  const activeLeftMatchCount = shouldUseDedicatedLeftViewer ? largeRawViewerMatches.length : leftMatches.length;
-  const normalizedLeftMatchIndex =
-    activeLeftMatchCount > 0
-      ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
-      : 0;
+  const {
+    activeLeftMatchCount,
+    clearLeftHighlights,
+    largeRawViewerMatches,
+    leftRawHighlightRange,
+    normalizedLeftMatchIndex,
+    revealLeftRange,
+    setLargeRawViewerMatches,
+    setLeftSearchResults,
+  } = useLeftPaneSearchResults({
+    activeTabId,
+    activeTabIdRef,
+    largeRawViewerRef,
+    leftEditorRef,
+    leftMatches,
+    leftMatchIndex,
+    leftSearchTerm,
+    setIsLeftSearchLoadingMore,
+    setLeftMatches,
+    setLeftSearchHasMore,
+    setLeftSearchNextOffset,
+    shouldUseDedicatedLeftViewer,
+  });
   const normalizedRightMatchIndex =
     activeRightMatchCount > 0
       ? ((rightMatchIndex % activeRightMatchCount) + activeRightMatchCount) % activeRightMatchCount
@@ -367,20 +381,6 @@ const App: React.FC = () => {
     shouldUseDedicatedRightViewer,
     usesLightweightLocate,
   });
-
-  const clearLeftHighlights = () => {
-    if (highlightTimeoutRef.current !== null) {
-      window.clearTimeout(highlightTimeoutRef.current);
-      highlightTimeoutRef.current = null;
-    }
-
-    setLeftRawHighlightRange(null);
-
-    if (leftEditorRef.current && leftDecorationIdsRef.current.length > 0) {
-      leftEditorRef.current.deltaDecorations(leftDecorationIdsRef.current, []);
-      leftDecorationIdsRef.current = [];
-    }
-  };
 
   const clearRightHighlights = () => {
     if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
@@ -452,7 +452,6 @@ const App: React.FC = () => {
     setLargeRawViewerMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
-    setLeftRawHighlightRange(null);
     clearLeftHighlights();
     clearRightHighlights();
   };
@@ -571,38 +570,6 @@ const App: React.FC = () => {
     setIsRightSearchLoadingMore(false);
   };
 
-  const setLeftSearchResults = (
-    tabId: string,
-    matches: LargeJsonSearchMatch[],
-    hasMore = false,
-    nextStartOffset = 0,
-    append = false
-  ) => {
-    if (tabId !== activeTabIdRef.current) {
-      return;
-    }
-    setIsLeftSearchLoadingMore(false);
-
-    const model = leftEditorRef.current?.getModel();
-    if (!model) {
-      setLargeRawViewerMatches((current) => (append ? [...current, ...matches] : matches));
-      setLeftSearchHasMore(hasMore);
-      setLeftSearchNextOffset(nextStartOffset);
-      return;
-    }
-
-    const ranges = matches.map((match) => {
-      const start = model.getPositionAt(match.start);
-      const end = model.getPositionAt(match.end);
-      return new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
-    });
-
-    setLeftMatches((current) => (append ? [...current, ...ranges] : ranges));
-    setLargeRawViewerMatches([]);
-    setLeftSearchHasMore(hasMore);
-    setLeftSearchNextOffset(nextStartOffset);
-  };
-
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
 
   const updateTabContent = (tabId: string, content: string, syncModel = false) => {
@@ -634,50 +601,6 @@ const App: React.FC = () => {
     if (syncModel) {
       syncRightModel(tabId, content, true);
     }
-  };
-
-  const revealLeftRange = (startOffset: number, endOffset: number) => {
-    if (shouldUseDedicatedLeftViewer) {
-      if (highlightTimeoutRef.current !== null) {
-        window.clearTimeout(highlightTimeoutRef.current);
-      }
-
-      setLeftRawHighlightRange({ start: startOffset, end: endOffset });
-      largeRawViewerRef.current?.revealRange(startOffset, endOffset);
-      highlightTimeoutRef.current = window.setTimeout(() => {
-        clearLeftHighlights();
-      }, SEARCH_HIGHLIGHT_DURATION);
-      return;
-    }
-
-    const leftEditor = leftEditorRef.current;
-    const leftModel = leftEditor?.getModel();
-
-    if (!leftEditor || !leftModel) {
-      return;
-    }
-
-    const start = leftModel.getPositionAt(startOffset);
-    const end = leftModel.getPositionAt(endOffset);
-    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
-
-    leftEditor.revealRangeInCenter(range);
-    leftEditor.setSelection(new monaco.Selection(start.lineNumber, start.column, end.lineNumber, end.column));
-
-    leftDecorationIdsRef.current = leftEditor.deltaDecorations(leftDecorationIdsRef.current, [
-      {
-        range,
-        options: { inlineClassName: 'currentSearchHighlight' },
-      },
-    ]);
-
-    if (highlightTimeoutRef.current !== null) {
-      window.clearTimeout(highlightTimeoutRef.current);
-    }
-
-    highlightTimeoutRef.current = window.setTimeout(() => {
-      clearLeftHighlights();
-    }, SEARCH_HIGHLIGHT_DURATION);
   };
 
   const {
@@ -874,7 +797,11 @@ const App: React.FC = () => {
     }
 
     setIsRightSearchLoadingMore(false);
-    requestWorkerSearch(activeTab.id, rightSearchTerm, rightSearchOptions, 0, false);
+    requestWorkerSearch({
+      tabId: activeTab.id,
+      query: rightSearchTerm,
+      searchOptions: rightSearchOptions,
+    });
   }, [
     activeDocumentMeta.formattedRevision,
     activeLargeViewerData,
@@ -899,80 +826,18 @@ const App: React.FC = () => {
     const rawRevision = activeDocumentMeta.rawRevision;
     const shouldSendRawText = leftSearchWorkerRevisionRef.current[activeTab.id] !== rawRevision;
 
-    requestWorkerSearch(
-      activeTab.id,
-      leftSearchTerm,
-      leftSearchOptions,
-      0,
-      false,
-      'left',
-      shouldSendRawText ? getTabContent(activeTab.id) : undefined,
-      rawRevision
-    );
+    requestWorkerSearch({
+      tabId: activeTab.id,
+      query: leftSearchTerm,
+      searchOptions: leftSearchOptions,
+      target: 'left',
+      text: shouldSendRawText ? getTabContent(activeTab.id) : undefined,
+      rawRevision,
+    });
     if (shouldSendRawText) {
       leftSearchWorkerRevisionRef.current[activeTab.id] = rawRevision;
     }
   }, [activeDocumentMeta.rawRevision, activeTab, leftSearchOptions, leftSearchTerm]);
-
-  useEffect(() => {
-    if (!shouldUseDedicatedLeftViewer || !leftSearchTerm) {
-      return;
-    }
-
-    if (largeRawViewerMatches.length === 0) {
-      clearLeftHighlights();
-      return;
-    }
-
-    const activeMatch = largeRawViewerMatches[normalizedLeftMatchIndex];
-    if (activeMatch) {
-      setLeftRawHighlightRange({ start: activeMatch.start, end: activeMatch.end });
-      largeRawViewerRef.current?.revealRange(activeMatch.start, activeMatch.end);
-    }
-  }, [
-    activeTabId,
-    largeRawViewerMatches,
-    leftMatchIndex,
-    leftSearchTerm,
-    normalizedLeftMatchIndex,
-    shouldUseDedicatedLeftViewer,
-  ]);
-
-  useEffect(() => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-
-    if (shouldUseDedicatedLeftViewer || !editor || !model || !leftSearchTerm) {
-      clearLeftHighlights();
-      return;
-    }
-
-    const activeIndex =
-      leftMatches.length > 0 ? ((leftMatchIndex % leftMatches.length) + leftMatches.length) % leftMatches.length : 0;
-    const nextDecorations = leftMatches.map((range, index) => ({
-      range,
-      options: {
-        inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
-      },
-    }));
-
-    leftDecorationIdsRef.current = editor.deltaDecorations(leftDecorationIdsRef.current, nextDecorations);
-
-    if (leftMatches.length === 0) {
-      return;
-    }
-
-    const activeMatch = leftMatches[activeIndex];
-    editor.revealRangeInCenter(activeMatch);
-    editor.setSelection(
-      new monaco.Selection(
-        activeMatch.startLineNumber,
-        activeMatch.startColumn,
-        activeMatch.endLineNumber,
-        activeMatch.endColumn
-      )
-    );
-  }, [activeTabId, leftMatches, leftMatchIndex, leftSearchTerm, shouldUseDedicatedLeftViewer]);
 
   useEffect(() => {
     const editor = rightEditorRef.current;
@@ -1390,17 +1255,14 @@ const App: React.FC = () => {
     const currentText = getTabContent(currentTabId);
 
     try {
-      const updated = await requestWorkerEditJson(
-        currentTabId,
-        'replace-text',
-        currentText,
-        undefined,
-        undefined,
-        undefined,
+      const updated = await requestWorkerEditJson({
+        tabId: currentTabId,
+        operation: 'replace-text',
+        text: currentText,
         searchTerm,
         searchOptions,
-        replacement
-      );
+        replacement,
+      });
 
       if (updated === currentText) {
         return;
@@ -1438,17 +1300,14 @@ const App: React.FC = () => {
     const matchedText = currentText.slice(currentMatch.start, currentMatch.end);
 
     try {
-      const replacementText = await requestWorkerEditJson(
-        currentTabId,
-        'replace-text',
-        matchedText,
-        undefined,
-        undefined,
-        undefined,
+      const replacementText = await requestWorkerEditJson({
+        tabId: currentTabId,
+        operation: 'replace-text',
+        text: matchedText,
         searchTerm,
         searchOptions,
-        replacement
-      );
+        replacement,
+      });
 
       if (replacementText === matchedText || getTabContent(currentTabId) !== currentText) {
         return;
@@ -1536,7 +1395,7 @@ const App: React.FC = () => {
 
     setEditJsonBusyLabel(`正在${label}...`);
     try {
-      const transformed = await requestWorkerEditJson(currentTabId, operation, sourceText);
+      const transformed = await requestWorkerEditJson({ tabId: currentTabId, operation, text: sourceText });
       const nextContent =
         hasSelection && model && selection
           ? getContentAfterSelectionReplace(model, selection, transformed)
@@ -1584,7 +1443,7 @@ const App: React.FC = () => {
     setEditJsonBusyLabel('正在准备编辑内容...');
     try {
       const raw = getTabContent(activeTab.id);
-      const formatted = await requestWorkerEditJson(activeTab.id, 'format', raw);
+      const formatted = await requestWorkerEditJson({ tabId: activeTab.id, operation: 'format', text: raw });
       openDocumentEditSession(formatted);
     } catch (error) {
       setTabError(activeTab.id, error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败');
@@ -1631,13 +1490,13 @@ const App: React.FC = () => {
     setEditJsonBusyLabel(isNodeEdit ? '正在更新当前节点...' : '正在更新原始 JSON...');
     try {
       const original = getTabContent(currentTabId);
-      const saveResult = await requestWorkerEditJsonResult(
-        currentTabId,
-        isNodeEdit ? 'save-node' : 'save',
-        editJsonValueRef.current,
-        original,
-        editJsonSession?.path
-      );
+      const saveResult = await requestWorkerEditJsonResult({
+        tabId: currentTabId,
+        operation: isNodeEdit ? 'save-node' : 'save',
+        text: editJsonValueRef.current,
+        originalText: original,
+        path: editJsonSession?.path,
+      });
       const updated = saveResult.data;
       if (typeof updated !== 'string') {
         throw new Error('JSON worker returned an empty result');
@@ -1721,7 +1580,7 @@ const App: React.FC = () => {
 
     setEditJsonBusyLabel(`正在${label}编辑内容...`);
     try {
-      const transformed = await requestWorkerEditJson(activeTab.id, operation, value);
+      const transformed = await requestWorkerEditJson({ tabId: activeTab.id, operation, text: value });
       editJsonValueRef.current = transformed;
       setEditJsonError(null);
       return transformed;
@@ -1745,7 +1604,11 @@ const App: React.FC = () => {
 
     setEditJsonBusyLabel('正在复制字符串字面量...');
     try {
-      const literal = await requestWorkerEditJson(activeTab.id, 'copy-literal', editJsonValueRef.current);
+      const literal = await requestWorkerEditJson({
+        tabId: activeTab.id,
+        operation: 'copy-literal',
+        text: editJsonValueRef.current,
+      });
       await writeTextToClipboard(literal);
       setEditJsonError(null);
       showCopyLiteralNotice();

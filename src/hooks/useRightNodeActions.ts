@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { JsonEditPath } from '../types/jsonTool';
+import type { EditJsonWorkerRequest, JsonEditPath } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
 import { writeTextToClipboard } from '../utils/clipboard';
 
@@ -23,11 +23,7 @@ interface UseRightNodeActionsArgs {
     invalidMessage: string
   ) => Promise<EditableNodePayload>;
   requestWorkerEditJson: (
-    tabId: string,
-    operation: RightNodeMutationOperation,
-    text: string,
-    originalText?: string,
-    path?: JsonEditPath
+    request: EditJsonWorkerRequest & { operation: RightNodeMutationOperation }
   ) => Promise<string>;
   requestWorkerValue: (tabId: string, offset: number, preferCachedText?: boolean) => Promise<string | null>;
   requestDeleteConfirmation: (path: JsonEditPath, preview: string) => Promise<boolean>;
@@ -181,7 +177,13 @@ export function useRightNodeActions({
         }
 
         const original = getTabContent(tabId);
-        const updated = await requestWorkerEditJson(tabId, operation, workerText, original, parsed.path);
+        const updated = await requestWorkerEditJson({
+          tabId,
+          operation,
+          text: workerText,
+          originalText: original,
+          path: parsed.path,
+        });
 
         applyRawUpdate(tabId, updated);
         resetSearchState();

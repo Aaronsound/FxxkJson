@@ -185,6 +185,7 @@ export function replaceTextSearchMatches(
   let result = '';
   let copyStart = 0;
   let match: RegExpExecArray | null;
+  const replacementMatcher = options.useRegex ? new RegExp(searchTerm, options.matchCase ? '' : 'i') : null;
 
   while ((match = matcher.exec(text)) !== null) {
     const start = match.index;
@@ -201,9 +202,7 @@ export function replaceTextSearchMatches(
     }
 
     result += text.slice(copyStart, start);
-    result += options.useRegex
-      ? value.replace(new RegExp(searchTerm, options.matchCase ? '' : 'i'), replacement)
-      : replacement;
+    result += replacementMatcher ? value.replace(replacementMatcher, replacement) : replacement;
     copyStart = end;
   }
 
@@ -218,7 +217,8 @@ export async function findTextSearchBatchAsync(
   options: JsonSearchOptions,
   startOffset = 0,
   maxResults = Number.POSITIVE_INFINITY,
-  shouldCancel: () => boolean = () => false
+  shouldCancel: () => boolean = () => false,
+  normalizedText?: string
 ): Promise<TextSearchBatch> {
   if (shouldCancel()) {
     return cancelledSearchBatch(startOffset, text.length);
@@ -229,12 +229,61 @@ export async function findTextSearchBatchAsync(
   }
 
   if (options.useRegex) {
-    const result = findTextSearchBatch(text, lineStarts, lineCount, searchTerm, options, startOffset, maxResults);
+    const matcher = getSearchMatcher(searchTerm, options);
+    if (!matcher) {
+      return getEmptySearchBatch(startOffset, text.length);
+    }
 
-    return shouldCancel() ? cancelledSearchBatch(result.nextStartOffset, text.length) : result;
+    const matches: LargeJsonSearchMatch[] = [];
+    let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
+    let iteration = 0;
+    let match: RegExpExecArray | null;
+    matcher.lastIndex = nextStartOffset;
+
+    while ((match = matcher.exec(text)) !== null) {
+      if (shouldCancel()) {
+        return cancelledSearchBatch(nextStartOffset, text.length);
+      }
+
+      const start = match.index;
+      const value = match[0];
+      const end = start + value.length;
+
+      if (value.length === 0) {
+        matcher.lastIndex += 1;
+        continue;
+      }
+
+      if (!options.wholeWord || isWholeWordMatch(text, start, end)) {
+        if (matches.length >= maxResults) {
+          return {
+            matches,
+            hasMore: true,
+            nextStartOffset,
+          };
+        }
+
+        matches.push(getLineMatch(text, lineStarts, lineCount, start, end));
+        nextStartOffset = Math.max(end, matcher.lastIndex);
+      }
+
+      iteration += 1;
+      if (iteration % 250 === 0) {
+        await yieldToEventLoop();
+        if (shouldCancel()) {
+          return cancelledSearchBatch(nextStartOffset, text.length);
+        }
+      }
+    }
+
+    return {
+      matches,
+      hasMore: false,
+      nextStartOffset,
+    };
   }
 
-  const sourceText = options.matchCase ? text : text.toLowerCase();
+  const sourceText = options.matchCase ? text : (normalizedText ?? text.toLowerCase());
   const sourceTerm = options.matchCase ? searchTerm : searchTerm.toLowerCase();
   const matches: LargeJsonSearchMatch[] = [];
   let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);

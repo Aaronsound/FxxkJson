@@ -57,10 +57,24 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
     const pendingRevealRef = useRef<RawHighlightRange | null>(null);
     const revealFrameRef = useRef<number | null>(null);
     const revealFollowupFrameRef = useRef<number | null>(null);
+    const scrollAnimationFrameRef = useRef<number | null>(null);
+    const pendingScrollTopRef = useRef(0);
     const [scrollTop, setScrollTop] = useState(0);
     const [viewportHeight, setViewportHeight] = useState(0);
     const segments = useMemo(() => data ?? buildLargeRawViewerData(text), [data, text]);
     const rowCount = segments.rowCount;
+
+    const queueScrollTopUpdate = useCallback((nextScrollTop: number) => {
+      pendingScrollTopRef.current = nextScrollTop;
+      if (scrollAnimationFrameRef.current !== null) {
+        return;
+      }
+
+      scrollAnimationFrameRef.current = window.requestAnimationFrame(() => {
+        scrollAnimationFrameRef.current = null;
+        setScrollTop(pendingScrollTopRef.current);
+      });
+    }, []);
 
     const cancelPreciseReveal = useCallback(() => {
       if (revealFrameRef.current !== null) {
@@ -154,6 +168,9 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
     useEffect(
       () => () => {
         cancelPreciseReveal();
+        if (scrollAnimationFrameRef.current !== null) {
+          window.cancelAnimationFrame(scrollAnimationFrameRef.current);
+        }
       },
       [cancelPreciseReveal]
     );
@@ -223,7 +240,7 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
         ref={containerRef}
         className={`large-raw-viewer ${isDarkMode ? 'dark' : ''}`}
         tabIndex={0}
-        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+        onScroll={(event) => queueScrollTopUpdate(event.currentTarget.scrollTop)}
       >
         <div className="large-raw-spacer" style={{ height: `${rowCount * LINE_HEIGHT}px` }}>
           {rows}

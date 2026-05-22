@@ -1,6 +1,12 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import type { JsonSearchOptions, LargeJsonSearchMatch, Tab, TabDocumentMeta } from '../types/jsonTool';
+import type {
+  JsonSearchOptions,
+  LargeJsonSearchMatch,
+  Tab,
+  TabDocumentMeta,
+  WorkerSearchRequest,
+} from '../types/jsonTool';
 import { getMonacoSearchBatch, getReplacementText } from '../utils/jsonEditorInteractions';
 
 interface UseJsonPaneSearchActionsArgs {
@@ -21,16 +27,7 @@ interface UseJsonPaneSearchActionsArgs {
   normalizedLeftMatchIndex: number;
   replaceCurrentLeftText: (searchTerm: string, searchOptions: JsonSearchOptions, replacement: string) => void;
   replaceAllLeftText: (searchTerm: string, searchOptions: JsonSearchOptions, replacement: string) => void;
-  requestWorkerSearch: (
-    tabId: string,
-    query: string,
-    searchOptions: JsonSearchOptions,
-    startOffset?: number,
-    append?: boolean,
-    target?: 'left' | 'right',
-    text?: string,
-    rawRevision?: number
-  ) => void;
+  requestWorkerSearch: (request: WorkerSearchRequest) => void;
   resetLeftSearchPaging: () => void;
   resetRightSearchPaging: () => void;
   rightDecorationIdsRef: MutableRefObject<string[]>;
@@ -173,16 +170,15 @@ export function useJsonPaneSearchActions({
     }
 
     setIsLeftSearchLoadingMore(true);
-    requestWorkerSearch(
-      activeTab.id,
-      leftSearchTerm,
-      leftSearchOptions,
-      leftSearchNextOffset,
-      true,
-      'left',
-      undefined,
-      activeDocumentMeta.rawRevision
-    );
+    requestWorkerSearch({
+      tabId: activeTab.id,
+      query: leftSearchTerm,
+      searchOptions: leftSearchOptions,
+      startOffset: leftSearchNextOffset,
+      append: true,
+      target: 'left',
+      rawRevision: activeDocumentMeta.rawRevision,
+    });
   };
 
   const loadMoreRightSearch = () => {
@@ -193,7 +189,13 @@ export function useJsonPaneSearchActions({
     if (shouldUseDedicatedRightViewer) {
       if (activeTab) {
         setIsRightSearchLoadingMore(true);
-        requestWorkerSearch(activeTab.id, rightSearchTerm, rightSearchOptions, rightSearchNextOffset, true);
+        requestWorkerSearch({
+          tabId: activeTab.id,
+          query: rightSearchTerm,
+          searchOptions: rightSearchOptions,
+          startOffset: rightSearchNextOffset,
+          append: true,
+        });
       }
       return;
     }

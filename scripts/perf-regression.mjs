@@ -13,6 +13,10 @@ const COMPARED_METRICS = [
   'formattedTreeMs',
   'rightSearchBatchMs',
   'rightSearchLoadMoreMs',
+  'leftSearchBatchMs',
+  'leftSearchLoadMoreMs',
+  'leftReplaceAllMs',
+  'leftRegexReplaceAllMs',
   'nodeValueReadMs',
   'nodeEditPatchMs',
 ];
@@ -166,6 +170,10 @@ function printResults(results, failures, baselinePath) {
       formattedTree: formatDuration(result.formattedTreeMs),
       rightSearch: formatDuration(result.rightSearchBatchMs),
       rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
+      leftSearch: formatDuration(result.leftSearchBatchMs),
+      leftSearchMore: formatDuration(result.leftSearchLoadMoreMs),
+      leftReplaceAll: formatDuration(result.leftReplaceAllMs),
+      leftRegexReplaceAll: formatDuration(result.leftRegexReplaceAllMs),
       nodeRead: formatDuration(result.nodeValueReadMs),
       nodePatch: formatDuration(result.nodeEditPatchMs),
     }))
