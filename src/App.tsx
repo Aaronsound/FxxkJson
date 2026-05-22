@@ -55,6 +55,7 @@ import {
   bindEditorFocusContext,
   getContentAfterSelectionReplace,
   registerPaneFindAction,
+  registerPasteContentTracking,
   registerSelectAllDeleteCommands,
 } from './utils/jsonEditorMountActions';
 import { getUtf8ByteLength, isLargeDocument, shouldUseLargeMode } from './utils/jsonDocumentMetrics';
@@ -1052,45 +1053,12 @@ const App: React.FC = () => {
       onOpen: openLeftFind,
     });
 
-    editor.addAction({
-      id: 'custom.clipboardPasteAction',
-      label: 'Custom Paste',
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV],
-      precondition: leftEditorFocusContextKey,
-      keybindingContext: leftEditorFocusContextKey,
-      contextMenuGroupId: '9_cutcopypaste',
-      contextMenuOrder: 1,
-      run: async (mountedEditor) => {
+    registerPasteContentTracking(editor, {
+      onPasteContent(nextContent) {
         const currentTabId = activeTabIdRef.current;
-        const text = await navigator.clipboard.readText();
-        const selection = mountedEditor.getSelection();
-        const model = mountedEditor.getModel();
-
-        if (!selection || !currentTabId || !model) {
-          return;
+        if (currentTabId) {
+          beginPastePerformanceSession(currentTabId, nextContent);
         }
-
-        const coversModel = selectionCoversModel(editor);
-        const nextContent = coversModel ? text : getContentAfterSelectionReplace(model, selection, text);
-        beginPastePerformanceSession(currentTabId, nextContent);
-
-        if (coversModel) {
-          const largeMode = shouldUseLargeMode(text);
-
-          updateTabContent(currentTabId, text, true);
-          setTabLargeMode(currentTabId, largeMode);
-          resetSearchState();
-          queueFormat(currentTabId, text, true);
-          return;
-        }
-
-        mountedEditor.executeEdits('paste', [
-          {
-            range: selection,
-            text,
-            forceMoveMarkers: true,
-          },
-        ]);
       },
     });
   };

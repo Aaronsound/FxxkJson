@@ -15,6 +15,10 @@ interface RegisterSelectAllDeleteArgs {
   selectionCoversModel: () => boolean;
 }
 
+interface RegisterPasteTrackingArgs {
+  onPasteContent: (content: string) => void;
+}
+
 export function bindEditorFocusContext(editor: Monaco.editor.IStandaloneCodeEditor, focusContextKey: string) {
   const focusContext = editor.createContextKey(focusContextKey, editor.hasTextFocus());
 
@@ -53,6 +57,18 @@ export function registerPaneFindAction(
     run: () => {
       onOpen();
     },
+  });
+}
+
+export function registerPasteContentTracking(
+  editor: Monaco.editor.IStandaloneCodeEditor,
+  { onPasteContent }: RegisterPasteTrackingArgs
+) {
+  editor.onDidPaste(() => {
+    const content = editor.getModel()?.getValue();
+    if (typeof content === 'string') {
+      onPasteContent(content);
+    }
   });
 }
 
