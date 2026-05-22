@@ -145,6 +145,7 @@ const App: React.FC = () => {
   } = rightPaneSearch;
   const [leftReplaceText, setLeftReplaceText] = useState('');
   const [leftRawHighlightRange, setLeftRawHighlightRange] = useState<{ start: number; end: number } | null>(null);
+  const [largeRawViewerMatches, setLargeRawViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const {
@@ -304,7 +305,7 @@ const App: React.FC = () => {
     formattedValue && !isBuildingDedicatedRightViewer && (canUseRightPaneFolding || shouldUseDedicatedRightViewer)
   );
   const activeRightMatchCount = shouldUseDedicatedRightViewer ? largeViewerMatchCount : rightMatches.length;
-  const activeLeftMatchCount = leftMatches.length;
+  const activeLeftMatchCount = shouldUseDedicatedLeftViewer ? largeRawViewerMatches.length : leftMatches.length;
   const normalizedLeftMatchIndex =
     activeLeftMatchCount > 0
       ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
@@ -448,6 +449,7 @@ const App: React.FC = () => {
     resetLeftSearchState();
     resetRightSearchState();
     setLeftReplaceText('');
+    setLargeRawViewerMatches([]);
     setLargeViewerMatches([]);
     setLargeViewerMatchCount(0);
     setLeftRawHighlightRange(null);
@@ -583,6 +585,9 @@ const App: React.FC = () => {
 
     const model = leftEditorRef.current?.getModel();
     if (!model) {
+      setLargeRawViewerMatches((current) => (append ? [...current, ...matches] : matches));
+      setLeftSearchHasMore(hasMore);
+      setLeftSearchNextOffset(nextStartOffset);
       return;
     }
 
@@ -593,6 +598,7 @@ const App: React.FC = () => {
     });
 
     setLeftMatches((current) => (append ? [...current, ...ranges] : ranges));
+    setLargeRawViewerMatches([]);
     setLeftSearchHasMore(hasMore);
     setLeftSearchNextOffset(nextStartOffset);
   };
@@ -881,6 +887,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!activeTab || !leftSearchTerm) {
       setLeftMatches([]);
+      setLargeRawViewerMatches([]);
       setLeftSearchHasMore(false);
       setLeftSearchNextOffset(0);
       setIsLeftSearchLoadingMore(false);
@@ -908,10 +915,34 @@ const App: React.FC = () => {
   }, [activeDocumentMeta.rawRevision, activeTab, leftSearchOptions, leftSearchTerm]);
 
   useEffect(() => {
+    if (!shouldUseDedicatedLeftViewer || !leftSearchTerm) {
+      return;
+    }
+
+    if (largeRawViewerMatches.length === 0) {
+      clearLeftHighlights();
+      return;
+    }
+
+    const activeMatch = largeRawViewerMatches[normalizedLeftMatchIndex];
+    if (activeMatch) {
+      setLeftRawHighlightRange({ start: activeMatch.start, end: activeMatch.end });
+      largeRawViewerRef.current?.revealRange(activeMatch.start, activeMatch.end);
+    }
+  }, [
+    activeTabId,
+    largeRawViewerMatches,
+    leftMatchIndex,
+    leftSearchTerm,
+    normalizedLeftMatchIndex,
+    shouldUseDedicatedLeftViewer,
+  ]);
+
+  useEffect(() => {
     const editor = leftEditorRef.current;
     const model = editor?.getModel();
 
-    if (!editor || !model || !leftSearchTerm) {
+    if (shouldUseDedicatedLeftViewer || !editor || !model || !leftSearchTerm) {
       clearLeftHighlights();
       return;
     }
@@ -941,7 +972,7 @@ const App: React.FC = () => {
         activeMatch.endColumn
       )
     );
-  }, [activeTabId, leftMatches, leftMatchIndex, leftSearchTerm]);
+  }, [activeTabId, leftMatches, leftMatchIndex, leftSearchTerm, shouldUseDedicatedLeftViewer]);
 
   useEffect(() => {
     const editor = rightEditorRef.current;
@@ -1058,6 +1089,7 @@ const App: React.FC = () => {
         const currentTabId = activeTabIdRef.current;
         if (currentTabId) {
           beginPastePerformanceSession(currentTabId, nextContent);
+          queueFormat(currentTabId, nextContent);
         }
       },
     });
@@ -1343,6 +1375,92 @@ const App: React.FC = () => {
     updateTabContent(activeTab.id, nextContent);
     setTabLargeMode(activeTab.id, largeMode);
     queueFormat(activeTab.id, nextContent);
+  };
+
+  const replaceAllLeftText = async (
+    searchTerm: string,
+    searchOptions: typeof leftSearchOptions,
+    replacement: string
+  ) => {
+    if (!activeTab || !searchTerm) {
+      return;
+    }
+
+    const currentTabId = activeTab.id;
+    const currentText = getTabContent(currentTabId);
+
+    try {
+      const updated = await requestWorkerEditJson(
+        currentTabId,
+        'replace-text',
+        currentText,
+        undefined,
+        undefined,
+        undefined,
+        searchTerm,
+        searchOptions,
+        replacement
+      );
+
+      if (updated === currentText) {
+        return;
+      }
+
+      if (getTabContent(currentTabId) !== currentText) {
+        return;
+      }
+
+      updateTabContent(currentTabId, updated, true);
+      setTabLargeMode(currentTabId, isLargeDocument(updated));
+      resetSearchState();
+      queueFormat(currentTabId, updated);
+    } catch (error) {
+      setTabError(currentTabId, error instanceof Error ? `全部替换失败：${error.message}` : '全部替换失败');
+    }
+  };
+
+  const replaceCurrentLargeLeftText = async (
+    searchTerm: string,
+    searchOptions: typeof leftSearchOptions,
+    replacement: string
+  ) => {
+    if (!activeTab || !shouldUseDedicatedLeftViewer || !searchTerm) {
+      return;
+    }
+
+    const currentMatch = largeRawViewerMatches[normalizedLeftMatchIndex];
+    if (!currentMatch) {
+      return;
+    }
+
+    const currentTabId = activeTab.id;
+    const currentText = getTabContent(currentTabId);
+    const matchedText = currentText.slice(currentMatch.start, currentMatch.end);
+
+    try {
+      const replacementText = await requestWorkerEditJson(
+        currentTabId,
+        'replace-text',
+        matchedText,
+        undefined,
+        undefined,
+        undefined,
+        searchTerm,
+        searchOptions,
+        replacement
+      );
+
+      if (replacementText === matchedText || getTabContent(currentTabId) !== currentText) {
+        return;
+      }
+
+      const updated = `${currentText.slice(0, currentMatch.start)}${replacementText}${currentText.slice(currentMatch.end)}`;
+      updateTabContent(currentTabId, updated, true);
+      setTabLargeMode(currentTabId, isLargeDocument(updated));
+      queueFormat(currentTabId, updated);
+    } catch (error) {
+      setTabError(currentTabId, error instanceof Error ? `替换失败：${error.message}` : '替换失败');
+    }
   };
 
   const { handleFileSelection, handleImport } = useJsonImportActions({
@@ -1715,12 +1833,8 @@ const App: React.FC = () => {
   };
 
   const openLeftFind = useCallback(() => {
-    if (shouldUseDedicatedLeftViewer) {
-      return;
-    }
-
     setIsLeftFindOpen(true);
-  }, [setIsLeftFindOpen, shouldUseDedicatedLeftViewer]);
+  }, [setIsLeftFindOpen]);
 
   const openRightFind = useCallback(() => {
     setIsRightFindOpen(true);
@@ -1729,7 +1843,11 @@ const App: React.FC = () => {
   const closeLeftFind = () => {
     resetLeftSearchState();
     clearLeftHighlights();
-    leftEditorRef.current?.focus();
+    if (shouldUseDedicatedLeftViewer) {
+      largeRawViewerRef.current?.focus();
+    } else {
+      leftEditorRef.current?.focus();
+    }
   };
 
   const closeRightFind = () => {
@@ -1778,6 +1896,12 @@ const App: React.FC = () => {
     leftSearchOptions,
     leftSearchTerm,
     normalizedLeftMatchIndex,
+    replaceCurrentLeftText: (searchTerm, searchOptions, replacement) => {
+      void replaceCurrentLargeLeftText(searchTerm, searchOptions, replacement);
+    },
+    replaceAllLeftText: (searchTerm, searchOptions, replacement) => {
+      void replaceAllLeftText(searchTerm, searchOptions, replacement);
+    },
     requestWorkerSearch,
     resetLeftSearchPaging,
     resetRightSearchPaging,

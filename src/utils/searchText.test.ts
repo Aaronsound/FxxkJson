@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
-import { buildLineStarts, findTextSearchBatch, findTextSearchBatchAsync } from './searchText';
+import { buildLineStarts, findTextSearchBatch, findTextSearchBatchAsync, replaceTextSearchMatches } from './searchText';
 
 describe('searchText', () => {
   it('loads complete search results across multiple batches', () => {
@@ -45,6 +45,25 @@ describe('searchText', () => {
     expect(thirdBatch.matches).toHaveLength(1);
     expect(thirdBatch.hasMore).toBe(false);
     expect([...firstBatch.matches, ...secondBatch.matches, ...thirdBatch.matches]).toHaveLength(5);
+  });
+
+  it('replaces every text match beyond the paged search batch', () => {
+    const text = Array.from({ length: 2_005 }, (_, index) => `before-${index}`).join('\n');
+
+    expect(
+      replaceTextSearchMatches(text, 'before', { matchCase: false, wholeWord: true, useRegex: false }, 'after')
+    ).toBe(Array.from({ length: 2_005 }, (_, index) => `after-${index}`).join('\n'));
+  });
+
+  it('keeps regex replacement and whole-word search semantics for full replacement', () => {
+    expect(
+      replaceTextSearchMatches(
+        'item-1 item-22 item-3 items-4',
+        'item-(\\d+)',
+        { matchCase: true, wholeWord: true, useRegex: true },
+        'node-$1'
+      )
+    ).toBe('node-1 node-22 node-3 items-4');
   });
 
   it('can cancel async batched searches before returning stale results', async () => {

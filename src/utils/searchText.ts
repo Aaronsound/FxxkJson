@@ -69,6 +69,20 @@ function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function getSearchMatcher(searchTerm: string, options: JsonSearchOptions) {
+  if (!searchTerm) {
+    return null;
+  }
+
+  const source = options.useRegex ? searchTerm : escapeRegExp(searchTerm);
+
+  try {
+    return new RegExp(source, `g${options.matchCase ? '' : 'i'}`);
+  } catch {
+    return null;
+  }
+}
+
 function cancelledSearchBatch(startOffset: number, textLength: number): TextSearchBatch {
   return {
     matches: [],
@@ -116,12 +130,8 @@ export function findTextSearchBatch(
     return getEmptySearchBatch(startOffset, text.length);
   }
 
-  const source = options.useRegex ? searchTerm : escapeRegExp(searchTerm);
-  let matcher: RegExp;
-
-  try {
-    matcher = new RegExp(source, `g${options.matchCase ? '' : 'i'}`);
-  } catch {
+  const matcher = getSearchMatcher(searchTerm, options);
+  if (!matcher) {
     return getEmptySearchBatch(startOffset, text.length);
   }
 
@@ -159,6 +169,45 @@ export function findTextSearchBatch(
     hasMore: false,
     nextStartOffset,
   };
+}
+
+export function replaceTextSearchMatches(
+  text: string,
+  searchTerm: string,
+  options: JsonSearchOptions,
+  replacement: string
+) {
+  const matcher = getSearchMatcher(searchTerm, options);
+  if (!matcher) {
+    return text;
+  }
+
+  let result = '';
+  let copyStart = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = matcher.exec(text)) !== null) {
+    const start = match.index;
+    const value = match[0];
+    const end = start + value.length;
+
+    if (value.length === 0) {
+      matcher.lastIndex += 1;
+      continue;
+    }
+
+    if (options.wholeWord && !isWholeWordMatch(text, start, end)) {
+      continue;
+    }
+
+    result += text.slice(copyStart, start);
+    result += options.useRegex
+      ? value.replace(new RegExp(searchTerm, options.matchCase ? '' : 'i'), replacement)
+      : replacement;
+    copyStart = end;
+  }
+
+  return copyStart === 0 ? text : `${result}${text.slice(copyStart)}`;
 }
 
 export async function findTextSearchBatchAsync(

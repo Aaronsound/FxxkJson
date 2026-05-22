@@ -323,7 +323,7 @@ export function useJsonFormattingWorker({
       callbacksRef.current.logEvent('format-start', {
         tabId,
         requestId,
-        textLength: getUtf8ByteLength(text),
+        textLength: plan.textByteLength,
       });
       const textPayload = createWorkerTextPayload(text, plan.textByteLength);
       postWorkerRequest(

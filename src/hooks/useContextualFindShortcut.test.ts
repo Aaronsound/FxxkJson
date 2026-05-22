@@ -30,6 +30,11 @@ describe('useContextualFindShortcut', () => {
     document.querySelector('button')?.focus();
     fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
     expect(openRightFind).toHaveBeenCalledTimes(1);
+
+    document.body.innerHTML = '<section class="left-editor-pane"><button>raw</button></section>';
+    document.querySelector('button')?.focus();
+    fireEvent.keyDown(window, { key: 'f', altKey: true });
+    expect(openLeftFind).toHaveBeenCalledTimes(2);
   });
 
   it('subscribes desktop find shortcuts to the focused pane handler', () => {

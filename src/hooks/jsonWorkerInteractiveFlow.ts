@@ -197,7 +197,10 @@ export function createJsonWorkerInteractiveFlow({
     text: string,
     originalText?: string,
     path?: JsonEditPath,
-    offset?: number
+    offset?: number,
+    searchTerm?: string,
+    searchOptions?: JsonSearchOptions,
+    replacement?: string
   ) =>
     new Promise<WorkerMessage>((resolve, reject) => {
       if (!workerRef.current) {
@@ -216,6 +219,9 @@ export function createJsonWorkerInteractiveFlow({
         originalText,
         path,
         offset,
+        searchTerm,
+        searchOptions,
+        replacement,
       });
     });
 
@@ -225,9 +231,22 @@ export function createJsonWorkerInteractiveFlow({
     text: string,
     originalText?: string,
     path?: JsonEditPath,
-    offset?: number
+    offset?: number,
+    searchTerm?: string,
+    searchOptions?: JsonSearchOptions,
+    replacement?: string
   ) =>
-    requestEditJsonResult(tabId, operation, text, originalText, path, offset).then((message) => {
+    requestEditJsonResult(
+      tabId,
+      operation,
+      text,
+      originalText,
+      path,
+      offset,
+      searchTerm,
+      searchOptions,
+      replacement
+    ).then((message) => {
       if (typeof message.data !== 'string') {
         throw new Error('JSON worker returned an empty result');
       }

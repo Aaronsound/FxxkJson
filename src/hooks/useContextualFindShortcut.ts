@@ -27,8 +27,10 @@ export function useContextualFindShortcut({ openLeftFind, openRightFind }: UseCo
 
   useEffect(() => {
     const handleFindShortcut = (event: KeyboardEvent) => {
+      const isPrimaryFindShortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
+      const isAltFindShortcut = event.altKey && !event.ctrlKey && !event.metaKey;
       const isFindShortcut =
-        event.key.toLowerCase() === 'f' && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey;
+        event.key.toLowerCase() === 'f' && !event.shiftKey && (isPrimaryFindShortcut || isAltFindShortcut);
 
       if (!isFindShortcut || isInside(event.target instanceof Element ? event.target : null, '.modal-overlay')) {
         return;

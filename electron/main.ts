@@ -169,12 +169,13 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isPrimaryFindShortcut = (input.control || input.meta) && !input.alt;
+    const isAltFindShortcut = input.alt && !input.control && !input.meta;
     const isFindShortcut =
       input.type === 'keyDown' &&
       input.key?.toLowerCase() === 'f' &&
-      (input.control || input.meta) &&
       !input.shift &&
-      !input.alt;
+      (isPrimaryFindShortcut || isAltFindShortcut);
 
     if (!isFindShortcut) {
       return;

@@ -56,6 +56,9 @@ export type WorkerRequestMessage =
       originalText?: string;
       path?: JsonEditPath;
       offset?: number;
+      searchTerm?: string;
+      searchOptions?: JsonSearchOptions;
+      replacement?: string;
     });
 
 export interface WorkerMessage {
@@ -110,7 +113,8 @@ export type EditJsonWorkerOperation =
   | 'read-node'
   | 'save-node'
   | 'delete-node'
-  | 'rename-node-key';
+  | 'rename-node-key'
+  | 'replace-text';
 export type SearchTarget = 'left' | 'right';
 export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'repair' | 'edit-save' | 'paste';

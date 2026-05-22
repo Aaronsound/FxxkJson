@@ -199,7 +199,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
         <span className="editor-pane-header-text">{leftPaneMetaText}</span>
       </div>
       <div className="editor-pane-body">
-        {isLeftFindOpen && !shouldUseDedicatedLeftViewer && (
+        {isLeftFindOpen && (
           <PaneFindWidget
             value={leftSearchTerm}
             currentIndex={activeLeftMatchCount > 0 ? normalizedLeftMatchIndex + 1 : 0}

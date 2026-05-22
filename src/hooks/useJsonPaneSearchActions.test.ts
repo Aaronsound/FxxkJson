@@ -52,6 +52,8 @@ function createArgs(overrides: Partial<Parameters<typeof useJsonPaneSearchAction
     leftSearchOptions: DEFAULT_SEARCH_OPTIONS,
     leftSearchTerm: 'before',
     normalizedLeftMatchIndex: 0,
+    replaceCurrentLeftText: vi.fn(),
+    replaceAllLeftText: vi.fn(),
     requestWorkerSearch: vi.fn(),
     resetLeftSearchPaging: vi.fn(),
     resetRightSearchPaging: vi.fn(),
@@ -82,7 +84,7 @@ function createArgs(overrides: Partial<Parameters<typeof useJsonPaneSearchAction
 }
 
 describe('useJsonPaneSearchActions', () => {
-  it('replaces one left match and all left matches from the editor model', () => {
+  it('replaces one left match from the editor model and delegates full-text replacement', () => {
     vi.mocked(getReplacementText).mockReturnValue('replacement');
     const args = createArgs();
     const { result } = renderHook(() => useJsonPaneSearchActions(args));
@@ -93,15 +95,7 @@ describe('useJsonPaneSearchActions', () => {
     expect(args.leftEditorRef.current?.executeEdits).toHaveBeenNthCalledWith(1, 'pane-find-replace', [
       expect.objectContaining({ range: args.leftMatches[0], text: 'replacement' }),
     ]);
-    expect(args.leftEditorRef.current?.executeEdits).toHaveBeenNthCalledWith(
-      2,
-      'pane-find-replace-all',
-      expect.arrayContaining([
-        expect.objectContaining({ range: args.leftMatches[0] }),
-        expect.objectContaining({ range: args.leftMatches[1] }),
-      ])
-    );
-    expect(args.setLeftMatchIndex).toHaveBeenCalledWith(0);
+    expect(args.replaceAllLeftText).toHaveBeenCalledWith('before', DEFAULT_SEARCH_OPTIONS, 'after');
   });
 
   it('loads right search batches from the worker for the dedicated viewer', () => {
@@ -124,6 +118,18 @@ describe('useJsonPaneSearchActions', () => {
       undefined,
       3
     );
+  });
+
+  it('delegates current left replacement when the raw viewer owns the match', () => {
+    const args = createArgs({
+      leftEditorRef: { current: null },
+      leftMatches: [],
+    });
+    const { result } = renderHook(() => useJsonPaneSearchActions(args));
+
+    result.current.replaceLeftMatch();
+
+    expect(args.replaceCurrentLeftText).toHaveBeenCalledWith('before', DEFAULT_SEARCH_OPTIONS, 'after');
   });
 
   it('extends Monaco right search decorations when the editor owns the results', () => {

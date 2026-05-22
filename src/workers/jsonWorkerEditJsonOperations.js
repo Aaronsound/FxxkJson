@@ -1,6 +1,8 @@
 import { parseJsonForFormatting } from '../utils/jsonFormat';
 import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
 import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
+import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import { replaceTextSearchMatches } from '../utils/searchText';
 
 function formatJsonForEdit(tabId, text, editJsonCache) {
   const { value, normalizedNestedString } = parseJsonForFormatting(text);
@@ -44,7 +46,8 @@ function transformJsonEscape(operation, text) {
 
 export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEditOperations }) {
   function handleEditJsonMessage(message) {
-    const { requestId, tabId, operation, text, originalText, path, offset } = message;
+    const { requestId, tabId, operation, text, originalText, path, offset, replacement, searchOptions, searchTerm } =
+      message;
 
     try {
       const data = (() => {
@@ -54,6 +57,15 @@ export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEdit
 
         if (operation === 'escape-json' || operation === 'unescape-json') {
           return transformJsonEscape(operation, text);
+        }
+
+        if (operation === 'replace-text') {
+          return replaceTextSearchMatches(
+            text,
+            searchTerm ?? '',
+            searchOptions ?? DEFAULT_SEARCH_OPTIONS,
+            replacement ?? ''
+          );
         }
 
         if (operation === 'read-node') {

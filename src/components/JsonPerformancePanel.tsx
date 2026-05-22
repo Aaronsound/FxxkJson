@@ -21,8 +21,6 @@ type PanelPosition = {
   y: number;
 };
 
-const PANEL_POSITION_STORAGE_KEY = 'fxxkjson.performancePanel.position.v4';
-
 const stageLabels: Array<{ key: StageKey; label: string }> = [
   { key: 'readFileMs', label: '读取文件' },
   { key: 'leftModelSyncMs', label: '左侧渲染' },
@@ -139,31 +137,9 @@ function getPerformanceDiagnosis(snapshot: PerformanceSnapshot) {
   }
 }
 
-function readStoredPosition() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem(PANEL_POSITION_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<PanelPosition>;
-    if (typeof parsed.x !== 'number' || typeof parsed.y !== 'number') {
-      return null;
-    }
-
-    return parsed as PanelPosition;
-  } catch {
-    return null;
-  }
-}
-
 const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, history = [], isDarkMode }) => {
   const [expanded, setExpanded] = useState(false);
-  const [position, setPosition] = useState<PanelPosition | null>(() => readStoredPosition());
+  const [position, setPosition] = useState<PanelPosition | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const panelRef = useRef<HTMLElement | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
@@ -190,19 +166,6 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
       y: Math.min(Math.max(margin, nextY), maxY),
     };
   };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    if (!position) {
-      window.localStorage.removeItem(PANEL_POSITION_STORAGE_KEY);
-      return;
-    }
-
-    window.localStorage.setItem(PANEL_POSITION_STORAGE_KEY, JSON.stringify(position));
-  }, [position]);
 
   useEffect(() => {
     if (!isDragging) {
@@ -236,12 +199,10 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
   }, [isDragging]);
 
   useEffect(() => {
-    if (!position) {
-      return;
-    }
-
     const handleViewportChange = () => {
-      setPosition((current) => (current ? clampPosition(current.x, current.y) : current));
+      dragOffsetRef.current = null;
+      setIsDragging(false);
+      setPosition(null);
     };
 
     window.addEventListener('resize', handleViewportChange);
@@ -251,7 +212,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
       window.removeEventListener('resize', handleViewportChange);
       document.removeEventListener('fullscreenchange', handleViewportChange);
     };
-  }, [position]);
+  }, []);
 
   useEffect(() => {
     if (!position) {
@@ -266,10 +227,6 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
       window.cancelAnimationFrame(frameId);
     };
   }, [expanded]);
-
-  if (!snapshot) {
-    return null;
-  }
 
   const panelStyle = position
     ? {
@@ -317,7 +274,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
       >
         <div className="performance-panel-title-block">
           <strong>性能分析</strong>
-          <span className="performance-panel-status-chip">{getStatusLabel(snapshot)}</span>
+          <span className="performance-panel-status-chip">{snapshot ? getStatusLabel(snapshot) : '等待数据'}</span>
         </div>
         <button type="button" className="performance-toggle-button" onClick={() => setExpanded((current) => !current)}>
           {expanded ? '收起' : '展开'}
@@ -325,14 +282,20 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
       </div>
 
       <div className="performance-panel-compact">
-        <span>{getTriggerLabel(snapshot.trigger)}</span>
-        <span>Viewer {formatDuration(snapshot.totalToViewerReadyMs)}</span>
-        <span>总耗时 {formatDuration(snapshot.totalToFormattedMs)}</span>
-        <span>瓶颈 {bottleneck.label}</span>
-        <span>{diagnosis}</span>
+        {snapshot ? (
+          <>
+            <span>{getTriggerLabel(snapshot.trigger)}</span>
+            <span>Viewer {formatDuration(snapshot.totalToViewerReadyMs)}</span>
+            <span>总耗时 {formatDuration(snapshot.totalToFormattedMs)}</span>
+            <span>瓶颈 {bottleneck.label}</span>
+            <span>{diagnosis}</span>
+          </>
+        ) : (
+          <span>导入、粘贴或格式化 JSON 后显示性能数据。</span>
+        )}
       </div>
 
-      {expanded && (
+      {expanded && snapshot && (
         <>
           <div className="performance-panel-header">
             <div>

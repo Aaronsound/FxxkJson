@@ -19,6 +19,8 @@ interface UseJsonPaneSearchActionsArgs {
   leftSearchOptions: JsonSearchOptions;
   leftSearchTerm: string;
   normalizedLeftMatchIndex: number;
+  replaceCurrentLeftText: (searchTerm: string, searchOptions: JsonSearchOptions, replacement: string) => void;
+  replaceAllLeftText: (searchTerm: string, searchOptions: JsonSearchOptions, replacement: string) => void;
   requestWorkerSearch: (
     tabId: string,
     query: string,
@@ -71,6 +73,8 @@ export function useJsonPaneSearchActions({
   leftSearchOptions,
   leftSearchTerm,
   normalizedLeftMatchIndex,
+  replaceCurrentLeftText,
+  replaceAllLeftText,
   requestWorkerSearch,
   resetLeftSearchPaging,
   resetRightSearchPaging,
@@ -115,6 +119,9 @@ export function useJsonPaneSearchActions({
     const range = leftMatches[normalizedLeftMatchIndex];
 
     if (!editor || !model || !range) {
+      if (leftSearchTerm && activeLeftMatchCount > 0) {
+        replaceCurrentLeftText(leftSearchTerm, leftSearchOptions, leftReplaceText);
+      }
       return;
     }
 
@@ -129,29 +136,11 @@ export function useJsonPaneSearchActions({
   };
 
   const replaceAllLeftMatches = () => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-
-    if (!editor || !model || leftMatches.length === 0) {
+    if (!leftSearchTerm || activeLeftMatchCount === 0) {
       return;
     }
 
-    const sortedRanges = [...leftMatches].sort(
-      (left, right) =>
-        model.getOffsetAt({ lineNumber: right.startLineNumber, column: right.startColumn }) -
-        model.getOffsetAt({ lineNumber: left.startLineNumber, column: left.startColumn })
-    );
-
-    editor.executeEdits(
-      'pane-find-replace-all',
-      sortedRanges.map((range) => ({
-        range,
-        text: getReplacementText(model, range, leftSearchTerm, leftSearchOptions, leftReplaceText),
-        forceMoveMarkers: true,
-      }))
-    );
-    setLeftMatchIndex(0);
-    editor.focus();
+    replaceAllLeftText(leftSearchTerm, leftSearchOptions, leftReplaceText);
   };
 
   const gotoNextLeft = () => {
