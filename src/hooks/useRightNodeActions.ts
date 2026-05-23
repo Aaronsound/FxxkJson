@@ -21,7 +21,6 @@ interface UseRightNodeActionsArgs {
   requestWorkerEditJson: (
     request: EditJsonWorkerRequest & { operation: RightNodeMutationOperation }
   ) => Promise<string>;
-  requestWorkerValue: (tabId: string, offset: number, preferCachedText?: boolean) => Promise<string | null>;
   requestDeleteConfirmation: (path: JsonEditPath, preview: string) => Promise<boolean>;
   requestRenameKey: (path: JsonEditPath, currentKey: string) => Promise<string | null>;
   resetSearchState: () => void;
@@ -47,7 +46,6 @@ export function useRightNodeActions({
   queueFormatAfterEditSave,
   readEditableNodeAtOffset,
   requestWorkerEditJson,
-  requestWorkerValue,
   requestDeleteConfirmation,
   requestRenameKey,
   resetSearchState,
@@ -56,19 +54,9 @@ export function useRightNodeActions({
 }: UseRightNodeActionsArgs) {
   const copyValueAtOffset = useCallback(
     async (tabId: string, offset: number, preferCachedText = false) => {
-      const valueLiteral = await requestWorkerValue(tabId, offset, preferCachedText);
-      if (valueLiteral === null) {
-        setTabError(tabId, '未找到可复制的 JSON 值');
-        logEvent('copy-value-missed', {
-          tabId,
-          offset,
-          preferCachedText,
-        });
-        return;
-      }
-
       try {
-        const valueToCopy = getJsonLiteralDetails(valueLiteral).clipboardValue;
+        const parsed = await readEditableNodeAtOffset(tabId, offset, preferCachedText, '未找到可复制的 JSON 值');
+        const valueToCopy = getJsonLiteralDetails(parsed.value).clipboardValue;
         await writeTextToClipboard(valueToCopy);
         setTabError(tabId, null);
         logEvent('copy-value-success', {
@@ -89,7 +77,7 @@ export function useRightNodeActions({
         });
       }
     },
-    [logEvent, requestWorkerValue, setTabError]
+    [logEvent, readEditableNodeAtOffset, setTabError]
   );
 
   const copyNodeDetailAtOffset = useCallback(

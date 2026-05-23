@@ -222,7 +222,6 @@ export function useJsonFormattingWorker({
 
   const requestWorkerLocate = interactiveFlow.requestLocate;
   const requestWorkerSearch = interactiveFlow.requestSearch;
-  const requestWorkerValue = interactiveFlow.requestValue;
   const requestWorkerEditJson = interactiveFlow.requestEditJson;
   const requestWorkerEditJsonResult = interactiveFlow.requestEditJsonResult;
 
@@ -561,7 +560,6 @@ export function useJsonFormattingWorker({
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,
-    requestWorkerValue,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,
     resetTabArtifacts,

@@ -63,7 +63,6 @@ export function createJsonWorkerInteractiveFlow({
   let searchRequestCounter = 0;
   const latestLocateRequests: Record<string, number> = {};
   const latestSearchRequests: Record<string, number> = {};
-  const pendingValueRequests: Record<number, (value: string | null) => void> = {};
   const pendingEditJsonRequests: Record<
     number,
     {
@@ -143,52 +142,6 @@ export function createJsonWorkerInteractiveFlow({
       rawRevision,
     });
   };
-
-  const requestValue = (tabId: string, offset: number, preferCachedText = false) =>
-    new Promise<string | null>((resolve) => {
-      if (!workerRef.current) {
-        resolve(null);
-        return;
-      }
-
-      const requestId = ++locateRequestCounter;
-      pendingValueRequests[requestId] = resolve;
-
-      if (workerStructureEnabledRef.current[tabId] && structureStatusRef.current[tabId] === 'ready') {
-        postWorkerRequest({
-          type: 'read-value',
-          requestId,
-          tabId,
-          offset,
-        });
-        return;
-      }
-
-      if (preferCachedText) {
-        postWorkerRequest({
-          type: 'read-value-direct',
-          requestId,
-          tabId,
-          offset,
-        });
-        return;
-      }
-
-      const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-      if (!formattedText) {
-        delete pendingValueRequests[requestId];
-        resolve(null);
-        return;
-      }
-
-      postWorkerRequest({
-        type: 'read-value-direct',
-        requestId,
-        tabId,
-        offset,
-        text: formattedText,
-      });
-    });
 
   const requestEditJsonResult = ({
     tabId,
@@ -325,15 +278,6 @@ export function createJsonWorkerInteractiveFlow({
       return true;
     }
 
-    if (message.type === 'value-result') {
-      const resolve = pendingValueRequests[message.requestId];
-      if (resolve) {
-        delete pendingValueRequests[message.requestId];
-        resolve(message.found ? (message.value ?? null) : null);
-      }
-      return true;
-    }
-
     if (message.type === 'edit-json-result') {
       const pending = pendingEditJsonRequests[message.requestId];
       if (pending) {
@@ -351,10 +295,6 @@ export function createJsonWorkerInteractiveFlow({
   };
 
   const stop = () => {
-    Object.keys(pendingValueRequests).forEach((requestId) => {
-      pendingValueRequests[Number(requestId)]?.(null);
-      delete pendingValueRequests[Number(requestId)];
-    });
     Object.keys(pendingEditJsonRequests).forEach((requestId) => {
       pendingEditJsonRequests[Number(requestId)]?.reject(new Error('JSON worker stopped'));
       delete pendingEditJsonRequests[Number(requestId)];
@@ -368,7 +308,6 @@ export function createJsonWorkerInteractiveFlow({
     requestEditJsonResult,
     requestLocate,
     requestSearch,
-    requestValue,
     stop,
   };
 }

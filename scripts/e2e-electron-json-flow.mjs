@@ -294,7 +294,7 @@ async function run() {
           cdp,
           `Boolean(
         document.querySelector('.right-editor-pane .rightNodeSelectionHighlight')
-        && document.body.innerText.includes('已定位到 offset')
+        && (document.body.innerText.includes('已定位到 offset') || document.body.innerText.includes('已选中右侧节点 offset'))
       )`
         ),
       'right click locate highlight'
@@ -438,7 +438,7 @@ async function run() {
           cdp,
           `(() => {
         return document.body.innerText.includes('req-e2e-updated')
-          && document.body.innerText.includes('已定位到 offset')
+          && (document.body.innerText.includes('已定位到 offset') || document.body.innerText.includes('已选中右侧节点 offset'))
           && !document.querySelector('.modal-card');
       })()`
         ),

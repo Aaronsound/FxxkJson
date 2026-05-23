@@ -34,6 +34,7 @@
     "smoke": "node ./scripts/smoke-json-flow.mjs",
     "e2e:electron": "npm run build && node ./scripts/e2e-electron-json-flow.mjs",
     "e2e:electron:large": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 5",
+    "e2e:electron:large20": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 20",
     "release:assets:check": "node ./scripts/verify-release-assets.mjs",
     "samples": "node ./scripts/generate-json-samples.mjs",
     "dist": "npm run build && electron-builder",

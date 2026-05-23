@@ -70,8 +70,6 @@ export type WorkerRequestMessage =
     })
   | (WorkerRequestBase & { type: 'locate'; offset: number })
   | (WorkerRequestBase & { type: 'locate-right-direct'; offset: number })
-  | (WorkerRequestBase & { type: 'read-value'; offset: number })
-  | (WorkerRequestBase & { type: 'read-value-direct'; offset: number; text?: string })
   | (WorkerRequestBase & {
       type: 'edit-json';
       operation: EditJsonWorkerRequest['operation'];
@@ -90,7 +88,6 @@ export interface WorkerMessage {
     | 'repair-result'
     | 'structure-ready'
     | 'locate-result'
-    | 'value-result'
     | 'viewer-ready'
     | 'search-result'
     | 'edit-json-result';

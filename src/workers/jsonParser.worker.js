@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-globals */
 /** @typedef {import('../types/jsonTool').WorkerRequestMessage} WorkerRequestMessage */
-import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
+import { parseTree } from 'jsonc-parser';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
@@ -12,11 +12,7 @@ import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperatio
 import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../utils/jsonWorkerMessageRouting';
 import { getTextByteLength, postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
 import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
-import {
-  createJsonWorkerLocateOperations,
-  getLocateCandidateOffsets,
-  getResolvedNodes,
-} from './jsonWorkerLocateOperations';
+import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -482,122 +478,6 @@ function handleRepairMessage(message) {
   }
 }
 
-function handleReadValueMessage(message) {
-  const { requestId, tabId, offset } = message;
-  const cached = structureCache.get(tabId);
-
-  try {
-    if (!ensureStructureTrees(tabId, cached)) {
-      postMessage({
-        type: 'value-result',
-        requestId,
-        tabId,
-        found: false,
-        value: null,
-      });
-      return;
-    }
-  } catch {
-    structureCache.delete(tabId);
-    postMessage({
-      type: 'value-result',
-      requestId,
-      tabId,
-      found: false,
-      value: null,
-    });
-    return;
-  }
-
-  const resolvedNodes = getResolvedNodes(cached, offset);
-
-  if (!resolvedNodes || typeof cached?.formattedText !== 'string') {
-    postMessage({
-      type: 'value-result',
-      requestId,
-      tabId,
-      found: false,
-      value: null,
-    });
-    return;
-  }
-
-  const { rightNode } = resolvedNodes;
-  // Copy the exact JSON literal under the cursor so pasting into a new tab
-  // keeps valid JSON semantics for strings, numbers, arrays, objects, etc.
-  const value = cached.formattedText.slice(rightNode.offset, rightNode.offset + rightNode.length);
-
-  postMessage({
-    type: 'value-result',
-    requestId,
-    tabId,
-    found: true,
-    value,
-  });
-}
-
-function handleReadValueDirectMessage(message) {
-  const { requestId, tabId, offset, text } = message;
-  const cachedViewer = viewerCache.get(tabId);
-  const sourceText = typeof text === 'string' && text ? text : cachedViewer?.formattedText;
-  const sourceRequestId = cachedViewer?.requestId ?? requestId;
-
-  if (typeof sourceText !== 'string' || !sourceText) {
-    postMessage({
-      type: 'value-result',
-      requestId,
-      tabId,
-      found: false,
-      value: null,
-    });
-    return;
-  }
-
-  try {
-    const formattedTree = getDirectValueTree(tabId, sourceRequestId, sourceText);
-    if (!formattedTree) {
-      postMessage({
-        type: 'value-result',
-        requestId,
-        tabId,
-        found: false,
-        value: null,
-      });
-      return;
-    }
-
-    const location = getLocation(sourceText, offset);
-    const rightNode = findNodeAtLocation(formattedTree, location.path);
-
-    if (!rightNode) {
-      postMessage({
-        type: 'value-result',
-        requestId,
-        tabId,
-        found: false,
-        value: null,
-      });
-      return;
-    }
-
-    postMessage({
-      type: 'value-result',
-      requestId,
-      tabId,
-      found: true,
-      value: sourceText.slice(rightNode.offset, rightNode.offset + rightNode.length),
-    });
-  } catch {
-    postMessage({
-      type: 'value-result',
-      requestId,
-      tabId,
-      found: false,
-      value: null,
-    });
-  }
-}
-
 const workerMessageHandlers = {
   'clear-structure': handleClearStructureMessage,
   'edit-json': jsonWorkerEditJsonOperations.handleEditJsonMessage,
@@ -605,8 +485,6 @@ const workerMessageHandlers = {
   locate: jsonWorkerLocateOperations.handleLocateMessage,
   'locate-right-direct': jsonWorkerLocateOperations.handleLocateRightDirectMessage,
   repair: handleRepairMessage,
-  'read-value': handleReadValueMessage,
-  'read-value-direct': handleReadValueDirectMessage,
   search: jsonWorkerSearchOperations.handleSearchMessage,
 };
 

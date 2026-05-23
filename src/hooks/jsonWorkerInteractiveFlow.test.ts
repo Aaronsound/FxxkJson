@@ -113,24 +113,11 @@ describe('createJsonWorkerInteractiveFlow', () => {
     expect(callbacks.setLeftSearchResults).toHaveBeenCalledWith('tab-a', [], true, 40, true);
   });
 
-  it('resolves cached value and edit-json requests from worker results', async () => {
+  it('resolves edit-json requests from worker results', async () => {
     const { flow, requests } = createFlow({ formattedText: '' });
 
-    const value = flow.requestValue('tab-a', 10, true);
-    const valueRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
-    flow.handleResult(
-      asResult({
-        type: 'value-result',
-        requestId: valueRequestId,
-        tabId: 'tab-a',
-        found: true,
-        value: '"demo"',
-      })
-    );
-    await expect(value).resolves.toBe('"demo"');
-
     const edit = flow.requestEditJson({ tabId: 'tab-a', operation: 'escape-json', text: '{"ok":true}' });
-    const editRequestId = 'requestId' in requests[1] ? requests[1].requestId : -1;
+    const editRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
     flow.handleResult(
       asResult({
         type: 'edit-json-result',

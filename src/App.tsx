@@ -29,6 +29,8 @@ import { useLeftPaneSearchResults } from './hooks/useLeftPaneSearchResults';
 import { useActiveJsonTabState } from './hooks/useActiveJsonTabState';
 import { useJsonToolPreferences } from './hooks/useJsonToolPreferences';
 import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
+import { useE2eTestBridge } from './hooks/useE2eTestBridge';
+import { useRightEditorActions } from './hooks/useRightEditorActions';
 import { useRightEditorContextMenuState } from './hooks/useRightEditorContextMenuState';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeEditOpeners } from './hooks/useRightNodeEditOpeners';
@@ -61,7 +63,6 @@ import { getUtf8ByteLength, isLargeDocument, shouldUseLargeMode } from './utils/
 import { formatBytes, formatDuration, getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
-import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
@@ -619,7 +620,6 @@ const App: React.FC = () => {
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,
-    requestWorkerValue,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,
     resetTabArtifacts,
@@ -662,26 +662,10 @@ const App: React.FC = () => {
     clearRightHighlights,
   });
 
-  useEffect(() => {
-    const e2eWindow = window as Window & {
-      __HANJSON_E2E_APP__?: {
-        importText: (name: string, size: number, content: string) => Promise<void>;
-      };
-    };
-
-    e2eWindow.__HANJSON_E2E_APP__ = {
-      importText: async (name, size, content) => {
-        const tabId = activeTabIdRef.current;
-        if (tabId) {
-          await importJsonText(tabId, name, size, content);
-        }
-      },
-    };
-
-    return () => {
-      delete e2eWindow.__HANJSON_E2E_APP__;
-    };
-  }, [importJsonText]);
+  useE2eTestBridge({
+    activeTabIdRef,
+    importJsonText,
+  });
 
   const { handleImportDragEnter, handleImportDragLeave, handleImportDragOver, handleImportDrop, isDragImportActive } =
     useJsonImportDropZone({
@@ -987,272 +971,6 @@ const App: React.FC = () => {
     });
   };
 
-  const handleRightMount: OnMount = (editor) => {
-    rightEditorRef.current = editor;
-    const currentTabId = activeTabIdRef.current;
-    syncRightModel(currentTabId, formattedTextByTabRef.current[currentTabId] ?? '', true);
-    const rightEditorFocusContextKey = 'fxxkjsonRightEditorFocused';
-    logRightEditorState('right-editor-mounted', currentTabId, {
-      wrapLongLines,
-    });
-
-    editor.onDidDispose(() => {
-      if (rightEditorRef.current === editor) {
-        rightEditorRef.current = null;
-      }
-    });
-
-    bindEditorFocusContext(editor, rightEditorFocusContextKey);
-
-    const getRightActionOffset = (mountedEditor: monaco.editor.ICodeEditor) => {
-      const currentTabId = activeTabIdRef.current;
-      const model = mountedEditor.getModel();
-
-      if (!model) {
-        return null;
-      }
-
-      const contextMenuOffset = rightContextMenuOffsetByTabRef.current[currentTabId];
-      if (typeof contextMenuOffset === 'number') {
-        rightContextMenuOffsetByTabRef.current[currentTabId] = null;
-        return { tabId: currentTabId, offset: contextMenuOffset };
-      }
-
-      const position = mountedEditor.getPosition();
-      if (!position) {
-        return null;
-      }
-
-      return { tabId: currentTabId, offset: model.getOffsetAt(position) };
-    };
-
-    editor.onContextMenu((event) => {
-      const currentTabId = activeTabIdRef.current;
-      const model = editor.getModel();
-      const position = event.target.position ?? editor.getPosition();
-      const browserEvent = event.event.browserEvent as MouseEvent | undefined;
-
-      event.event.preventDefault();
-      event.event.stopPropagation();
-
-      if (!model || !position) {
-        rightContextMenuOffsetByTabRef.current[currentTabId] = null;
-        setRightEditorContextMenu(null);
-        return;
-      }
-
-      const offset = model.getOffsetAt(position);
-      const menuPosition = getViewportContextMenuPosition(
-        browserEvent?.clientX ?? event.event.posx ?? 0,
-        browserEvent?.clientY ?? event.event.posy ?? 0,
-        10
-      );
-      rightContextMenuOffsetByTabRef.current[currentTabId] = offset;
-      setRightEditorContextMenu({
-        tabId: currentTabId,
-        offset,
-        x: menuPosition.x,
-        y: menuPosition.y,
-      });
-    });
-
-    editor.onMouseDown((event) => {
-      if (event.event.rightButton) {
-        return;
-      }
-
-      rightContextMenuOffsetByTabRef.current[activeTabIdRef.current] = null;
-      setRightEditorContextMenu(null);
-    });
-
-    editor.onDidChangeCursorPosition((event) => {
-      const currentTabId = activeTabIdRef.current;
-
-      if (
-        largeModeRef.current[currentTabId] ||
-        !workerStructureEnabledRef.current[currentTabId] ||
-        structureStatusRef.current[currentTabId] !== 'ready'
-      ) {
-        return;
-      }
-
-      const rightModel = editor.getModel();
-
-      if (!rightModel || (event.position.lineNumber === 1 && event.position.column === 1)) {
-        return;
-      }
-
-      requestWorkerLocate(currentTabId, rightModel.getOffsetAt(event.position));
-    });
-
-    editor.onMouseUp(() => {
-      const currentTabId = activeTabIdRef.current;
-
-      if (!largeModeRef.current[currentTabId] || !workerStructureEnabledRef.current[currentTabId]) {
-        return;
-      }
-
-      if (structureStatusRef.current[currentTabId] !== 'ready') {
-        return;
-      }
-
-      const model = editor.getModel();
-      const position = editor.getPosition();
-      if (!model || !position) {
-        return;
-      }
-
-      requestWorkerLocate(currentTabId, model.getOffsetAt(position));
-    });
-
-    editor.onDidChangeHiddenAreas(() => {
-      const currentTabId = activeTabIdRef.current;
-      rightViewStateByTabRef.current[currentTabId] = editor.saveViewState() ?? null;
-    });
-
-    registerPaneFindAction(monaco, editor, {
-      actionId: 'openRightPaneFind',
-      label: '搜索格式化结果',
-      focusContextKey: rightEditorFocusContextKey,
-      onOpen: openRightFind,
-    });
-
-    editor.addAction({
-      id: 'copyJsonPathAction',
-      label: '复制 JSON Path',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 1,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'path');
-      },
-    });
-
-    editor.addAction({
-      id: 'copyKeyAction',
-      label: '复制 key',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 2,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'key');
-      },
-    });
-
-    editor.addAction({
-      id: 'copyValueAction',
-      label: '复制值',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 3,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await copyValueAtOffset(actionOffset.tabId, actionOffset.offset);
-      },
-    });
-
-    editor.addAction({
-      id: 'copyCompactJsonAction',
-      label: '复制压缩 JSON',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 4,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'compact-json');
-      },
-    });
-
-    editor.addAction({
-      id: 'copyFormattedJsonAction',
-      label: '复制格式化 JSON',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 5,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await copyNodeDetailAtOffset(actionOffset.tabId, actionOffset.offset, true, 'formatted-json');
-      },
-    });
-
-    editor.addAction({
-      id: 'editValueAction',
-      label: '编辑当前值',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 6,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await handleOpenEditNodeAtOffset(actionOffset.tabId, actionOffset.offset);
-      },
-    });
-
-    editor.addAction({
-      id: 'renameKeyAction',
-      label: '重命名 key',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 7,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await applyRightNodeMutationAtOffset(actionOffset.tabId, actionOffset.offset, true, 'rename-node-key');
-      },
-    });
-
-    editor.addAction({
-      id: 'deleteNodeAction',
-      label: '删除当前节点',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 8,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await applyRightNodeMutationAtOffset(actionOffset.tabId, actionOffset.offset, true, 'delete-node');
-      },
-    });
-
-    editor.addAction({
-      id: 'unescapeValueAction',
-      label: '反转义当前值',
-      contextMenuGroupId: 'navigation',
-      contextMenuOrder: 9,
-      run: async (mountedEditor) => {
-        const actionOffset = getRightActionOffset(mountedEditor);
-        if (!actionOffset) {
-          return;
-        }
-
-        await handleOpenUnescapedNodeAtOffset(actionOffset.tabId, actionOffset.offset);
-      },
-    });
-  };
-
   const handleLeftChange = (value?: string) => {
     if (!activeTab) {
       return;
@@ -1498,7 +1216,6 @@ const App: React.FC = () => {
     queueFormatAfterEditSave,
     readEditableNodeAtOffset,
     requestWorkerEditJson,
-    requestWorkerValue,
     requestDeleteConfirmation: requestDeleteNode,
     requestRenameKey,
     resetSearchState,
@@ -1751,6 +1468,28 @@ const App: React.FC = () => {
       rightEditorRef.current?.focus();
     }
   };
+
+  const handleRightMount: OnMount = useRightEditorActions({
+    activeTabIdRef,
+    applyRightNodeMutationAtOffset,
+    copyNodeDetailAtOffset,
+    copyValueAtOffset,
+    formattedTextByTabRef,
+    handleOpenEditNodeAtOffset,
+    handleOpenUnescapedNodeAtOffset,
+    largeModeRef,
+    logRightEditorState,
+    openRightFind,
+    requestWorkerLocate,
+    rightContextMenuOffsetByTabRef,
+    rightEditorRef,
+    rightViewStateByTabRef,
+    setRightEditorContextMenu,
+    structureStatusRef,
+    syncRightModel,
+    workerStructureEnabledRef,
+    wrapLongLines,
+  });
 
   useContextualFindShortcut({
     openLeftFind,

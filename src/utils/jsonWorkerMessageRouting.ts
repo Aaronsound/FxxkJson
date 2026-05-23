@@ -11,8 +11,6 @@ const JSON_WORKER_REQUEST_TYPES = new Set<WorkerRequestMessage['type']>([
   'format',
   'locate',
   'locate-right-direct',
-  'read-value',
-  'read-value-direct',
   'repair',
   'search',
 ]);
