@@ -26,6 +26,7 @@ import { useJsonImportActions } from './hooks/useJsonImportActions';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
 import { useJsonPaneSearchActions } from './hooks/useJsonPaneSearchActions';
 import { useLeftPaneSearchResults } from './hooks/useLeftPaneSearchResults';
+import { useActiveJsonTabState } from './hooks/useActiveJsonTabState';
 import { useJsonToolPreferences } from './hooks/useJsonToolPreferences';
 import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
 import { useRightEditorContextMenuState } from './hooks/useRightEditorContextMenuState';
@@ -35,9 +36,7 @@ import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import { getCompactPathLabel, useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import {
   DEFAULT_TAB_TITLE,
-  EMPTY_DOCUMENT_META,
   INITIAL_TAB_ID,
-  LARGE_FILE_THRESHOLD,
   LocateFeedback,
   ProcessingStage,
   StructureStatus,
@@ -248,51 +247,58 @@ const App: React.FC = () => {
     requestRenameKey,
   } = useRightNodeMutationDialog();
 
-  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+  const {
+    activeDocumentMeta,
+    activeLargeRawViewerData,
+    activeLargeViewerCollapsedLines,
+    activeLargeViewerData,
+    activeLargeViewerStatus,
+    activeLocateFeedback,
+    activePerformanceSnapshot,
+    activeProcessingStage,
+    activeRawText,
+    activeRightNodeSelection,
+    activeRightSelectedRange,
+    activeTab,
+    canEditJson,
+    canEnableLargeFileLocate,
+    canUseRightPaneFolding,
+    currentError,
+    currentStructureStatus,
+    formattedValue,
+    importingFileName,
+    isBuildingDedicatedRightViewer,
+    isFormattingActiveTab,
+    isImportingActiveTab,
+    isLargeFileLocateEnabled,
+    isLargeFileMode,
+    shouldEnableRightPaneFolding,
+    shouldUseDedicatedLeftViewer,
+    shouldUseDedicatedRightViewer,
+    usesLightweightLocate,
+  } = useActiveJsonTabState({
+    activeTabId,
+    documentMetaByTab,
+    errorsByTab,
+    formattedTextByTab: formattedTextByTabRef.current,
+    importingByTab,
+    isFormattingByTab,
+    largeFileLocateEnabledByTab,
+    largeModeByTab,
+    largeRawViewerDataByTab,
+    largeViewerCollapsedLinesByTab,
+    largeViewerDataByTab,
+    largeViewerStatusByTab,
+    locateFeedbackByTab,
+    performanceByTab,
+    processingStageByTab,
+    rawTextByTab: rawTextByTabRef.current,
+    rightNodeSelectionByTab,
+    structureStatusByTab,
+    tabs,
+  });
   const { activeRightPinnedPathItems, getPinnedPath, pinRightPath, rememberRightSearchTerm, rightRecentSearches } =
     useRightSearchQuickAccess(activeTab?.id ?? null);
-  const activeDocumentMeta = activeTab ? (documentMetaByTab[activeTab.id] ?? EMPTY_DOCUMENT_META) : EMPTY_DOCUMENT_META;
-  const activeRawText = activeTab ? (rawTextByTabRef.current[activeTab.id] ?? '') : '';
-  const currentError = activeTab ? (errorsByTab[activeTab.id] ?? null) : null;
-  const importingFileName = activeTab ? (importingByTab[activeTab.id] ?? null) : null;
-  const isImportingActiveTab = Boolean(importingFileName);
-  const formattedValue = activeTab ? (formattedTextByTabRef.current[activeTab.id] ?? '') : '';
-  const isFormattingActiveTab = activeTab ? Boolean(isFormattingByTab[activeTab.id]) : false;
-  const isLargeFileMode = activeTab
-    ? Boolean(
-        largeModeByTab[activeTab.id] ||
-          activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD ||
-          activeDocumentMeta.formattedLength >= LARGE_FILE_THRESHOLD
-      )
-    : false;
-  const currentStructureStatus = activeTab ? (structureStatusByTab[activeTab.id] ?? 'ready') : 'ready';
-  const activeProcessingStage = activeTab ? (processingStageByTab[activeTab.id] ?? 'idle') : 'idle';
-  const activeLocateFeedback = activeTab ? (locateFeedbackByTab[activeTab.id] ?? null) : null;
-  const activeRightNodeSelection = activeTab ? (rightNodeSelectionByTab[activeTab.id] ?? null) : null;
-  const activeRightSelectedRange = activeRightNodeSelection
-    ? {
-        start: activeRightNodeSelection.startOffset,
-        end: activeRightNodeSelection.endOffset,
-      }
-    : null;
-  const isLargeFileLocateEnabled = activeTab ? Boolean(largeFileLocateEnabledByTab[activeTab.id]) : false;
-  const canEnableLargeFileLocate = activeTab ? activeDocumentMeta.rawLength > 0 : false;
-  const usesLightweightLocate = activeTab ? activeDocumentMeta.rawLength > STRUCTURE_SYNC_THRESHOLD : false;
-  const canEditJson = Boolean(activeRawText.trim());
-  const canUseRightPaneFolding = activeTab
-    ? activeDocumentMeta.rawLength > 0 && activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD
-    : false;
-  const shouldEnableRightPaneFolding = activeTab ? activeDocumentMeta.rawLength <= STRUCTURE_SYNC_THRESHOLD : true;
-  const activePerformanceSnapshot = activeTab ? (performanceByTab[activeTab.id] ?? null) : null;
-  const activeLargeViewerData = activeTab ? (largeViewerDataByTab[activeTab.id] ?? null) : null;
-  const activeLargeRawViewerData = activeTab ? (largeRawViewerDataByTab[activeTab.id] ?? null) : null;
-  const activeLargeViewerStatus = activeTab ? (largeViewerStatusByTab[activeTab.id] ?? 'idle') : 'idle';
-  const activeLargeViewerCollapsedLines = activeTab ? (largeViewerCollapsedLinesByTab[activeTab.id] ?? []) : [];
-  const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
-  const shouldUseDedicatedLeftViewer = Boolean(activeRawText && activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD);
-  const isBuildingDedicatedRightViewer = Boolean(
-    formattedValue && !shouldUseDedicatedRightViewer && activeLargeViewerStatus === 'building'
-  );
   const { rightEditorContextMenu, setRightEditorContextMenu } = useRightEditorContextMenuState(
     activeTabId,
     shouldUseDedicatedRightViewer
@@ -655,6 +661,27 @@ const App: React.FC = () => {
     clearLeftHighlights,
     clearRightHighlights,
   });
+
+  useEffect(() => {
+    const e2eWindow = window as Window & {
+      __HANJSON_E2E_APP__?: {
+        importText: (name: string, size: number, content: string) => Promise<void>;
+      };
+    };
+
+    e2eWindow.__HANJSON_E2E_APP__ = {
+      importText: async (name, size, content) => {
+        const tabId = activeTabIdRef.current;
+        if (tabId) {
+          await importJsonText(tabId, name, size, content);
+        }
+      },
+    };
+
+    return () => {
+      delete e2eWindow.__HANJSON_E2E_APP__;
+    };
+  }, [importJsonText]);
 
   const { handleImportDragEnter, handleImportDragLeave, handleImportDragOver, handleImportDrop, isDragImportActive } =
     useJsonImportDropZone({

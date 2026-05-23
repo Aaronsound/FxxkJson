@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { MutableRefObject } from 'react';
 import type { EditJsonWorkerRequest, JsonEditPath } from '../types/jsonTool';
-import { parseEditableNodePayload } from '../utils/jsonEditNodePayload';
+import { getJsonLiteralDetails, parseEditableNodePayload } from '../utils/jsonEditNodePayload';
 
 type RequestWorkerEditJson = (
   request: EditJsonWorkerRequest & { operation: 'read-node' | 'unescape-json' }
@@ -66,8 +66,7 @@ export function useRightNodeEditOpeners({
     setEditJsonBusyLabel('正在反转义当前节点...');
     try {
       const parsed = await readEditableNodeAtOffset(tabId, offset, preferCachedText, '当前节点无法反转义');
-      const nodeValue = JSON.parse(parsed.value);
-      if (typeof nodeValue !== 'string') {
+      if (getJsonLiteralDetails(parsed.value).kind !== 'string') {
         throw new Error('当前节点不是字符串值');
       }
 

@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { createReadStream } from 'node:fs';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,6 +17,7 @@ import {
 
 const require = createRequire(import.meta.url);
 const DEFAULT_SIZE_MB = 2;
+const IMPORT_CHUNK_BYTES = 256 * 1024;
 
 function parseSizeMb() {
   const argIndex = process.argv.findIndex((arg) => arg === '--size-mb');
@@ -53,6 +53,30 @@ function createSampleJson(targetBytes) {
   return `[${records.join(',')}]`;
 }
 
+async function importSampleByE2eBridge(cdp, samplePath) {
+  const content = await readFile(samplePath, 'utf8');
+  await evaluate(cdp, 'window.__HANJSON_E2E_SAMPLE_CHUNKS__ = []');
+
+  for (let offset = 0; offset < content.length; offset += IMPORT_CHUNK_BYTES) {
+    const chunk = content.slice(offset, offset + IMPORT_CHUNK_BYTES);
+    await evaluate(cdp, `window.__HANJSON_E2E_SAMPLE_CHUNKS__.push(${JSON.stringify(chunk)})`);
+  }
+
+  await evaluate(
+    cdp,
+    `(async () => {
+    const content = window.__HANJSON_E2E_SAMPLE_CHUNKS__.join('');
+    delete window.__HANJSON_E2E_SAMPLE_CHUNKS__;
+    await window.__HANJSON_E2E_APP__.importText(
+      ${JSON.stringify(path.basename(samplePath))},
+      ${Buffer.byteLength(content)},
+      content
+    );
+    return true;
+  })()`
+  );
+}
+
 async function getAvailablePort() {
   const server = http.createServer();
   await new Promise((resolve) => {
@@ -67,50 +91,6 @@ async function getAvailablePort() {
   }
 
   return port;
-}
-
-async function createSampleServer(filePath) {
-  const server = http.createServer(async (_request, response) => {
-    const stats = await stat(filePath);
-    response.writeHead(200, {
-      'Access-Control-Allow-Origin': '*',
-      'Content-Length': stats.size,
-      'Content-Type': 'application/json; charset=utf-8',
-    });
-    createReadStream(filePath).pipe(response);
-  });
-
-  await new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', resolve);
-  });
-
-  const address = server.address();
-  if (!address || typeof address === 'string') {
-    throw new Error('Could not start sample file server');
-  }
-
-  return {
-    close: () => new Promise((resolve) => server.close(resolve)),
-    url: `http://127.0.0.1:${address.port}/sample.json`,
-  };
-}
-
-async function importSampleByDrop(cdp, sampleUrl, fileName) {
-  return evaluate(
-    cdp,
-    `(async () => {
-    const response = await fetch(${JSON.stringify(sampleUrl)});
-    const text = await response.text();
-    const file = new File([text], ${JSON.stringify(fileName)}, { type: 'application/json' });
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    const target = document.querySelector('#root > div') ?? document.body;
-    const event = new Event('drop', { bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'dataTransfer', { value: transfer });
-    target.dispatchEvent(event);
-    return true;
-  })()`
-  );
 }
 
 async function collectFailureArtifacts({ cdp, stderr }) {
@@ -179,12 +159,10 @@ async function run() {
   let child = null;
   let cdp = null;
   let stderr = '';
-  let sampleServer = null;
 
   try {
     const sample = createSampleJson(sizeMb * 1024 * 1024);
     await writeFile(samplePath, sample, 'utf8');
-    sampleServer = await createSampleServer(samplePath);
     child = spawn(process.execPath, [electronCli, `--remote-debugging-port=${port}`, appMain], {
       cwd,
       env: {
@@ -223,7 +201,8 @@ async function run() {
       return Boolean(checkbox);
     })()`
     );
-    await importSampleByDrop(cdp, sampleServer.url, path.basename(samplePath));
+    await waitFor(() => evaluate(cdp, `Boolean(window.__HANJSON_E2E_APP__?.importText)`), 'E2E import bridge');
+    await importSampleByE2eBridge(cdp, samplePath);
 
     await waitFor(
       () => evaluate(cdp, `document.body.innerText.includes('req-e2e-000000')`),
@@ -482,7 +461,7 @@ async function run() {
     console.log('FxxkJson Electron E2E passed');
     console.table([
       { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
-      { step: 'import', detail: 'desktop file input imported JSON' },
+      { step: 'import', detail: 'E2E bridge imported JSON through app import flow' },
       { step: 'search', detail: 'right pane traceId search returned results' },
       { step: 'locate', detail: 'right node click highlighted left raw JSON' },
       { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
@@ -503,7 +482,6 @@ async function run() {
       child.kill();
     }
     await rm(tempDir, { recursive: true, force: true });
-    await sampleServer?.close();
   }
 }
 

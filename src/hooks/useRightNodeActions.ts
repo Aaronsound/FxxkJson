@@ -2,14 +2,10 @@ import { useCallback } from 'react';
 import type { EditJsonWorkerRequest, JsonEditPath } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
 import { writeTextToClipboard } from '../utils/clipboard';
+import { getJsonLiteralDetails, type EditableNodePayload } from '../utils/jsonEditNodePayload';
 
 type CopyNodeDetailMode = 'path' | 'key' | 'compact-json' | 'formatted-json';
 type RightNodeMutationOperation = 'delete-node' | 'rename-node-key';
-
-interface EditableNodePayload {
-  path: JsonEditPath;
-  value: string;
-}
 
 interface UseRightNodeActionsArgs {
   applyRawUpdate: (tabId: string, updated: string) => void;
@@ -41,8 +37,7 @@ const copyLabels: Record<CopyNodeDetailMode, string> = {
 };
 
 export function getJsonValueClipboardText(jsonLiteral: string) {
-  const parsed = JSON.parse(jsonLiteral);
-  return typeof parsed === 'string' ? parsed : jsonLiteral;
+  return getJsonLiteralDetails(jsonLiteral).clipboardValue;
 }
 
 export function useRightNodeActions({
@@ -73,7 +68,7 @@ export function useRightNodeActions({
       }
 
       try {
-        const valueToCopy = getJsonValueClipboardText(valueLiteral);
+        const valueToCopy = getJsonLiteralDetails(valueLiteral).clipboardValue;
         await writeTextToClipboard(valueToCopy);
         setTabError(tabId, null);
         logEvent('copy-value-success', {
@@ -119,8 +114,8 @@ export function useRightNodeActions({
             return String(key);
           }
 
-          const value = JSON.parse(parsed.value);
-          return mode === 'compact-json' ? JSON.stringify(value) : JSON.stringify(value, null, 2);
+          const details = getJsonLiteralDetails(parsed.value);
+          return mode === 'compact-json' ? details.compactJson : details.formattedJson;
         })();
 
         await writeTextToClipboard(textToCopy);

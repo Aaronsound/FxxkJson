@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import JsonPerformancePanel from './JsonPerformancePanel';
 import type { PerformanceSnapshot } from '../types/jsonTool';
 
@@ -81,5 +81,28 @@ describe('JsonPerformancePanel', () => {
       expect(panel.style.left).toBe('');
       expect(panel.style.top).toBe('');
     });
+  });
+
+  it('copies a diagnostics summary from the expanded panel', async () => {
+    const writeClipboardText = vi.fn().mockResolvedValue(true);
+    window.electronAPI = {
+      writeClipboardText,
+    } as unknown as Window['electronAPI'];
+
+    render(
+      <JsonPerformancePanel
+        snapshot={buildSnapshot()}
+        history={[buildSnapshot({ runId: 'history' })]}
+        isDarkMode={false}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: '展开' }));
+    fireEvent.click(screen.getByRole('button', { name: '复制摘要' }));
+
+    await waitFor(() => {
+      expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('FxxkJson performance diagnostics'));
+    });
+    expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('bottleneck=右侧渲染'));
+    window.electronAPI = undefined;
   });
 });

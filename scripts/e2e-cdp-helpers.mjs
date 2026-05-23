@@ -173,6 +173,37 @@ export async function clickSelector(cdp, selector) {
   }
 }
 
+export async function setFileInputFiles(cdp, selector, files) {
+  const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+  const { nodeId } = await cdp.send('DOM.querySelector', {
+    nodeId: root.nodeId,
+    selector,
+  });
+
+  if (!nodeId) {
+    throw new Error(`Could not find file input ${selector}`);
+  }
+
+  await cdp.send('DOM.setFileInputFiles', {
+    files,
+    nodeId,
+  });
+
+  const changed = await evaluate(
+    cdp,
+    `(() => {
+    const input = document.querySelector(${JSON.stringify(selector)});
+    if (!input) return false;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  })()`
+  );
+
+  if (!changed) {
+    throw new Error(`Could not dispatch file input change for ${selector}`);
+  }
+}
+
 export async function clickButtonByText(cdp, text) {
   const clicked = await evaluate(
     cdp,

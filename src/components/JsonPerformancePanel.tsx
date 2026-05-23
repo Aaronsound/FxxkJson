@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PerformanceSnapshot } from '../types/jsonTool';
+import { writeTextToClipboard } from '../utils/clipboard';
+import {
+  buildPerformanceDiagnosticsSummary,
+  formatPerformanceBytes,
+  formatPerformanceDuration,
+  getPerformanceBottleneck,
+  getPerformanceDiagnosis,
+  getPerformanceTriggerLabel,
+  performanceStageLabels,
+} from '../utils/performanceDiagnostics';
 
 interface JsonPerformancePanelProps {
   snapshot: PerformanceSnapshot | null;
@@ -7,71 +17,10 @@ interface JsonPerformancePanelProps {
   isDarkMode: boolean;
 }
 
-type StageKey =
-  | 'readFileMs'
-  | 'leftModelSyncMs'
-  | 'formatQueueMs'
-  | 'formatWorkerMs'
-  | 'rightModelSyncMs'
-  | 'viewerIndexMs'
-  | 'structureIndexMs';
-
 type PanelPosition = {
   x: number;
   y: number;
 };
-
-const stageLabels: Array<{ key: StageKey; label: string }> = [
-  { key: 'readFileMs', label: '读取文件' },
-  { key: 'leftModelSyncMs', label: '左侧渲染' },
-  { key: 'formatQueueMs', label: '排队等待' },
-  { key: 'formatWorkerMs', label: 'Worker 格式化' },
-  { key: 'rightModelSyncMs', label: '右侧渲染' },
-  { key: 'viewerIndexMs', label: 'Viewer 索引' },
-  { key: 'structureIndexMs', label: '定位索引' },
-];
-
-function formatDuration(value: number | null) {
-  if (typeof value !== 'number') {
-    return '--';
-  }
-
-  return `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
-}
-
-function formatBytes(value: number) {
-  if (value <= 0) {
-    return '0 B';
-  }
-
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let size = value;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${size.toFixed(size >= 100 ? 0 : size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
-}
-
-function getTriggerLabel(trigger: PerformanceSnapshot['trigger']) {
-  switch (trigger) {
-    case 'import':
-      return '导入后自动格式化';
-    case 'manual-format':
-      return '手动格式化';
-    case 'repair':
-      return '手动修复';
-    case 'edit-save':
-      return '编辑保存后格式化';
-    case 'paste':
-      return '粘贴后自动格式化';
-    default:
-      return trigger;
-  }
-}
 
 function getStatusLabel(snapshot: PerformanceSnapshot) {
   if (snapshot.status === 'failed') {
@@ -85,70 +34,23 @@ function getStatusLabel(snapshot: PerformanceSnapshot) {
   return '完成';
 }
 
-function getBottleneck(snapshot: PerformanceSnapshot) {
-  const topStage = stageLabels
-    .map((stage) => ({ key: stage.key, label: stage.label, value: snapshot[stage.key] }))
-    .filter((stage) => typeof stage.value === 'number')
-    .sort((a, b) => (b.value as number) - (a.value as number))[0];
-
-  if (!topStage || typeof topStage.value !== 'number') {
-    return {
-      key: null,
-      label: '--',
-      duration: '--',
-    };
-  }
-
-  return {
-    key: topStage.key,
-    label: topStage.label,
-    duration: formatDuration(topStage.value),
-  };
-}
-
-function getPerformanceDiagnosis(snapshot: PerformanceSnapshot) {
-  if (snapshot.status === 'failed') {
-    return '处理失败，请打开诊断日志查看错误详情。';
-  }
-
-  if (snapshot.status === 'running') {
-    return '正在采集性能数据，完成后会显示主要耗时位置。';
-  }
-
-  const bottleneck = getBottleneck(snapshot);
-
-  switch (bottleneck.key) {
-    case 'rightModelSyncMs':
-      return '当前慢在右侧渲染，不是 JSON 格式化。高行数内容会优先使用轻量折叠模式。';
-    case 'structureIndexMs':
-      return '当前慢在定位索引；不需要右侧定位时关闭定位可以提升速度。';
-    case 'leftModelSyncMs':
-      return '当前慢在左侧原文渲染，通常是原始 JSON 单行过长或体积较大。';
-    case 'formatWorkerMs':
-      return '当前慢在 Worker 格式化，说明 JSON 解析和 stringify 本身占主要耗时。';
-    case 'viewerIndexMs':
-      return '当前慢在轻量 viewer 索引，通常是行数或可折叠区域非常多。';
-    case 'readFileMs':
-      return '当前慢在文件读取，可能和磁盘、网络盘或系统文件权限有关。';
-    case 'formatQueueMs':
-      return '当前慢在排队等待，可能是上一次格式化或编辑保存还没完成。';
-    default:
-      return '当前没有明显瓶颈。';
-  }
-}
-
 const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, history = [], isDarkMode }) => {
   const [expanded, setExpanded] = useState(false);
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [position, setPosition] = useState<PanelPosition | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const panelRef = useRef<HTMLElement | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
 
   const bottleneck = useMemo(
-    () => (snapshot ? getBottleneck(snapshot) : { key: null, label: '--', duration: '--' }),
+    () => (snapshot ? getPerformanceBottleneck(snapshot) : { key: null, label: '--', duration: '--' }),
     [snapshot]
   );
   const diagnosis = useMemo(() => (snapshot ? getPerformanceDiagnosis(snapshot) : ''), [snapshot]);
+  const diagnosticsSummary = useMemo(
+    () => (snapshot ? buildPerformanceDiagnosticsSummary(snapshot, history) : ''),
+    [history, snapshot]
+  );
 
   const clampPosition = (nextX: number, nextY: number) => {
     if (typeof window === 'undefined') {
@@ -284,9 +186,9 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
       <div className="performance-panel-compact">
         {snapshot ? (
           <>
-            <span>{getTriggerLabel(snapshot.trigger)}</span>
-            <span>Viewer {formatDuration(snapshot.totalToViewerReadyMs)}</span>
-            <span>总耗时 {formatDuration(snapshot.totalToFormattedMs)}</span>
+            <span>{getPerformanceTriggerLabel(snapshot.trigger)}</span>
+            <span>Viewer {formatPerformanceDuration(snapshot.totalToViewerReadyMs)}</span>
+            <span>总耗时 {formatPerformanceDuration(snapshot.totalToFormattedMs)}</span>
             <span>瓶颈 {bottleneck.label}</span>
             <span>{diagnosis}</span>
           </>
@@ -303,25 +205,36 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
             </div>
             <div className="performance-panel-status">
               <span>{new Date(snapshot.updatedAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>
+              <button
+                type="button"
+                className="performance-copy-button"
+                onClick={async () => {
+                  await writeTextToClipboard(diagnosticsSummary);
+                  setCopyNotice('已复制摘要');
+                  window.setTimeout(() => setCopyNotice(null), 1600);
+                }}
+              >
+                复制摘要
+              </button>
             </div>
           </div>
 
           <div className="performance-summary-grid">
             <div className="performance-card">
               <span className="performance-card-label">原始大小</span>
-              <strong>{formatBytes(snapshot.rawBytes)}</strong>
+              <strong>{formatPerformanceBytes(snapshot.rawBytes)}</strong>
             </div>
             <div className="performance-card">
               <span className="performance-card-label">格式化后</span>
-              <strong>{formatBytes(snapshot.formattedBytes)}</strong>
+              <strong>{formatPerformanceBytes(snapshot.formattedBytes)}</strong>
             </div>
             <div className="performance-card">
               <span className="performance-card-label">总耗时</span>
-              <strong>{formatDuration(snapshot.totalToFormattedMs)}</strong>
+              <strong>{formatPerformanceDuration(snapshot.totalToFormattedMs)}</strong>
             </div>
             <div className="performance-card">
               <span className="performance-card-label">Viewer</span>
-              <strong>{formatDuration(snapshot.totalToViewerReadyMs)}</strong>
+              <strong>{formatPerformanceDuration(snapshot.totalToViewerReadyMs)}</strong>
             </div>
             <div className="performance-card">
               <span className="performance-card-label">主要瓶颈</span>
@@ -332,10 +245,10 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
           <div className="performance-diagnosis">{diagnosis}</div>
 
           <div className="performance-stage-grid">
-            {stageLabels.map((stage) => (
+            {performanceStageLabels.map((stage) => (
               <div key={stage.key} className="performance-stage-row">
                 <span>{stage.label}</span>
-                <strong>{formatDuration(snapshot[stage.key])}</strong>
+                <strong>{formatPerformanceDuration(snapshot[stage.key])}</strong>
               </div>
             ))}
           </div>
@@ -346,18 +259,19 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
               {history.slice(0, 6).map((item) => (
                 <div key={item.runId} className="performance-history-row">
                   <span>{item.sourceLabel}</span>
-                  <strong>{formatBytes(item.rawBytes)}</strong>
-                  <strong>{formatDuration(item.totalToFormattedMs)}</strong>
-                  <strong>{formatDuration(item.totalToViewerReadyMs)}</strong>
+                  <strong>{formatPerformanceBytes(item.rawBytes)}</strong>
+                  <strong>{formatPerformanceDuration(item.totalToFormattedMs)}</strong>
+                  <strong>{formatPerformanceDuration(item.totalToViewerReadyMs)}</strong>
                 </div>
               ))}
             </div>
           )}
 
           <div className="performance-meta-row">
-            <span>文件大小：{snapshot.fileSizeBytes ? formatBytes(snapshot.fileSizeBytes) : '--'}</span>
+            <span>文件大小：{snapshot.fileSizeBytes ? formatPerformanceBytes(snapshot.fileSizeBytes) : '--'}</span>
             <span>大文件模式：{snapshot.largeMode ? '开启' : '关闭'}</span>
             <span>定位索引：{snapshot.structureEnabled ? '启用' : '未启用'}</span>
+            {copyNotice && <span>{copyNotice}</span>}
           </div>
 
           {snapshot.error && <div className="performance-error">{snapshot.error}</div>}

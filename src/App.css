@@ -856,6 +856,12 @@ button:disabled {
   opacity: 0.82;
 }
 
+.performance-copy-button {
+  padding: 3px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .performance-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
