@@ -33,6 +33,7 @@ import { createTranslator, type I18nKey } from '../utils/i18n';
 import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
 import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
+import { writeTextToClipboard } from '../utils/clipboard';
 
 const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
 const OVERSCAN = 30;
@@ -418,10 +419,56 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       selection.addRange(range);
     }, []);
 
+    const getSelectedCopyText = useCallback(() => {
+      if (fullDocumentSelectedRef.current) {
+        return text;
+      }
+
+      const container = containerRef.current;
+      const selection = window.getSelection();
+      if (!container || !selection || selection.isCollapsed || selection.rangeCount === 0) {
+        return null;
+      }
+
+      const range = selection.getRangeAt(0);
+      const startElement = getLineTextElementFromNode(range.startContainer, container);
+      const endElement = getLineTextElementFromNode(range.endContainer, container);
+      if (!startElement || !endElement) {
+        return null;
+      }
+
+      const startLine = getLineNumberFromElement(startElement);
+      const endLine = getLineNumberFromElement(endElement);
+      if (startLine === null || endLine === null || startLine > endLine) {
+        return null;
+      }
+
+      const startOffset = getTextOffsetWithin(
+        startElement,
+        range.startContainer,
+        range.startOffset,
+        startElement.textContent?.length ?? 0
+      );
+      const endOffset = getTextOffsetWithin(
+        endElement,
+        range.endContainer,
+        range.endOffset,
+        endElement.textContent?.length ?? 0
+      );
+      const copyText = getCopyTextForCollapsedSelection(startLine, endLine, startOffset, endOffset);
+
+      if (copyText === null) {
+        return selection.toString();
+      }
+
+      return copyText;
+    }, [getCopyTextForCollapsedSelection, text]);
+
     const handleKeyDown = useCallback(
       (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const key = event.key.toLowerCase();
         const isPrimaryShortcut = event.metaKey || event.ctrlKey;
-        const isFind = event.key.toLowerCase() === 'f' && isPrimaryShortcut && !event.shiftKey && !event.altKey;
+        const isFind = key === 'f' && isPrimaryShortcut && !event.shiftKey && !event.altKey;
 
         if (isFind) {
           event.preventDefault();
@@ -430,51 +477,25 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
           return;
         }
 
+        const isCopy = key === 'c' && (event.altKey || isPrimaryShortcut) && !event.shiftKey;
+        if (isCopy) {
+          const copyText = getSelectedCopyText();
+          if (copyText !== null) {
+            event.preventDefault();
+            event.stopPropagation();
+            void writeTextToClipboard(copyText);
+            return;
+          }
+        }
+
         handleSelectAll(event);
       },
-      [handleSelectAll, onOpenFind]
+      [getSelectedCopyText, handleSelectAll, onOpenFind]
     );
 
     const handleCopy = useCallback(
       (event: ReactClipboardEvent<HTMLDivElement>) => {
-        if (fullDocumentSelectedRef.current) {
-          event.preventDefault();
-          event.clipboardData.setData('text/plain', text);
-          return;
-        }
-
-        const container = containerRef.current;
-        const selection = window.getSelection();
-        if (!container || !selection || selection.isCollapsed || selection.rangeCount === 0) {
-          return;
-        }
-
-        const range = selection.getRangeAt(0);
-        const startElement = getLineTextElementFromNode(range.startContainer, container);
-        const endElement = getLineTextElementFromNode(range.endContainer, container);
-        if (!startElement || !endElement) {
-          return;
-        }
-
-        const startLine = getLineNumberFromElement(startElement);
-        const endLine = getLineNumberFromElement(endElement);
-        if (startLine === null || endLine === null || startLine > endLine) {
-          return;
-        }
-
-        const startOffset = getTextOffsetWithin(
-          startElement,
-          range.startContainer,
-          range.startOffset,
-          startElement.textContent?.length ?? 0
-        );
-        const endOffset = getTextOffsetWithin(
-          endElement,
-          range.endContainer,
-          range.endOffset,
-          endElement.textContent?.length ?? 0
-        );
-        const copyText = getCopyTextForCollapsedSelection(startLine, endLine, startOffset, endOffset);
+        const copyText = getSelectedCopyText();
 
         if (copyText === null) {
           return;
@@ -483,7 +504,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         event.preventDefault();
         event.clipboardData.setData('text/plain', copyText);
       },
-      [getCopyTextForCollapsedSelection, text]
+      [getSelectedCopyText]
     );
 
     const searchMatches = useMemo(

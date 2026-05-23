@@ -40,6 +40,11 @@ const copyLabels: Record<CopyNodeDetailMode, string> = {
   'formatted-json': '格式化 JSON',
 };
 
+export function getJsonValueClipboardText(jsonLiteral: string) {
+  const parsed = JSON.parse(jsonLiteral);
+  return typeof parsed === 'string' ? parsed : jsonLiteral;
+}
+
 export function useRightNodeActions({
   applyRawUpdate,
   getTabContent,
@@ -56,8 +61,8 @@ export function useRightNodeActions({
 }: UseRightNodeActionsArgs) {
   const copyValueAtOffset = useCallback(
     async (tabId: string, offset: number, preferCachedText = false) => {
-      const valueToCopy = await requestWorkerValue(tabId, offset, preferCachedText);
-      if (valueToCopy === null) {
+      const valueLiteral = await requestWorkerValue(tabId, offset, preferCachedText);
+      if (valueLiteral === null) {
         setTabError(tabId, '未找到可复制的 JSON 值');
         logEvent('copy-value-missed', {
           tabId,
@@ -68,6 +73,7 @@ export function useRightNodeActions({
       }
 
       try {
+        const valueToCopy = getJsonValueClipboardText(valueLiteral);
         await writeTextToClipboard(valueToCopy);
         setTabError(tabId, null);
         logEvent('copy-value-success', {

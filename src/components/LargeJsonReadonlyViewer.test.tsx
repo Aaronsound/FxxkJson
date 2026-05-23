@@ -536,6 +536,36 @@ describe('LargeJsonReadonlyViewer', () => {
     expect(clipboardData.setData).toHaveBeenCalledWith('text/plain', fixtureText);
   });
 
+  it('copies the selected viewer text with Alt+C', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    window.electronAPI = {
+      writeClipboardText: writeText,
+    } as unknown as Window['electronAPI'];
+    renderViewer();
+
+    const viewer = document.querySelector('.large-json-viewer');
+    const line = document.querySelector('.large-json-line-text[title*="alpha"]');
+    expect(viewer).not.toBeNull();
+    expect(line).not.toBeNull();
+    if (!viewer || !line) {
+      throw new Error('Expected large viewer and alpha line');
+    }
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent.keyDown(viewer, { key: 'c', altKey: true });
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('  "name": "alpha"');
+    });
+    window.electronAPI = undefined;
+    selection?.removeAllRanges();
+  });
+
   it('auto-expands collapsed regions when the active match falls inside them', async () => {
     const onCollapsedLinesChange = vi.fn();
 
