@@ -41,6 +41,20 @@ interface LargeJsonVisibleRowsProps {
   wrapLongLines: boolean;
 }
 
+function hasTextSelectionInside(element: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+    return false;
+  }
+
+  const range = selection.getRangeAt(0);
+  return (
+    element.contains(range.startContainer) ||
+    element.contains(range.endContainer) ||
+    element.contains(range.commonAncestorContainer)
+  );
+}
+
 export function LargeJsonVisibleRows({
   collapsedLineSet,
   data,
@@ -84,6 +98,10 @@ export function LargeJsonVisibleRows({
             return;
           }
 
+          if (hasTextSelectionInside(event.currentTarget)) {
+            return;
+          }
+
           if (event.target instanceof HTMLElement && event.target.closest('.large-json-fold-button')) {
             return;
           }
@@ -114,6 +132,11 @@ export function LargeJsonVisibleRows({
           title={getLargeJsonLineTitle(lineText)}
           onMouseUp={(event) => {
             if (event.button !== 0) {
+              return;
+            }
+
+            if (hasTextSelectionInside(event.currentTarget)) {
+              event.stopPropagation();
               return;
             }
 

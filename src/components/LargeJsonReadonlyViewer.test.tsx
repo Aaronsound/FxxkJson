@@ -566,6 +566,29 @@ describe('LargeJsonReadonlyViewer', () => {
     selection?.removeAllRanges();
   });
 
+  it('keeps a manual text selection instead of locating a node on mouseup', () => {
+    const onLocateOffset = vi.fn();
+    renderViewer({ onLocateOffset });
+
+    const line = document.querySelector('.large-json-line-text[title*="alpha"]');
+    expect(line).not.toBeNull();
+    if (!line) {
+      throw new Error('Expected alpha line');
+    }
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(line);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent.mouseUp(line, { button: 0 });
+
+    expect(onLocateOffset).not.toHaveBeenCalled();
+    expect(selection?.isCollapsed).toBe(false);
+    selection?.removeAllRanges();
+  });
+
   it('auto-expands collapsed regions when the active match falls inside them', async () => {
     const onCollapsedLinesChange = vi.fn();
 
