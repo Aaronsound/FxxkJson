@@ -44,6 +44,10 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
   };
 }
 
+function openMoreActions() {
+  fireEvent.click(screen.getByRole('button', { name: '更多操作' }));
+}
+
 describe('JsonToolToolbar', () => {
   afterEach(() => {
     cleanup();
@@ -52,8 +56,10 @@ describe('JsonToolToolbar', () => {
   it('calls JSON escape transform actions', () => {
     const { props } = renderToolbar();
 
-    fireEvent.click(screen.getByRole('button', { name: '反转义' }));
-    fireEvent.click(screen.getByRole('button', { name: '转义' }));
+    openMoreActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: '反转义' }));
+    openMoreActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: '转义' }));
 
     expect(props.onUnescapeJson).toHaveBeenCalledTimes(1);
     expect(props.onEscapeJson).toHaveBeenCalledTimes(1);
@@ -61,8 +67,9 @@ describe('JsonToolToolbar', () => {
 
   it('disables JSON escape transform actions without editable content', () => {
     const { props } = renderToolbar({ canEditJson: false });
-    const unescapeButton = screen.getByRole('button', { name: '反转义' });
-    const escapeButton = screen.getByRole('button', { name: '转义' });
+    openMoreActions();
+    const unescapeButton = screen.getByRole('menuitem', { name: '反转义' });
+    const escapeButton = screen.getByRole('menuitem', { name: '转义' });
 
     expect(unescapeButton).toBeDisabled();
     expect(escapeButton).toBeDisabled();
@@ -77,7 +84,8 @@ describe('JsonToolToolbar', () => {
   it('opens the about dialog from the toolbar', () => {
     const { props } = renderToolbar();
 
-    fireEvent.click(screen.getByRole('button', { name: '关于' }));
+    openMoreActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: '关于' }));
 
     expect(props.onOpenAbout).toHaveBeenCalledTimes(1);
   });
@@ -85,7 +93,8 @@ describe('JsonToolToolbar', () => {
   it('opens JSON compare from the toolbar', () => {
     const { props } = renderToolbar();
 
-    fireEvent.click(screen.getByRole('button', { name: '对比 JSON' }));
+    openMoreActions();
+    fireEvent.click(screen.getByRole('menuitem', { name: '对比 JSON' }));
 
     expect(props.onOpenCompare).toHaveBeenCalledTimes(1);
   });
