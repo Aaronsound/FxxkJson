@@ -1,6 +1,8 @@
 @import "./styles/base.css";
 @import "./styles/toolbar-legacy.css";
 @import "./styles/editor-viewers.css";
+@import "./styles/large-json-viewer.css";
+@import "./styles/raw-json-viewer.css";
 @import "./styles/performance-panel.css";
 @import "./styles/toolbar.css";
 @import "./styles/tabs.css";

@@ -1,0 +1,23 @@
+.native-json-viewer {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: none;
+  resize: none;
+  outline: none;
+  padding: 16px;
+  background: #ffffff;
+  color: #1f1f1f;
+  font:
+    13px / 1.6 Consolas,
+    "SFMono-Regular",
+    "Courier New",
+    monospace;
+  white-space: pre;
+  overflow: auto;
+}
+
+.native-json-viewer.dark {
+  background: #1e1e1e;
+  color: #e8e8e8;
+}
