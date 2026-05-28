@@ -62,6 +62,10 @@ const messages = {
     'context.renameKey': '重命名 key',
     'context.deleteNode': '删除当前节点',
     'context.unescapeValue': '反转义当前值',
+    'editorContext.paste': '粘贴',
+    'editorContext.copy': '复制',
+    'editorContext.cut': '剪切',
+    'editorContext.selectAll': '全选',
 
     'mutation.renameTitle': '重命名 key',
     'mutation.deleteTitle': '删除当前节点',
@@ -189,6 +193,10 @@ const messages = {
     'context.renameKey': 'Rename key',
     'context.deleteNode': 'Delete current node',
     'context.unescapeValue': 'Unescape current value',
+    'editorContext.paste': 'Paste',
+    'editorContext.copy': 'Copy',
+    'editorContext.cut': 'Cut',
+    'editorContext.selectAll': 'Select all',
 
     'mutation.renameTitle': 'Rename key',
     'mutation.deleteTitle': 'Delete current node',

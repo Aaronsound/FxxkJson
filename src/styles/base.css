@@ -1,0 +1,164 @@
+/* src/App.css */
+/* ============================================= */
+/*    App.css —— 用于覆盖 react-split gutter     */
+/* ============================================= */
+
+/* —— 垂直分割（左右） gutter —— */
+html body .gutter.gutter-vertical {
+  background-color: #e74c3c !important;
+  width: 10px !important;
+  cursor: col-resize !important;
+  transition: background-color 0.15s ease !important;
+}
+html body .gutter.gutter-vertical:hover {
+  background-color: #c0392b !important;
+}
+
+/* ============================================= */
+/*       编辑器搜索结果高亮样式（monaco）       */
+/* ============================================= */
+.searchHighlight {
+  background-color: rgba(255, 235, 59, 0.5) !important; /* 半透明黄 */
+}
+.currentSearchHighlight {
+  background-color: rgba(255, 235, 59, 0.88) !important;
+  color: #111827 !important;
+  outline: 1px solid rgba(245, 158, 11, 0.8);
+}
+
+.rightNodeSelectionHighlight {
+  background-color: rgba(72, 187, 120, 0.28) !important;
+  outline: 1px solid rgba(46, 125, 80, 0.58);
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.large-json-node-selection-highlight {
+  display: inline;
+}
+
+.large-raw-highlight {
+  background: rgba(255, 235, 59, 0.88);
+  color: #111827;
+  outline: 1px solid rgba(245, 158, 11, 0.8);
+}
+
+/* ============================================= */
+/*       可选：全局基础样式调整（可自行增删）    */
+/* ============================================= */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+body {
+  background-color: #f0f0f0; /* 整体淡灰背景 */
+}
+
+.drag-import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  background: rgba(33, 42, 55, 0.28);
+  pointer-events: none;
+}
+
+.drag-import-panel {
+  display: flex;
+  width: min(420px, calc(100vw - 48px));
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 24px;
+  border: 2px dashed rgba(79, 126, 203, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1f2937;
+  box-shadow: 0 18px 44px rgba(31, 41, 55, 0.22);
+  text-align: center;
+}
+
+.drag-import-panel.dark {
+  border-color: rgba(117, 190, 255, 0.72);
+  background: rgba(31, 31, 33, 0.96);
+  color: #eeeeee;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
+}
+
+.drag-import-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.drag-import-subtitle {
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.drag-import-panel.dark .drag-import-subtitle {
+  color: #d4d4d4;
+}
+
+/* ============================================= */
+/*           深色/浅色模式配色变量定义          */
+/* ============================================= */
+:root {
+  /* 浅色模式全局变量 */
+  --btn-bg: #eeeeee;
+  --btn-text: #333333;
+  --btn-hover-bg: #dddddd;
+  --toolbar-bg: #f5f5f5;
+  --toolbar-border: #dddddd;
+  --input-bg: #ffffff;
+  --input-text: #333333;
+  --input-border: #cccccc;
+  --input-focus-border: #888888;
+  --json-fold-control-width: 16px;
+  --json-fold-control-height: 18px;
+  --json-fold-icon-size: 6px;
+  --json-fold-icon-border-width: 1.6px;
+  --json-fold-icon-color: rgba(120, 96, 58, 0.72);
+  --json-fold-hover-bg: rgba(73, 104, 150, 0.14);
+  --json-editor-font-family: Menlo, Monaco, "Courier New", monospace;
+  --json-editor-font-size: 12px;
+  --json-editor-line-height: 18px;
+  --json-editor-foreground: #000000;
+  --json-editor-background: #ffffff;
+  --json-editor-line-number: #237893;
+  --json-editor-token-key: #a31515;
+  --json-editor-token-string: #0451a5;
+  --json-editor-token-number: #0451a5;
+  --json-editor-token-literal: #0451a5;
+  --json-editor-token-punctuation: #000000;
+}
+.app-container.dark-mode {
+  /* 深色模式覆盖变量 */
+  --btn-bg: #444444;
+  --btn-text: #ffffff;
+  --btn-hover-bg: #3a3a3a;
+  --toolbar-bg: #2f2f2f;
+  --toolbar-border: #444444;
+  --input-bg: #3a3a3a;
+  --input-text: #eeeeee;
+  --input-border: #555555;
+  --input-focus-border: #888888;
+  --json-fold-icon-color: rgba(224, 214, 194, 0.8);
+  --json-fold-hover-bg: rgba(141, 180, 255, 0.16);
+  --json-editor-foreground: #d4d4d4;
+  --json-editor-background: #1e1e1e;
+  --json-editor-line-number: #858585;
+  --json-editor-token-key: #ff8f8f;
+  --json-editor-token-string: #75beff;
+  --json-editor-token-number: #75beff;
+  --json-editor-token-literal: #75beff;
+  --json-editor-token-punctuation: #d4d4d4;
+}
+
+/* ============================================= */
+/*                  工具栏样式                  */
+/* ============================================= */

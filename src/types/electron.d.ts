@@ -27,6 +27,7 @@ declare global {
       readRecentLog: (maxBytes?: number) => Promise<RuntimeLogSnapshot>;
       clearLog: () => Promise<string>;
       showLogFile: () => Promise<string>;
+      readClipboardText?: () => Promise<string>;
       writeClipboardText: (text: string) => Promise<boolean>;
       getRuntimeInfo?: () => Promise<RuntimeAppInfo>;
       openJsonFile: () => Promise<NativeJsonFile | null>;

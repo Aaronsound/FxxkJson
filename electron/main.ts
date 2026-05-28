@@ -287,6 +287,8 @@ handleTrustedIpc('clipboard:writeText', async (text: unknown) => {
   return true;
 });
 
+handleTrustedIpc('clipboard:readText', async () => clipboard.readText());
+
 handleTrustedIpc('app:runtimeInfo', async () => ({
   arch: process.arch,
   isMacTranslated: await isRunningUnderRosetta(),

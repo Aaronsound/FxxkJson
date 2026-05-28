@@ -1,18 +1,20 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState } from 'react';
 import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import AboutDialog from './components/AboutDialog';
 import ArchitectureWarningDialog from './components/ArchitectureWarningDialog';
 import JsonCompareDialog from './components/JsonCompareDialog';
 import JsonEditModal from './components/JsonEditModal';
+import LeftEditorContextMenu from './components/LeftEditorContextMenu';
+import type { LeftEditorContextMenuState } from './components/LeftEditorContextMenu';
 import RightNodeMutationDialog from './components/RightNodeMutationDialog';
-import type { LargeJsonReadonlyViewerHandle } from './components/LargeJsonReadonlyViewer';
-import type { LargeRawReadonlyViewerHandle } from './components/LargeRawReadonlyViewer';
 import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
 import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
+import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
+import { useJsonToolRefs, usePreserveActiveTabViewState } from './hooks/useJsonToolRefs';
 import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
@@ -63,10 +65,11 @@ import { getUtf8ByteLength, isLargeDocument, shouldUseLargeMode } from './utils/
 import { formatBytes, formatDuration, getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
-import { writeTextToClipboard } from './utils/clipboard';
+import { readTextFromClipboard, writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
+import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import './App.css';
 
 const App: React.FC = () => {
@@ -144,6 +147,7 @@ const App: React.FC = () => {
     setSearchTerm: setRightSearchTerm,
   } = rightPaneSearch;
   const [leftReplaceText, setLeftReplaceText] = useState('');
+  const [leftEditorContextMenu, setLeftEditorContextMenu] = useState<LeftEditorContextMenuState | null>(null);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const {
@@ -157,11 +161,17 @@ const App: React.FC = () => {
     t,
     wrapLongLines,
   } = useJsonToolPreferences();
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [isCompareOpen, setIsCompareOpen] = useState(false);
-  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeAppInfo | null>(null);
-  const [isArchitectureWarningDismissed, setIsArchitectureWarningDismissed] = useState(false);
-  const [isDiagnosticsLogOpen, setIsDiagnosticsLogOpen] = useState(false);
+  const {
+    isAboutOpen,
+    isArchitectureWarningDismissed,
+    isCompareOpen,
+    isDiagnosticsLogOpen,
+    runtimeInfo,
+    setIsAboutOpen,
+    setIsArchitectureWarningDismissed,
+    setIsCompareOpen,
+    setIsDiagnosticsLogOpen,
+  } = useJsonToolDialogs();
   const {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
@@ -181,37 +191,27 @@ const App: React.FC = () => {
     setRightNodeSelectionByTab,
   } = useJsonTabArtifacts(INITIAL_TAB_ID);
 
-  const leftEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const rightEditorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const largeRawViewerRef = useRef<LargeRawReadonlyViewerHandle | null>(null);
-  const largeViewerRef = useRef<LargeJsonReadonlyViewerHandle | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const rawTextByTabRef = useRef<Record<string, string>>({
-    [INITIAL_TAB_ID]: '',
-  });
-  const formattedTextByTabRef = useRef<Record<string, string>>({
-    [INITIAL_TAB_ID]: '',
-  });
-  const leftSearchWorkerRevisionRef = useRef<Record<string, number>>({});
-  const suppressLeftChangeRef = useRef<Record<string, boolean>>({});
-  const activeTabIdRef = useRef(INITIAL_TAB_ID);
-  const largeModeRef = useRef<Record<string, boolean>>({
-    [INITIAL_TAB_ID]: false,
-  });
-  const largeFileLocateEnabledRef = useRef<Record<string, boolean>>({
-    [INITIAL_TAB_ID]: false,
-  });
-  const structureStatusRef = useRef<Record<string, StructureStatus>>({
-    [INITIAL_TAB_ID]: 'ready',
-  });
-  const workerStructureEnabledRef = useRef<Record<string, boolean>>({
-    [INITIAL_TAB_ID]: false,
-  });
-  const rightDecorationIdsRef = useRef<string[]>([]);
-  const rightContextMenuOffsetByTabRef = useRef<Record<string, number | null>>({});
-  const leftViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
-  const rightViewStateByTabRef = useRef<Record<string, monaco.editor.ICodeEditorViewState | null>>({});
-  const previousActiveTabIdRef = useRef(INITIAL_TAB_ID);
+  const {
+    activeTabIdRef,
+    fileInputRef,
+    formattedTextByTabRef,
+    largeFileLocateEnabledRef,
+    largeModeRef,
+    largeRawViewerRef,
+    largeViewerRef,
+    leftEditorRef,
+    leftSearchWorkerRevisionRef,
+    leftViewStateByTabRef,
+    previousActiveTabIdRef,
+    rawTextByTabRef,
+    rightContextMenuOffsetByTabRef,
+    rightDecorationIdsRef,
+    rightEditorRef,
+    rightViewStateByTabRef,
+    structureStatusRef,
+    suppressLeftChangeRef,
+    workerStructureEnabledRef,
+  } = useJsonToolRefs(INITIAL_TAB_ID);
   const {
     beginPerformanceSession,
     clearPerformanceState,
@@ -678,37 +678,14 @@ const App: React.FC = () => {
     activeTabIdRef.current = activeTabId;
   }, [activeTabId]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    window.electronAPI
-      ?.getRuntimeInfo?.()
-      .then((info) => {
-        if (isMounted) {
-          setRuntimeInfo(info);
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setRuntimeInfo(null);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const previousTabId = previousActiveTabIdRef.current;
-
-    if (previousTabId && previousTabId !== activeTabId) {
-      leftViewStateByTabRef.current[previousTabId] = leftEditorRef.current?.saveViewState() ?? null;
-      rightViewStateByTabRef.current[previousTabId] = rightEditorRef.current?.saveViewState() ?? null;
-    }
-
-    previousActiveTabIdRef.current = activeTabId;
-  }, [activeTabId]);
+  usePreserveActiveTabViewState({
+    activeTabId,
+    leftEditorRef,
+    leftViewStateByTabRef,
+    previousActiveTabIdRef,
+    rightEditorRef,
+    rightViewStateByTabRef,
+  });
 
   useEffect(() => {
     if (!activeTab) {
@@ -773,6 +750,26 @@ const App: React.FC = () => {
   useEffect(() => {
     resetSearchState();
   }, [activeTabId]);
+
+  useEffect(() => {
+    if (!leftEditorContextMenu) {
+      return;
+    }
+
+    const closeMenu = () => setLeftEditorContextMenu(null);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMenu();
+      }
+    };
+
+    window.addEventListener('pointerdown', closeMenu);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('pointerdown', closeMenu);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [leftEditorContextMenu]);
 
   useEffect(() => {
     if (!rightSearchTerm.trim()) {
@@ -923,6 +920,87 @@ const App: React.FC = () => {
     );
   };
 
+  const copyLeftEditorSelection = async () => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+    const selection = editor?.getSelection();
+
+    if (!editor || !model || !selection || selection.isEmpty()) {
+      return;
+    }
+
+    await writeTextToClipboard(model.getValueInRange(selection));
+    editor.focus();
+  };
+
+  const cutLeftEditorSelection = async () => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+    const selection = editor?.getSelection();
+
+    if (!editor || !model || !selection || selection.isEmpty()) {
+      return;
+    }
+
+    await writeTextToClipboard(model.getValueInRange(selection));
+    editor.focus();
+    editor.executeEdits('left-editor-context-menu-cut', [
+      {
+        range: selection,
+        text: '',
+        forceMoveMarkers: true,
+      },
+    ]);
+    editor.pushUndoStop();
+  };
+
+  const pasteIntoLeftEditor = async () => {
+    if (!activeTab) {
+      return;
+    }
+
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+    const selection = editor?.getSelection();
+
+    if (!editor || !model || !selection) {
+      return;
+    }
+
+    try {
+      const clipboardText = await readTextFromClipboard();
+      if (!clipboardText) {
+        editor.focus();
+        return;
+      }
+
+      beginPastePerformanceSession(activeTab.id, getContentAfterSelectionReplace(model, selection, clipboardText));
+      editor.focus();
+      editor.executeEdits('left-editor-context-menu-paste', [
+        {
+          range: selection,
+          text: clipboardText,
+          forceMoveMarkers: true,
+        },
+      ]);
+      editor.pushUndoStop();
+    } catch (error) {
+      setTabError(activeTab.id, error instanceof Error ? `粘贴失败：${error.message}` : '粘贴失败');
+    }
+  };
+
+  const selectAllLeftEditorText = () => {
+    const editor = leftEditorRef.current;
+    const model = editor?.getModel();
+
+    if (!editor || !model) {
+      return;
+    }
+
+    editor.focus();
+    editor.setSelection(model.getFullModelRange());
+  };
+
   const handleLeftMount: OnMount = (editor) => {
     leftEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
@@ -968,6 +1046,38 @@ const App: React.FC = () => {
           queueFormat(currentTabId, nextContent);
         }
       },
+    });
+
+    editor.onContextMenu((event) => {
+      const browserEvent = event.event.browserEvent as MouseEvent | undefined;
+      const position = event.target.position ?? editor.getPosition();
+      const selection = editor.getSelection();
+      const hasSelection = Boolean(selection && !selection.isEmpty());
+      const rightClickIsInsideSelection = Boolean(hasSelection && position && selection?.containsPosition(position));
+
+      event.event.preventDefault();
+      event.event.stopPropagation();
+
+      if (position && !rightClickIsInsideSelection) {
+        editor.setPosition(position);
+      }
+
+      const menuPosition = getViewportContextMenuPosition(
+        browserEvent?.clientX ?? event.event.posx ?? 0,
+        browserEvent?.clientY ?? event.event.posy ?? 0,
+        4
+      );
+      setLeftEditorContextMenu({
+        x: menuPosition.x,
+        y: menuPosition.y,
+        hasSelection,
+      });
+    });
+
+    editor.onMouseDown((event) => {
+      if (!event.event.rightButton) {
+        setLeftEditorContextMenu(null);
+      }
     });
   };
 
@@ -1838,6 +1948,19 @@ const App: React.FC = () => {
           onRenameKey={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'rename-node-key')}
           onDeleteValue={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'delete-node')}
           onUnescapeValue={(tabId, offset) => handleOpenUnescapedNodeAtOffset(tabId, offset, true)}
+          t={t}
+        />
+      )}
+
+      {leftEditorContextMenu && !shouldUseDedicatedLeftViewer && (
+        <LeftEditorContextMenu
+          contextMenu={leftEditorContextMenu}
+          isDarkMode={isDarkMode}
+          onClose={() => setLeftEditorContextMenu(null)}
+          onCopy={copyLeftEditorSelection}
+          onCut={cutLeftEditorSelection}
+          onPaste={pasteIntoLeftEditor}
+          onSelectAll={selectAllLeftEditorText}
           t={t}
         />
       )}

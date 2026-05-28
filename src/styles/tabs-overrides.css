@@ -1,0 +1,78 @@
+/* Tab bar overrides */
+.tab-bar {
+  align-items: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  scrollbar-width: thin;
+}
+
+.tab-bar .tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 220px;
+  margin-right: 0;
+  padding: 7px 10px 8px;
+  overflow: hidden;
+}
+
+.tab-title {
+  flex: 0 1 auto;
+  display: block;
+  min-width: 0;
+  max-width: 160px;
+  color: inherit;
+  opacity: 1;
+  visibility: visible;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.tab-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #888;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    background-color 0.2s,
+    color 0.2s;
+}
+
+.tab-close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #333;
+}
+
+.tab-bar .tab:hover .tab-close,
+.tab-bar .tab.active .tab-close {
+  opacity: 1;
+}
+
+.tab-rename-input {
+  width: 140px;
+  max-width: 180px;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.tab-bar .add-tab {
+  align-self: center;
+  margin-left: 0;
+}

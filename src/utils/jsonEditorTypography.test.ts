@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
 import { describe, expect, it } from 'vitest';
@@ -28,7 +28,12 @@ describe('JSON editor typography', () => {
     expect(options.fontSize).toBe(JSON_EDITOR_FONT_SIZE);
     expect(options.lineHeight).toBe(JSON_EDITOR_LINE_HEIGHT);
 
-    const appCss = readFileSync(join(process.cwd(), 'src/App.css'), 'utf8');
+    const appCss = [
+      readFileSync(join(process.cwd(), 'src/App.css'), 'utf8'),
+      ...readdirSync(join(process.cwd(), 'src/styles'))
+        .filter((fileName) => fileName.endsWith('.css'))
+        .map((fileName) => readFileSync(join(process.cwd(), 'src/styles', fileName), 'utf8')),
+    ].join('\n');
 
     expect(appCss).toContain(`--json-editor-font-family: ${JSON_EDITOR_FONT_FAMILY};`);
     expect(appCss).toContain(`--json-editor-font-size: ${JSON_EDITOR_FONT_SIZE_CSS};`);

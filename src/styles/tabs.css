@@ -1,0 +1,77 @@
+/* —— 多标签页栏 —— */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--toolbar-border);
+  background: var(--toolbar-bg);
+  padding: 4px 12px;
+
+  /* 新增：横向滚动，不折行 */
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.tab-bar .tab {
+  flex: 0 0 auto; /* 不缩放 */
+  margin-right: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px 4px 0 0;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+  color: var(--input-text);
+  background: transparent;
+}
+
+/* hover 提示 */
+.tab-bar .tab:not(.active):hover {
+  background-color: var(--btn-hover-bg);
+}
+
+/* 激活态突出（带背景、阴影、边框） */
+.tab-bar .tab.active {
+  position: relative;
+  /* 背景色 */
+  background-color: var(--tab-active-bg, #f2faff);
+  /* 文字色 */
+  color: var(--tab-active-color, #000000);
+  font-weight: bold;
+
+  /* 内阴影：按下去的感觉 */
+  box-shadow: inset 0 -3px 5px rgba(0, 0, 0, 0.1);
+
+  /* 整体描边，高亮区分 */
+  border: 1px solid var(--accent-color, #0078d4);
+  border-bottom: none; /* 与内容区域连在一起 */
+  border-radius: 4px 4px 0 0;
+}
+
+/* 底部高亮条 */
+.tab-bar .tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  width: 80%;
+  height: 3px;
+  background-color: var(--accent-color, #0078d4);
+  border-radius: 2px 2px 0 0;
+}
+
+/* 关闭按钮只在 hover 或激活态显现 */
+
+/* “＋” 按钮紧跟最后一个 tab */
+.tab-bar .add-tab {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.tab-bar .add-tab:hover {
+  background-color: var(--btn-hover-bg);
+}
