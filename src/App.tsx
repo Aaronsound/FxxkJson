@@ -1,17 +1,12 @@
 ﻿import React, { useCallback, useEffect, useState } from 'react';
 import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import AboutDialog from './components/AboutDialog';
-import ArchitectureWarningDialog from './components/ArchitectureWarningDialog';
-import JsonCompareDialog from './components/JsonCompareDialog';
-import JsonEditModal from './components/JsonEditModal';
-import LeftEditorContextMenu from './components/LeftEditorContextMenu';
-import RightNodeMutationDialog from './components/RightNodeMutationDialog';
-import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
 import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
+import JsonToolContextMenus from './components/JsonToolContextMenus';
+import JsonToolOverlayLayer from './components/JsonToolOverlayLayer';
 import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
 import { useJsonToolContentActions } from './hooks/useJsonToolContentActions';
 import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
@@ -21,7 +16,6 @@ import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
-import RightEditorContextMenu from './components/RightEditorContextMenu';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { usePaneSearchState } from './hooks/usePaneSearchState';
@@ -1433,22 +1427,42 @@ const App: React.FC = () => {
         onChange={handleFileSelection}
       />
 
-      {isDragImportActive && (
-        <div className="drag-import-overlay">
-          <div className={`drag-import-panel ${isDarkMode ? 'dark' : ''}`}>
-            <span className="drag-import-title">{t('drag.title')}</span>
-            <span className="drag-import-subtitle">{t('drag.subtitle')}</span>
-          </div>
-        </div>
-      )}
-
-      {runtimeInfo?.isMacTranslated && !isArchitectureWarningDismissed && (
-        <ArchitectureWarningDialog
-          isDarkMode={isDarkMode}
-          onClose={() => setIsArchitectureWarningDismissed(true)}
-          onOpenAbout={() => setIsAboutOpen(true)}
-        />
-      )}
+      <JsonToolOverlayLayer
+        activeTabId={activeTab.id}
+        diagnosticsContext={diagnosticsContext}
+        editJsonBusyLabel={editJsonBusyLabel}
+        editJsonError={editJsonError}
+        editJsonSession={editJsonSession}
+        getTabText={getTabContent}
+        hasCopiedLiteral={hasCopiedLiteral}
+        isAboutOpen={isAboutOpen}
+        isArchitectureWarningDismissed={isArchitectureWarningDismissed}
+        isCompareOpen={isCompareOpen}
+        isDarkMode={isDarkMode}
+        isDiagnosticsLogOpen={isDiagnosticsLogOpen}
+        isDragImportActive={isDragImportActive}
+        onCancelMutationDialog={cancelMutationDialog}
+        onCloseAbout={() => setIsAboutOpen(false)}
+        onCloseCompare={() => setIsCompareOpen(false)}
+        onCloseDiagnosticsLog={() => setIsDiagnosticsLogOpen(false)}
+        onCloseEditJson={closeEditJson}
+        onConfirmDeleteMutationDialog={confirmDeleteDialog}
+        onConfirmRenameMutationDialog={confirmRenameDialog}
+        onCopyEscapedJson={handleCopyEscapedJson}
+        onDismissArchitectureWarning={() => setIsArchitectureWarningDismissed(true)}
+        onEditJsonValueChange={(value) => {
+          editJsonValueRef.current = value;
+        }}
+        onEscapeEditJsonContent={handleEscapeEditJsonContent}
+        onOpenAbout={() => setIsAboutOpen(true)}
+        onSaveEditJson={handleSaveEditJson}
+        onUnescapeEditJsonContent={handleUnescapeEditJsonContent}
+        rightNodeMutationDialog={rightNodeMutationDialog}
+        runtimeInfo={runtimeInfo}
+        tabs={tabs}
+        t={t}
+        version={APP_VERSION}
+      />
 
       <JsonToolToolbar
         onImport={handleImport}
@@ -1518,69 +1532,6 @@ const App: React.FC = () => {
         onCloseTab={closeTab}
         onAddTab={addTab}
       />
-
-      {editJsonSession && (
-        <JsonEditModal
-          sessionKey={editJsonSession.key}
-          initialValue={editJsonSession.initialValue}
-          isDarkMode={isDarkMode}
-          error={editJsonError}
-          busyLabel={editJsonBusyLabel}
-          hasCopiedLiteral={hasCopiedLiteral}
-          title={editJsonSession.mode === 'node' ? t('edit.nodeTitle') : t('edit.title')}
-          pathText={editJsonSession.pathText}
-          saveLabel={editJsonSession.mode === 'node' ? t('edit.saveNode') : t('edit.saveJson')}
-          onValueChange={(value) => {
-            editJsonValueRef.current = value;
-          }}
-          onSave={handleSaveEditJson}
-          onUnescapeContent={handleUnescapeEditJsonContent}
-          onEscapeContent={handleEscapeEditJsonContent}
-          onCopyLiteral={handleCopyEscapedJson}
-          onClose={closeEditJson}
-          t={t}
-        />
-      )}
-
-      {rightNodeMutationDialog && (
-        <RightNodeMutationDialog
-          state={rightNodeMutationDialog}
-          isDarkMode={isDarkMode}
-          onCancel={cancelMutationDialog}
-          onConfirmDelete={confirmDeleteDialog}
-          onConfirmRename={confirmRenameDialog}
-          t={t}
-        />
-      )}
-
-      {isDiagnosticsLogOpen && (
-        <DiagnosticsLogPanel
-          isDarkMode={isDarkMode}
-          context={diagnosticsContext}
-          onClose={() => setIsDiagnosticsLogOpen(false)}
-        />
-      )}
-
-      {isCompareOpen && (
-        <JsonCompareDialog
-          tabs={tabs}
-          activeTabId={activeTab.id}
-          isDarkMode={isDarkMode}
-          getTabText={getTabContent}
-          onClose={() => setIsCompareOpen(false)}
-          t={t}
-        />
-      )}
-
-      {isAboutOpen && (
-        <AboutDialog
-          version={APP_VERSION}
-          isDarkMode={isDarkMode}
-          runtimeInfo={runtimeInfo}
-          onClose={() => setIsAboutOpen(false)}
-          t={t}
-        />
-      )}
 
       <JsonEditorPanes
         activeLargeRawViewerData={activeLargeRawViewerData}
@@ -1671,37 +1622,26 @@ const App: React.FC = () => {
         t={t}
       />
 
-      {rightEditorContextMenu && !shouldUseDedicatedRightViewer && (
-        <RightEditorContextMenu
-          contextMenu={rightEditorContextMenu}
-          isDarkMode={isDarkMode}
-          onClose={() => setRightEditorContextMenu(null)}
-          onToggleFold={toggleRightFoldAtOffset}
-          onCopyPath={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'path')}
-          onCopyKey={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'key')}
-          onCopyValue={(tabId, offset) => copyValueAtOffset(tabId, offset, true)}
-          onCopyCompactJson={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'compact-json')}
-          onCopyFormattedJson={(tabId, offset) => copyNodeDetailAtOffset(tabId, offset, true, 'formatted-json')}
-          onEditValue={(tabId, offset) => handleOpenEditNodeAtOffset(tabId, offset, true)}
-          onRenameKey={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'rename-node-key')}
-          onDeleteValue={(tabId, offset) => applyRightNodeMutationAtOffset(tabId, offset, true, 'delete-node')}
-          onUnescapeValue={(tabId, offset) => handleOpenUnescapedNodeAtOffset(tabId, offset, true)}
-          t={t}
-        />
-      )}
-
-      {leftEditorContextMenu && !shouldUseDedicatedLeftViewer && (
-        <LeftEditorContextMenu
-          contextMenu={leftEditorContextMenu}
-          isDarkMode={isDarkMode}
-          onClose={() => setLeftEditorContextMenu(null)}
-          onCopy={copyLeftEditorSelection}
-          onCut={cutLeftEditorSelection}
-          onPaste={pasteIntoLeftEditor}
-          onSelectAll={selectAllLeftEditorText}
-          t={t}
-        />
-      )}
+      <JsonToolContextMenus
+        applyRightNodeMutationAtOffset={applyRightNodeMutationAtOffset}
+        copyLeftEditorSelection={copyLeftEditorSelection}
+        copyNodeDetailAtOffset={copyNodeDetailAtOffset}
+        copyValueAtOffset={copyValueAtOffset}
+        cutLeftEditorSelection={cutLeftEditorSelection}
+        handleOpenEditNodeAtOffset={handleOpenEditNodeAtOffset}
+        handleOpenUnescapedNodeAtOffset={handleOpenUnescapedNodeAtOffset}
+        isDarkMode={isDarkMode}
+        leftEditorContextMenu={leftEditorContextMenu}
+        pasteIntoLeftEditor={pasteIntoLeftEditor}
+        rightEditorContextMenu={rightEditorContextMenu}
+        selectAllLeftEditorText={selectAllLeftEditorText}
+        setLeftEditorContextMenu={setLeftEditorContextMenu}
+        setRightEditorContextMenu={setRightEditorContextMenu}
+        shouldUseDedicatedLeftViewer={shouldUseDedicatedLeftViewer}
+        shouldUseDedicatedRightViewer={shouldUseDedicatedRightViewer}
+        t={t}
+        toggleRightFoldAtOffset={toggleRightFoldAtOffset}
+      />
     </div>
   );
 };
