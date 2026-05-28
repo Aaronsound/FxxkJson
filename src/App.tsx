@@ -6,15 +6,17 @@ import ArchitectureWarningDialog from './components/ArchitectureWarningDialog';
 import JsonCompareDialog from './components/JsonCompareDialog';
 import JsonEditModal from './components/JsonEditModal';
 import LeftEditorContextMenu from './components/LeftEditorContextMenu';
-import type { LeftEditorContextMenuState } from './components/LeftEditorContextMenu';
 import RightNodeMutationDialog from './components/RightNodeMutationDialog';
 import DiagnosticsLogPanel from './components/DiagnosticsLogPanel';
 import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
 import JsonToolToolbar from './components/JsonToolToolbar';
+import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
+import { useJsonToolContentActions } from './hooks/useJsonToolContentActions';
 import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
 import { useJsonToolRefs, usePreserveActiveTabViewState } from './hooks/useJsonToolRefs';
+import { useJsonToolTabActions } from './hooks/useJsonToolTabActions';
 import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
@@ -53,23 +55,21 @@ import type {
   LargeRawViewerData,
   RightNodeSelection,
 } from './types/jsonTool';
-import { createTab, selectionCoversModel } from './utils/jsonToolModels';
+import { selectionCoversModel } from './utils/jsonToolModels';
 import {
   bindEditorFocusContext,
-  getContentAfterSelectionReplace,
   registerPaneFindAction,
   registerPasteContentTracking,
   registerSelectAllDeleteCommands,
 } from './utils/jsonEditorMountActions';
-import { getUtf8ByteLength, isLargeDocument, shouldUseLargeMode } from './utils/jsonDocumentMetrics';
+import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
 import { formatBytes, formatDuration, getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
 import { getProcessingStageText } from './utils/jsonProcessingStage';
 import { getRightPaneStatusText } from './utils/rightPaneStatus';
-import { readTextFromClipboard, writeTextToClipboard } from './utils/clipboard';
+import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { buildDiagnosticsContext } from './utils/diagnosticsContext';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
-import { getViewportContextMenuPosition } from './utils/contextMenuPosition';
 import './App.css';
 
 const App: React.FC = () => {
@@ -147,7 +147,6 @@ const App: React.FC = () => {
     setSearchTerm: setRightSearchTerm,
   } = rightPaneSearch;
   const [leftReplaceText, setLeftReplaceText] = useState('');
-  const [leftEditorContextMenu, setLeftEditorContextMenu] = useState<LeftEditorContextMenuState | null>(null);
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
   const {
@@ -752,26 +751,6 @@ const App: React.FC = () => {
   }, [activeTabId]);
 
   useEffect(() => {
-    if (!leftEditorContextMenu) {
-      return;
-    }
-
-    const closeMenu = () => setLeftEditorContextMenu(null);
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeMenu();
-      }
-    };
-
-    window.addEventListener('pointerdown', closeMenu);
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      window.removeEventListener('pointerdown', closeMenu);
-      window.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [leftEditorContextMenu]);
-
-  useEffect(() => {
     if (!rightSearchTerm.trim()) {
       return undefined;
     }
@@ -909,97 +888,20 @@ const App: React.FC = () => {
     selection: activeRightNodeSelection,
   });
 
-  const beginPastePerformanceSession = (tabId: string, nextContent: string) => {
-    beginPerformanceSession(
-      tabId,
-      'paste',
-      '剪贴板粘贴',
-      null,
-      getUtf8ByteLength(nextContent),
-      shouldUseLargeMode(nextContent)
-    );
-  };
-
-  const copyLeftEditorSelection = async () => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-    const selection = editor?.getSelection();
-
-    if (!editor || !model || !selection || selection.isEmpty()) {
-      return;
-    }
-
-    await writeTextToClipboard(model.getValueInRange(selection));
-    editor.focus();
-  };
-
-  const cutLeftEditorSelection = async () => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-    const selection = editor?.getSelection();
-
-    if (!editor || !model || !selection || selection.isEmpty()) {
-      return;
-    }
-
-    await writeTextToClipboard(model.getValueInRange(selection));
-    editor.focus();
-    editor.executeEdits('left-editor-context-menu-cut', [
-      {
-        range: selection,
-        text: '',
-        forceMoveMarkers: true,
-      },
-    ]);
-    editor.pushUndoStop();
-  };
-
-  const pasteIntoLeftEditor = async () => {
-    if (!activeTab) {
-      return;
-    }
-
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-    const selection = editor?.getSelection();
-
-    if (!editor || !model || !selection) {
-      return;
-    }
-
-    try {
-      const clipboardText = await readTextFromClipboard();
-      if (!clipboardText) {
-        editor.focus();
-        return;
-      }
-
-      beginPastePerformanceSession(activeTab.id, getContentAfterSelectionReplace(model, selection, clipboardText));
-      editor.focus();
-      editor.executeEdits('left-editor-context-menu-paste', [
-        {
-          range: selection,
-          text: clipboardText,
-          forceMoveMarkers: true,
-        },
-      ]);
-      editor.pushUndoStop();
-    } catch (error) {
-      setTabError(activeTab.id, error instanceof Error ? `粘贴失败：${error.message}` : '粘贴失败');
-    }
-  };
-
-  const selectAllLeftEditorText = () => {
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel();
-
-    if (!editor || !model) {
-      return;
-    }
-
-    editor.focus();
-    editor.setSelection(model.getFullModelRange());
-  };
+  const {
+    copyLeftEditorSelection,
+    cutLeftEditorSelection,
+    leftEditorContextMenu,
+    pasteIntoLeftEditor,
+    registerLeftEditorContextMenu,
+    selectAllLeftEditorText,
+    setLeftEditorContextMenu,
+  } = useLeftEditorContextMenu({
+    activeTab,
+    beginPerformanceSession,
+    leftEditorRef,
+    setTabError,
+  });
 
   const handleLeftMount: OnMount = (editor) => {
     leftEditorRef.current = editor;
@@ -1042,43 +944,20 @@ const App: React.FC = () => {
       onPasteContent(nextContent) {
         const currentTabId = activeTabIdRef.current;
         if (currentTabId) {
-          beginPastePerformanceSession(currentTabId, nextContent);
+          beginPerformanceSession(
+            currentTabId,
+            'paste',
+            '剪贴板粘贴',
+            null,
+            getUtf8ByteLength(nextContent),
+            isLargeDocument(nextContent)
+          );
           queueFormat(currentTabId, nextContent);
         }
       },
     });
 
-    editor.onContextMenu((event) => {
-      const browserEvent = event.event.browserEvent as MouseEvent | undefined;
-      const position = event.target.position ?? editor.getPosition();
-      const selection = editor.getSelection();
-      const hasSelection = Boolean(selection && !selection.isEmpty());
-      const rightClickIsInsideSelection = Boolean(hasSelection && position && selection?.containsPosition(position));
-
-      event.event.preventDefault();
-      event.event.stopPropagation();
-
-      if (position && !rightClickIsInsideSelection) {
-        editor.setPosition(position);
-      }
-
-      const menuPosition = getViewportContextMenuPosition(
-        browserEvent?.clientX ?? event.event.posx ?? 0,
-        browserEvent?.clientY ?? event.event.posy ?? 0,
-        4
-      );
-      setLeftEditorContextMenu({
-        x: menuPosition.x,
-        y: menuPosition.y,
-        hasSelection,
-      });
-    });
-
-    editor.onMouseDown((event) => {
-      if (!event.event.rightButton) {
-        setLeftEditorContextMenu(null);
-      }
-    });
+    registerLeftEditorContextMenu(editor);
   };
 
   const handleLeftChange = (value?: string) => {
@@ -1185,127 +1064,37 @@ const App: React.FC = () => {
     setTabError,
   });
 
-  const handleFormat = () => {
-    if (!activeTab) {
-      return;
-    }
-
-    const currentText = getTabContent(activeTab.id);
-    if (!currentText.trim()) {
-      clearPerformanceState(activeTab.id);
-      queueFormat(activeTab.id, currentText, true);
-      return;
-    }
-
-    const largeMode = isLargeDocument(currentText);
-    beginPerformanceSession(
-      activeTab.id,
-      'manual-format',
-      activeTab.title,
-      null,
-      getUtf8ByteLength(currentText),
-      largeMode
-    );
-    setTabLargeMode(activeTab.id, largeMode);
-    queueFormat(activeTab.id, currentText, true);
-  };
-
-  const handleRepairJson = () => {
-    if (!activeTab) {
-      return;
-    }
-
-    const currentText = getTabContent(activeTab.id);
-    if (!currentText.trim()) {
-      setTabError(activeTab.id, '没有可修复的 JSON 内容');
-      return;
-    }
-
-    const largeMode = isLargeDocument(currentText);
-    beginPerformanceSession(activeTab.id, 'repair', activeTab.title, null, getUtf8ByteLength(currentText), largeMode);
-    setTabLargeMode(activeTab.id, largeMode);
-    queueRepair(activeTab.id, currentText);
-  };
-
-  const handleJsonEscapeTransform = async (
-    operation: Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>,
-    label: string
-  ) => {
-    if (!activeTab) {
-      return;
-    }
-
-    const currentTabId = activeTab.id;
-    const editor = leftEditorRef.current;
-    const model = editor?.getModel() ?? null;
-    const selection = editor?.getSelection() ?? null;
-    const hasSelection = Boolean(model && selection && !selection.isEmpty());
-    const sourceText =
-      hasSelection && model && selection ? model.getValueInRange(selection) : getTabContent(currentTabId);
-
-    if (!sourceText.trim()) {
-      setTabError(currentTabId, `没有可${label}的内容`);
-      return;
-    }
-
-    setEditJsonBusyLabel(`正在${label}...`);
-    try {
-      const transformed = await requestWorkerEditJson({ tabId: currentTabId, operation, text: sourceText });
-      const nextContent =
-        hasSelection && model && selection
-          ? getContentAfterSelectionReplace(model, selection, transformed)
-          : transformed;
-      const largeMode = isLargeDocument(nextContent);
-
-      setTabLargeMode(currentTabId, largeMode);
-      setTabError(currentTabId, null);
-
-      if (hasSelection && editor && selection) {
-        editor.executeEdits('json-escape-transform', [
-          {
-            range: selection,
-            text: transformed,
-            forceMoveMarkers: true,
-          },
-        ]);
-        resetSearchState();
-        return;
-      }
-
-      updateTabContent(currentTabId, transformed, true);
-      resetSearchState();
-      queueFormat(currentTabId, transformed, true);
-    } catch (error) {
-      setTabError(currentTabId, error instanceof Error ? `${label}失败：${error.message}` : `${label}失败`);
-    } finally {
-      setEditJsonBusyLabel(null);
-    }
-  };
-
-  const handleUnescapeJson = () => {
-    void handleJsonEscapeTransform('unescape-json', '反转义');
-  };
-
-  const handleEscapeJson = () => {
-    void handleJsonEscapeTransform('escape-json', '转义');
-  };
-
-  const handleOpenEditJson = async () => {
-    if (!activeTab) {
-      return;
-    }
-
-    setEditJsonBusyLabel('正在准备编辑内容...');
-    try {
-      const raw = getTabContent(activeTab.id);
-      const formatted = await requestWorkerEditJson({ tabId: activeTab.id, operation: 'format', text: raw });
-      openDocumentEditSession(formatted);
-    } catch (error) {
-      setTabError(activeTab.id, error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败');
-    } finally {
-      setEditJsonBusyLabel(null);
-    }
-  };
+  const {
+    handleClear,
+    handleEscapeJson,
+    handleFormat,
+    handleLargeFileLocateToggle,
+    handleOpenEditJson,
+    handleRepairJson,
+    handleUnescapeJson,
+  } = useJsonToolContentActions({
+    activeTab,
+    beginPerformanceSession,
+    clearPerformanceState,
+    clearTabStructure,
+    getTabContent,
+    largeModeRef,
+    leftEditorRef,
+    leftSearchWorkerRevisionRef,
+    openDocumentEditSession,
+    queueFormat,
+    queueRepair,
+    renameTab,
+    requestWorkerEditJson,
+    resetSearchState,
+    resetTabArtifacts,
+    setEditJsonBusyLabel,
+    setLargeFileLocateEnabled,
+    setStructureStatus,
+    setTabError,
+    setTabLargeMode,
+    updateTabContent,
+  });
 
   const { handleOpenEditNodeAtOffset, handleOpenUnescapedNodeAtOffset, readEditableNodeAtOffset } =
     useRightNodeEditOpeners({
@@ -1473,81 +1262,30 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLargeFileLocateToggle = (enabled: boolean) => {
-    if (!activeTab) {
-      return;
-    }
-
-    const currentText = getTabContent(activeTab.id);
-    const largeMode = Boolean(largeModeRef.current[activeTab.id]) || isLargeDocument(currentText);
-    setLargeFileLocateEnabled(activeTab.id, enabled);
-
-    if (!currentText.trim()) {
-      setStructureStatus(activeTab.id, 'ready');
-      return;
-    }
-
-    if (!enabled) {
-      clearTabStructure(activeTab.id, largeMode ? 'disabled' : 'ready');
-      return;
-    }
-
-    queueFormat(activeTab.id, currentText, true);
-  };
-
-  const handleClear = () => {
-    if (!activeTab) {
-      return;
-    }
-
-    renameTab(activeTab.id, DEFAULT_TAB_TITLE);
-    delete leftSearchWorkerRevisionRef.current[activeTab.id];
-    resetTabArtifacts(activeTab.id);
-    resetSearchState();
-  };
-
-  const addTab = () => {
-    const nextId = `tab-${Date.now()}`;
-    const currentTabId = activeTabIdRef.current;
-
-    if (currentTabId) {
-      leftViewStateByTabRef.current[currentTabId] =
-        leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[currentTabId] ?? null;
-      rightViewStateByTabRef.current[currentTabId] =
-        rightEditorRef.current?.saveViewState() ?? rightViewStateByTabRef.current[currentTabId] ?? null;
-    }
-
-    rawTextByTabRef.current[nextId] = '';
-    formattedTextByTabRef.current[nextId] = '';
-    initializeTabState(nextId);
-    setPerformanceByTab((current) => ({ ...current, [nextId]: null }));
-    initializeTabArtifacts(nextId);
-    largeModeRef.current[nextId] = false;
-    largeFileLocateEnabledRef.current[nextId] = false;
-    structureStatusRef.current[nextId] = 'ready';
-    workerStructureEnabledRef.current[nextId] = false;
-    setTabs((currentTabs) => [...currentTabs, createTab(nextId)]);
-    setActiveTabId(nextId);
-  };
-
-  const closeTab = (tabId: string) => {
-    if (tabs.length === 1) {
-      handleClear();
-      return;
-    }
-
-    const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
-    const fallbackTab = tabs[closingIndex === 0 ? 1 : closingIndex - 1];
-
-    setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
-    delete leftSearchWorkerRevisionRef.current[tabId];
-    removeTabArtifacts(tabId);
-    removeTabArtifactsState(tabId);
-
-    if (activeTabId === tabId) {
-      setActiveTabId(fallbackTab.id);
-    }
-  };
+  const { addTab, closeTab } = useJsonToolTabActions({
+    activeTabId,
+    activeTabIdRef,
+    formattedTextByTabRef,
+    handleClear,
+    initializeTabArtifacts,
+    initializeTabState,
+    largeFileLocateEnabledRef,
+    largeModeRef,
+    leftEditorRef,
+    leftSearchWorkerRevisionRef,
+    leftViewStateByTabRef,
+    rawTextByTabRef,
+    removeTabArtifacts,
+    removeTabArtifactsState,
+    rightEditorRef,
+    rightViewStateByTabRef,
+    setActiveTabId,
+    setPerformanceByTab,
+    setTabs,
+    structureStatusRef,
+    tabs,
+    workerStructureEnabledRef,
+  });
 
   const openLeftFind = useCallback(() => {
     setIsLeftFindOpen(true);
