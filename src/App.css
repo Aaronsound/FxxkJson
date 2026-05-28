@@ -5,4 +5,7 @@
 @import "./styles/toolbar.css";
 @import "./styles/tabs.css";
 @import "./styles/dialogs.css";
+@import "./styles/diagnostics-dialog.css";
+@import "./styles/json-compare-dialog.css";
+@import "./styles/about-dialog.css";
 @import "./styles/tabs-overrides.css";

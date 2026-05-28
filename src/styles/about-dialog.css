@@ -1,0 +1,111 @@
+.about-dialog-card {
+  width: min(560px, 100%);
+}
+
+.architecture-warning-card {
+  width: min(520px, 100%);
+}
+
+.architecture-warning-text {
+  margin: 0;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.modal-card-dark .architecture-warning-text {
+  color: #e5e7eb;
+}
+
+.about-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.about-dialog-close {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.about-dialog-meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(120, 96, 58, 0.16);
+  border-radius: 8px;
+  background: rgba(250, 247, 239, 0.62);
+}
+
+.modal-card-dark .about-dialog-meta {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.about-dialog-meta div {
+  display: contents;
+}
+
+.about-dialog-meta dt {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.modal-card-dark .about-dialog-meta dt {
+  color: #c7c7c7;
+}
+
+.about-dialog-meta dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.about-dialog-meta a {
+  color: #1d4ed8;
+}
+
+.modal-card-dark .about-dialog-meta a {
+  color: #93c5fd;
+}
+
+.about-dialog-warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 247, 237, 0.9);
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.modal-card-dark .about-dialog-warning {
+  border-color: rgba(251, 191, 36, 0.28);
+  background: rgba(146, 64, 14, 0.22);
+  color: #fbbf24;
+}
+
+.about-dialog-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.about-dialog-section ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.modal-card-dark .about-dialog-section ul {
+  color: #e5e7eb;
+}
+
+.about-dialog-actions {
+  justify-content: flex-end;
+}
