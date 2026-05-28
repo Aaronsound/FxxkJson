@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { StructureStatus } from '../types/jsonTool';
 import { createTranslator, type AppLanguage, type I18nKey } from '../utils/i18n';
 
@@ -39,12 +39,6 @@ interface JsonToolToolbarProps {
 }
 
 const defaultT = createTranslator('zh');
-
-type ToolbarOverflowAction = {
-  disabled?: boolean;
-  label: string;
-  onSelect: () => void;
-};
 
 function getToolbarHintMessage({
   importingFileName,
@@ -147,8 +141,6 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onLanguageChange,
   t = defaultT,
 }) => {
-  const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
-  const moreActionsRef = useRef<HTMLDivElement | null>(null);
   const hintMessage = getToolbarHintMessage({
     importingFileName,
     isLargeFileMode,
@@ -158,50 +150,6 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
     currentStructureStatus,
     t,
   });
-  const overflowActions: ToolbarOverflowAction[] = [
-    { label: t('toolbar.unescape'), onSelect: onUnescapeJson, disabled: !canEditJson },
-    { label: t('toolbar.escape'), onSelect: onEscapeJson, disabled: !canEditJson },
-    { label: t('toolbar.editJson'), onSelect: onEditJson, disabled: !canEditJson },
-    { label: t('toolbar.compareJson'), onSelect: onOpenCompare, disabled: !canCompareJson },
-    { label: t('toolbar.diagnostics'), onSelect: onOpenDiagnosticsLog },
-    { label: t('toolbar.about'), onSelect: onOpenAbout },
-    { label: t('toolbar.clear'), onSelect: onClear },
-    { label: t('toolbar.foldAll'), onSelect: onFoldAll, disabled: !canControlRightPaneFolding },
-    { label: t('toolbar.unfoldAll'), onSelect: onUnfoldAll, disabled: !canControlRightPaneFolding },
-  ];
-
-  useEffect(() => {
-    if (!isMoreActionsOpen) {
-      return;
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!moreActionsRef.current?.contains(event.target as Node)) {
-        setIsMoreActionsOpen(false);
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsMoreActionsOpen(false);
-      }
-    };
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleEscape);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [isMoreActionsOpen]);
-
-  const handleOverflowAction = (action: ToolbarOverflowAction) => {
-    if (action.disabled) {
-      return;
-    }
-
-    setIsMoreActionsOpen(false);
-    action.onSelect();
-  };
 
   return (
     <div className="toolbar">
@@ -222,33 +170,48 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 </button>
               </div>
               <div className="toolbar-actions-secondary">
-                <div className="toolbar-overflow" ref={moreActionsRef}>
-                  <button
-                    type="button"
-                    className="toolbar-button-secondary"
-                    aria-expanded={isMoreActionsOpen}
-                    aria-haspopup="menu"
-                    onClick={() => setIsMoreActionsOpen((current) => !current)}
-                  >
-                    {t('toolbar.moreActions')}
-                  </button>
-                  {isMoreActionsOpen && (
-                    <div className="toolbar-overflow-menu" role="menu">
-                      {overflowActions.map((action) => (
-                        <button
-                          key={action.label}
-                          type="button"
-                          className="toolbar-button-secondary"
-                          disabled={action.disabled}
-                          role="menuitem"
-                          onClick={() => handleOverflowAction(action)}
-                        >
-                          {action.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  className="toolbar-button-secondary"
+                  onClick={onUnescapeJson}
+                  disabled={!canEditJson}
+                >
+                  {t('toolbar.unescape')}
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-button-secondary"
+                  onClick={onEscapeJson}
+                  disabled={!canEditJson}
+                >
+                  {t('toolbar.escape')}
+                </button>
+                <button type="button" className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
+                  {t('toolbar.editJson')}
+                </button>
+                <button
+                  type="button"
+                  className="toolbar-button-secondary"
+                  onClick={onOpenCompare}
+                  disabled={!canCompareJson}
+                >
+                  {t('toolbar.compareJson')}
+                </button>
+                <button type="button" className="toolbar-button-secondary" onClick={onOpenDiagnosticsLog}>
+                  {t('toolbar.diagnostics')}
+                </button>
+                <button type="button" className="toolbar-button-secondary" onClick={onOpenAbout}>
+                  {t('toolbar.about')}
+                </button>
+                <button type="button" onClick={onClear}>
+                  {t('toolbar.clear')}
+                </button>
+                <button type="button" onClick={onFoldAll} disabled={!canControlRightPaneFolding}>
+                  {t('toolbar.foldAll')}
+                </button>
+                <button type="button" onClick={onUnfoldAll} disabled={!canControlRightPaneFolding}>
+                  {t('toolbar.unfoldAll')}
+                </button>
               </div>
             </div>
           </section>
