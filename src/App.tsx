@@ -34,6 +34,7 @@ import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeEditOpeners } from './hooks/useRightNodeEditOpeners';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import { getCompactPathLabel, useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
+import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationActions';
 import {
   DEFAULT_TAB_TITLE,
   INITIAL_TAB_ID,
@@ -389,23 +390,6 @@ const App: React.FC = () => {
     }
   };
 
-  const toggleRightFoldAtOffset = (tabId: string, offset: number) => {
-    if (tabId !== activeTabIdRef.current) {
-      return;
-    }
-
-    const editor = rightEditorRef.current;
-    const model = editor?.getModel();
-    if (!editor || !model) {
-      return;
-    }
-
-    const position = model.getPositionAt(offset);
-    editor.setPosition(position);
-    editor.focus();
-    void editor.getAction('editor.toggleFold')?.run();
-  };
-
   const logRightEditorState = (event: string, tabId: string, extra: Record<string, unknown> = {}) => {
     const editor = rightEditorRef.current;
     const model = editor?.getModel();
@@ -471,55 +455,6 @@ const App: React.FC = () => {
 
   const setRightNodeSelection = (tabId: string, selection: RightNodeSelection | null) => {
     setRightNodeSelectionByTab((current) => ({ ...current, [tabId]: selection }));
-  };
-
-  const revealRightOffset = (offset: number, endOffset = offset + 1) => {
-    if (shouldUseDedicatedRightViewer) {
-      largeViewerRef.current?.revealOffset(offset);
-      return;
-    }
-
-    const editor = rightEditorRef.current;
-    const model = editor?.getModel();
-    if (!editor || !model) {
-      return;
-    }
-
-    const start = model.getPositionAt(Math.max(0, offset));
-    const end = model.getPositionAt(Math.max(offset + 1, endOffset));
-    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
-    editor.revealRangeInCenter(range);
-    editor.setSelection(range);
-    editor.focus();
-  };
-
-  const pinActiveRightPath = () => {
-    if (!activeTab) {
-      return;
-    }
-
-    pinRightPath(activeTab.id, activeRightNodeSelection);
-  };
-
-  const selectRightPinnedPath = (id: string) => {
-    if (!activeTab) {
-      return;
-    }
-
-    const pinnedPath = getPinnedPath(activeTab.id, id);
-    if (!pinnedPath) {
-      return;
-    }
-
-    setRightNodeSelection(activeTab.id, {
-      path: null,
-      pathText: pinnedPath.pathText,
-      startOffset: pinnedPath.startOffset,
-      endOffset: pinnedPath.endOffset,
-      updatedAt: Date.now(),
-    });
-    revealRightOffset(pinnedPath.startOffset, pinnedPath.endOffset);
-    requestWorkerLocate(activeTab.id, pinnedPath.startOffset);
   };
 
   const setLargeFileLocateEnabled = (tabId: string, enabled: boolean) => {
@@ -653,6 +588,19 @@ const App: React.FC = () => {
     revealLeftRange,
     clearLeftHighlights,
     clearRightHighlights,
+  });
+
+  const { pinActiveRightPath, selectRightPinnedPath, toggleRightFoldAtOffset } = useRightPaneNavigationActions({
+    activeRightNodeSelection,
+    activeTab,
+    activeTabIdRef,
+    getPinnedPath,
+    largeViewerRef,
+    pinRightPath,
+    requestWorkerLocate,
+    rightEditorRef,
+    setRightNodeSelection,
+    shouldUseDedicatedRightViewer,
   });
 
   useE2eTestBridge({
