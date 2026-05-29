@@ -22,7 +22,7 @@ function createSession(overrides: Partial<PerformanceSession> = {}): Performance
     largeMode: false,
     structureEnabled: false,
     startedAt: 0,
-    status: 'pending',
+    status: 'running',
     error: 'old',
     ...overrides,
   };
