@@ -13,12 +13,13 @@ import type {
 import { PerformanceSession } from './useJsonPerformanceTracking';
 import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
 import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
-import { disposeModel, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
-import { createJsonWorkerClient } from '../utils/jsonWorkerClient';
 import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
 import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
+import { useJsonWorkerCallbacksRef } from './useJsonWorkerCallbacksRef';
+import { useJsonWorkerInternalRefs } from './useJsonWorkerInternalRefs';
+import { createJsonWorkerTabArtifactActions } from './jsonWorkerTabArtifacts';
 
-interface UseJsonFormattingWorkerArgs {
+export interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
   largeModeRef: MutableRefObject<Record<string, boolean>>;
   largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
@@ -114,19 +115,15 @@ export function useJsonFormattingWorker({
   clearLeftHighlights,
   clearRightHighlights,
 }: UseJsonFormattingWorkerArgs) {
-  const workerRef = useRef<Worker | null>(null);
-  const workerClientRef = useRef(createJsonWorkerClient(() => workerRef.current));
+  const { formatTimersRef, formatWatchdogTimersRef, latestRequestRef, requestCounterRef, workerRef, workerClient } =
+    useJsonWorkerInternalRefs();
   const {
     createTextPayload: createWorkerTextPayload,
     postRequest: postWorkerRequest,
     readText: readWorkerText,
     readTextField: readWorkerTextField,
-  } = workerClientRef.current;
-  const formatTimersRef = useRef<Record<string, number>>({});
-  const formatWatchdogTimersRef = useRef<Record<string, number>>({});
-  const latestRequestRef = useRef<Record<string, number>>({});
-  const requestCounterRef = useRef(0);
-  const callbacksRef = useRef({
+  } = workerClient;
+  const callbacksRef = useJsonWorkerCallbacksRef({
     beginPerformanceSession,
     clearLeftHighlights,
     clearPerformanceState,
@@ -154,35 +151,6 @@ export function useJsonFormattingWorker({
     updateFormattedContent,
     updateTabContent,
   });
-
-  callbacksRef.current = {
-    beginPerformanceSession,
-    clearLeftHighlights,
-    clearPerformanceState,
-    clearRightHighlights,
-    logEvent,
-    mutatePerformanceSession,
-    removeTabState,
-    renameTab,
-    resetSearchState,
-    revealLeftRange,
-    setStructureStatus,
-    setTabError,
-    setTabFormatting,
-    setTabImporting,
-    setTabLargeMode,
-    setProcessingStage,
-    setLocateFeedback,
-    setRightNodeSelection,
-    setLargeViewerData,
-    setLargeRawViewerData,
-    setLeftSearchResults,
-    setLargeViewerSearchResults,
-    setLargeViewerStatus,
-    syncPerformanceSnapshot,
-    updateFormattedContent,
-    updateTabContent,
-  };
   const interactiveFlowRef = useRef<ReturnType<typeof createJsonWorkerInteractiveFlow> | null>(null);
   interactiveFlowRef.current ??= createJsonWorkerInteractiveFlow({
     activeTabIdRef,
@@ -248,52 +216,23 @@ export function useJsonFormattingWorker({
     workerStructureEnabledRef,
   });
 
-  const resetTabArtifacts = (tabId: string) => {
-    clearPendingFormat(tabId);
-    callbacksRef.current.clearPerformanceState(tabId);
-    callbacksRef.current.setTabImporting(tabId, null);
-    callbacksRef.current.setTabFormatting(tabId, false);
-    callbacksRef.current.setTabLargeMode(tabId, false);
-    callbacksRef.current.setProcessingStage(tabId, 'idle');
-    callbacksRef.current.setLocateFeedback(tabId, null);
-    callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
-    callbacksRef.current.setLargeViewerData(tabId, null);
-    callbacksRef.current.setLargeRawViewerData(tabId, null);
-    clearTabStructure(tabId, 'ready');
-    latestRequestRef.current[tabId] = 0;
-    callbacksRef.current.updateTabContent(tabId, '', true);
-    callbacksRef.current.updateFormattedContent(tabId, '', true);
-    callbacksRef.current.setTabError(tabId, null);
-  };
-
-  const removeTabArtifacts = (tabId: string) => {
-    clearPendingFormat(tabId);
-    callbacksRef.current.clearPerformanceState(tabId, true);
-    postWorkerRequest({
-      type: 'clear-structure',
-      tabId,
-    });
-    delete formatTimersRef.current[tabId];
-    delete latestRequestRef.current[tabId];
-    cancelInteractiveRequests(tabId);
-    delete largeModeRef.current[tabId];
-    delete largeFileLocateEnabledRef.current[tabId];
-    delete structureStatusRef.current[tabId];
-    delete workerStructureEnabledRef.current[tabId];
-
-    callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
-    callbacksRef.current.setLargeViewerData(tabId, null);
-    callbacksRef.current.setLargeRawViewerData(tabId, null);
-    callbacksRef.current.setProcessingStage(tabId, 'idle');
-    callbacksRef.current.setLocateFeedback(tabId, null);
-    delete rawTextByTabRef.current[tabId];
-    delete formattedTextByTabRef.current[tabId];
-    delete leftViewStateByTabRef.current[tabId];
-    delete rightViewStateByTabRef.current[tabId];
-    disposeModel(getLeftModelPath(tabId));
-    disposeModel(getRightModelPath(tabId));
-    callbacksRef.current.removeTabState(tabId);
-  };
+  const { removeTabArtifacts, resetTabArtifacts } = createJsonWorkerTabArtifactActions({
+    callbacksRef,
+    cancelInteractiveRequests,
+    clearPendingFormat,
+    clearTabStructure,
+    formatTimersRef,
+    formattedTextByTabRef,
+    largeFileLocateEnabledRef,
+    largeModeRef,
+    latestRequestRef,
+    leftViewStateByTabRef,
+    postWorkerRequest,
+    rawTextByTabRef,
+    rightViewStateByTabRef,
+    structureStatusRef,
+    workerStructureEnabledRef,
+  });
 
   const importFlowRef = useRef<ReturnType<typeof createJsonWorkerImportFlow> | null>(null);
   importFlowRef.current ??= createJsonWorkerImportFlow({
