@@ -4,8 +4,7 @@ import type { StructureStatus, WorkerRequestMessage, WorkerRequestTextPayload } 
 import { getUtf8ByteLength, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
-
-export const FORMAT_WORKER_RESULT_TIMEOUT_MS = 20_000;
+import { scheduleFormatWatchdog } from './jsonWorkerFormatWatchdog';
 
 interface JsonWorkerFormatQueueCallbacks {
   logEvent: (event: string, details?: Record<string, unknown>) => void;
@@ -61,48 +60,6 @@ export function createJsonWorkerFormatQueue({
   requestCounterRef,
   workerStructureEnabledRef,
 }: CreateJsonWorkerFormatQueueArgs) {
-  const scheduleFormatWatchdog = (
-    tabId: string,
-    requestId: number,
-    stage: 'formatting' | 'repairing',
-    textLength: number
-  ) => {
-    clearFormatWatchdog(tabId);
-    formatWatchdogTimersRef.current[tabId] = window.setTimeout(() => {
-      delete formatWatchdogTimersRef.current[tabId];
-      if (latestRequestRef.current[tabId] !== requestId) {
-        return;
-      }
-
-      const errorMessage =
-        stage === 'repairing' ? 'JSON 修复超时：Worker 未返回结果' : 'JSON 格式化超时：Worker 未返回结果';
-      callbacksRef.current.logEvent(stage === 'repairing' ? 'repair-timeout' : 'format-timeout', {
-        tabId,
-        requestId,
-        textLength,
-        timeoutMs: FORMAT_WORKER_RESULT_TIMEOUT_MS,
-        error: errorMessage,
-      });
-      callbacksRef.current.mutatePerformanceSession(
-        tabId,
-        (session) => {
-          if (session.requestId !== requestId) {
-            return;
-          }
-
-          session.formatCompletedAt = performance.now();
-          session.status = 'failed';
-          session.error = errorMessage;
-        },
-        true
-      );
-      callbacksRef.current.setTabFormatting(tabId, false);
-      callbacksRef.current.setProcessingStage(tabId, 'idle');
-      callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
-      callbacksRef.current.setTabError(tabId, errorMessage);
-    }, FORMAT_WORKER_RESULT_TIMEOUT_MS);
-  };
-
   const prepareFormatRun = (tabId: string, text: string, stage: 'formatting' | 'repairing') => {
     const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
     const plan = buildJsonWorkerProcessingPlan(text, locateRequested);
@@ -223,7 +180,16 @@ export function createJsonWorkerFormatQueue({
         },
         textPayload.transfer
       );
-      scheduleFormatWatchdog(tabId, requestId, 'formatting', plan.textByteLength);
+      scheduleFormatWatchdog({
+        callbacksRef,
+        clearFormatWatchdog,
+        formatWatchdogTimersRef,
+        latestRequestRef,
+        requestId,
+        stage: 'formatting',
+        tabId,
+        textLength: plan.textByteLength,
+      });
     };
 
     if (immediate) {
@@ -295,7 +261,16 @@ export function createJsonWorkerFormatQueue({
       },
       textPayload.transfer
     );
-    scheduleFormatWatchdog(tabId, requestId, 'repairing', plan.textByteLength);
+    scheduleFormatWatchdog({
+      callbacksRef,
+      clearFormatWatchdog,
+      formatWatchdogTimersRef,
+      latestRequestRef,
+      requestId,
+      stage: 'repairing',
+      tabId,
+      textLength: plan.textByteLength,
+    });
   };
 
   const queueFormatAfterUiUpdate = (tabId: string, text: string, delayMs = 0) => {

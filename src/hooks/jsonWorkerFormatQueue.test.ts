@@ -2,7 +2,8 @@ import type { MutableRefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS } from '../types/jsonTool';
 import type { WorkerRequestMessage } from '../types/jsonTool';
-import { createJsonWorkerFormatQueue, FORMAT_WORKER_RESULT_TIMEOUT_MS } from './jsonWorkerFormatQueue';
+import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
+import { FORMAT_WORKER_RESULT_TIMEOUT_MS } from './jsonWorkerFormatWatchdog';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
 function recordRef<T>(current: T) {
