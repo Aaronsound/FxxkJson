@@ -33,8 +33,9 @@ import { useRightEditorContextMenuState } from './hooks/useRightEditorContextMen
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeEditOpeners } from './hooks/useRightNodeEditOpeners';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
-import { getCompactPathLabel, useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
+import { useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationActions';
+import { useJsonToolDerivedState } from './hooks/useJsonToolDerivedState';
 import {
   DEFAULT_TAB_TITLE,
   INITIAL_TAB_ID,
@@ -58,12 +59,9 @@ import {
   registerSelectAllDeleteCommands,
 } from './utils/jsonEditorMountActions';
 import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
-import { formatBytes, formatDuration, getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
-import { getProcessingStageText } from './utils/jsonProcessingStage';
-import { getRightPaneStatusText } from './utils/rightPaneStatus';
+import { getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
 import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
-import { buildDiagnosticsContext } from './utils/diagnosticsContext';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
 import './App.css';
 
@@ -325,63 +323,34 @@ const App: React.FC = () => {
     setLeftSearchNextOffset,
     shouldUseDedicatedLeftViewer,
   });
-  const normalizedRightMatchIndex =
-    activeRightMatchCount > 0
-      ? ((rightMatchIndex % activeRightMatchCount) + activeRightMatchCount) % activeRightMatchCount
-      : 0;
-  const processingStageText = getProcessingStageText(activeProcessingStage, importingFileName);
-  const leftPaneMetaText = [
-    activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
-    formatDuration(activePerformanceSnapshot?.readFileMs)
-      ? `导入 ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
-      : null,
-    activeLocateFeedback?.message ?? null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  const rightPaneStatusText = getRightPaneStatusText({
-    canEnableLargeFileLocate,
-    canUseRightPaneFolding,
-    currentStructureStatus,
-    isLargeFileLocateEnabled,
-    isLargeFileMode,
-    usesDedicatedRightViewer: shouldUseDedicatedRightViewer,
-    usesLightweightLocate,
-  });
-  const rightPaneMetaText = [
-    activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
-    formatDuration(activePerformanceSnapshot?.formatWorkerMs)
-      ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
-      : null,
-    activeRightNodeSelection?.pathText ? `路径 ${getCompactPathLabel(activeRightNodeSelection.pathText)}` : null,
-    rightPaneStatusText,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  const diagnosticsContext = buildDiagnosticsContext({
-    activeDocumentMeta,
-    activeLeftMatchCount,
-    activePerformanceSnapshot,
-    activeProcessingStage,
-    activeRightMatchCount,
-    activeRightNodeSelection,
-    activeTab,
-    currentError,
-    currentStructureStatus,
-    importingFileName,
-    isFormattingActiveTab,
-    isLargeFileLocateEnabled,
-    isLargeFileMode,
-    leftSearchHasMore,
-    leftSearchTerm,
-    normalizedLeftMatchIndex,
-    normalizedRightMatchIndex,
-    rightSearchHasMore,
-    rightSearchTerm,
-    shouldUseDedicatedLeftViewer,
-    shouldUseDedicatedRightViewer,
-    usesLightweightLocate,
-  });
+  const { diagnosticsContext, leftPaneMetaText, normalizedRightMatchIndex, processingStageText, rightPaneMetaText } =
+    useJsonToolDerivedState({
+      activeDocumentMeta,
+      activeLeftMatchCount,
+      activeLocateFeedback,
+      activePerformanceSnapshot,
+      activeProcessingStage,
+      activeRightMatchCount,
+      activeRightNodeSelection,
+      activeTab,
+      canEnableLargeFileLocate,
+      canUseRightPaneFolding,
+      currentError,
+      currentStructureStatus,
+      importingFileName,
+      isFormattingActiveTab,
+      isLargeFileLocateEnabled,
+      isLargeFileMode,
+      leftSearchHasMore,
+      leftSearchTerm,
+      normalizedLeftMatchIndex,
+      rightMatchIndex,
+      rightSearchHasMore,
+      rightSearchTerm,
+      shouldUseDedicatedLeftViewer,
+      shouldUseDedicatedRightViewer,
+      usesLightweightLocate,
+    });
 
   const clearRightHighlights = () => {
     if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
