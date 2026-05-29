@@ -14,7 +14,9 @@ interface JsonWorkerLifecycleCallbacks extends JsonFormattingWorkerResultCallbac
 
 interface UseJsonWorkerLifecycleArgs {
   callbacksRef: MutableRefObject<JsonWorkerLifecycleCallbacks>;
+  clearFormatWatchdog: (tabId: string) => void;
   clearPendingFormat: (tabId: string) => void;
+  formatWatchdogTimersRef: MutableRefObject<Record<string, number>>;
   formatTimersRef: MutableRefObject<Record<string, number>>;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   interactiveFlow: ReturnType<typeof createJsonWorkerInteractiveFlow>;
@@ -33,7 +35,9 @@ interface UseJsonWorkerLifecycleArgs {
 
 export function useJsonWorkerLifecycle({
   callbacksRef,
+  clearFormatWatchdog,
   clearPendingFormat,
+  formatWatchdogTimersRef,
   formatTimersRef,
   formattedTextByTabRef,
   interactiveFlow,
@@ -67,6 +71,7 @@ export function useJsonWorkerLifecycle({
 
       handleJsonFormattingWorkerResult(event.data, {
         callbacks: callbacksRef.current,
+        clearFormatWatchdog,
         formattedTextByTabRef,
         latestRequestRef,
         performanceSessionsRef,
@@ -79,11 +84,20 @@ export function useJsonWorkerLifecycle({
 
     return () => {
       Object.keys(formatTimersRef.current).forEach(clearPendingFormat);
+      Object.keys(formatWatchdogTimersRef.current).forEach(clearFormatWatchdog);
       callbacksRef.current.clearLeftHighlights();
       callbacksRef.current.clearRightHighlights();
       interactiveFlow.stop();
       worker.terminate();
       workerRef.current = null;
     };
-  }, [callbacksRef, clearPendingFormat, formattedTextByTabRef, interactiveFlow, performanceSessionsRef]);
+  }, [
+    callbacksRef,
+    clearFormatWatchdog,
+    clearPendingFormat,
+    formatWatchdogTimersRef,
+    formattedTextByTabRef,
+    interactiveFlow,
+    performanceSessionsRef,
+  ]);
 }

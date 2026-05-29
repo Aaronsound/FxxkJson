@@ -30,6 +30,7 @@ interface JsonFormattingWorkerResultCallbacks {
 
 interface JsonFormattingWorkerResultContext {
   callbacks: JsonFormattingWorkerResultCallbacks;
+  clearFormatWatchdog: (tabId: string) => void;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   latestRequestRef: MutableRefObject<Record<string, number>>;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
@@ -64,6 +65,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
   const { requestId, tabId, type } = message;
   const {
     callbacks,
+    clearFormatWatchdog,
     formattedTextByTabRef,
     latestRequestRef,
     performanceSessionsRef,
@@ -84,6 +86,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
   const performanceSession = performanceSessionsRef.current[tabId];
 
   if (type === 'format-result') {
+    clearFormatWatchdog(tabId);
     const result = getFormatWorkerResult(message, readWorkerText);
     const data = result.formattedText;
 
@@ -144,6 +147,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
   }
 
   if (type === 'repair-result') {
+    clearFormatWatchdog(tabId);
     const result = getRepairWorkerResult(message, readWorkerText, readWorkerTextField);
     const { error, formattedText, repairedText } = result;
 

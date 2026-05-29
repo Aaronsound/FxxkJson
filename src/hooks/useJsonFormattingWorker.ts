@@ -123,6 +123,7 @@ export function useJsonFormattingWorker({
     readTextField: readWorkerTextField,
   } = workerClientRef.current;
   const formatTimersRef = useRef<Record<string, number>>({});
+  const formatWatchdogTimersRef = useRef<Record<string, number>>({});
   const latestRequestRef = useRef<Record<string, number>>({});
   const requestCounterRef = useRef(0);
   const callbacksRef = useRef({
@@ -202,6 +203,14 @@ export function useJsonFormattingWorker({
     }
   }, []);
 
+  const clearFormatWatchdog = useCallback((tabId: string) => {
+    const timeoutId = formatWatchdogTimersRef.current[tabId];
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+      delete formatWatchdogTimersRef.current[tabId];
+    }
+  }, []);
+
   const cancelInteractiveRequests = (tabId: string) => {
     interactiveFlow.cancelRequests(tabId);
   };
@@ -224,10 +233,12 @@ export function useJsonFormattingWorker({
 
   const { queueFormat, queueFormatAfterEditSave, queueFormatAfterImport, queueRepair } = createJsonWorkerFormatQueue({
     callbacksRef,
+    clearFormatWatchdog,
     cancelInteractiveRequests,
     clearPendingFormat,
     clearTabStructure,
     createWorkerTextPayload,
+    formatWatchdogTimersRef,
     formatTimersRef,
     largeFileLocateEnabledRef,
     largeModeRef,
@@ -302,7 +313,9 @@ export function useJsonFormattingWorker({
 
   useJsonWorkerLifecycle({
     callbacksRef,
+    clearFormatWatchdog,
     clearPendingFormat,
+    formatWatchdogTimersRef,
     formatTimersRef,
     formattedTextByTabRef,
     interactiveFlow,

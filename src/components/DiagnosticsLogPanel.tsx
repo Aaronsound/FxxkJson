@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 const LOG_PREVIEW_BYTES = 160 * 1024;
 const ERROR_LINE_PATTERN =
-  /("event"\s*:\s*"[^"]*(failed|error|gone|exception|rejection)|\b(failed|error|exception|rejection)\b|失败|异常)/i;
+  /("event"\s*:\s*"[^"]*(failed|error|timeout|stalled|gone|exception|rejection)|\b(failed|error|timeout|stalled|exception|rejection)\b|失败|异常|超时|卡住)/i;
 
 interface DiagnosticsLogPanelProps {
   isDarkMode: boolean;

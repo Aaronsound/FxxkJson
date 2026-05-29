@@ -41,6 +41,7 @@ describe('DiagnosticsLogPanel', () => {
         content: [
           '[2026-05-09] {"event":"format-success"}',
           '[2026-05-09] {"event":"format-failed","error":"bad json"}',
+          '[2026-05-09] {"event":"format-timeout","error":"JSON 格式化超时"}',
         ].join('\n'),
         truncated: true,
       }),
@@ -70,6 +71,7 @@ describe('DiagnosticsLogPanel', () => {
 
     await waitFor(() => {
       expect(screen.getByDisplayValue(/format-failed/)).toBeInTheDocument();
+      expect(screen.getByDisplayValue(/format-timeout/)).toBeInTheDocument();
       expect(screen.queryByDisplayValue(/format-success/)).not.toBeInTheDocument();
     });
 

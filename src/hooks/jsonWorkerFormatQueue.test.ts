@@ -2,7 +2,7 @@ import type { MutableRefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS } from '../types/jsonTool';
 import type { WorkerRequestMessage } from '../types/jsonTool';
-import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
+import { createJsonWorkerFormatQueue, FORMAT_WORKER_RESULT_TIMEOUT_MS } from './jsonWorkerFormatQueue';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
 function recordRef<T>(current: T) {
@@ -51,11 +51,19 @@ function createQueue() {
     updateFormattedContent: vi.fn(),
   };
   const formatTimersRef = recordRef<Record<string, number>>({});
+  const formatWatchdogTimersRef = recordRef<Record<string, number>>({});
   const latestRequestRef = recordRef<Record<string, number>>({});
   const requestCounterRef = recordRef(0);
   const workerStructureEnabledRef = recordRef<Record<string, boolean>>({});
   const queue = createJsonWorkerFormatQueue({
     callbacksRef: recordRef(callbacks),
+    clearFormatWatchdog: vi.fn((tabId: string) => {
+      const timer = formatWatchdogTimersRef.current[tabId];
+      if (timer) {
+        clearTimeout(timer);
+        delete formatWatchdogTimersRef.current[tabId];
+      }
+    }),
     cancelInteractiveRequests: vi.fn(),
     clearPendingFormat: vi.fn((tabId: string) => {
       const timer = formatTimersRef.current[tabId];
@@ -69,6 +77,7 @@ function createQueue() {
       message: { text },
       transfer: [],
     }),
+    formatWatchdogTimersRef,
     formatTimersRef,
     largeFileLocateEnabledRef: recordRef<Record<string, boolean>>({}),
     largeModeRef: recordRef<Record<string, boolean>>({}),
@@ -84,6 +93,7 @@ function createQueue() {
   return {
     callbacks,
     formatTimersRef,
+    formatWatchdogTimersRef,
     latestRequestRef,
     queue,
     requests,
@@ -196,5 +206,31 @@ describe('createJsonWorkerFormatQueue', () => {
 
     expect(formatTimersRef.current['tab-a']).toBeUndefined();
     expect(requests[0]).toMatchObject({ type: 'format', text: '{"a":1}' });
+  });
+
+  it('logs and surfaces a worker timeout when a format result never returns', async () => {
+    const { callbacks, formatWatchdogTimersRef, queue, requests, session } = createQueue();
+
+    queue.queueFormat('tab-a', '{"ok":true}', true);
+    expect(requests[0]).toMatchObject({ type: 'format', requestId: 1 });
+    expect(formatWatchdogTimersRef.current['tab-a']).toBeDefined();
+
+    await vi.advanceTimersByTimeAsync(FORMAT_WORKER_RESULT_TIMEOUT_MS);
+
+    expect(callbacks.logEvent).toHaveBeenCalledWith(
+      'format-timeout',
+      expect.objectContaining({
+        error: expect.stringContaining('超时'),
+        requestId: 1,
+        timeoutMs: FORMAT_WORKER_RESULT_TIMEOUT_MS,
+      })
+    );
+    expect(session).toMatchObject({
+      requestId: 1,
+      status: 'failed',
+      error: expect.stringContaining('超时'),
+    });
+    expect(callbacks.setTabFormatting).toHaveBeenLastCalledWith('tab-a', false);
+    expect(callbacks.setTabError).toHaveBeenLastCalledWith('tab-a', expect.stringContaining('超时'));
   });
 });
