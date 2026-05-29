@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fixtureText, renderViewer } from './LargeJsonReadonlyViewer.testUtils';
+import { fixtureText, renderViewer, requireElement } from './LargeJsonReadonlyViewer.testUtils';
 
 describe('LargeJsonReadonlyViewer context menu', () => {
   afterEach(() => {
@@ -32,20 +32,12 @@ describe('LargeJsonReadonlyViewer context menu', () => {
       onUnescapeValue,
     });
 
-    const line = document.querySelector('.large-json-line-text[title*="alpha"]');
-    expect(line).not.toBeNull();
-    if (!line) {
-      throw new Error('Expected alpha line in large viewer');
-    }
+    const line = requireElement('.large-json-line-text[title*="alpha"]');
     fireEvent.mouseUp(line, { button: 0 });
     expect(onLocateOffset).toHaveBeenCalledTimes(1);
     expect(onLocateOffset).toHaveBeenLastCalledWith(expect.any(Number));
 
-    const keyToken = document.querySelector('.large-json-line-text[title*="alpha"] .large-json-token-key');
-    expect(keyToken).not.toBeNull();
-    if (!keyToken) {
-      throw new Error('Expected a key token in the alpha line');
-    }
+    const keyToken = requireElement('.large-json-line-text[title*="alpha"] .large-json-token-key');
 
     const alphaLineStart = fixtureText.indexOf('  "name"');
     fireEvent.mouseUp(keyToken, { button: 0 });
@@ -135,11 +127,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     try {
       renderViewer();
 
-      const firstLine = document.querySelector('.large-json-line-text[data-line-number="1"]');
-      expect(firstLine).not.toBeNull();
-      if (!firstLine) {
-        throw new Error('Expected first line in large viewer');
-      }
+      const firstLine = requireElement('.large-json-line-text[data-line-number="1"]');
 
       fireEvent.contextMenu(firstLine, { clientX: 790, clientY: 590 });
 

@@ -53,3 +53,11 @@ export function renderViewer(overrides: Partial<React.ComponentProps<typeof Larg
     props,
   };
 }
+
+export function requireElement<T extends Element = HTMLElement>(selector: string, root: ParentNode = document): T {
+  const element = root.querySelector<T>(selector);
+  if (!element) {
+    throw new Error(`Expected element for selector: ${selector}`);
+  }
+  return element;
+}

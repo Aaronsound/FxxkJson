@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fixtureText, renderViewer } from './LargeJsonReadonlyViewer.testUtils';
+import { fixtureText, renderViewer, requireElement } from './LargeJsonReadonlyViewer.testUtils';
 
 describe('LargeJsonReadonlyViewer selection and copy', () => {
   afterEach(() => {
@@ -77,11 +77,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
       collapsedLines: [1],
     });
 
-    const line = document.querySelector('.large-json-line-text[data-collapsed="true"]');
-    expect(line).not.toBeNull();
-    if (!line) {
-      throw new Error('Expected a collapsed line');
-    }
+    const line = requireElement('.large-json-line-text[data-collapsed="true"]');
     expect(line.textContent).toContain('...');
     expect(line.textContent).not.toContain('... }');
     expect(document.querySelector('.large-json-line-text[data-line-number="9"]')?.textContent).toBe('}');
@@ -117,11 +113,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
       collapsedLines: [2],
     });
 
-    const line = document.querySelector('.large-json-line-text[data-line-number="2"][data-collapsed="true"]');
-    expect(line).not.toBeNull();
-    if (!line) {
-      throw new Error('Expected a collapsed array item');
-    }
+    const line = requireElement('.large-json-line-text[data-line-number="2"][data-collapsed="true"]');
 
     const selection = window.getSelection();
     const range = document.createRange();
@@ -141,11 +133,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
   it('keeps select-all and copy scoped to the large JSON viewer text', () => {
     renderViewer();
 
-    const viewer = document.querySelector('.large-json-viewer');
-    expect(viewer).not.toBeNull();
-    if (!viewer) {
-      throw new Error('Expected large viewer');
-    }
+    const viewer = requireElement('.large-json-viewer');
 
     fireEvent.keyDown(viewer, { key: 'a', ctrlKey: true });
     const clipboardData = { setData: vi.fn() };
@@ -158,11 +146,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
     const onOpenFind = vi.fn();
     renderViewer({ onOpenFind });
 
-    const viewer = document.querySelector('.large-json-viewer');
-    expect(viewer).not.toBeNull();
-    if (!viewer) {
-      throw new Error('Expected large viewer');
-    }
+    const viewer = requireElement('.large-json-viewer');
 
     fireEvent.keyDown(viewer, { key: 'f', ctrlKey: true });
 
@@ -172,11 +156,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
   it('also scopes Alt+A copy to the large JSON viewer text', () => {
     renderViewer();
 
-    const viewer = document.querySelector('.large-json-viewer');
-    expect(viewer).not.toBeNull();
-    if (!viewer) {
-      throw new Error('Expected large viewer');
-    }
+    const viewer = requireElement('.large-json-viewer');
 
     fireEvent.keyDown(viewer, { key: 'a', altKey: true });
     const clipboardData = { setData: vi.fn() };
@@ -192,13 +172,8 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
     } as unknown as Window['electronAPI'];
     renderViewer();
 
-    const viewer = document.querySelector('.large-json-viewer');
-    const line = document.querySelector('.large-json-line-text[title*="alpha"]');
-    expect(viewer).not.toBeNull();
-    expect(line).not.toBeNull();
-    if (!viewer || !line) {
-      throw new Error('Expected large viewer and alpha line');
-    }
+    const viewer = requireElement('.large-json-viewer');
+    const line = requireElement('.large-json-line-text[title*="alpha"]');
 
     const selection = window.getSelection();
     const range = document.createRange();
@@ -217,11 +192,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
     const onLocateOffset = vi.fn();
     renderViewer({ onLocateOffset });
 
-    const line = document.querySelector('.large-json-line-text[title*="alpha"]');
-    expect(line).not.toBeNull();
-    if (!line) {
-      throw new Error('Expected alpha line');
-    }
+    const line = requireElement('.large-json-line-text[title*="alpha"]');
 
     const selection = window.getSelection();
     const range = document.createRange();
