@@ -1,4 +1,4 @@
-import { MutableRefObject, useRef } from 'react';
+import { MutableRefObject, useCallback, useRef } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type {
   LargeJsonSearchMatch,
@@ -194,13 +194,13 @@ export function useJsonFormattingWorker({
   });
   const interactiveFlow = interactiveFlowRef.current;
 
-  const clearPendingFormat = (tabId: string) => {
+  const clearPendingFormat = useCallback((tabId: string) => {
     const timeoutId = formatTimersRef.current[tabId];
     if (timeoutId) {
       window.clearTimeout(timeoutId);
       delete formatTimersRef.current[tabId];
     }
-  };
+  }, []);
 
   const cancelInteractiveRequests = (tabId: string) => {
     interactiveFlow.cancelRequests(tabId);
