@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { evaluate } from './e2e-cdp-helpers.mjs';
@@ -38,6 +38,14 @@ export function createSampleJson(targetBytes) {
   }
 
   return `[${records.join(',')}]`;
+}
+
+export async function prepareSampleJsonFile(tempDir) {
+  const sizeMb = parseSizeMb();
+  const samplePath = path.join(tempDir, `sample-${sizeMb}mb.json`);
+  const sample = createSampleJson(sizeMb * 1024 * 1024);
+  await writeFile(samplePath, sample, 'utf8');
+  return { samplePath, sizeMb };
 }
 
 export async function importSampleByE2eBridge(cdp, samplePath) {

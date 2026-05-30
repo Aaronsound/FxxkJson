@@ -1,6 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { OnMount } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type { OnMount } from '@monaco-editor/react';
 import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
 import JsonToolTabBar from './components/JsonToolTabBar';
@@ -38,18 +37,12 @@ import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationAct
 import { useJsonToolDerivedState } from './hooks/useJsonToolDerivedState';
 import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
 import { useJsonToolSearchEffects } from './hooks/useJsonToolSearchEffects';
-import { DEFAULT_TAB_TITLE, INITIAL_TAB_ID, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
-import type { EditJsonWorkerOperation, LargeJsonSearchMatch } from './types/jsonTool';
-import { selectionCoversModel } from './utils/jsonToolModels';
-import {
-  bindEditorFocusContext,
-  registerPaneFindAction,
-  registerPasteContentTracking,
-  registerSelectAllDeleteCommands,
-} from './utils/jsonEditorMountActions';
+import { useJsonEditActions } from './hooks/useJsonEditActions';
+import { useLeftEditorActions } from './hooks/useLeftEditorActions';
+import { INITIAL_TAB_ID, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
+import type { LargeJsonSearchMatch } from './types/jsonTool';
 import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
 import { getMonacoOptions } from './utils/jsonEditorInteractions';
-import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
 import './App.css';
@@ -650,158 +643,45 @@ const App: React.FC = () => {
     setTabError,
   });
 
-  const handleLeftMount: OnMount = (editor) => {
-    leftEditorRef.current = editor;
-    const currentTabId = activeTabIdRef.current;
-    syncLeftModel(currentTabId, getTabContent(currentTabId), true);
-    const leftEditorFocusContextKey = 'fxxkjsonLeftEditorFocused';
-
-    editor.onDidDispose(() => {
-      if (leftEditorRef.current === editor) {
-        leftEditorRef.current = null;
-      }
-    });
-
-    const clearSelectedDocument = () => {
-      const currentTabId = activeTabIdRef.current;
-
-      if (currentTabId) {
-        renameTab(currentTabId, DEFAULT_TAB_TITLE);
-        resetTabArtifacts(currentTabId);
-        resetSearchState();
-      }
-    };
-
-    bindEditorFocusContext(editor, leftEditorFocusContextKey);
-
-    registerSelectAllDeleteCommands(monaco, editor, {
-      focusContextKey: leftEditorFocusContextKey,
-      onClearAll: clearSelectedDocument,
-      selectionCoversModel: () => selectionCoversModel(editor),
-    });
-
-    registerPaneFindAction(monaco, editor, {
-      actionId: 'openLeftPaneFind',
-      label: '搜索原始 JSON',
-      focusContextKey: leftEditorFocusContextKey,
-      onOpen: openLeftFind,
-    });
-
-    registerPasteContentTracking(editor, {
-      onPasteContent(nextContent) {
-        const currentTabId = activeTabIdRef.current;
-        if (currentTabId) {
-          beginPerformanceSession(
-            currentTabId,
-            'paste',
-            '剪贴板粘贴',
-            null,
-            getUtf8ByteLength(nextContent),
-            isLargeDocument(nextContent)
-          );
-          queueFormat(currentTabId, nextContent);
-        }
-      },
-    });
-
-    registerLeftEditorContextMenu(editor);
-  };
-
-  const handleLeftChange = (value?: string) => {
-    if (!activeTab) {
-      return;
-    }
-
-    if (suppressLeftChangeRef.current[activeTab.id]) {
-      return;
-    }
-
-    const nextContent = value ?? '';
-    const largeMode = isLargeDocument(nextContent);
-    updateTabContent(activeTab.id, nextContent);
-    setTabLargeMode(activeTab.id, largeMode);
-    queueFormat(activeTab.id, nextContent);
-  };
-
-  const replaceAllLeftText = async (
-    searchTerm: string,
-    searchOptions: typeof leftSearchOptions,
-    replacement: string
-  ) => {
-    if (!activeTab || !searchTerm) {
-      return;
-    }
-
-    const currentTabId = activeTab.id;
-    const currentText = getTabContent(currentTabId);
-
-    try {
-      const updated = await requestWorkerEditJson({
-        tabId: currentTabId,
+  const { handleLeftChange, handleLeftMount, replaceAllLeftText, replaceCurrentLargeLeftText } = useLeftEditorActions({
+    activeTab,
+    activeTabIdRef,
+    beginPastePerformanceSession(tabId, nextContent) {
+      beginPerformanceSession(
+        tabId,
+        'paste',
+        '剪贴板粘贴',
+        null,
+        getUtf8ByteLength(nextContent),
+        isLargeDocument(nextContent)
+      );
+    },
+    getTabContent,
+    largeRawViewerMatches,
+    leftEditorRef,
+    normalizedLeftMatchIndex,
+    openLeftFind,
+    queueFormat,
+    registerLeftEditorContextMenu,
+    renameTab,
+    requestReplaceText: ({ tabId, text, searchTerm, searchOptions, replacement }) =>
+      requestWorkerEditJson({
+        tabId,
         operation: 'replace-text',
-        text: currentText,
+        text,
         searchTerm,
         searchOptions,
         replacement,
-      });
-
-      if (updated === currentText) {
-        return;
-      }
-
-      if (getTabContent(currentTabId) !== currentText) {
-        return;
-      }
-
-      updateTabContent(currentTabId, updated, true);
-      setTabLargeMode(currentTabId, isLargeDocument(updated));
-      resetSearchState();
-      queueFormat(currentTabId, updated);
-    } catch (error) {
-      setTabError(currentTabId, error instanceof Error ? `全部替换失败：${error.message}` : '全部替换失败');
-    }
-  };
-
-  const replaceCurrentLargeLeftText = async (
-    searchTerm: string,
-    searchOptions: typeof leftSearchOptions,
-    replacement: string
-  ) => {
-    if (!activeTab || !shouldUseDedicatedLeftViewer || !searchTerm) {
-      return;
-    }
-
-    const currentMatch = largeRawViewerMatches[normalizedLeftMatchIndex];
-    if (!currentMatch) {
-      return;
-    }
-
-    const currentTabId = activeTab.id;
-    const currentText = getTabContent(currentTabId);
-    const matchedText = currentText.slice(currentMatch.start, currentMatch.end);
-
-    try {
-      const replacementText = await requestWorkerEditJson({
-        tabId: currentTabId,
-        operation: 'replace-text',
-        text: matchedText,
-        searchTerm,
-        searchOptions,
-        replacement,
-      });
-
-      if (replacementText === matchedText || getTabContent(currentTabId) !== currentText) {
-        return;
-      }
-
-      const updated = `${currentText.slice(0, currentMatch.start)}${replacementText}${currentText.slice(currentMatch.end)}`;
-      updateTabContent(currentTabId, updated, true);
-      setTabLargeMode(currentTabId, isLargeDocument(updated));
-      queueFormat(currentTabId, updated);
-    } catch (error) {
-      setTabError(currentTabId, error instanceof Error ? `替换失败：${error.message}` : '替换失败');
-    }
-  };
+      }),
+    resetSearchState,
+    resetTabArtifacts,
+    setTabError,
+    setTabLargeMode,
+    shouldUseDedicatedLeftViewer,
+    suppressLeftChangeRef,
+    syncLeftModel,
+    updateTabContent,
+  });
 
   const { handleFileSelection, handleImport } = useJsonImportActions({
     activeTab,
@@ -869,145 +749,33 @@ const App: React.FC = () => {
     setTabError,
   });
 
-  const handleSaveEditJson = async () => {
-    if (!activeTab) {
-      return;
-    }
-
-    const currentTabId = activeTab.id;
-    const currentTabTitle = activeTab.title;
-    const isNodeEdit = editJsonSession?.mode === 'node';
-    setEditJsonBusyLabel(isNodeEdit ? '正在更新当前节点...' : '正在更新原始 JSON...');
-    try {
-      const original = getTabContent(currentTabId);
-      const saveResult = await requestWorkerEditJsonResult({
-        tabId: currentTabId,
-        operation: isNodeEdit ? 'save-node' : 'save',
-        text: editJsonValueRef.current,
-        originalText: original,
-        path: editJsonSession?.path,
-      });
-      const updated = saveResult.data;
-      if (typeof updated !== 'string') {
-        throw new Error('JSON worker returned an empty result');
-      }
-      const largeMode = isLargeDocument(updated);
-      beginPerformanceSession(currentTabId, 'edit-save', currentTabTitle, null, getUtf8ByteLength(updated), largeMode);
-
-      mutatePerformanceSession(currentTabId, (session) => {
-        session.leftModelStartedAt = performance.now();
-      });
-      updateTabContent(currentTabId, updated, true);
-      mutatePerformanceSession(currentTabId, (session) => {
-        session.leftModelCompletedAt = performance.now();
-      });
-      setTabLargeMode(currentTabId, largeMode);
-      setEditJsonError(null);
-      closeEditJson();
-      resetSearchState();
-      if (isNodeEdit && typeof saveResult.formattedText === 'string') {
-        const rightModelStartedAt = performance.now();
-        updateFormattedContent(currentTabId, saveResult.formattedText, true);
-        const rightModelCompletedAt = performance.now();
-        setLargeRawViewerData(currentTabId, saveResult.rawViewerData ?? null);
-        setLargeViewerData(currentTabId, saveResult.viewerData ?? null);
-        setLargeViewerStatus(currentTabId, saveResult.viewerData ? 'ready' : 'idle');
-        setStructureStatus(
-          currentTabId,
-          saveResult.structureWarming
-            ? 'building'
-            : workerStructureEnabledRef.current[currentTabId]
-              ? 'ready'
-              : largeMode
-                ? 'disabled'
-                : 'ready'
-        );
-        setProcessingStage(currentTabId, saveResult.structureWarming ? 'building-index' : 'idle');
-        setTabFormatting(currentTabId, false);
-        mutatePerformanceSession(
-          currentTabId,
-          (session) => {
-            session.pendingFormat = false;
-            session.requestId = null;
-            session.formatQueuedAt = rightModelStartedAt;
-            session.formatStartedAt = rightModelStartedAt;
-            session.formatCompletedAt = rightModelStartedAt;
-            session.rightModelStartedAt = rightModelStartedAt;
-            session.rightModelCompletedAt = rightModelCompletedAt;
-            session.formattedBytes = getUtf8ByteLength(saveResult.formattedText ?? '');
-            session.viewerIndexMs = typeof saveResult.viewerIndexMs === 'number' ? saveResult.viewerIndexMs : null;
-            session.viewerReadyAt = rightModelCompletedAt;
-            session.structureCompletedAt = rightModelCompletedAt;
-            session.structureEnabled = Boolean(workerStructureEnabledRef.current[currentTabId]);
-            session.status = 'ready';
-            session.error = null;
-          },
-          true
-        );
-      } else {
-        queueFormatAfterEditSave(currentTabId, updated);
-      }
-    } catch (error) {
-      setEditJsonError(error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败');
-      setEditJsonBusyLabel(null);
-    }
-  };
-
-  const handleTransformEditJsonContent = async (
-    operation: Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>,
-    label: string,
-    value: string
-  ) => {
-    if (!activeTab) {
-      throw new Error('当前没有可编辑的 JSON');
-    }
-
-    if (!value.trim()) {
-      const errorMessage = `没有可${label}的编辑内容`;
-      setEditJsonError(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    setEditJsonBusyLabel(`正在${label}编辑内容...`);
-    try {
-      const transformed = await requestWorkerEditJson({ tabId: activeTab.id, operation, text: value });
-      editJsonValueRef.current = transformed;
-      setEditJsonError(null);
-      return transformed;
-    } catch (error) {
-      setEditJsonError(error instanceof Error ? `${label}编辑内容失败：${error.message}` : `${label}编辑内容失败`);
-      throw error;
-    } finally {
-      setEditJsonBusyLabel(null);
-    }
-  };
-
-  const handleUnescapeEditJsonContent = (value: string) =>
-    handleTransformEditJsonContent('unescape-json', '反转义', value);
-
-  const handleEscapeEditJsonContent = (value: string) => handleTransformEditJsonContent('escape-json', '转义', value);
-
-  const handleCopyEscapedJson = async () => {
-    if (!activeTab) {
-      return;
-    }
-
-    setEditJsonBusyLabel('正在复制字符串字面量...');
-    try {
-      const literal = await requestWorkerEditJson({
-        tabId: activeTab.id,
-        operation: 'copy-literal',
-        text: editJsonValueRef.current,
-      });
-      await writeTextToClipboard(literal);
-      setEditJsonError(null);
-      showCopyLiteralNotice();
-    } catch (error) {
-      setEditJsonError(error instanceof Error ? `复制字符串字面量失败：${error.message}` : '复制字符串字面量失败');
-    } finally {
-      setEditJsonBusyLabel(null);
-    }
-  };
+  const { handleCopyEscapedJson, handleEscapeEditJsonContent, handleSaveEditJson, handleUnescapeEditJsonContent } =
+    useJsonEditActions({
+      activeTab,
+      beginPerformanceSession,
+      closeEditJson,
+      editJsonSession,
+      editJsonValueRef,
+      getTabContent,
+      mutatePerformanceSession,
+      queueFormatAfterEditSave,
+      requestWorkerEditJson,
+      requestWorkerEditJsonResult,
+      resetSearchState,
+      setEditJsonBusyLabel,
+      setEditJsonError,
+      setLargeRawViewerData,
+      setLargeViewerData,
+      setLargeViewerStatus,
+      setProcessingStage,
+      setStructureStatus,
+      setTabFormatting,
+      setTabLargeMode,
+      showCopyLiteralNotice,
+      updateFormattedContent,
+      updateTabContent,
+      workerStructureEnabledRef,
+    });
 
   const { addTab, closeTab } = useJsonToolTabActions({
     activeTabId,
