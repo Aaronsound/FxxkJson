@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { isErrorDiagnosticsLogLine } from '../utils/diagnosticsLogLevel';
 
 const LOG_PREVIEW_BYTES = 160 * 1024;
-const ERROR_LINE_PATTERN =
-  /("event"\s*:\s*"[^"]*(failed|error|timeout|stalled|gone|exception|rejection)|\b(failed|error|timeout|stalled|exception|rejection)\b|失败|异常|超时|卡住)/i;
 
 interface DiagnosticsLogPanelProps {
   isDarkMode: boolean;
@@ -18,7 +17,7 @@ export interface DiagnosticsContextItem {
 function getErrorLines(content: string) {
   return content
     .split('\n')
-    .filter((line) => ERROR_LINE_PATTERN.test(line))
+    .filter((line) => isErrorDiagnosticsLogLine(line))
     .join('\n');
 }
 

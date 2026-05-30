@@ -11,6 +11,9 @@ const logFilePath = path.join(logDir, 'runtime.log');
 const execFileAsync = promisify(execFile);
 const MAX_LOG_APPEND_LENGTH = 64 * 1024;
 const MAX_LOG_READ_BYTES = 1024 * 1024;
+type RuntimeLogLevel = 'info' | 'warn' | 'error';
+const ERROR_EVENT_PATTERN = /(failed|error|timeout|stalled|gone|exception|rejection)/i;
+const WARN_EVENT_PATTERN = /(blocked|warning|fallback|disabled)/i;
 
 async function appendRuntimeLog(entry: string) {
   await fs.mkdir(logDir, { recursive: true });
@@ -50,10 +53,23 @@ async function readRecentRuntimeLog(maxBytes = 160 * 1024) {
   }
 }
 
+function getRuntimeLogLevel(event: string): RuntimeLogLevel {
+  if (ERROR_EVENT_PATTERN.test(event)) {
+    return 'error';
+  }
+
+  if (WARN_EVENT_PATTERN.test(event)) {
+    return 'warn';
+  }
+
+  return 'info';
+}
+
 function logRuntimeEvent(event: string, details: object = {}) {
   appendRuntimeLog(
     JSON.stringify({
       event,
+      level: getRuntimeLogLevel(event),
       ...details,
     })
   ).catch(() => {

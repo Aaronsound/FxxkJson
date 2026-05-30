@@ -1,5 +1,6 @@
 import { MutableRefObject, useEffect, useRef, useState } from 'react';
 import { PerformanceSnapshot, PerformanceSnapshotStatus, PerformanceTrigger } from '../types/jsonTool';
+import { getDiagnosticsLogLevel } from '../utils/diagnosticsLogLevel';
 
 export type PerformanceSession = {
   runId: string;
@@ -50,6 +51,7 @@ export function useJsonPerformanceTracking({ activeTabIdRef, initialTabId }: Use
       ?.appendLog(
         JSON.stringify({
           event,
+          level: getDiagnosticsLogLevel(event),
           activeTabId: activeTabIdRef.current,
           ...details,
         })

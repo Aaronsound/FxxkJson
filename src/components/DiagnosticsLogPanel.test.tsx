@@ -39,8 +39,8 @@ describe('DiagnosticsLogPanel', () => {
       readRecentLog: vi.fn().mockResolvedValue({
         path: '/tmp/fxxkjson/runtime.log',
         content: [
-          '[2026-05-09] {"event":"format-success"}',
-          '[2026-05-09] {"event":"format-failed","error":"bad json"}',
+          '[2026-05-09] {"event":"format-success","level":"info"}',
+          '[2026-05-09] {"event":"format-failed","level":"error","error":"bad json"}',
           '[2026-05-09] {"event":"format-timeout","error":"JSON 格式化超时"}',
         ].join('\n'),
         truncated: true,
