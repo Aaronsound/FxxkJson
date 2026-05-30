@@ -36,21 +36,9 @@ import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
 import { useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationActions';
 import { useJsonToolDerivedState } from './hooks/useJsonToolDerivedState';
-import {
-  DEFAULT_TAB_TITLE,
-  INITIAL_TAB_ID,
-  LocateFeedback,
-  ProcessingStage,
-  StructureStatus,
-  STRUCTURE_SYNC_THRESHOLD,
-} from './types/jsonTool';
-import type {
-  EditJsonWorkerOperation,
-  LargeJsonSearchMatch,
-  LargeJsonViewerData,
-  LargeRawViewerData,
-  RightNodeSelection,
-} from './types/jsonTool';
+import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
+import { DEFAULT_TAB_TITLE, INITIAL_TAB_ID, StructureStatus, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
+import type { EditJsonWorkerOperation, LargeJsonSearchMatch } from './types/jsonTool';
 import { selectionCoversModel } from './utils/jsonToolModels';
 import {
   bindEditorFocusContext,
@@ -398,114 +386,55 @@ const App: React.FC = () => {
     wrapLongLines,
   });
 
-  const resetSearchState = () => {
-    resetLeftSearchState();
-    resetRightSearchState();
-    setLeftReplaceText('');
-    setLargeRawViewerMatches([]);
-    setLargeViewerMatches([]);
-    setLargeViewerMatchCount(0);
-    clearLeftHighlights();
-    clearRightHighlights();
-  };
-
-  const setTabLargeMode = (tabId: string, enabled: boolean) => {
-    largeModeRef.current[tabId] = enabled;
-    setTabLargeModeState(tabId, enabled);
-  };
-
-  const setProcessingStage = (tabId: string, stage: ProcessingStage) => {
-    setProcessingStageByTab((current) => ({ ...current, [tabId]: stage }));
-  };
-
-  const setLocateFeedback = (tabId: string, feedback: LocateFeedback | null) => {
-    setLocateFeedbackByTab((current) => ({ ...current, [tabId]: feedback }));
-  };
-
-  const setRightNodeSelection = (tabId: string, selection: RightNodeSelection | null) => {
-    setRightNodeSelectionByTab((current) => ({ ...current, [tabId]: selection }));
-  };
-
-  const setLargeFileLocateEnabled = (tabId: string, enabled: boolean) => {
-    largeFileLocateEnabledRef.current[tabId] = enabled;
-    setLargeFileLocateEnabledState(tabId, enabled);
-  };
-
-  const setStructureStatus = (tabId: string, status: StructureStatus) => {
-    structureStatusRef.current[tabId] = status;
-    setStructureStatusState(tabId, status);
-  };
-
-  const setLargeViewerData = (tabId: string, data: LargeJsonViewerData | null) => {
-    setLargeViewerDataByTab((current) => ({ ...current, [tabId]: data }));
-    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [tabId]: [] }));
-    setRightNodeSelection(tabId, null);
-    if (tabId === activeTabIdRef.current) {
-      setLargeViewerMatches([]);
-      setLargeViewerMatchCount(0);
-      resetRightSearchPaging();
-    }
-  };
-
-  const setLargeRawViewerData = (tabId: string, data: LargeRawViewerData | null) => {
-    setLargeRawViewerDataByTab((current) => ({ ...current, [tabId]: data }));
-  };
-
-  const setLargeViewerStatus = (tabId: string, status: 'idle' | 'building' | 'ready') => {
-    setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: status }));
-  };
-
-  const setLargeViewerSearchResults = (
-    tabId: string,
-    matches: LargeJsonSearchMatch[],
-    hasMore = false,
-    nextStartOffset = 0,
-    append = false
-  ) => {
-    if (tabId !== activeTabIdRef.current) {
-      return;
-    }
-
-    const nextMatches = append ? [...largeViewerMatches, ...matches] : matches;
-    setLargeViewerMatches(nextMatches);
-    setLargeViewerMatchCount(nextMatches.length);
-    setRightSearchHasMore(hasMore);
-    setRightSearchNextOffset(nextStartOffset);
-    setIsRightSearchLoadingMore(false);
-  };
-
-  const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
-
-  const updateTabContent = (tabId: string, content: string, syncModel = false) => {
-    const byteLength = getUtf8ByteLength(content);
-    rawTextByTabRef.current[tabId] = content;
-    setLargeRawViewerData(tabId, null);
-    setRightNodeSelection(tabId, null);
-    setDocumentMeta(tabId, (current) => ({
-      ...current,
-      rawLength: byteLength,
-      rawRevision: current.rawRevision + 1,
-    }));
-
-    if (syncModel) {
-      syncLeftModel(tabId, content, true);
-    }
-  };
-
-  const updateFormattedContent = (tabId: string, content: string, syncModel = false) => {
-    const byteLength = getUtf8ByteLength(content);
-    formattedTextByTabRef.current[tabId] = content;
-    setRightNodeSelection(tabId, null);
-    setDocumentMeta(tabId, (current) => ({
-      ...current,
-      formattedLength: byteLength,
-      formattedRevision: current.formattedRevision + 1,
-    }));
-
-    if (syncModel) {
-      syncRightModel(tabId, content, true);
-    }
-  };
+  const {
+    getTabContent,
+    resetSearchState,
+    setLargeFileLocateEnabled,
+    setLargeRawViewerData,
+    setLargeViewerData,
+    setLargeViewerSearchResults,
+    setLargeViewerStatus,
+    setLocateFeedback,
+    setProcessingStage,
+    setRightNodeSelection,
+    setStructureStatus,
+    setTabLargeMode,
+    updateFormattedContent,
+    updateTabContent,
+  } = useJsonToolStateSetters({
+    activeTabIdRef,
+    clearLeftHighlights,
+    clearRightHighlights,
+    formattedTextByTabRef,
+    largeFileLocateEnabledRef,
+    largeModeRef,
+    largeViewerMatches,
+    rawTextByTabRef,
+    resetLeftSearchState,
+    resetRightSearchPaging,
+    resetRightSearchState,
+    setDocumentMeta,
+    setIsRightSearchLoadingMore,
+    setLargeFileLocateEnabledState,
+    setLargeRawViewerDataByTab,
+    setLargeRawViewerMatches,
+    setLargeViewerCollapsedLinesByTab,
+    setLargeViewerDataByTab,
+    setLargeViewerMatchCount,
+    setLargeViewerMatches,
+    setLargeViewerStatusByTab,
+    setLeftReplaceText,
+    setLocateFeedbackByTab,
+    setProcessingStageByTab,
+    setRightNodeSelectionByTab,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
+    setStructureStatusState,
+    setTabLargeModeState,
+    structureStatusRef,
+    syncLeftModel,
+    syncRightModel,
+  });
 
   const {
     clearTabStructure,
