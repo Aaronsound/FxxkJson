@@ -1,4 +1,4 @@
-import type { LargeJsonSearchMatch, LargeJsonViewerData, WorkerMessage, WorkerSearchRequest } from '../types/jsonTool';
+import type { LargeJsonViewerData, WorkerMessage, WorkerSearchRequest } from '../types/jsonTool';
 
 type SearchRequestMessage = WorkerSearchRequest & {
   append?: boolean;

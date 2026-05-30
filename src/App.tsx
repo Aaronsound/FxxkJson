@@ -37,7 +37,7 @@ import { useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationActions';
 import { useJsonToolDerivedState } from './hooks/useJsonToolDerivedState';
 import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
-import { DEFAULT_TAB_TITLE, INITIAL_TAB_ID, StructureStatus, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
+import { DEFAULT_TAB_TITLE, INITIAL_TAB_ID, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
 import type { EditJsonWorkerOperation, LargeJsonSearchMatch } from './types/jsonTool';
 import { selectionCoversModel } from './utils/jsonToolModels';
 import {
