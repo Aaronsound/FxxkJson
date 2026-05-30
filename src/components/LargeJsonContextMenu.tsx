@@ -6,11 +6,13 @@ export interface LargeJsonContextMenuState {
   y: number;
   offset: number;
   foldLine: number | null;
+  parentFoldLine: number | null;
 }
 
 interface LargeJsonContextMenuProps {
   contextMenu: LargeJsonContextMenuState;
   isCollapsed: boolean;
+  isParentCollapsed: boolean;
   isDarkMode: boolean;
   onClose: () => void;
   onToggleFold: (line: number) => void;
@@ -31,6 +33,7 @@ const defaultT = createTranslator('zh');
 const LargeJsonContextMenu: React.FC<LargeJsonContextMenuProps> = ({
   contextMenu,
   isCollapsed,
+  isParentCollapsed,
   isDarkMode,
   onClose,
   onToggleFold,
@@ -68,7 +71,21 @@ const LargeJsonContextMenu: React.FC<LargeJsonContextMenuProps> = ({
             onClose();
           }}
         >
-          {isCollapsed ? t('context.expandNode') : t('context.collapseNode')}
+          {isCollapsed ? t('context.expandCurrentFold') : t('context.collapseCurrentFold')}
+        </button>
+      )}
+      {contextMenu.parentFoldLine !== null && (
+        <button
+          type="button"
+          className="large-json-context-menu-item"
+          onClick={() => {
+            if (contextMenu.parentFoldLine !== null) {
+              onToggleFold(contextMenu.parentFoldLine);
+            }
+            onClose();
+          }}
+        >
+          {isParentCollapsed ? t('context.expandParentFold') : t('context.collapseParentFold')}
         </button>
       )}
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyPath)}>

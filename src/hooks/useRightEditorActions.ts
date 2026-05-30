@@ -3,6 +3,7 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { RightEditorContextMenuState } from '../components/RightEditorContextMenu';
 import type { StructureStatus } from '../types/jsonTool';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
+import { getFoldableLineTargets } from '../utils/foldableLine';
 import { bindEditorFocusContext, registerPaneFindAction } from '../utils/jsonEditorMountActions';
 
 type RightNodeMutationOperation = 'delete-node' | 'rename-node-key';
@@ -116,15 +117,18 @@ export function useRightEditorActions({
       }
 
       const offset = model.getOffsetAt(position);
+      const foldTargets = getFoldableLineTargets(model, position.lineNumber);
       const menuPosition = getViewportContextMenuPosition(
         browserEvent?.clientX ?? event.event.posx ?? 0,
         browserEvent?.clientY ?? event.event.posy ?? 0,
-        10
+        9 + Number(Boolean(foldTargets.currentLine)) + Number(Boolean(foldTargets.parentLine))
       );
       rightContextMenuOffsetByTabRef.current[currentTabId] = offset;
       setRightEditorContextMenu({
         tabId: currentTabId,
         offset,
+        hasCurrentFoldTarget: Boolean(foldTargets.currentLine),
+        hasParentFoldTarget: Boolean(foldTargets.parentLine),
         x: menuPosition.x,
         y: menuPosition.y,
       });

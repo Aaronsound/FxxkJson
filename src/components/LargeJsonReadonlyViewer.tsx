@@ -295,6 +295,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
           <LargeJsonContextMenu
             contextMenu={contextMenu}
             isCollapsed={contextMenu.foldLine !== null && collapsedLineSet.has(contextMenu.foldLine)}
+            isParentCollapsed={contextMenu.parentFoldLine !== null && collapsedLineSet.has(contextMenu.parentFoldLine)}
             isDarkMode={isDarkMode}
             onClose={closeContextMenu}
             onToggleFold={toggleLine}

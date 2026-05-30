@@ -3,6 +3,8 @@ interface FoldableLineModel {
   getLineCount(): number;
 }
 
+export type FoldTargetMode = 'current' | 'parent';
+
 function getIndentLength(line: string) {
   return line.match(/^[ \t]*/)?.[0].length ?? 0;
 }
@@ -43,15 +45,11 @@ function hasUnquotedContainerOpen(line: string) {
   return lastStructuralChar === '{' || lastStructuralChar === '[';
 }
 
-export function findNearestFoldableLine(model: FoldableLineModel, lineNumber: number) {
+function findParentFoldableLine(model: FoldableLineModel, lineNumber: number) {
   const safeLineNumber = Math.min(Math.max(1, Math.floor(lineNumber)), model.getLineCount());
   const currentLine = model.getLineContent(safeLineNumber);
-
-  if (hasUnquotedContainerOpen(currentLine)) {
-    return safeLineNumber;
-  }
-
   const currentIndent = getIndentLength(currentLine);
+
   for (let candidateLine = safeLineNumber - 1; candidateLine >= 1; candidateLine -= 1) {
     const line = model.getLineContent(candidateLine);
     if (!hasUnquotedContainerOpen(line)) {
@@ -64,4 +62,26 @@ export function findNearestFoldableLine(model: FoldableLineModel, lineNumber: nu
   }
 
   return null;
+}
+
+export function getFoldableLineTargets(model: FoldableLineModel, lineNumber: number) {
+  const safeLineNumber = Math.min(Math.max(1, Math.floor(lineNumber)), model.getLineCount());
+  const currentLine = model.getLineContent(safeLineNumber);
+  const currentLineTarget = hasUnquotedContainerOpen(currentLine) ? safeLineNumber : null;
+  const parentLine = findParentFoldableLine(model, safeLineNumber);
+
+  return {
+    currentLine: currentLineTarget,
+    parentLine,
+    nearestLine: currentLineTarget ?? parentLine,
+  };
+}
+
+export function findFoldableLineForMode(model: FoldableLineModel, lineNumber: number, mode: FoldTargetMode) {
+  const targets = getFoldableLineTargets(model, lineNumber);
+  return mode === 'current' ? (targets.currentLine ?? targets.parentLine) : (targets.parentLine ?? targets.currentLine);
+}
+
+export function findNearestFoldableLine(model: FoldableLineModel, lineNumber: number) {
+  return getFoldableLineTargets(model, lineNumber).nearestLine;
 }

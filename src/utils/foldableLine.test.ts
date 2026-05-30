@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findNearestFoldableLine } from './foldableLine';
+import { findFoldableLineForMode, findNearestFoldableLine, getFoldableLineTargets } from './foldableLine';
 
 function createModel(lines: string[]) {
   return {
@@ -32,5 +32,25 @@ describe('findNearestFoldableLine', () => {
 
   it('uses the closest parent array for primitive array values', () => {
     expect(findNearestFoldableLine(model, 6)).toBe(5);
+  });
+
+  it('distinguishes current container folds from parent level folds', () => {
+    expect(getFoldableLineTargets(model, 5)).toEqual({
+      currentLine: 5,
+      parentLine: 2,
+      nearestLine: 5,
+    });
+    expect(findFoldableLineForMode(model, 5, 'current')).toBe(5);
+    expect(findFoldableLineForMode(model, 5, 'parent')).toBe(2);
+  });
+
+  it('falls back to the parent level for scalar current-node fold requests', () => {
+    expect(getFoldableLineTargets(model, 4)).toEqual({
+      currentLine: null,
+      parentLine: 2,
+      nearestLine: 2,
+    });
+    expect(findFoldableLineForMode(model, 4, 'current')).toBe(2);
+    expect(findFoldableLineForMode(model, 4, 'parent')).toBe(2);
   });
 });

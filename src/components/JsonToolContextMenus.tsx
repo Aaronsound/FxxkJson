@@ -1,6 +1,7 @@
 import React from 'react';
 import LeftEditorContextMenu from './LeftEditorContextMenu';
 import RightEditorContextMenu from './RightEditorContextMenu';
+import type { FoldTargetMode } from '../utils/foldableLine';
 import type { I18nKey } from '../utils/i18n';
 
 interface JsonToolContextMenusProps {
@@ -29,7 +30,7 @@ interface JsonToolContextMenusProps {
   shouldUseDedicatedLeftViewer: boolean;
   shouldUseDedicatedRightViewer: boolean;
   t: (key: I18nKey, params?: Record<string, string | number>) => string;
-  toggleRightFoldAtOffset: (tabId: string, offset: number) => void;
+  toggleRightFoldAtOffset: (tabId: string, offset: number, mode: FoldTargetMode) => void;
   applyRightNodeMutationAtOffset: (
     tabId: string,
     offset: number,

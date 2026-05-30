@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findNearestRegionStartLine } from './largeJsonFoldTarget';
+import { findNearestRegionStartLine, getRegionFoldTargets } from './largeJsonFoldTarget';
 
 describe('findNearestRegionStartLine', () => {
   const regions = [
@@ -19,5 +19,18 @@ describe('findNearestRegionStartLine', () => {
 
   it('returns null when no containing region exists', () => {
     expect(findNearestRegionStartLine(regions, 11)).toBeNull();
+  });
+
+  it('distinguishes current regions from parent regions', () => {
+    expect(getRegionFoldTargets(regions, 5)).toEqual({
+      currentLine: 5,
+      parentLine: 2,
+      nearestLine: 5,
+    });
+    expect(getRegionFoldTargets(regions, 4)).toEqual({
+      currentLine: null,
+      parentLine: 2,
+      nearestLine: 2,
+    });
   });
 });

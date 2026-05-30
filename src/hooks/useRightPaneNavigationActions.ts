@@ -3,7 +3,7 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { editor } from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
 import type { RightNodeSelection, Tab } from '../types/jsonTool';
-import { findNearestFoldableLine } from '../utils/foldableLine';
+import { findFoldableLineForMode, type FoldTargetMode } from '../utils/foldableLine';
 
 interface UseRightPaneNavigationActionsArgs {
   activeRightNodeSelection: RightNodeSelection | null;
@@ -82,7 +82,7 @@ export function useRightPaneNavigationActions({
     requestWorkerLocate(activeTab.id, pinnedPath.startOffset);
   };
 
-  const toggleRightFoldAtOffset = (tabId: string, offset: number) => {
+  const toggleRightFoldAtOffset = (tabId: string, offset: number, mode: FoldTargetMode = 'current') => {
     if (tabId !== activeTabIdRef.current) {
       return;
     }
@@ -94,7 +94,7 @@ export function useRightPaneNavigationActions({
     }
 
     const position = model.getPositionAt(offset);
-    const foldLine = findNearestFoldableLine(model, position.lineNumber);
+    const foldLine = findFoldableLineForMode(model, position.lineNumber, mode);
     const targetPosition = foldLine ? { lineNumber: foldLine, column: 1 } : position;
     editor.setPosition(targetPosition);
     editor.focus();

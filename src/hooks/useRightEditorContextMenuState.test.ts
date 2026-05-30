@@ -12,13 +12,27 @@ describe('useRightEditorContextMenuState', () => {
     );
 
     act(() => {
-      result.current.setRightEditorContextMenu({ offset: 4, tabId: 'tab-1', x: 10, y: 20 });
+      result.current.setRightEditorContextMenu({
+        offset: 4,
+        tabId: 'tab-1',
+        x: 10,
+        y: 20,
+        hasCurrentFoldTarget: true,
+        hasParentFoldTarget: false,
+      });
     });
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(result.current.rightEditorContextMenu).toBeNull();
 
     act(() => {
-      result.current.setRightEditorContextMenu({ offset: 5, tabId: 'tab-1', x: 1, y: 2 });
+      result.current.setRightEditorContextMenu({
+        offset: 5,
+        tabId: 'tab-1',
+        x: 1,
+        y: 2,
+        hasCurrentFoldTarget: false,
+        hasParentFoldTarget: true,
+      });
     });
     rerender({ activeTabId: 'tab-1', dedicated: true });
     expect(result.current.rightEditorContextMenu).toBeNull();

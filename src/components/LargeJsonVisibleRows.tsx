@@ -4,7 +4,7 @@ import type { LargeJsonViewerData, LargeJsonViewerRegion } from '../types/jsonTo
 import { getFirstMeaningfulOffset, getLargeJsonLineTitle } from '../utils/largeJsonViewerDom';
 import { getCollapsedPreview } from '../utils/largeJsonViewerRender';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
-import { findNearestRegionStartLine } from '../utils/largeJsonFoldTarget';
+import { getRegionFoldTargets } from '../utils/largeJsonFoldTarget';
 import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
 
 interface LocalSelectionRange {
@@ -149,17 +149,18 @@ export function LargeJsonVisibleRows({
             event.preventDefault();
             event.stopPropagation();
             const offset = resolveOffsetFromPoint(event, lineNumber, baseLineText);
-            const foldLine = findNearestRegionStartLine(data.regions, lineNumber);
+            const foldTargets = getRegionFoldTargets(data.regions, lineNumber);
             const menuPosition = getViewportContextMenuPosition(
               event.clientX,
               event.clientY,
-              foldLine !== null ? 10 : 9
+              9 + Number(Boolean(foldTargets.currentLine)) + Number(Boolean(foldTargets.parentLine))
             );
             setContextMenu({
               x: menuPosition.x,
               y: menuPosition.y,
               offset,
-              foldLine,
+              foldLine: foldTargets.currentLine,
+              parentFoldLine: foldTargets.parentLine,
             });
           }}
         >
