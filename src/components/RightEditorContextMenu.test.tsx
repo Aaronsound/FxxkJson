@@ -27,7 +27,7 @@ describe('RightEditorContextMenu', () => {
   it('toggles folding with the active tab and offset', () => {
     render(<RightEditorContextMenu {...baseProps} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '展开/收缩当前节点' }));
+    fireEvent.click(screen.getByRole('button', { name: '展开/收缩当前/所属节点' }));
 
     expect(baseProps.onClose).toHaveBeenCalledTimes(1);
     expect(baseProps.onToggleFold).toHaveBeenCalledWith('tab-1', 56);

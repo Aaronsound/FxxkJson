@@ -28,7 +28,7 @@ describe('LargeJsonContextMenu', () => {
   it('toggles the current fold line and closes', () => {
     render(<LargeJsonContextMenu {...baseProps} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '收缩当前节点' }));
+    fireEvent.click(screen.getByRole('button', { name: '收缩当前/所属节点' }));
 
     expect(baseProps.onToggleFold).toHaveBeenCalledWith(3);
     expect(baseProps.onClose).toHaveBeenCalledTimes(1);

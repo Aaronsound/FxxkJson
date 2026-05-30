@@ -10,10 +10,20 @@ function ref<T>(current: T) {
 }
 
 function createEditor() {
+  const lines = [
+    '{',
+    '  "nested": {',
+    '    "requestId": "req-00032375",',
+    '    "timestamp": "2026-04-27T00:00:00.000Z"',
+    '  }',
+    '}',
+  ];
   return {
     focus: vi.fn(),
     getAction: vi.fn(() => ({ run: vi.fn() })),
     getModel: vi.fn(() => ({
+      getLineContent: vi.fn((lineNumber: number) => lines[lineNumber - 1] ?? ''),
+      getLineCount: vi.fn(() => lines.length),
       getPositionAt: vi.fn((offset: number) => ({ column: offset + 1, lineNumber: 1 })),
     })),
     revealRangeInCenter: vi.fn(),
@@ -95,7 +105,35 @@ describe('useRightPaneNavigationActions', () => {
     expect(action.run).not.toHaveBeenCalled();
 
     result.current.toggleRightFoldAtOffset('tab-a', 2);
-    expect(editor.setPosition).toHaveBeenCalledWith({ column: 3, lineNumber: 1 });
+    expect(editor.setPosition).toHaveBeenCalledWith({ column: 1, lineNumber: 1 });
+    expect(action.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('toggles the closest foldable parent when the offset points at a scalar field', () => {
+    const editor = createEditor();
+    const action = { run: vi.fn() };
+    editor.getAction.mockReturnValue(action);
+    editor.getModel.mockReturnValue({
+      getLineContent: vi.fn(
+        (lineNumber: number) =>
+          [
+            '{',
+            '  "nested": {',
+            '    "requestId": "req-00032375",',
+            '    "timestamp": "2026-04-27T00:00:00.000Z"',
+            '  }',
+            '}',
+          ][lineNumber - 1] ?? ''
+      ),
+      getLineCount: vi.fn(() => 6),
+      getPositionAt: vi.fn(() => ({ column: 18, lineNumber: 4 })),
+    });
+    const args = createArgs({ rightEditorRef: ref(editor as never) });
+    const { result } = renderHook(() => useRightPaneNavigationActions(args));
+
+    result.current.toggleRightFoldAtOffset('tab-a', 99);
+
+    expect(editor.setPosition).toHaveBeenCalledWith({ column: 1, lineNumber: 2 });
     expect(action.run).toHaveBeenCalledTimes(1);
   });
 });
