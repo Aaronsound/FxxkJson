@@ -1,11 +1,6 @@
 ﻿import React, { useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
-import JsonEditorPanes from './components/JsonEditorPanes';
-import JsonPerformancePanel from './components/JsonPerformancePanel';
-import JsonToolTabBar from './components/JsonToolTabBar';
-import JsonToolToolbar from './components/JsonToolToolbar';
-import JsonToolContextMenus from './components/JsonToolContextMenus';
-import JsonToolOverlayLayer from './components/JsonToolOverlayLayer';
+import JsonToolWorkspace from './components/JsonToolWorkspace';
 import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
 import { useJsonToolContentActions } from './hooks/useJsonToolContentActions';
 import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
@@ -41,10 +36,10 @@ import { useJsonEditActions } from './hooks/useJsonEditActions';
 import { useLeftEditorActions } from './hooks/useLeftEditorActions';
 import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
 import { useRightEditorDiagnostics } from './hooks/useRightEditorDiagnostics';
+import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
 import { INITIAL_TAB_ID } from './types/jsonTool';
 import type { LargeJsonSearchMatch } from './types/jsonTool';
 import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
-import { APP_VERSION } from './utils/appInfo';
 import './App.css';
 
 const App: React.FC = () => {
@@ -834,245 +829,79 @@ const App: React.FC = () => {
     return null;
   }
 
+  const workspaceProps = createJsonToolWorkspaceProps({
+    ...{ activeDocumentMeta, activeLargeRawViewerData, activeLargeViewerCollapsedLines, activeLargeViewerData },
+    ...{ activeLeftMatchCount, activePerformanceSnapshot, activeRawText, activeRightMatchCount },
+    ...{ activeRightPinnedPathItems, activeRightSelectedRange },
+    activeTab,
+    activeTabId,
+    ...{ addTab, applyRightNodeMutationAtOffset },
+    canCompareJson: tabs.length >= 2,
+    ...{ canControlRightPaneFolding, canEditJson, canEnableLargeFileLocate },
+    ...{ cancelMutationDialog, cancelRenaming, closeEditJson, closeLeftFind, closeRightFind, closeTab },
+    ...{ confirmDeleteDialog, confirmRenameDialog },
+    ...{ copyLeftEditorSelection, copyNodeDetailAtOffset, copyValueAtOffset, cutLeftEditorSelection },
+    ...{ currentError, currentStructureStatus, diagnosticsContext },
+    ...{ editJsonBusyLabel, editJsonError, editJsonSession, editJsonValueRef },
+    ...{ finishRenaming, formattedValue, getTabContent },
+    ...{ gotoNextLeft, gotoNextRight, gotoPrevLeft, gotoPrevRight },
+    ...{ handleClear, handleCopyEscapedJson, handleEscapeEditJsonContent, handleEscapeJson },
+    ...{ handleFormat, handleImport, handleLargeFileLocateToggle },
+    ...{ handleLeftChange, handleLeftMount, handleLeftSearchOptionsChange, handleLeftSearchTermChange },
+    handleOpenAbout: () => setIsAboutOpen(true),
+    handleOpenCompare: () => setIsCompareOpen(true),
+    handleOpenDiagnosticsLog: () => setIsDiagnosticsLogOpen(true),
+    ...{ handleOpenEditJson, handleOpenEditNodeAtOffset, handleOpenUnescapedNodeAtOffset },
+    ...{ handleRepairJson, handleRenamingChange, handleRightMount },
+    ...{ handleRightSearchOptionsChange, handleRightSearchTermChange, handleSaveEditJson },
+    handleToggleDarkMode: () => setIsDarkMode((current: boolean) => !current),
+    ...{ handleUnescapeEditJsonContent, handleUnescapeJson, hasCopiedLiteral, importingFileName },
+    ...{ isAboutOpen, isArchitectureWarningDismissed, isBuildingDedicatedRightViewer, isCompareOpen },
+    ...{ isDarkMode, isDiagnosticsLogOpen, isDragImportActive, isFormattingActiveTab, isImportingActiveTab },
+    ...{ isLargeFileLocateEnabled, isLargeFileMode, isLeftFindOpen, isLeftSearchLoadingMore },
+    ...{ isRightFindOpen, isRightSearchLoadingMore, language },
+    ...{ largeRawViewerRef, largeViewerMatches, largeViewerRef, leftEditorContextMenu },
+    ...{ leftPaneMetaText, leftRawHighlightRange, leftReplaceText },
+    ...{ leftSearchHasMore, leftSearchOptions, leftSearchTerm },
+    ...{ loadMoreLeftSearch, loadMoreRightSearch, normalizedLeftMatchIndex, normalizedRightMatchIndex },
+    ...{ openRightFind, pasteIntoLeftEditor, performanceHistory, pinActiveRightPath, processingStageText },
+    ...{ rememberRightSearchTerm, renamingTab, replaceAllLeftMatches, replaceLeftMatch, requestWorkerLocate },
+    ...{ rightEditorContextMenu, rightEditorRef, rightMatchIndex, rightNodeMutationDialog, rightPaneMetaText },
+    ...{ rightRecentSearches, rightSearchHasMore, rightSearchOptions, rightSearchTerm, runtimeInfo },
+    ...{ selectAllLeftEditorText, selectRightPinnedPath },
+    ...{ setActiveTabId, setIsAboutOpen, setIsArchitectureWarningDismissed, setIsCompareOpen },
+    ...{ setIsDiagnosticsLogOpen, setIsRightFindOpen, setLanguage, setLargeViewerCollapsedLinesByTab },
+    ...{ setLargeViewerMatchCount, setLeftEditorContextMenu, setLeftReplaceText, setRightEditorContextMenu },
+    ...{ setRightMatchIndex, setRightSearchTerm, setShowPerformancePanel, setWrapLongLines },
+    ...{ shouldEnableRightPaneFolding, shouldUseDedicatedLeftViewer, shouldUseDedicatedRightViewer },
+    ...{
+      showPerformancePanel,
+      startRenamingTab,
+      t,
+      tabs,
+      toggleRightFoldAtOffset,
+      usesLightweightLocate,
+      wrapLongLines,
+    },
+  });
+
   return (
-    <div
-      className={isDarkMode ? 'app-container dark-mode' : 'app-container'}
+    <JsonToolWorkspace
+      contextMenusProps={workspaceProps.contextMenusProps}
+      fileInputRef={fileInputRef}
+      isDarkMode={isDarkMode}
       onDragEnter={handleImportDragEnter}
       onDragOver={handleImportDragOver}
       onDragLeave={handleImportDragLeave}
       onDrop={handleImportDrop}
-      style={{
-        height: '100vh',
-        width: '100vw',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json,.txt,application/json,text/plain"
-        style={{ display: 'none' }}
-        onChange={handleFileSelection}
-      />
-
-      <JsonToolOverlayLayer
-        activeTabId={activeTab.id}
-        diagnosticsContext={diagnosticsContext}
-        editJsonBusyLabel={editJsonBusyLabel}
-        editJsonError={editJsonError}
-        editJsonSession={editJsonSession}
-        getTabText={getTabContent}
-        hasCopiedLiteral={hasCopiedLiteral}
-        isAboutOpen={isAboutOpen}
-        isArchitectureWarningDismissed={isArchitectureWarningDismissed}
-        isCompareOpen={isCompareOpen}
-        isDarkMode={isDarkMode}
-        isDiagnosticsLogOpen={isDiagnosticsLogOpen}
-        isDragImportActive={isDragImportActive}
-        onCancelMutationDialog={cancelMutationDialog}
-        onCloseAbout={() => setIsAboutOpen(false)}
-        onCloseCompare={() => setIsCompareOpen(false)}
-        onCloseDiagnosticsLog={() => setIsDiagnosticsLogOpen(false)}
-        onCloseEditJson={closeEditJson}
-        onConfirmDeleteMutationDialog={confirmDeleteDialog}
-        onConfirmRenameMutationDialog={confirmRenameDialog}
-        onCopyEscapedJson={handleCopyEscapedJson}
-        onDismissArchitectureWarning={() => setIsArchitectureWarningDismissed(true)}
-        onEditJsonValueChange={(value) => {
-          editJsonValueRef.current = value;
-        }}
-        onEscapeEditJsonContent={handleEscapeEditJsonContent}
-        onOpenAbout={() => setIsAboutOpen(true)}
-        onSaveEditJson={handleSaveEditJson}
-        onUnescapeEditJsonContent={handleUnescapeEditJsonContent}
-        rightNodeMutationDialog={rightNodeMutationDialog}
-        runtimeInfo={runtimeInfo}
-        tabs={tabs}
-        t={t}
-        version={APP_VERSION}
-      />
-
-      <JsonToolToolbar
-        onImport={handleImport}
-        onFormat={handleFormat}
-        onRepairJson={handleRepairJson}
-        onUnescapeJson={handleUnescapeJson}
-        onEscapeJson={handleEscapeJson}
-        onClear={handleClear}
-        onEditJson={handleOpenEditJson}
-        onOpenCompare={() => setIsCompareOpen(true)}
-        onOpenDiagnosticsLog={() => setIsDiagnosticsLogOpen(true)}
-        onOpenAbout={() => setIsAboutOpen(true)}
-        onFoldAll={() => {
-          if (shouldUseDedicatedRightViewer) {
-            largeViewerRef.current?.foldAll();
-            return;
-          }
-          rightEditorRef.current?.getAction('editor.foldAll')?.run();
-        }}
-        onUnfoldAll={() => {
-          if (shouldUseDedicatedRightViewer) {
-            largeViewerRef.current?.unfoldAll();
-            return;
-          }
-          rightEditorRef.current?.getAction('editor.unfoldAll')?.run();
-        }}
-        canControlRightPaneFolding={canControlRightPaneFolding}
-        isLargeFileMode={isLargeFileMode}
-        canEditJson={canEditJson}
-        canCompareJson={tabs.length >= 2}
-        wrapLongLines={wrapLongLines}
-        onWrapLongLinesChange={setWrapLongLines}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={() => setIsDarkMode((current) => !current)}
-        isLargeFileLocateEnabled={isLargeFileLocateEnabled}
-        onLargeFileLocateToggle={handleLargeFileLocateToggle}
-        showPerformancePanel={showPerformancePanel}
-        onShowPerformancePanelChange={setShowPerformancePanel}
-        importingFileName={importingFileName}
-        canEnableLargeFileLocate={canEnableLargeFileLocate}
-        usesLightweightLocate={usesLightweightLocate}
-        currentStructureStatus={currentStructureStatus}
-        processingStageText={processingStageText}
-        currentError={currentError}
-        language={language}
-        onLanguageChange={setLanguage}
-        t={t}
-      />
-
-      {showPerformancePanel && (
-        <JsonPerformancePanel
-          snapshot={activePerformanceSnapshot}
-          history={performanceHistory}
-          isDarkMode={isDarkMode}
-        />
-      )}
-
-      <JsonToolTabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        renamingTab={renamingTab}
-        onSelectTab={setActiveTabId}
-        onStartRenaming={startRenamingTab}
-        onRenamingChange={handleRenamingChange}
-        onFinishRenaming={finishRenaming}
-        onCancelRenaming={cancelRenaming}
-        onCloseTab={closeTab}
-        onAddTab={addTab}
-      />
-
-      <JsonEditorPanes
-        activeLargeRawViewerData={activeLargeRawViewerData}
-        activeLargeViewerCollapsedLines={activeLargeViewerCollapsedLines}
-        activeLargeViewerData={activeLargeViewerData}
-        activeLeftMatchCount={activeLeftMatchCount}
-        activeRawText={activeRawText}
-        activeRightMatchCount={activeRightMatchCount}
-        formattedValue={formattedValue}
-        isBuildingDedicatedRightViewer={isBuildingDedicatedRightViewer}
-        isDarkMode={isDarkMode}
-        isFormattingActiveTab={isFormattingActiveTab}
-        isImportingActiveTab={isImportingActiveTab}
-        isLargeFileMode={isLargeFileMode}
-        isLeftFindOpen={isLeftFindOpen}
-        isRightFindOpen={isRightFindOpen}
-        largeRawViewerRef={largeRawViewerRef}
-        largeViewerMatches={largeViewerMatches}
-        largeViewerRef={largeViewerRef}
-        leftPaneMetaText={leftPaneMetaText}
-        leftRawHighlightRange={leftRawHighlightRange}
-        leftReplaceText={leftReplaceText}
-        leftSearchHasMore={leftSearchHasMore}
-        leftSearchOptions={leftSearchOptions}
-        leftSearchTerm={leftSearchTerm}
-        normalizedLeftMatchIndex={normalizedLeftMatchIndex}
-        normalizedRightMatchIndex={normalizedRightMatchIndex}
-        processingStageText={processingStageText}
-        rightMatchIndex={rightMatchIndex}
-        rightPaneMetaText={rightPaneMetaText}
-        rightPinnedPaths={activeRightPinnedPathItems}
-        rightRecentSearches={rightRecentSearches}
-        rightSearchHasMore={rightSearchHasMore}
-        rightSearchOptions={rightSearchOptions}
-        rightSelectedRange={activeRightSelectedRange}
-        rightSearchTerm={rightSearchTerm}
-        shouldEnableRightPaneFolding={shouldEnableRightPaneFolding}
-        shouldShowLeftPlaceholder={activeDocumentMeta.rawLength === 0 && !isImportingActiveTab}
-        shouldUseDedicatedLeftViewer={shouldUseDedicatedLeftViewer}
-        shouldUseDedicatedRightViewer={shouldUseDedicatedRightViewer}
-        wrapLongLines={wrapLongLines}
-        isLeftSearchLoadingMore={isLeftSearchLoadingMore}
-        isRightSearchLoadingMore={isRightSearchLoadingMore}
-        onCloseLeftFind={closeLeftFind}
-        onCloseRightFind={closeRightFind}
-        onCopyRightCompactJson={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'compact-json')}
-        onCopyRightFormattedJson={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'formatted-json')}
-        onCopyRightKey={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'key')}
-        onCopyRightPath={(offset) => copyNodeDetailAtOffset(activeTab.id, offset, true, 'path')}
-        onCopyRightValue={(offset) => copyValueAtOffset(activeTab.id, offset, true)}
-        onDeleteRightValue={(offset) => applyRightNodeMutationAtOffset(activeTab.id, offset, true, 'delete-node')}
-        onEditRightValue={(offset) => handleOpenEditNodeAtOffset(activeTab.id, offset, true)}
-        onLeftChange={handleLeftChange}
-        onLeftMount={handleLeftMount}
-        onLeftReplace={replaceLeftMatch}
-        onLeftReplaceAll={replaceAllLeftMatches}
-        onLeftReplaceValueChange={setLeftReplaceText}
-        onLeftSearchOptionsChange={handleLeftSearchOptionsChange}
-        onLeftSearchTermChange={handleLeftSearchTermChange}
-        onLoadMoreLeftSearch={loadMoreLeftSearch}
-        onLoadMoreRightSearch={loadMoreRightSearch}
-        onLocateRightOffset={(offset) => requestWorkerLocate(activeTab.id, offset)}
-        onOpenRightFind={openRightFind}
-        onPinCurrentRightPath={pinActiveRightPath}
-        onRenameRightKey={(offset) => applyRightNodeMutationAtOffset(activeTab.id, offset, true, 'rename-node-key')}
-        onSelectRightPinnedPath={selectRightPinnedPath}
-        onSelectRightRecentSearch={(value) => {
-          setRightSearchTerm(value);
-          setRightMatchIndex(0);
-          setIsRightFindOpen(true);
-          rememberRightSearchTerm(value);
-        }}
-        onUnescapeRightValue={(offset) => handleOpenUnescapedNodeAtOffset(activeTab.id, offset, true)}
-        onPrevLeft={gotoPrevLeft}
-        onPrevRight={gotoPrevRight}
-        onNextLeft={gotoNextLeft}
-        onNextRight={gotoNextRight}
-        onRightCollapsedLinesChange={(lines) => {
-          setLargeViewerCollapsedLinesByTab((current) => ({
-            ...current,
-            [activeTab.id]: lines,
-          }));
-        }}
-        onRightMatchCountChange={setLargeViewerMatchCount}
-        onRightMount={handleRightMount}
-        onRightSearchOptionsChange={handleRightSearchOptionsChange}
-        onRightSearchTermChange={handleRightSearchTermChange}
-        t={t}
-      />
-
-      <JsonToolContextMenus
-        applyRightNodeMutationAtOffset={applyRightNodeMutationAtOffset}
-        copyLeftEditorSelection={copyLeftEditorSelection}
-        copyNodeDetailAtOffset={copyNodeDetailAtOffset}
-        copyValueAtOffset={copyValueAtOffset}
-        cutLeftEditorSelection={cutLeftEditorSelection}
-        handleOpenEditNodeAtOffset={handleOpenEditNodeAtOffset}
-        handleOpenUnescapedNodeAtOffset={handleOpenUnescapedNodeAtOffset}
-        isDarkMode={isDarkMode}
-        leftEditorContextMenu={leftEditorContextMenu}
-        pasteIntoLeftEditor={pasteIntoLeftEditor}
-        rightEditorContextMenu={rightEditorContextMenu}
-        selectAllLeftEditorText={selectAllLeftEditorText}
-        setLeftEditorContextMenu={setLeftEditorContextMenu}
-        setRightEditorContextMenu={setRightEditorContextMenu}
-        shouldUseDedicatedLeftViewer={shouldUseDedicatedLeftViewer}
-        shouldUseDedicatedRightViewer={shouldUseDedicatedRightViewer}
-        t={t}
-        toggleRightFoldAtOffset={toggleRightFoldAtOffset}
-      />
-    </div>
+      onFileSelection={handleFileSelection}
+      overlayProps={workspaceProps.overlayProps}
+      panesProps={workspaceProps.panesProps}
+      performancePanelProps={workspaceProps.performancePanelProps}
+      shouldShowPerformancePanel={showPerformancePanel}
+      tabBarProps={workspaceProps.tabBarProps}
+      toolbarProps={workspaceProps.toolbarProps}
+    />
   );
 };
 
