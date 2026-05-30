@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonEditorPanes from './components/JsonEditorPanes';
@@ -37,6 +37,7 @@ import { useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationActions';
 import { useJsonToolDerivedState } from './hooks/useJsonToolDerivedState';
 import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
+import { useJsonToolSearchEffects } from './hooks/useJsonToolSearchEffects';
 import { DEFAULT_TAB_TITLE, INITIAL_TAB_ID, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
 import type { EditJsonWorkerOperation, LargeJsonSearchMatch } from './types/jsonTool';
 import { selectionCoversModel } from './utils/jsonToolModels';
@@ -47,7 +48,7 @@ import {
   registerSelectAllDeleteCommands,
 } from './utils/jsonEditorMountActions';
 import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
-import { getMonacoOptions, getMonacoSearchBatch } from './utils/jsonEditorInteractions';
+import { getMonacoOptions } from './utils/jsonEditorInteractions';
 import { writeTextToClipboard } from './utils/clipboard';
 import { APP_VERSION } from './utils/appInfo';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
@@ -586,141 +587,47 @@ const App: React.FC = () => {
     wrapLongLines,
   ]);
 
-  useEffect(() => {
-    resetSearchState();
-  }, [activeTabId]);
-
-  useEffect(() => {
-    if (!rightSearchTerm.trim()) {
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => {
-      rememberRightSearchTerm(rightSearchTerm);
-    }, 800);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [rememberRightSearchTerm, rightSearchTerm]);
-
-  useEffect(() => {
-    if (!activeTab || !shouldUseDedicatedRightViewer) {
-      setLargeViewerMatches([]);
-      setLargeViewerMatchCount(0);
-      setRightSearchHasMore(false);
-      setRightSearchNextOffset(0);
-      setIsRightSearchLoadingMore(false);
-      return;
-    }
-
-    if (!rightSearchTerm) {
-      setLargeViewerMatches([]);
-      setLargeViewerMatchCount(0);
-      setRightSearchHasMore(false);
-      setRightSearchNextOffset(0);
-      setIsRightSearchLoadingMore(false);
-      return;
-    }
-
-    setIsRightSearchLoadingMore(false);
-    requestWorkerSearch({
-      tabId: activeTab.id,
-      query: rightSearchTerm,
-      searchOptions: rightSearchOptions,
-    });
-  }, [
-    activeDocumentMeta.formattedRevision,
+  const { closeLeftFind, closeRightFind, openLeftFind, openRightFind } = useJsonToolSearchEffects({
+    activeDocumentMeta,
     activeLargeViewerData,
     activeTab,
-    rightSearchOptions,
-    rightSearchTerm,
-    shouldUseDedicatedRightViewer,
-  ]);
-
-  useEffect(() => {
-    if (!activeTab || !leftSearchTerm) {
-      setLeftMatches([]);
-      setLargeRawViewerMatches([]);
-      setLeftSearchHasMore(false);
-      setLeftSearchNextOffset(0);
-      setIsLeftSearchLoadingMore(false);
-      clearLeftHighlights();
-      return;
-    }
-
-    setIsLeftSearchLoadingMore(false);
-    const rawRevision = activeDocumentMeta.rawRevision;
-    const shouldSendRawText = leftSearchWorkerRevisionRef.current[activeTab.id] !== rawRevision;
-
-    requestWorkerSearch({
-      tabId: activeTab.id,
-      query: leftSearchTerm,
-      searchOptions: leftSearchOptions,
-      target: 'left',
-      text: shouldSendRawText ? getTabContent(activeTab.id) : undefined,
-      rawRevision,
-    });
-    if (shouldSendRawText) {
-      leftSearchWorkerRevisionRef.current[activeTab.id] = rawRevision;
-    }
-  }, [activeDocumentMeta.rawRevision, activeTab, leftSearchOptions, leftSearchTerm]);
-
-  useEffect(() => {
-    const editor = rightEditorRef.current;
-    const model = editor?.getModel();
-
-    if (!editor || !model || !rightSearchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
-      setRightMatches([]);
-      if (!shouldUseDedicatedRightViewer) {
-        setRightSearchHasMore(false);
-        setRightSearchNextOffset(0);
-        setIsRightSearchLoadingMore(false);
-      }
-      clearRightHighlights();
-      return;
-    }
-
-    const result = getMonacoSearchBatch(model, rightSearchTerm, rightSearchOptions);
-    const matches = result.ranges;
-    setRightMatches(matches);
-    setRightSearchHasMore(result.hasMore);
-    setRightSearchNextOffset(result.nextStartOffset);
-    setIsRightSearchLoadingMore(false);
-    const activeIndex = matches.length > 0 ? ((rightMatchIndex % matches.length) + matches.length) % matches.length : 0;
-
-    const nextDecorations = matches.map((range, index) => ({
-      range,
-      options: {
-        inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
-      },
-    }));
-
-    rightDecorationIdsRef.current = editor.deltaDecorations(rightDecorationIdsRef.current, nextDecorations);
-
-    if (matches.length === 0) {
-      return;
-    }
-
-    const activeMatch = matches[activeIndex];
-    editor.revealRangeInCenter(activeMatch);
-    editor.setSelection(
-      new monaco.Selection(
-        activeMatch.startLineNumber,
-        activeMatch.startColumn,
-        activeMatch.endLineNumber,
-        activeMatch.endColumn
-      )
-    );
-  }, [
     activeTabId,
-    activeDocumentMeta.formattedRevision,
+    clearLeftHighlights,
+    clearRightHighlights,
+    getTabContent,
     isBuildingDedicatedRightViewer,
+    largeRawViewerRef,
+    largeViewerRef,
+    leftEditorRef,
+    leftSearchOptions,
+    leftSearchTerm,
+    leftSearchWorkerRevisionRef,
+    rememberRightSearchTerm,
+    requestWorkerSearch,
+    resetLeftSearchState,
+    resetRightSearchState,
+    resetSearchState,
+    rightDecorationIdsRef,
+    rightEditorRef,
     rightMatchIndex,
     rightSearchOptions,
     rightSearchTerm,
+    setIsLeftFindOpen,
+    setIsLeftSearchLoadingMore,
+    setIsRightFindOpen,
+    setIsRightSearchLoadingMore,
+    setLargeRawViewerMatches,
+    setLargeViewerMatchCount,
+    setLargeViewerMatches,
+    setLeftMatches,
+    setLeftSearchHasMore,
+    setLeftSearchNextOffset,
+    setRightMatches,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
+    shouldUseDedicatedLeftViewer,
     shouldUseDedicatedRightViewer,
-  ]);
+  });
 
   useRightNodeSelectionHighlight({
     editorRef: rightEditorRef,
@@ -1126,36 +1033,6 @@ const App: React.FC = () => {
     tabs,
     workerStructureEnabledRef,
   });
-
-  const openLeftFind = useCallback(() => {
-    setIsLeftFindOpen(true);
-  }, [setIsLeftFindOpen]);
-
-  const openRightFind = useCallback(() => {
-    setIsRightFindOpen(true);
-  }, [setIsRightFindOpen]);
-
-  const closeLeftFind = () => {
-    resetLeftSearchState();
-    clearLeftHighlights();
-    if (shouldUseDedicatedLeftViewer) {
-      largeRawViewerRef.current?.focus();
-    } else {
-      leftEditorRef.current?.focus();
-    }
-  };
-
-  const closeRightFind = () => {
-    resetRightSearchState();
-    setLargeViewerMatches([]);
-    setLargeViewerMatchCount(0);
-    clearRightHighlights();
-    if (shouldUseDedicatedRightViewer) {
-      largeViewerRef.current?.focus();
-    } else {
-      rightEditorRef.current?.focus();
-    }
-  };
 
   const handleRightMount: OnMount = useRightEditorActions({
     activeTabIdRef,
