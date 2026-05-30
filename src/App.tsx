@@ -40,11 +40,11 @@ import { useJsonToolSearchEffects } from './hooks/useJsonToolSearchEffects';
 import { useJsonEditActions } from './hooks/useJsonEditActions';
 import { useLeftEditorActions } from './hooks/useLeftEditorActions';
 import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
-import { INITIAL_TAB_ID, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
+import { useRightEditorDiagnostics } from './hooks/useRightEditorDiagnostics';
+import { INITIAL_TAB_ID } from './types/jsonTool';
 import type { LargeJsonSearchMatch } from './types/jsonTool';
 import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
 import { APP_VERSION } from './utils/appInfo';
-import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
 import './App.css';
 
 const App: React.FC = () => {
@@ -334,36 +334,17 @@ const App: React.FC = () => {
       usesLightweightLocate,
     });
 
-  const clearRightHighlights = () => {
-    if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
-      rightEditorRef.current.deltaDecorations(rightDecorationIdsRef.current, []);
-      rightDecorationIdsRef.current = [];
-    }
-  };
-
-  const logRightEditorState = (event: string, tabId: string, extra: Record<string, unknown> = {}) => {
-    const editor = rightEditorRef.current;
-    const model = editor?.getModel();
-    const rawText = rawTextByTabRef.current[tabId] ?? '';
-    const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-    const payload = {
-      tabId,
-      rawBytes: getUtf8ByteLength(rawText),
-      formattedBytes: getUtf8ByteLength(formattedText),
-      isActiveTab: activeTabIdRef.current === tabId,
-      modelLanguageId: model?.getLanguageId() ?? null,
-      modelLineCount: model?.getLineCount() ?? 0,
-      modelValueLength: model?.getValueLength() ?? 0,
-      largeMode: Boolean(largeModeRef.current[tabId]),
-      locateEnabled: Boolean(largeFileLocateEnabledRef.current[tabId]),
-      structureStatus: structureStatusRef.current[tabId] ?? null,
-      withinStructureThreshold: getUtf8ByteLength(rawText) <= STRUCTURE_SYNC_THRESHOLD,
-      ...extra,
-    };
-
-    logDiagnosticsToConsole(event, payload);
-    logEvent(event, payload);
-  };
+  const { clearRightHighlights, logRightEditorState } = useRightEditorDiagnostics({
+    activeTabIdRef,
+    formattedTextByTabRef,
+    largeFileLocateEnabledRef,
+    largeModeRef,
+    logEvent,
+    rawTextByTabRef,
+    rightDecorationIdsRef,
+    rightEditorRef,
+    structureStatusRef,
+  });
   const { syncLeftModel, syncRightModel } = useJsonEditorModelSync({
     activeTabIdRef,
     largeModeRef,
