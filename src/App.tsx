@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+﻿import React, { useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import JsonEditorPanes from './components/JsonEditorPanes';
 import JsonPerformancePanel from './components/JsonPerformancePanel';
@@ -39,10 +39,10 @@ import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
 import { useJsonToolSearchEffects } from './hooks/useJsonToolSearchEffects';
 import { useJsonEditActions } from './hooks/useJsonEditActions';
 import { useLeftEditorActions } from './hooks/useLeftEditorActions';
+import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
 import { INITIAL_TAB_ID, STRUCTURE_SYNC_THRESHOLD } from './types/jsonTool';
 import type { LargeJsonSearchMatch } from './types/jsonTool';
 import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
-import { getMonacoOptions } from './utils/jsonEditorInteractions';
 import { APP_VERSION } from './utils/appInfo';
 import { logDiagnosticsToConsole } from './utils/diagnosticsLogger';
 import './App.css';
@@ -507,10 +507,6 @@ const App: React.FC = () => {
       setTabError,
     });
 
-  useEffect(() => {
-    activeTabIdRef.current = activeTabId;
-  }, [activeTabId]);
-
   usePreserveActiveTabViewState({
     activeTabId,
     leftEditorRef,
@@ -520,65 +516,27 @@ const App: React.FC = () => {
     rightViewStateByTabRef,
   });
 
-  useEffect(() => {
-    if (!activeTab) {
-      return;
-    }
-
-    const currentRaw = getTabContent(activeTab.id);
-    const currentFormatted = formattedTextByTabRef.current[activeTab.id] ?? '';
-    syncLeftModel(activeTab.id, currentRaw);
-    syncRightModel(activeTab.id, currentFormatted);
-  }, [
+  useJsonEditorRuntimeEffects({
+    activeDocumentMeta,
     activeLargeViewerData,
     activeLargeViewerStatus,
     activeTab,
-    activeDocumentMeta.formattedLength,
-    activeDocumentMeta.rawLength,
-  ]);
-
-  useEffect(() => {
-    if (!shouldUseDedicatedLeftViewer) {
-      leftEditorRef.current?.updateOptions(
-        getMonacoOptions({
-          largeMode: isLargeFileMode,
-          wrapLongLines,
-        })
-      );
-      leftEditorRef.current?.layout();
-    }
-    if (!shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
-      rightEditorRef.current?.updateOptions(
-        getMonacoOptions({
-          largeMode: isLargeFileMode,
-          wrapLongLines,
-          readOnly: true,
-          enableStructuralFolding: shouldEnableRightPaneFolding,
-        })
-      );
-      rightEditorRef.current?.layout();
-    }
-    if (activeTab && !shouldUseDedicatedRightViewer) {
-      logRightEditorState(
-        activeTab.id === activeTabId ? 'right-editor-options-refreshed' : 'right-editor-options-skipped',
-        activeTab.id,
-        {
-          isLargeFileMode,
-          shouldEnableRightPaneFolding,
-          wrapLongLines,
-        }
-      );
-    }
-  }, [
-    activeTab,
     activeTabId,
+    activeTabIdRef,
+    formattedTextByTabRef,
+    getTabContent,
     isBuildingDedicatedRightViewer,
     isLargeFileMode,
-    shouldUseDedicatedLeftViewer,
+    leftEditorRef,
+    logRightEditorState,
+    rightEditorRef,
     shouldEnableRightPaneFolding,
+    shouldUseDedicatedLeftViewer,
     shouldUseDedicatedRightViewer,
+    syncLeftModel,
+    syncRightModel,
     wrapLongLines,
-  ]);
+  });
 
   const { closeLeftFind, closeRightFind, openLeftFind, openRightFind } = useJsonToolSearchEffects({
     activeDocumentMeta,

@@ -1,20 +1,6 @@
-import {
-  forwardRef,
-  MouseEvent as ReactMouseEvent,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from 'react';
-import {
-  DEFAULT_SEARCH_OPTIONS,
-  LargeJsonSearchMatch,
-  LargeJsonViewerData,
-  SEARCH_BATCH_SIZE,
-} from '../types/jsonTool';
+import { forwardRef, MouseEvent as ReactMouseEvent, useCallback, useImperativeHandle, useRef } from 'react';
+import { DEFAULT_SEARCH_OPTIONS, LargeJsonSearchMatch, LargeJsonViewerData } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
-import { findSearchMatchesInLargeJson } from '../utils/largeJsonViewerData';
 import { clamp } from '../utils/largeJsonViewerRender';
 import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
@@ -26,6 +12,8 @@ import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
 import { useLargeJsonSelection, type LargeJsonLocalSelectionRange } from '../hooks/useLargeJsonSelection';
 import { useLargeJsonContextMenu } from '../hooks/useLargeJsonContextMenu';
 import { useLargeJsonViewport } from '../hooks/useLargeJsonViewport';
+import { useLargeJsonSearchMatches } from '../hooks/useLargeJsonSearchMatches';
+import { useLargeJsonActiveMatchReveal } from '../hooks/useLargeJsonActiveMatchReveal';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
@@ -98,16 +86,9 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
     ref
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
-    const onCollapsedLinesChangeRef = useRef(onCollapsedLinesChange);
-    const onLocateOffsetRef = useRef(onLocateOffset);
     const { closeContextMenu, contextMenu, setContextMenu } = useLargeJsonContextMenu({ searchTerm });
     const { queueScrollTopUpdate, scrollTop, viewportHeight } = useLargeJsonViewport({ containerRef });
     const rowHeight = wrapLongLines ? LINE_HEIGHT * 4 : LINE_HEIGHT;
-
-    useEffect(() => {
-      onCollapsedLinesChangeRef.current = onCollapsedLinesChange;
-      onLocateOffsetRef.current = onLocateOffset;
-    }, [onCollapsedLinesChange, onLocateOffset]);
 
     const {
       collapsedIntervals,
@@ -197,40 +178,15 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         text,
       });
 
-    const searchMatches = useMemo(
-      () =>
-        searchMatchesFromWorker ??
-        findSearchMatchesInLargeJson(
-          text,
-          data.lineStarts,
-          data.lineCount,
-          searchTerm,
-          searchOptions,
-          SEARCH_BATCH_SIZE
-        ),
-      [data.lineCount, data.lineStarts, searchMatchesFromWorker, searchOptions, searchTerm, text]
-    );
-
-    const matchesByLine = useMemo(() => {
-      const map = new Map<number, Array<LargeJsonSearchMatch & { matchIndex: number }>>();
-
-      searchMatches.forEach((match, index) => {
-        const lineMatches = map.get(match.lineNumber) ?? [];
-        lineMatches.push({
-          ...match,
-          matchIndex: index,
-        });
-        map.set(match.lineNumber, lineMatches);
-      });
-
-      return map;
-    }, [searchMatches]);
-
-    const effectiveMatchIndex =
-      searchMatches.length > 0
-        ? ((activeMatchIndex % searchMatches.length) + searchMatches.length) % searchMatches.length
-        : 0;
-    const activeMatch = searchMatches[effectiveMatchIndex] ?? null;
+    const { activeMatch, effectiveMatchIndex, matchesByLine } = useLargeJsonSearchMatches({
+      activeMatchIndex,
+      data,
+      onMatchCountChange,
+      searchMatchesFromWorker,
+      searchOptions,
+      searchTerm,
+      text,
+    });
 
     useImperativeHandle(
       ref,
@@ -273,32 +229,16 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       ]
     );
 
-    useEffect(() => {
-      onMatchCountChange(searchMatches.length);
-    }, [onMatchCountChange, searchMatches.length]);
-
-    useEffect(() => {
-      if (!activeMatch) {
-        return;
-      }
-
-      const containingCollapsedRegion = collapsedIntervals.find(
-        (interval) => activeMatch.lineNumber >= interval.start && activeMatch.lineNumber <= interval.end
-      );
-
-      if (containingCollapsedRegion) {
-        const next = normalizedCollapsedLines.filter((line) => line !== containingCollapsedRegion.triggerLine);
-        onCollapsedLinesChangeRef.current(next);
-        return;
-      }
-
-      const visibleIndex = getVisibleIndexForActualLine(activeMatch.lineNumber);
-      if (visibleIndex !== null && containerRef.current) {
-        containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
-      }
-
-      onLocateOffsetRef.current(activeMatch.start);
-    }, [activeMatch, collapsedIntervals, getVisibleIndexForActualLine, normalizedCollapsedLines, rowHeight]);
+    useLargeJsonActiveMatchReveal({
+      activeMatch,
+      collapsedIntervals,
+      containerRef,
+      getVisibleIndexForActualLine,
+      normalizedCollapsedLines,
+      onCollapsedLinesChange,
+      onLocateOffset,
+      rowHeight,
+    });
 
     const lineNumberWidth = `${Math.max(3, String(data.lineCount).length)}ch`;
 
