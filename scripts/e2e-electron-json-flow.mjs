@@ -1,146 +1,105 @@
-import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import http from 'node:http';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { clickButtonByText, clickSelector, evaluate, insertText, pressShortcut, waitFor } from './e2e-cdp-helpers.mjs';
 import {
-  clickButtonByText,
-  clickSelector,
-  connectToElectronPage,
-  evaluate,
-  insertText,
-  pressShortcut,
-  waitFor,
-} from './e2e-cdp-helpers.mjs';
+  collectFailureArtifacts,
+  connectAndPrepareElectronPage,
+  getAvailablePort,
+  startElectronApp,
+} from './e2e-electron-app.mjs';
+import { createSampleJson, importSampleByE2eBridge, parseSizeMb } from './e2e-json-fixtures.mjs';
 
 const require = createRequire(import.meta.url);
-const DEFAULT_SIZE_MB = 2;
-const IMPORT_CHUNK_BYTES = 256 * 1024;
 
-function parseSizeMb() {
-  const argIndex = process.argv.findIndex((arg) => arg === '--size-mb');
-  const rawValue = argIndex >= 0 ? process.argv[argIndex + 1] : process.env.HANJSON_E2E_SIZE_MB;
-  const value = Number(rawValue ?? DEFAULT_SIZE_MB);
-  return Number.isFinite(value) && value > 0 ? value : DEFAULT_SIZE_MB;
-}
-
-function createSampleJson(targetBytes) {
-  const records = [];
-  let byteLength = 2;
-  let index = 0;
-
-  while (byteLength < targetBytes) {
-    const record = JSON.stringify({
-      id: index,
-      name: `FxxkJson e2e sample ${index}`,
-      active: index % 2 === 0,
-      score: index % 1000,
-      tags: ['electron', 'json', 'e2e', 'formatter'],
-      message: 'x'.repeat(160),
-      nested: {
-        requestId: `req-e2e-${String(index).padStart(6, '0')}`,
-        timestamp: '2026-05-18T00:00:00.000Z',
-        values: [index, index + 1, index + 2],
-      },
-    });
-    records.push(record);
-    byteLength += Buffer.byteLength(record) + (records.length > 1 ? 1 : 0);
-    index += 1;
-  }
-
-  return `[${records.join(',')}]`;
-}
-
-async function importSampleByE2eBridge(cdp, samplePath) {
-  const content = await readFile(samplePath, 'utf8');
-  await evaluate(cdp, 'window.__HANJSON_E2E_SAMPLE_CHUNKS__ = []');
-
-  for (let offset = 0; offset < content.length; offset += IMPORT_CHUNK_BYTES) {
-    const chunk = content.slice(offset, offset + IMPORT_CHUNK_BYTES);
-    await evaluate(cdp, `window.__HANJSON_E2E_SAMPLE_CHUNKS__.push(${JSON.stringify(chunk)})`);
-  }
-
-  await evaluate(
+async function rightClickSelector(cdp, selector) {
+  const point = await evaluate(
     cdp,
-    `(async () => {
-    const content = window.__HANJSON_E2E_SAMPLE_CHUNKS__.join('');
-    delete window.__HANJSON_E2E_SAMPLE_CHUNKS__;
-    await window.__HANJSON_E2E_APP__.importText(
-      ${JSON.stringify(path.basename(samplePath))},
-      ${Buffer.byteLength(content)},
-      content
-    );
-    return true;
-  })()`
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return {
+        x: rect.left + Math.min(20, rect.width / 2),
+        y: rect.top + Math.min(10, rect.height / 2)
+      };
+    })()`
   );
-}
 
-async function getAvailablePort() {
-  const server = http.createServer();
-  await new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', resolve);
+  if (!point) {
+    throw new Error(`Could not right click ${selector}`);
+  }
+
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'right',
+    buttons: 2,
+    clickCount: 1,
+    x: point.x,
+    y: point.y,
   });
-  const address = server.address();
-  const port = address && typeof address !== 'string' ? address.port : null;
-  await new Promise((resolve) => server.close(resolve));
-
-  if (!port) {
-    throw new Error('Could not allocate an Electron debug port');
-  }
-
-  return port;
+  await cdp.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'right',
+    buttons: 0,
+    clickCount: 1,
+    x: point.x,
+    y: point.y,
+  });
 }
 
-async function collectFailureArtifacts({ cdp, stderr }) {
-  const artifactDir = process.env.HANJSON_E2E_ARTIFACT_DIR;
-  if (!artifactDir) {
-    return;
-  }
+async function selectRightLineText(cdp, targetText) {
+  return evaluate(
+    cdp,
+    `(() => {
+      const line = Array.from(document.querySelectorAll('.right-editor-pane .large-json-line-text'))
+        .find((element) => element.textContent?.includes(${JSON.stringify(targetText)}));
+      if (!line) return '';
+      line.closest('.large-json-viewer')?.focus({ preventScroll: true });
 
-  await mkdir(artifactDir, { recursive: true });
+      const lineText = line.textContent ?? '';
+      const start = lineText.indexOf(${JSON.stringify(targetText)});
+      if (start < 0) return '';
+      const end = start + ${JSON.stringify(targetText)}.length;
 
-  if (stderr) {
-    await writeFile(path.join(artifactDir, 'electron-stderr.log'), stderr, 'utf8');
-  }
+      const findTextPoint = (node, targetOffset) => {
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+        let textNode = walker.nextNode();
+        let consumed = 0;
+        while (textNode) {
+          const length = textNode.textContent?.length ?? 0;
+          if (consumed + length >= targetOffset) {
+            return { node: textNode, offset: Math.max(0, targetOffset - consumed) };
+          }
+          consumed += length;
+          textNode = walker.nextNode();
+        }
+        return null;
+      };
 
-  if (!cdp) {
-    return;
-  }
+      const startPoint = findTextPoint(line, start);
+      const endPoint = findTextPoint(line, end);
+      if (!startPoint || !endPoint) return '';
 
-  try {
-    const diagnostics = await evaluate(
-      cdp,
-      `(() => JSON.stringify({
-      locateChecked: Array.from(document.querySelectorAll('label.toolbar-checkbox'))
-        .find((label) => label.textContent?.includes('大文件启用右侧定位'))
-        ?.querySelector('input')?.checked ?? null,
-      rightLineCount: document.querySelectorAll('.right-editor-pane .large-json-line-text').length,
-      rightHighlights: document.querySelectorAll('.right-editor-pane .rightNodeSelectionHighlight').length,
-      leftHighlights: document.querySelectorAll('.left-editor-pane .currentSearchHighlight, .left-editor-pane [data-large-raw-highlight="true"]').length,
-      findCount: document.querySelector('.right-editor-pane .pane-find-count')?.textContent ?? null,
-      compareOpen: Boolean(document.querySelector('.json-compare-card')),
-      compareError: Array.from(document.querySelectorAll('.modal-error')).map((element) => element.textContent).join('\\n'),
-      toolbarHint: document.querySelector('.toolbar-hint')?.textContent ?? null,
-      bodyStart: document.body.innerText.slice(0, 700)
-    }, null, 2))()`
-    );
-    await writeFile(path.join(artifactDir, 'renderer-diagnostics.json'), diagnostics, 'utf8');
-    console.error(`Renderer diagnostics: ${diagnostics}`);
-  } catch (diagnosticError) {
-    console.error(`Renderer diagnostics failed: ${diagnosticError.message}`);
-  }
+      const range = document.createRange();
+      range.setStart(startPoint.node, startPoint.offset);
+      range.setEnd(endPoint.node, endPoint.offset);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
 
-  try {
-    const screenshot = await cdp.send('Page.captureScreenshot', {
-      captureBeyondViewport: true,
-      format: 'png',
-    });
-    await writeFile(path.join(artifactDir, 'renderer-screenshot.png'), Buffer.from(screenshot.data, 'base64'));
-  } catch (screenshotError) {
-    console.error(`Renderer screenshot failed: ${screenshotError.message}`);
-  }
+      const rect = line.getBoundingClientRect();
+      line.dispatchEvent(new MouseEvent('mouseup', {
+        bubbles: true,
+        button: 0,
+        clientX: rect.left + 40,
+        clientY: rect.top + Math.min(10, rect.height / 2)
+      }));
+      return window.getSelection()?.toString() ?? '';
+    })()`
+  );
 }
 
 async function run() {
@@ -158,50 +117,21 @@ async function run() {
   const appMain = path.join(cwd, 'dist-electron/main.js');
   let child = null;
   let cdp = null;
-  let stderr = '';
+  let getStderr = () => '';
 
   try {
     const sample = createSampleJson(sizeMb * 1024 * 1024);
     await writeFile(samplePath, sample, 'utf8');
-    child = spawn(process.execPath, [electronCli, `--remote-debugging-port=${port}`, appMain], {
+    const electronApp = await startElectronApp({
+      appMain,
       cwd,
-      env: {
-        ...process.env,
-        ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
-        ELECTRON_OPEN_DEVTOOLS: '0',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      electronCli,
+      port,
     });
+    child = electronApp.child;
+    getStderr = electronApp.getStderr;
 
-    child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on('exit', (code) => {
-      if (code !== 0 && code !== null) {
-        stderr += `\nElectron exited with code ${code}`;
-      }
-    });
-
-    cdp = await connectToElectronPage(port);
-    await waitFor(
-      () => evaluate(cdp, 'document.readyState === "complete" && Boolean(document.querySelector("input[type=file]"))'),
-      'app shell'
-    );
-    await evaluate(cdp, 'window.__HANJSON_E2E__ = true');
-    await evaluate(
-      cdp,
-      `(() => {
-      const checkbox = Array.from(document.querySelectorAll('label.toolbar-checkbox'))
-        .find((label) => label.textContent?.includes('大文件启用右侧定位'))
-        ?.querySelector('input');
-      if (checkbox && !checkbox.checked) {
-        checkbox.click();
-      }
-      return Boolean(checkbox);
-    })()`
-    );
-    await waitFor(() => evaluate(cdp, `Boolean(window.__HANJSON_E2E_APP__?.importText)`), 'E2E import bridge');
+    cdp = await connectAndPrepareElectronPage(port);
     await importSampleByE2eBridge(cdp, samplePath);
 
     await waitFor(
@@ -445,9 +375,39 @@ async function run() {
       'right node save state restored after edit'
     );
 
+    const selectedRightValue = await selectRightLineText(cdp, 'req-e2e-updated');
+    if (selectedRightValue !== 'req-e2e-updated') {
+      throw new Error(`Right selected value was not preserved after mouseup: ${selectedRightValue}`);
+    }
+    await pressShortcut(cdp, 'c', 'KeyC', 1);
+    await waitFor(
+      () => evaluate(cdp, `window.electronAPI.readClipboardText().then((text) => text === 'req-e2e-updated')`),
+      'right selected value copied with Alt+C'
+    );
+
     await clickSelector(cdp, '.add-tab');
     await waitFor(() => evaluate(cdp, `document.querySelectorAll('.tab-bar .tab').length >= 2`), 'second tab created');
     await clickSelector(cdp, '.left-editor-pane .monaco-editor textarea');
+    await evaluate(cdp, `window.electronAPI.writeClipboardText('{"pastedFromContextMenu":true}')`);
+    await rightClickSelector(cdp, '.left-editor-pane .monaco-editor textarea');
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `Boolean(Array.from(document.querySelectorAll('.large-json-context-menu-item'))
+            .find((button) => button.textContent?.trim() === '粘贴'))`
+        ),
+      'left editor context menu paste item'
+    );
+    await evaluate(
+      cdp,
+      `Array.from(document.querySelectorAll('.large-json-context-menu-item'))
+      .find((button) => button.textContent?.trim() === '粘贴')?.click()`
+    );
+    await waitFor(
+      () => evaluate(cdp, `document.body.innerText.includes('pastedFromContextMenu')`),
+      'left context menu paste inserted clipboard text'
+    );
     await pressShortcut(cdp, 'a', 'KeyA');
     await insertText(cdp, '{"broken": true,');
     await clickButtonByText(cdp, '对比 JSON');
@@ -468,9 +428,12 @@ async function run() {
       { step: 'rename warnings', detail: 'right node rename dialog shows whitespace and duplicate-key warnings' },
       { step: 'edit', detail: 'large right node edit saved back to original JSON' },
       { step: 'save state', detail: 'edited content and locate status remained available after save' },
+      { step: 'selection copy', detail: 'right selected value remains selected and copies with Alt+C' },
+      { step: 'context paste', detail: 'left editor context menu paste inserts desktop clipboard text' },
       { step: 'compare invalid', detail: 'JSON compare reports parse errors for invalid input' },
     ]);
   } catch (error) {
+    const stderr = getStderr();
     await collectFailureArtifacts({ cdp, stderr });
     if (stderr) {
       console.error(stderr);
