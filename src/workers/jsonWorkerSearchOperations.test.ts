@@ -1,13 +1,14 @@
-// @ts-nocheck
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import type { WorkerMessage } from '../types/jsonTool';
 import { buildLineStarts } from '../utils/searchText';
 import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
+import type { RawSearchCacheEntry, ViewerSearchCacheEntry } from './jsonWorkerSearchOperations';
 
 function createOperations() {
   const latestSearchRequestByKey = new Map();
-  const rawSearchCache = new Map();
-  const viewerCache = new Map();
+  const rawSearchCache = new Map<string, RawSearchCacheEntry>();
+  const viewerCache = new Map<string, ViewerSearchCacheEntry>();
   const operations = createJsonWorkerSearchOperations({
     latestSearchRequestByKey,
     rawSearchCache,
@@ -15,6 +16,10 @@ function createOperations() {
   });
 
   return { latestSearchRequestByKey, operations, rawSearchCache, viewerCache };
+}
+
+function getPostedSearchResult(index = 0) {
+  return vi.mocked(postMessage).mock.calls[index][0] as WorkerMessage;
 }
 
 async function flushSearchTimer() {
@@ -62,13 +67,14 @@ describe('jsonWorkerSearchOperations', () => {
         target: 'left',
       })
     );
-    expect(postMessage.mock.calls[0][0].matches).toHaveLength(2);
-    expect(rawSearchCache.get('tab-a')).toMatchObject({
+    expect(getPostedSearchResult().matches).toHaveLength(2);
+    const cachedRaw = rawSearchCache.get('tab-a');
+    expect(cachedRaw).toMatchObject({
       rawRevision: 2,
       rawText: '{"name":"Alpha"}\n{"name":"beta alpha"}',
     });
-    expect(rawSearchCache.get('tab-a').lineStarts).toBeInstanceOf(Uint32Array);
-    expect(rawSearchCache.get('tab-a').lowerRawText).toContain('alpha');
+    expect(cachedRaw?.lineStarts).toBeInstanceOf(Uint32Array);
+    expect(cachedRaw?.lowerRawText).toContain('alpha');
   });
 
   it('returns an empty left result when cached raw revision is stale', async () => {
@@ -133,8 +139,8 @@ describe('jsonWorkerSearchOperations', () => {
         target: 'right',
       })
     );
-    expect(postMessage.mock.calls[0][0].matches).toHaveLength(2);
-    expect(viewerCache.get('tab-a').lowerFormattedText).toContain('alpha');
+    expect(getPostedSearchResult().matches).toHaveLength(2);
+    expect(viewerCache.get('tab-a')?.lowerFormattedText).toContain('alpha');
   });
 
   it('does not post stale search results after a newer request arrives', async () => {
