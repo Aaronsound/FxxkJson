@@ -57,15 +57,19 @@ jobs:
           body: |
             ## 本次更新
 
-            - 项目名称统一为 FxxkJson。
-            - 新增中文 / English 界面切换，默认中文，可在顶部工具栏切换。
-            - 补充开源准备文件与贡献、问题反馈、安全说明。
+            - 优化 5MB+ 大 JSON 的导入、格式化、搜索、替换、定位和查看流程。
+            - 增强右侧格式化视图的节点操作，包括复制值、编辑、重命名、删除、当前节点折叠和所属对象折叠。
+            - 改进右侧选中文本复制、左侧右键粘贴、性能面板定位和诊断日志体验。
+            - 拆分大文件和复杂逻辑，补充单元测试、Electron E2E、性能回归和 CI 检查。
+            - 完善 README、贡献指南、安全说明、PR 模板和发布流程。
 
             ## What's New
 
-            - Renamed the project to FxxkJson across the app and repository metadata.
-            - Added Chinese / English UI switching, defaulting to Chinese with a toolbar toggle.
-            - Added open-source readiness files for contributing, issue reporting, pull requests, security, and licensing.
+            - Improved import, formatting, search, replace, locate, and viewing flows for 5MB+ JSON files.
+            - Enhanced right-pane node actions, including copy value, edit, rename, delete, current-node folding, and parent-object folding.
+            - Improved right-pane selection copy, left-pane context-menu paste, performance panel placement, and diagnostics logging.
+            - Split large files and complex logic while expanding unit tests, Electron E2E, performance checks, and CI coverage.
+            - Updated README, contributing docs, security policy, pull request template, and release workflow.
 
             ## macOS 下载说明
 
@@ -222,15 +226,19 @@ jobs:
           body: |
             ## 本次更新
 
-            - 项目名称统一为 FxxkJson。
-            - 新增中文 / English 界面切换，默认中文，可在顶部工具栏切换。
-            - 补充开源准备文件与贡献、问题反馈、安全说明。
+            - 优化 5MB+ 大 JSON 的导入、格式化、搜索、替换、定位和查看流程。
+            - 增强右侧格式化视图的节点操作，包括复制值、编辑、重命名、删除、当前节点折叠和所属对象折叠。
+            - 改进右侧选中文本复制、左侧右键粘贴、性能面板定位和诊断日志体验。
+            - 拆分大文件和复杂逻辑，补充单元测试、Electron E2E、性能回归和 CI 检查。
+            - 完善 README、贡献指南、安全说明、PR 模板和发布流程。
 
             ## What's New
 
-            - Renamed the project to FxxkJson across the app and repository metadata.
-            - Added Chinese / English UI switching, defaulting to Chinese with a toolbar toggle.
-            - Added open-source readiness files for contributing, issue reporting, pull requests, security, and licensing.
+            - Improved import, formatting, search, replace, locate, and viewing flows for 5MB+ JSON files.
+            - Enhanced right-pane node actions, including copy value, edit, rename, delete, current-node folding, and parent-object folding.
+            - Improved right-pane selection copy, left-pane context-menu paste, performance panel placement, and diagnostics logging.
+            - Split large files and complex logic while expanding unit tests, Electron E2E, performance checks, and CI coverage.
+            - Updated README, contributing docs, security policy, pull request template, and release workflow.
 
             ## macOS 下载说明
 
