@@ -11,7 +11,10 @@ import { buildDiagnosticsContext } from '../utils/diagnosticsContext';
 import { formatBytes, formatDuration } from '../utils/jsonEditorInteractions';
 import { getProcessingStageText } from '../utils/jsonProcessingStage';
 import { getRightPaneStatusText } from '../utils/rightPaneStatus';
+import type { I18nKey } from '../utils/i18n';
 import { getCompactPathLabel } from './useRightSearchQuickAccess';
+
+type JsonToolTranslator = (key: I18nKey, params?: Record<string, string | number>) => string;
 
 interface UseJsonToolDerivedStateArgs {
   activeDocumentMeta: TabDocumentMeta;
@@ -38,6 +41,7 @@ interface UseJsonToolDerivedStateArgs {
   rightSearchTerm: string;
   shouldUseDedicatedLeftViewer: boolean;
   shouldUseDedicatedRightViewer: boolean;
+  t: JsonToolTranslator;
   usesLightweightLocate: boolean;
 }
 
@@ -66,6 +70,7 @@ export function useJsonToolDerivedState({
   rightSearchTerm,
   shouldUseDedicatedLeftViewer,
   shouldUseDedicatedRightViewer,
+  t,
   usesLightweightLocate,
 }: UseJsonToolDerivedStateArgs) {
   const normalizedRightMatchIndex =
@@ -74,9 +79,9 @@ export function useJsonToolDerivedState({
       : 0;
   const processingStageText = getProcessingStageText(activeProcessingStage, importingFileName);
   const leftPaneMetaText = [
-    activeDocumentMeta.rawLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.rawLength)}` : null,
+    activeDocumentMeta.rawLength > 0 ? `${t('pane.metaMemory')} ${formatBytes(activeDocumentMeta.rawLength)}` : null,
     formatDuration(activePerformanceSnapshot?.readFileMs)
-      ? `导入 ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
+      ? `${t('pane.metaImport')} ${formatDuration(activePerformanceSnapshot?.readFileMs)}`
       : null,
     activeLocateFeedback?.message ?? null,
   ]
@@ -88,15 +93,20 @@ export function useJsonToolDerivedState({
     currentStructureStatus,
     isLargeFileLocateEnabled,
     isLargeFileMode,
+    t,
     usesDedicatedRightViewer: shouldUseDedicatedRightViewer,
     usesLightweightLocate,
   });
   const rightPaneMetaText = [
-    activeDocumentMeta.formattedLength > 0 ? `内存 ${formatBytes(activeDocumentMeta.formattedLength)}` : null,
-    formatDuration(activePerformanceSnapshot?.formatWorkerMs)
-      ? `格式化 ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
+    activeDocumentMeta.formattedLength > 0
+      ? `${t('pane.metaMemory')} ${formatBytes(activeDocumentMeta.formattedLength)}`
       : null,
-    activeRightNodeSelection?.pathText ? `路径 ${getCompactPathLabel(activeRightNodeSelection.pathText)}` : null,
+    formatDuration(activePerformanceSnapshot?.formatWorkerMs)
+      ? `${t('pane.metaFormat')} ${formatDuration(activePerformanceSnapshot?.formatWorkerMs)}`
+      : null,
+    activeRightNodeSelection?.pathText
+      ? `${t('pane.metaPath')} ${getCompactPathLabel(activeRightNodeSelection.pathText)}`
+      : null,
     rightPaneStatusText,
   ]
     .filter(Boolean)

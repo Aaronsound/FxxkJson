@@ -218,7 +218,6 @@ const App: React.FC = () => {
   } = useRightNodeMutationDialog();
 
   const {
-
     activeDocumentMeta,
     activeLargeRawViewerData,
     activeLargeViewerCollapsedLines,
@@ -298,6 +297,7 @@ const App: React.FC = () => {
       ...{ leftSearchHasMore, leftSearchTerm, normalizedLeftMatchIndex },
       ...{ rightMatchIndex, rightSearchHasMore, rightSearchTerm },
       ...{ shouldUseDedicatedLeftViewer, shouldUseDedicatedRightViewer, usesLightweightLocate },
+      t,
     });
 
   const { clearRightHighlights, logRightEditorState } = useRightEditorDiagnostics({

@@ -45,9 +45,7 @@ export function getRightPaneStatusText({
   }
 
   if (currentStructureStatus === 'ready') {
-    return `${foldingPrefix}${t(
-      usesLightweightLocate ? 'pane.statusLightLocateReady' : 'pane.statusLocateReady'
-    )}`;
+    return `${foldingPrefix}${t(usesLightweightLocate ? 'pane.statusLightLocateReady' : 'pane.statusLocateReady')}`;
   }
 
   return `${foldingPrefix}${t('pane.statusLocateClosed')}`;

@@ -71,12 +71,14 @@ describe('getRightPaneStatusText', () => {
   });
 
   it('uses localized text for English pane status labels', () => {
-    expect(getRightPaneStatusText({
-      ...baseArgs,
-      isLargeFileLocateEnabled: false,
-      isLargeFileMode: true,
-      t: createTranslator('en'),
-      usesDedicatedRightViewer: true,
-    })).toBe('Light folding · Locate not enabled');
+    expect(
+      getRightPaneStatusText({
+        ...baseArgs,
+        isLargeFileLocateEnabled: false,
+        isLargeFileMode: true,
+        t: createTranslator('en'),
+        usesDedicatedRightViewer: true,
+      })
+    ).toBe('Light folding · Locate not enabled');
   });
 });
