@@ -218,6 +218,7 @@ const App: React.FC = () => {
   } = useRightNodeMutationDialog();
 
   const {
+
     activeDocumentMeta,
     activeLargeRawViewerData,
     activeLargeViewerCollapsedLines,

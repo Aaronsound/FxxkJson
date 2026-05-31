@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
+import { createTranslator } from './i18n';
 import { getRightPaneStatusText } from './rightPaneStatus';
 
 const baseArgs = {
@@ -8,6 +9,7 @@ const baseArgs = {
   currentStructureStatus: 'ready' as const,
   isLargeFileLocateEnabled: true,
   isLargeFileMode: false,
+  t: createTranslator('zh'),
   usesDedicatedRightViewer: false,
   usesLightweightLocate: false,
 };
@@ -66,5 +68,15 @@ describe('getRightPaneStatusText', () => {
         usesDedicatedRightViewer: true,
       })
     ).toBe('轻量折叠 · 定位未启用');
+  });
+
+  it('uses localized text for English pane status labels', () => {
+    expect(getRightPaneStatusText({
+      ...baseArgs,
+      isLargeFileLocateEnabled: false,
+      isLargeFileMode: true,
+      t: createTranslator('en'),
+      usesDedicatedRightViewer: true,
+    })).toBe('Light folding · Locate not enabled');
   });
 });
