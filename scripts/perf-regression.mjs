@@ -1,16 +1,9 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import {
-  benchFile,
-  formatBytes,
-  formatDuration,
-} from './bench-json.mjs';
+import { benchFile, formatBytes, formatDuration } from './bench-json.mjs';
 
-const DEFAULT_SAMPLE_FILES = [
-  'json/sample-5mb.json',
-  'json/sample-20mb.json',
-];
+const DEFAULT_SAMPLE_FILES = ['json/sample-5mb.json', 'json/sample-20mb.json'];
 const DEFAULT_BASELINE_PATH = 'scripts/perf-baseline.json';
 const DEFAULT_TOLERANCE = 0.35;
 const COMPARED_METRICS = [
@@ -20,6 +13,10 @@ const COMPARED_METRICS = [
   'formattedTreeMs',
   'rightSearchBatchMs',
   'rightSearchLoadMoreMs',
+  'leftSearchBatchMs',
+  'leftSearchLoadMoreMs',
+  'leftReplaceAllMs',
+  'leftRegexReplaceAllMs',
   'nodeValueReadMs',
   'nodeEditPatchMs',
 ];
@@ -162,19 +159,25 @@ function compareResults(results, baseline, tolerance) {
 }
 
 function printResults(results, failures, baselinePath) {
-  console.table(results.map((result) => ({
-    file: result.fileName,
-    rawSize: formatBytes(result.rawBytes),
-    formattedSize: formatBytes(result.formattedBytes),
-    formatTotal: formatDuration(result.totalFormatMs),
-    viewerIndex: formatDuration(result.viewerIndexMs),
-    rawTree: formatDuration(result.rawTreeMs),
-    formattedTree: formatDuration(result.formattedTreeMs),
-    rightSearch: formatDuration(result.rightSearchBatchMs),
-    rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
-    nodeRead: formatDuration(result.nodeValueReadMs),
-    nodePatch: formatDuration(result.nodeEditPatchMs),
-  })));
+  console.table(
+    results.map((result) => ({
+      file: result.fileName,
+      rawSize: formatBytes(result.rawBytes),
+      formattedSize: formatBytes(result.formattedBytes),
+      formatTotal: formatDuration(result.totalFormatMs),
+      viewerIndex: formatDuration(result.viewerIndexMs),
+      rawTree: formatDuration(result.rawTreeMs),
+      formattedTree: formatDuration(result.formattedTreeMs),
+      rightSearch: formatDuration(result.rightSearchBatchMs),
+      rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
+      leftSearch: formatDuration(result.leftSearchBatchMs),
+      leftSearchMore: formatDuration(result.leftSearchLoadMoreMs),
+      leftReplaceAll: formatDuration(result.leftReplaceAllMs),
+      leftRegexReplaceAll: formatDuration(result.leftRegexReplaceAllMs),
+      nodeRead: formatDuration(result.nodeValueReadMs),
+      nodePatch: formatDuration(result.nodeEditPatchMs),
+    }))
+  );
 
   if (!baselinePath) {
     console.log('\nNo baseline provided. To create one:');
@@ -188,23 +191,19 @@ function printResults(results, failures, baselinePath) {
   }
 
   console.log(`\nPerformance regressions against ${baselinePath}`);
-  console.table(failures.map((failure) => ({
-    file: failure.fileName,
-    metric: failure.metric,
-    actual: formatDuration(failure.actual),
-    baseline: formatDuration(failure.baseline),
-    allowed: formatDuration(failure.allowed),
-  })));
+  console.table(
+    failures.map((failure) => ({
+      file: failure.fileName,
+      metric: failure.metric,
+      actual: formatDuration(failure.actual),
+      baseline: formatDuration(failure.baseline),
+      allowed: formatDuration(failure.allowed),
+    }))
+  );
 }
 
 async function main() {
-  const {
-    baselinePath,
-    files,
-    outputJson,
-    tolerance,
-    writeBaselinePath,
-  } = parseArgs(process.argv.slice(2));
+  const { baselinePath, files, outputJson, tolerance, writeBaselinePath } = parseArgs(process.argv.slice(2));
   const filesToBench = files.length > 0 ? files : await getExistingDefaultSamples();
   const effectiveBaselinePath = await getDefaultBaselinePath(baselinePath, writeBaselinePath);
 
@@ -227,13 +226,19 @@ async function main() {
   const failures = compareResults(results, baseline, tolerance);
 
   if (outputJson) {
-    console.log(JSON.stringify({
-      baselinePath: effectiveBaselinePath,
-      failures,
-      results,
-      tolerance,
-      writeBaselinePath,
-    }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          baselinePath: effectiveBaselinePath,
+          failures,
+          results,
+          tolerance,
+          writeBaselinePath,
+        },
+        null,
+        2
+      )
+    );
   } else {
     printResults(results, failures, effectiveBaselinePath);
     if (writeBaselinePath) {
@@ -247,6 +252,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

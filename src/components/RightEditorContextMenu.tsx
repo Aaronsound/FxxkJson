@@ -1,4 +1,5 @@
 import React from 'react';
+import type { FoldTargetMode } from '../utils/foldableLine';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 export type RightEditorContextMenuState = {
@@ -6,13 +7,15 @@ export type RightEditorContextMenuState = {
   y: number;
   tabId: string;
   offset: number;
+  hasCurrentFoldTarget: boolean;
+  hasParentFoldTarget: boolean;
 };
 
 interface RightEditorContextMenuProps {
   contextMenu: RightEditorContextMenuState;
   isDarkMode: boolean;
   onClose: () => void;
-  onToggleFold: (tabId: string, offset: number) => void;
+  onToggleFold: (tabId: string, offset: number, mode: FoldTargetMode) => void;
   onCopyPath: (tabId: string, offset: number) => void | Promise<void>;
   onCopyKey: (tabId: string, offset: number) => void | Promise<void>;
   onCopyValue: (tabId: string, offset: number) => void | Promise<void>;
@@ -43,18 +46,16 @@ const RightEditorContextMenu: React.FC<RightEditorContextMenuProps> = ({
   onUnescapeValue,
   t = defaultT,
 }) => {
-  const runAction = async (
-    action: (tabId: string, offset: number) => void | Promise<void>
-  ) => {
+  const runAction = async (action: (tabId: string, offset: number) => void | Promise<void>) => {
     const { tabId, offset } = contextMenu;
     onClose();
     await action(tabId, offset);
   };
 
-  const runToggleFold = () => {
+  const runToggleFold = (mode: FoldTargetMode) => {
     const { tabId, offset } = contextMenu;
     onClose();
-    onToggleFold(tabId, offset);
+    onToggleFold(tabId, offset, mode);
   };
 
   return (
@@ -67,9 +68,16 @@ const RightEditorContextMenu: React.FC<RightEditorContextMenuProps> = ({
       onContextMenu={(event) => event.preventDefault()}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <button type="button" className="large-json-context-menu-item" onClick={runToggleFold}>
-        {t('context.toggleFold')}
-      </button>
+      {contextMenu.hasCurrentFoldTarget && (
+        <button type="button" className="large-json-context-menu-item" onClick={() => runToggleFold('current')}>
+          {t('context.toggleCurrentFold')}
+        </button>
+      )}
+      {contextMenu.hasParentFoldTarget && (
+        <button type="button" className="large-json-context-menu-item" onClick={() => runToggleFold('parent')}>
+          {t('context.toggleParentFold')}
+        </button>
+      )}
       <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyPath)}>
         {t('context.copyPath')}
       </button>

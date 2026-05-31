@@ -10,10 +10,7 @@ import {
   getRightModelPath,
   recreateModel,
 } from '../utils/jsonToolModels';
-import {
-  getUtf8ByteLength,
-  isLargeDocument,
-} from '../utils/jsonDocumentMetrics';
+import { getUtf8ByteLength, isLargeDocument } from '../utils/jsonDocumentMetrics';
 import { getMonacoOptions } from '../utils/jsonEditorInteractions';
 
 interface UseJsonEditorModelSyncArgs {
@@ -47,173 +44,170 @@ export function useJsonEditorModelSync({
   suppressLeftChangeRef,
   wrapLongLines,
 }: UseJsonEditorModelSyncArgs) {
-  const attachEditorModel = useCallback((
-    editor: monaco.editor.IStandaloneCodeEditor | null,
-    model: monaco.editor.ITextModel,
-    viewState: monaco.editor.ICodeEditorViewState | null | undefined,
-    event: string,
-    details: Record<string, unknown>
-  ) => {
-    if (!editor) {
-      return;
-    }
-
-    const shouldSwitchModel = editor.getModel() !== model;
-
-    if (shouldSwitchModel) {
-      editor.setModel(model);
-      logEvent(event, details);
-
-      if (viewState) {
-        editor.restoreViewState(viewState);
+  const attachEditorModel = useCallback(
+    (
+      editor: monaco.editor.IStandaloneCodeEditor | null,
+      model: monaco.editor.ITextModel,
+      viewState: monaco.editor.ICodeEditorViewState | null | undefined,
+      event: string,
+      details: Record<string, unknown>
+    ) => {
+      if (!editor) {
+        return;
       }
-    }
 
-    editor.layout();
-  }, [logEvent]);
+      const shouldSwitchModel = editor.getModel() !== model;
 
-  const syncLeftModel = useCallback((tabId: string, content: string, forceValue = false) => {
-    const path = getLeftModelPath(tabId);
-    const byteLength = getUtf8ByteLength(content);
+      if (shouldSwitchModel) {
+        editor.setModel(model);
+        logEvent(event, details);
 
-    if (byteLength >= LARGE_FILE_THRESHOLD) {
-      if (activeTabIdRef.current === tabId) {
-        leftViewStateByTabRef.current[tabId] = leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[tabId] ?? null;
-        leftEditorRef.current?.setModel(null);
-      }
-      disposeModel(path);
-      logEvent('left-model-dedicated-viewer', {
-        tabId,
-        rawLength: byteLength,
-      });
-      return;
-    }
-
-    const language = getEditorLanguageByLength(byteLength);
-    let model = getOrCreateModel(path, language);
-
-    if (
-      forceValue
-      || model.getValueLength() !== content.length
-      || model.getLanguageId() !== language
-    ) {
-      if (activeTabIdRef.current === tabId) {
-        leftViewStateByTabRef.current[tabId] = leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[tabId] ?? null;
-      }
-      suppressLeftChangeRef.current[tabId] = true;
-      model = recreateModel(
-        path,
-        language,
-        content,
-        activeTabIdRef.current === tabId ? leftEditorRef.current : null
-      );
-      suppressLeftChangeRef.current[tabId] = false;
-      logEvent(forceValue ? 'left-model-value-written' : 'left-model-value-synced', {
-        tabId,
-        rawLength: byteLength,
-      });
-    }
-
-    if (activeTabIdRef.current === tabId) {
-      attachEditorModel(leftEditorRef.current, model, leftViewStateByTabRef.current[tabId], 'left-model-attached', {
-        tabId,
-        path,
-        rawLength: byteLength,
-      });
-    }
-  }, [
-    activeTabIdRef,
-    attachEditorModel,
-    leftEditorRef,
-    leftViewStateByTabRef,
-    logEvent,
-    suppressLeftChangeRef,
-  ]);
-
-  const syncRightModel = useCallback((tabId: string, content: string, forceValue = false) => {
-    const path = getRightModelPath(tabId);
-    const byteLength = getUtf8ByteLength(content);
-    const rawText = rawTextByTabRef.current[tabId] ?? '';
-    const rawByteLength = getUtf8ByteLength(rawText);
-    const shouldPreferDedicatedViewer = Boolean(largeViewerDataByTab[tabId])
-      || largeViewerStatusByTab[tabId] === 'building';
-
-    if (shouldPreferDedicatedViewer) {
-      const existingModel = monaco.editor.getModel(monaco.Uri.parse(path));
-      if (existingModel) {
-        if (rightEditorRef.current?.getModel() === existingModel) {
-          rightEditorRef.current.setModel(null);
+        if (viewState) {
+          editor.restoreViewState(viewState);
         }
-        existingModel.dispose();
       }
-      return;
-    }
 
-    const enableStructuralFolding = rawByteLength <= STRUCTURE_SYNC_THRESHOLD;
-    const effectiveLargeMode = largeModeRef.current[tabId] || isLargeDocument(rawText);
-    const language = rawByteLength > 0 && rawByteLength <= STRUCTURE_SYNC_THRESHOLD
-      ? 'json'
-      : getEditorLanguageByLength(byteLength);
-    let model = getOrCreateModel(path, language);
+      editor.layout();
+    },
+    [logEvent]
+  );
 
-    if (
-      forceValue
-      || model.getValueLength() !== content.length
-      || model.getLanguageId() !== language
-    ) {
+  const syncLeftModel = useCallback(
+    (tabId: string, content: string, forceValue = false) => {
+      const path = getLeftModelPath(tabId);
+      const byteLength = getUtf8ByteLength(content);
+
+      if (byteLength >= LARGE_FILE_THRESHOLD) {
+        if (activeTabIdRef.current === tabId) {
+          leftViewStateByTabRef.current[tabId] =
+            leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[tabId] ?? null;
+          leftEditorRef.current?.setModel(null);
+        }
+        disposeModel(path);
+        logEvent('left-model-dedicated-viewer', {
+          tabId,
+          rawLength: byteLength,
+        });
+        return;
+      }
+
+      const language = getEditorLanguageByLength(byteLength);
+      let model = getOrCreateModel(path, language);
+
+      if (forceValue || model.getValueLength() !== content.length || model.getLanguageId() !== language) {
+        if (activeTabIdRef.current === tabId) {
+          leftViewStateByTabRef.current[tabId] =
+            leftEditorRef.current?.saveViewState() ?? leftViewStateByTabRef.current[tabId] ?? null;
+        }
+        suppressLeftChangeRef.current[tabId] = true;
+        model = recreateModel(path, language, content, activeTabIdRef.current === tabId ? leftEditorRef.current : null);
+        suppressLeftChangeRef.current[tabId] = false;
+        logEvent(forceValue ? 'left-model-value-written' : 'left-model-value-synced', {
+          tabId,
+          rawLength: byteLength,
+        });
+      }
+
       if (activeTabIdRef.current === tabId) {
-        rightViewStateByTabRef.current[tabId] = rightEditorRef.current?.saveViewState() ?? rightViewStateByTabRef.current[tabId] ?? null;
+        attachEditorModel(leftEditorRef.current, model, leftViewStateByTabRef.current[tabId], 'left-model-attached', {
+          tabId,
+          path,
+          rawLength: byteLength,
+        });
       }
-      model = recreateModel(
-        path,
-        language,
-        content,
-        activeTabIdRef.current === tabId ? rightEditorRef.current : null
-      );
-      logEvent(forceValue ? 'right-model-value-written' : 'right-model-value-synced', {
-        tabId,
-        formattedLength: byteLength,
-      });
-    }
+    },
+    [activeTabIdRef, attachEditorModel, leftEditorRef, leftViewStateByTabRef, logEvent, suppressLeftChangeRef]
+  );
 
-    if (activeTabIdRef.current === tabId) {
-      attachEditorModel(rightEditorRef.current, model, rightViewStateByTabRef.current[tabId], 'right-model-attached', {
-        tabId,
-        path,
-        formattedLength: byteLength,
-        language,
-        largeMode: effectiveLargeMode,
-        enableStructuralFolding,
-      });
-      rightEditorRef.current?.updateOptions(
-        getMonacoOptions({
-          largeMode: effectiveLargeMode,
-          wrapLongLines,
-          readOnly: true,
+  const syncRightModel = useCallback(
+    (tabId: string, content: string, forceValue = false) => {
+      const path = getRightModelPath(tabId);
+      const byteLength = getUtf8ByteLength(content);
+      const rawText = rawTextByTabRef.current[tabId] ?? '';
+      const rawByteLength = getUtf8ByteLength(rawText);
+      const shouldPreferDedicatedViewer =
+        Boolean(largeViewerDataByTab[tabId]) || largeViewerStatusByTab[tabId] === 'building';
+
+      if (shouldPreferDedicatedViewer) {
+        const existingModel = monaco.editor.getModel(monaco.Uri.parse(path));
+        if (existingModel) {
+          if (rightEditorRef.current?.getModel() === existingModel) {
+            rightEditorRef.current.setModel(null);
+          }
+          existingModel.dispose();
+        }
+        return;
+      }
+
+      const enableStructuralFolding = rawByteLength <= STRUCTURE_SYNC_THRESHOLD;
+      const effectiveLargeMode = largeModeRef.current[tabId] || isLargeDocument(rawText);
+      const language =
+        rawByteLength > 0 && rawByteLength <= STRUCTURE_SYNC_THRESHOLD ? 'json' : getEditorLanguageByLength(byteLength);
+      let model = getOrCreateModel(path, language);
+
+      if (forceValue || model.getValueLength() !== content.length || model.getLanguageId() !== language) {
+        if (activeTabIdRef.current === tabId) {
+          rightViewStateByTabRef.current[tabId] =
+            rightEditorRef.current?.saveViewState() ?? rightViewStateByTabRef.current[tabId] ?? null;
+        }
+        model = recreateModel(
+          path,
+          language,
+          content,
+          activeTabIdRef.current === tabId ? rightEditorRef.current : null
+        );
+        logEvent(forceValue ? 'right-model-value-written' : 'right-model-value-synced', {
+          tabId,
+          formattedLength: byteLength,
+        });
+      }
+
+      if (activeTabIdRef.current === tabId) {
+        attachEditorModel(
+          rightEditorRef.current,
+          model,
+          rightViewStateByTabRef.current[tabId],
+          'right-model-attached',
+          {
+            tabId,
+            path,
+            formattedLength: byteLength,
+            language,
+            largeMode: effectiveLargeMode,
+            enableStructuralFolding,
+          }
+        );
+        rightEditorRef.current?.updateOptions(
+          getMonacoOptions({
+            largeMode: effectiveLargeMode,
+            wrapLongLines,
+            readOnly: true,
+            enableStructuralFolding,
+          })
+        );
+        rightEditorRef.current?.layout();
+        logRightEditorState('right-editor-state', tabId, {
+          context: forceValue ? 'sync-force' : 'sync',
+          language,
           enableStructuralFolding,
-        })
-      );
-      rightEditorRef.current?.layout();
-      logRightEditorState('right-editor-state', tabId, {
-        context: forceValue ? 'sync-force' : 'sync',
-        language,
-        enableStructuralFolding,
-        effectiveLargeMode,
-      });
-    }
-  }, [
-    activeTabIdRef,
-    attachEditorModel,
-    largeModeRef,
-    largeViewerDataByTab,
-    largeViewerStatusByTab,
-    logEvent,
-    logRightEditorState,
-    rawTextByTabRef,
-    rightEditorRef,
-    rightViewStateByTabRef,
-    wrapLongLines,
-  ]);
+          effectiveLargeMode,
+        });
+      }
+    },
+    [
+      activeTabIdRef,
+      attachEditorModel,
+      largeModeRef,
+      largeViewerDataByTab,
+      largeViewerStatusByTab,
+      logEvent,
+      logRightEditorState,
+      rawTextByTabRef,
+      rightEditorRef,
+      rightViewStateByTabRef,
+      wrapLongLines,
+    ]
+  );
 
   return {
     attachEditorModel,

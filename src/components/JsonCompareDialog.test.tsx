@@ -1,4 +1,3 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import JsonCompareDialog from './JsonCompareDialog';
@@ -19,9 +18,7 @@ describe('JsonCompareDialog', () => {
         tabs={tabs}
         activeTabId="left"
         isDarkMode={false}
-        getTabText={(tabId) => (tabId === 'left'
-          ? '{"name":"old","remove":true}'
-          : '{"name":"new","add":1}')}
+        getTabText={(tabId) => (tabId === 'left' ? '{"name":"old","remove":true}' : '{"name":"new","add":1}')}
         onClose={vi.fn()}
       />
     );
@@ -62,6 +59,8 @@ describe('JsonCompareDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
 
-    expect(within(screen.getByText(/左侧解析失败/).closest('.modal-error') as HTMLElement).getByText(/左侧解析失败/)).toBeInTheDocument();
+    expect(
+      within(screen.getByText(/左侧解析失败/).closest('.modal-error') as HTMLElement).getByText(/左侧解析失败/)
+    ).toBeInTheDocument();
   });
 });

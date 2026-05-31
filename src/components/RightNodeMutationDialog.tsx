@@ -58,25 +58,28 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
   const hasOuterWhitespace = isRename && nextKey.length !== nextKey.trim().length;
   const renameWarning = isRename
     ? [
-      hasOuterWhitespace ? t('mutation.whitespaceWarning') : null,
-      nextKey !== state.currentKey ? t('mutation.duplicateWarning') : null,
-    ].filter(Boolean).join(' ')
+        hasOuterWhitespace ? t('mutation.whitespaceWarning') : null,
+        nextKey !== state.currentKey ? t('mutation.duplicateWarning') : null,
+      ]
+        .filter(Boolean)
+        .join(' ')
     : '';
 
   return (
-    <div
-      className="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="right-node-mutation-title"
-    >
-      <div className={isDarkMode ? 'modal-card modal-card-dark right-node-mutation-card' : 'modal-card right-node-mutation-card'}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="right-node-mutation-title">
+      <div
+        className={
+          isDarkMode ? 'modal-card modal-card-dark right-node-mutation-card' : 'modal-card right-node-mutation-card'
+        }
+      >
         <div className="modal-header">
           <h3 id="right-node-mutation-title">{title}</h3>
         </div>
 
         <div className="right-node-mutation-body">
-          <div className="modal-path" title={state.pathText}>{state.pathText}</div>
+          <div className="modal-path" title={state.pathText}>
+            {state.pathText}
+          </div>
           {isRename ? (
             <label className="right-node-mutation-field">
               <span>{t('mutation.newKey')}</span>
@@ -93,22 +96,20 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
                   }
                 }}
               />
-              {renameWarning && (
-                <span className="right-node-mutation-warning">{renameWarning}</span>
-              )}
+              {renameWarning && <span className="right-node-mutation-warning">{renameWarning}</span>}
             </label>
           ) : (
             <>
-              <p className="right-node-mutation-message">
-                {t('mutation.deleteMessage')}
-              </p>
+              <p className="right-node-mutation-message">{t('mutation.deleteMessage')}</p>
               <pre className="right-node-mutation-preview">{state.preview}</pre>
             </>
           )}
         </div>
 
         <div className="modal-actions">
-          <button type="button" onClick={onCancel}>{t('mutation.cancel')}</button>
+          <button type="button" onClick={onCancel}>
+            {t('mutation.cancel')}
+          </button>
           {isRename ? (
             <button type="button" onClick={() => onConfirmRename(nextKey)} disabled={!canSubmitRename}>
               {t('mutation.confirmRename')}

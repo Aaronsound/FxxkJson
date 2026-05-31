@@ -66,11 +66,14 @@ export function useJsonEditSession() {
     }, 2000);
   };
 
-  useEffect(() => () => {
-    if (copyLiteralTimeoutRef.current !== null) {
-      window.clearTimeout(copyLiteralTimeoutRef.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (copyLiteralTimeoutRef.current !== null) {
+        window.clearTimeout(copyLiteralTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   return {
     clearCopyLiteralNotice,

@@ -113,7 +113,7 @@ export async function evaluate(cdp, expression) {
   return result.result?.value;
 }
 
-export async function pressShortcut(cdp, key, code) {
+export async function pressShortcut(cdp, key, code, modifiers = KEY_MODIFIER) {
   const upperKey = key.toUpperCase();
   const keyCode = upperKey.length === 1 ? upperKey.charCodeAt(0) : undefined;
   await cdp.send('Input.dispatchKeyEvent', {
@@ -122,7 +122,7 @@ export async function pressShortcut(cdp, key, code) {
     code,
     windowsVirtualKeyCode: keyCode,
     nativeVirtualKeyCode: keyCode,
-    modifiers: KEY_MODIFIER,
+    modifiers,
     commands: code === 'KeyA' ? ['selectAll'] : undefined,
   });
   await cdp.send('Input.dispatchKeyEvent', {
@@ -131,7 +131,7 @@ export async function pressShortcut(cdp, key, code) {
     code,
     windowsVirtualKeyCode: keyCode,
     nativeVirtualKeyCode: keyCode,
-    modifiers: KEY_MODIFIER,
+    modifiers,
   });
 }
 
@@ -140,7 +140,9 @@ export async function insertText(cdp, text) {
 }
 
 export async function clickSelector(cdp, selector) {
-  const clicked = await evaluate(cdp, `(() => {
+  const clicked = await evaluate(
+    cdp,
+    `(() => {
     const element = document.querySelector(${JSON.stringify(selector)});
     if (!element) return false;
     const rect = element.getBoundingClientRect();
@@ -163,21 +165,56 @@ export async function clickSelector(cdp, selector) {
       clientY: rect.top + Math.min(10, rect.height / 2)
     }));
     return true;
-  })()`);
+  })()`
+  );
 
   if (!clicked) {
     throw new Error(`Could not click ${selector}`);
   }
 }
 
+export async function setFileInputFiles(cdp, selector, files) {
+  const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+  const { nodeId } = await cdp.send('DOM.querySelector', {
+    nodeId: root.nodeId,
+    selector,
+  });
+
+  if (!nodeId) {
+    throw new Error(`Could not find file input ${selector}`);
+  }
+
+  await cdp.send('DOM.setFileInputFiles', {
+    files,
+    nodeId,
+  });
+
+  const changed = await evaluate(
+    cdp,
+    `(() => {
+    const input = document.querySelector(${JSON.stringify(selector)});
+    if (!input) return false;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  })()`
+  );
+
+  if (!changed) {
+    throw new Error(`Could not dispatch file input change for ${selector}`);
+  }
+}
+
 export async function clickButtonByText(cdp, text) {
-  const clicked = await evaluate(cdp, `(() => {
+  const clicked = await evaluate(
+    cdp,
+    `(() => {
     const button = Array.from(document.querySelectorAll('button'))
       .find((item) => item.textContent?.trim() === ${JSON.stringify(text)});
     if (!button) return false;
     button.click();
     return true;
-  })()`);
+  })()`
+  );
 
   if (!clicked) {
     throw new Error(`Could not click button ${text}`);
@@ -185,15 +222,10 @@ export async function clickButtonByText(cdp, text) {
 }
 
 export async function connectToElectronPage(port) {
-  const targets = await waitFor(
-    async () => getJson(`http://127.0.0.1:${port}/json/list`),
-    'Electron debug target'
+  const targets = await waitFor(async () => getJson(`http://127.0.0.1:${port}/json/list`), 'Electron debug target');
+  const page = targets.find(
+    (target) => target.type === 'page' && target.webSocketDebuggerUrl && !target.url.startsWith('devtools://')
   );
-  const page = targets.find((target) => (
-    target.type === 'page'
-    && target.webSocketDebuggerUrl
-    && !target.url.startsWith('devtools://')
-  ));
 
   if (!page) {
     throw new Error('Could not find Electron renderer target');

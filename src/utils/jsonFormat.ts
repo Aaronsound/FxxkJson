@@ -13,17 +13,14 @@ export interface JsonRepairResult extends JsonFormatResult {
 
 function looksLikeJsonContainer(text: string) {
   const trimmed = text.trim();
-  return (
-    (trimmed.startsWith('{') && trimmed.endsWith('}'))
-    || (trimmed.startsWith('[') && trimmed.endsWith(']'))
-  );
+  return (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
 }
 
 function looksLikeEscapedJsonContainer(text: string) {
   const trimmed = text.trim();
   return (
-    ((trimmed.startsWith('{\\"') || trimmed.startsWith('{\\n')) && trimmed.endsWith('}'))
-    || ((trimmed.startsWith('[{\\"') || trimmed.startsWith('[\\n') || trimmed.startsWith('[\\"')) && trimmed.endsWith(']'))
+    ((trimmed.startsWith('{\\"') || trimmed.startsWith('{\\n')) && trimmed.endsWith('}')) ||
+    ((trimmed.startsWith('[{\\"') || trimmed.startsWith('[\\n') || trimmed.startsWith('[\\"')) && trimmed.endsWith(']'))
   );
 }
 

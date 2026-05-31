@@ -1,6 +1,18 @@
 name: Electron E2E
 
 on:
+  pull_request:
+    branches:
+      - main
+      - dev-codex
+    paths:
+      - '.github/workflows/electron-e2e.yml'
+      - 'electron/**'
+      - 'scripts/e2e-*.mjs'
+      - 'src/types/electron.d.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.mts'
   workflow_dispatch:
     inputs:
       size_mb:

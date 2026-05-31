@@ -1,10 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
-import {
-  buildHighlightedJsonLineSegments,
-  tokenizeJsonLine,
-} from './largeJsonViewerRender';
+import { buildHighlightedJsonLineSegments, tokenizeJsonLine } from './largeJsonViewerRender';
 
 function createMatch(
   localStart: number,
@@ -34,11 +31,7 @@ describe('largeJsonViewerRender', () => {
 
   it('splits syntax-highlighted segments around search matches', () => {
     const line = '  "name": "FxxkJson"';
-    const segments = buildHighlightedJsonLineSegments(
-      line,
-      [createMatch(3, 7, 4)],
-      4
-    );
+    const segments = buildHighlightedJsonLineSegments(line, [createMatch(3, 7, 4)], 4);
 
     expect(segments.map((segment) => segment.text).join('')).toBe(line);
     expect(segments.find((segment) => segment.text === 'name')).toMatchObject({
@@ -49,11 +42,7 @@ describe('largeJsonViewerRender', () => {
   });
 
   it('clamps out-of-range matches to the rendered line', () => {
-    const segments = buildHighlightedJsonLineSegments(
-      '"ok": true',
-      [createMatch(-10, 100, 0)],
-      1
-    );
+    const segments = buildHighlightedJsonLineSegments('"ok": true', [createMatch(-10, 100, 0)], 1);
 
     expect(segments.map((segment) => segment.text).join('')).toBe('"ok": true');
     expect(segments.some((segment) => segment.isSearchMatch)).toBe(true);

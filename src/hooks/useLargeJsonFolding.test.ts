@@ -14,11 +14,13 @@ const data = {
 describe('useLargeJsonFolding', () => {
   it('normalizes collapsed lines and builds visible segments', () => {
     const onCollapsedLinesChange = vi.fn();
-    const { result } = renderHook(() => useLargeJsonFolding({
-      collapsedLines: [2, 99, 2],
-      data,
-      onCollapsedLinesChange,
-    }));
+    const { result } = renderHook(() =>
+      useLargeJsonFolding({
+        collapsedLines: [2, 99, 2],
+        data,
+        onCollapsedLinesChange,
+      })
+    );
 
     expect(result.current.normalizedCollapsedLines).toEqual([2]);
     expect(result.current.collapsedLineSet.has(2)).toBe(true);
@@ -27,11 +29,13 @@ describe('useLargeJsonFolding', () => {
 
   it('toggles and folds all lines', () => {
     const onCollapsedLinesChange = vi.fn();
-    const { result } = renderHook(() => useLargeJsonFolding({
-      collapsedLines: [],
-      data,
-      onCollapsedLinesChange,
-    }));
+    const { result } = renderHook(() =>
+      useLargeJsonFolding({
+        collapsedLines: [],
+        data,
+        onCollapsedLinesChange,
+      })
+    );
 
     act(() => result.current.toggleLine(2));
     expect(onCollapsedLinesChange).toHaveBeenCalledWith([2]);

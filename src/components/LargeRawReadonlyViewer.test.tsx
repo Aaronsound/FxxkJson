@@ -1,9 +1,7 @@
-import React, { createRef } from 'react';
+import { createRef } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import LargeRawReadonlyViewer, {
-  LargeRawReadonlyViewerHandle,
-} from './LargeRawReadonlyViewer';
+import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
 
 describe('LargeRawReadonlyViewer', () => {
   function makeRect(left: number, right: number): DOMRect {
@@ -91,23 +89,9 @@ describe('LargeRawReadonlyViewer', () => {
   });
 
   it('splits formatted raw JSON into virtual rows without embedded newlines', () => {
-    const text = [
-      '{',
-      '  "name": "alpha",',
-      '  "items": [',
-      '    1,',
-      '    2',
-      '  ]',
-      '}',
-    ].join('\n');
+    const text = ['{', '  "name": "alpha",', '  "items": [', '    1,', '    2', '  ]', '}'].join('\n');
 
-    render(
-      <LargeRawReadonlyViewer
-        text={text}
-        isDarkMode={false}
-        highlightRange={null}
-      />
-    );
+    render(<LargeRawReadonlyViewer text={text} isDarkMode={false} highlightRange={null} />);
 
     const rowTexts = Array.from(document.querySelectorAll('.large-raw-text'));
     expect(rowTexts.length).toBeGreaterThan(1);

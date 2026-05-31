@@ -1,4 +1,3 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import DiagnosticsLogPanel from './DiagnosticsLogPanel';
@@ -40,8 +39,9 @@ describe('DiagnosticsLogPanel', () => {
       readRecentLog: vi.fn().mockResolvedValue({
         path: '/tmp/fxxkjson/runtime.log',
         content: [
-          '[2026-05-09] {"event":"format-success"}',
-          '[2026-05-09] {"event":"format-failed","error":"bad json"}',
+          '[2026-05-09] {"event":"format-success","level":"info"}',
+          '[2026-05-09] {"event":"format-failed","level":"error","error":"bad json"}',
+          '[2026-05-09] {"event":"format-timeout","error":"JSON 格式化超时"}',
         ].join('\n'),
         truncated: true,
       }),
@@ -71,6 +71,7 @@ describe('DiagnosticsLogPanel', () => {
 
     await waitFor(() => {
       expect(screen.getByDisplayValue(/format-failed/)).toBeInTheDocument();
+      expect(screen.getByDisplayValue(/format-timeout/)).toBeInTheDocument();
       expect(screen.queryByDisplayValue(/format-success/)).not.toBeInTheDocument();
     });
 

@@ -1,9 +1,4 @@
-import type {
-  PerformanceSnapshot,
-  RightNodeSelection,
-  Tab,
-  TabDocumentMeta,
-} from '../types/jsonTool';
+import type { PerformanceSnapshot, RightNodeSelection, Tab, TabDocumentMeta } from '../types/jsonTool';
 import type { DiagnosticsContextItem } from '../components/DiagnosticsLogPanel';
 
 interface BuildDiagnosticsContextArgs {

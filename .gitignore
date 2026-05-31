@@ -6,6 +6,7 @@ node_modules/
 dist-renderer/
 dist-electron/
 release/
+coverage/
 
 # Logs and local artifacts
 *.log

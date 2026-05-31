@@ -13,11 +13,7 @@ function hasDraggedFiles(event: DragEvent<HTMLDivElement>) {
   return Array.from(event.dataTransfer.types).includes('Files');
 }
 
-export function useJsonImportDropZone({
-  activeTab,
-  importJsonFile,
-  setTabError,
-}: UseJsonImportDropZoneArgs) {
+export function useJsonImportDropZone({ activeTab, importJsonFile, setTabError }: UseJsonImportDropZoneArgs) {
   const dragImportDepthRef = useRef(0);
   const [isDragImportActive, setIsDragImportActive] = useState(false);
 

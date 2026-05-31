@@ -105,11 +105,13 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           const model = editor.getModel();
           if (model) {
             editor.pushUndoStop();
-            editor.executeEdits('fxxkjson-e2e', [{
-              range: model.getFullModelRange(),
-              text: nextValue,
-              forceMoveMarkers: true,
-            }]);
+            editor.executeEdits('fxxkjson-e2e', [
+              {
+                range: model.getFullModelRange(),
+                text: nextValue,
+                forceMoveMarkers: true,
+              },
+            ]);
             editor.pushUndoStop();
           }
           onValueChange(nextValue);
@@ -151,30 +153,33 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     });
   };
 
-  const replaceEditorValue = useCallback((nextValue: string) => {
-    const editor = editorRef.current;
-    const model = editor?.getModel() ?? null;
+  const replaceEditorValue = useCallback(
+    (nextValue: string) => {
+      const editor = editorRef.current;
+      const model = editor?.getModel() ?? null;
 
-    if (editor && model) {
-      editor.pushUndoStop();
-      editor.executeEdits('json-edit-transform', [{
-        range: model.getFullModelRange(),
-        text: nextValue,
-        forceMoveMarkers: true,
-      }]);
-      editor.pushUndoStop();
-      const nextPosition = model.getPositionAt(nextValue.length);
-      editor.setPosition(nextPosition);
-      editor.revealPositionInCenter(nextPosition);
-    }
+      if (editor && model) {
+        editor.pushUndoStop();
+        editor.executeEdits('json-edit-transform', [
+          {
+            range: model.getFullModelRange(),
+            text: nextValue,
+            forceMoveMarkers: true,
+          },
+        ]);
+        editor.pushUndoStop();
+        const nextPosition = model.getPositionAt(nextValue.length);
+        editor.setPosition(nextPosition);
+        editor.revealPositionInCenter(nextPosition);
+      }
 
-    onValueChange(nextValue);
-    editSearch.refreshSearch();
-  }, [editSearch, onValueChange]);
+      onValueChange(nextValue);
+      editSearch.refreshSearch();
+    },
+    [editSearch, onValueChange]
+  );
 
-  const handleTransformContent = async (
-    transform: (value: string) => Promise<string>
-  ) => {
+  const handleTransformContent = async (transform: (value: string) => Promise<string>) => {
     if (isBusy) {
       return;
     }
@@ -240,22 +245,26 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         </div>
 
         <div className="modal-actions">
-          <button onClick={onSave} disabled={isBusy}>{saveLabel}</button>
+          <button type="button" onClick={onSave} disabled={isBusy}>
+            {saveLabel}
+          </button>
           <div className="modal-copy-group">
-            <button onClick={() => void handleTransformContent(onUnescapeContent)} disabled={isBusy}>
+            <button type="button" onClick={() => void handleTransformContent(onUnescapeContent)} disabled={isBusy}>
               {t('edit.unescapeContent')}
             </button>
-            <button onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
+            <button type="button" onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
               {t('edit.escapeContent')}
             </button>
           </div>
           <div className="modal-copy-group">
-            <button onClick={onCopyLiteral} disabled={isBusy}>{t('edit.copyLiteral')}</button>
-            {hasCopiedLiteral && (
-              <span className="modal-copy-hint">{t('edit.copiedLiteral')}</span>
-            )}
+            <button type="button" onClick={onCopyLiteral} disabled={isBusy}>
+              {t('edit.copyLiteral')}
+            </button>
+            {hasCopiedLiteral && <span className="modal-copy-hint">{t('edit.copiedLiteral')}</span>}
           </div>
-          <button onClick={onClose} disabled={isBusy}>{t('edit.cancel')}</button>
+          <button type="button" onClick={onClose} disabled={isBusy}>
+            {t('edit.cancel')}
+          </button>
         </div>
 
         {busyLabel && <div className="modal-error">{busyLabel}</div>}

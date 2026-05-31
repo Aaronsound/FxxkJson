@@ -71,9 +71,7 @@ describe('PaneFindWidget', () => {
 
     renderWidget({
       recentSearches: ['request', 'traceId'],
-      favoritePaths: [
-        { id: 'path-1', label: '$.items[0].requestId', detail: '$.items[0].requestId' },
-      ],
+      favoritePaths: [{ id: 'path-1', label: '$.items[0].requestId', detail: '$.items[0].requestId' }],
       canPinPath: true,
       onSelectRecentSearch,
       onPinPath,

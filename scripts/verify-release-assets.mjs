@@ -9,13 +9,15 @@ const EXPECTED_ASSETS_BY_TARGET = {
 };
 
 function printUsage() {
-  console.error([
-    'Usage:',
-    '  node scripts/verify-release-assets.mjs local <target> [directory]',
-    '  node scripts/verify-release-assets.mjs release <assets-json-file> [target...]',
-    '',
-    `Targets: ${Object.keys(EXPECTED_ASSETS_BY_TARGET).join(', ')}`,
-  ].join('\n'));
+  console.error(
+    [
+      'Usage:',
+      '  node scripts/verify-release-assets.mjs local <target> [directory]',
+      '  node scripts/verify-release-assets.mjs release <assets-json-file> [target...]',
+      '',
+      `Targets: ${Object.keys(EXPECTED_ASSETS_BY_TARGET).join(', ')}`,
+    ].join('\n')
+  );
 }
 
 function getExpectation(target) {
@@ -31,11 +33,9 @@ function assertTargetAssets(target, assets) {
   const names = assets.map((asset) => asset.name);
 
   expectedExtensions.forEach((extension) => {
-    const found = assets.find((asset) => (
-      asset.name.startsWith(`${target}-`)
-      && asset.name.endsWith(extension)
-      && asset.size > 0
-    ));
+    const found = assets.find(
+      (asset) => asset.name.startsWith(`${target}-`) && asset.name.endsWith(extension) && asset.size > 0
+    );
 
     if (!found) {
       throw new Error(`Missing ${target} asset ending in ${extension}. Found: ${names.join(', ') || '(none)'}`);
@@ -86,9 +86,7 @@ async function verifyLocal(target, directory = 'release-upload') {
 
 async function verifyRelease(jsonPath, targets) {
   const assets = await readReleaseAssets(jsonPath);
-  const selectedTargets = targets.length > 0
-    ? targets
-    : Object.keys(EXPECTED_ASSETS_BY_TARGET);
+  const selectedTargets = targets.length > 0 ? targets : Object.keys(EXPECTED_ASSETS_BY_TARGET);
 
   selectedTargets.forEach((target) => assertTargetAssets(target, assets));
   console.log(`Release asset check passed for ${selectedTargets.join(', ')}`);
@@ -113,6 +111,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

@@ -2,10 +2,7 @@ import type { LargeRawViewerData } from '../types/jsonTool';
 
 export const RAW_VIEWER_CHUNK_SIZE = 2000;
 
-export function buildLargeRawViewerData(
-  text: string,
-  chunkSize = RAW_VIEWER_CHUNK_SIZE
-): LargeRawViewerData {
+export function buildLargeRawViewerData(text: string, chunkSize = RAW_VIEWER_CHUNK_SIZE): LargeRawViewerData {
   if (!text) {
     return {
       starts: Uint32Array.from([0]),

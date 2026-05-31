@@ -9,6 +9,10 @@
       "formattedTreeMs": 330,
       "rightSearchBatchMs": 80,
       "rightSearchLoadMoreMs": 80,
+      "leftSearchBatchMs": 80,
+      "leftSearchLoadMoreMs": 80,
+      "leftReplaceAllMs": 80,
+      "leftRegexReplaceAllMs": 80,
       "nodeValueReadMs": 25,
       "nodeEditPatchMs": 25
     },
@@ -19,6 +23,10 @@
       "formattedTreeMs": 1650,
       "rightSearchBatchMs": 220,
       "rightSearchLoadMoreMs": 220,
+      "leftSearchBatchMs": 220,
+      "leftSearchLoadMoreMs": 220,
+      "leftReplaceAllMs": 220,
+      "leftRegexReplaceAllMs": 220,
       "nodeValueReadMs": 50,
       "nodeEditPatchMs": 50
     }

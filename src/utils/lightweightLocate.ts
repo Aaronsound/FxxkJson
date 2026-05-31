@@ -46,9 +46,10 @@ function getLineRange(textLength: number, viewerData: LargeJsonViewerData, offse
   const lineIndex = binarySearchLineStarts(lineStarts, safeOffset);
   const lineStartOffset = lineStarts[lineIndex] ?? 0;
   const nextLineStart = lineStarts[lineIndex + 1];
-  const lineEndOffset = typeof nextLineStart === 'number'
-    ? Math.max(lineStartOffset + 1, nextLineStart - 1)
-    : Math.max(lineStartOffset + 1, textLength);
+  const lineEndOffset =
+    typeof nextLineStart === 'number'
+      ? Math.max(lineStartOffset + 1, nextLineStart - 1)
+      : Math.max(lineStartOffset + 1, textLength);
 
   return {
     lineStartOffset,
@@ -104,12 +105,7 @@ function findTokenOffsets(text: string, token: string) {
   return offsets;
 }
 
-function getTokenOffsets(
-  rawText: string,
-  formattedText: string,
-  token: string,
-  cache?: LightweightLocateCache
-) {
+function getTokenOffsets(rawText: string, formattedText: string, token: string, cache?: LightweightLocateCache) {
   if (!cache) {
     return null;
   }
@@ -197,21 +193,13 @@ function getTokenCandidates(
 
     candidates.push({
       token,
-      occurrenceIndex: getCachedTokenOccurrenceIndex(
-        rawText,
-        formattedText,
-        token,
-        start,
-        cache
-      ),
+      occurrenceIndex: getCachedTokenOccurrenceIndex(rawText, formattedText, token, start, cache),
       distance: getDistanceToRange(offset, start, end),
       start,
     });
   }
 
-  return candidates.sort((left, right) => (
-    left.distance - right.distance || left.start - right.start
-  ));
+  return candidates.sort((left, right) => left.distance - right.distance || left.start - right.start);
 }
 
 export function getIdentityLocateRange(

@@ -16,9 +16,7 @@ export interface RenamingTabState {
   value: string;
 }
 
-export type WorkerRequestTextPayload =
-  | { text: string; textBuffer?: never }
-  | { text?: never; textBuffer: ArrayBuffer };
+export type WorkerRequestTextPayload = { text: string; textBuffer?: never } | { text?: never; textBuffer: ArrayBuffer };
 
 interface WorkerRequestBase {
   requestId: number;
@@ -33,6 +31,29 @@ interface WorkerFormatOptions {
   structureWarmupDelayMs?: number;
 }
 
+export interface WorkerSearchRequest {
+  tabId: string;
+  query: string;
+  searchOptions: JsonSearchOptions;
+  startOffset?: number;
+  append?: boolean;
+  target?: SearchTarget;
+  text?: string;
+  rawRevision?: number;
+}
+
+export interface EditJsonWorkerRequest {
+  tabId: string;
+  operation: EditJsonWorkerOperation;
+  text: string;
+  originalText?: string;
+  path?: JsonEditPath;
+  offset?: number;
+  searchTerm?: string;
+  searchOptions?: JsonSearchOptions;
+  replacement?: string;
+}
+
 export type WorkerRequestMessage =
   | { type: 'clear-structure'; tabId: string }
   | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format' })
@@ -40,28 +61,36 @@ export type WorkerRequestMessage =
   | (WorkerRequestBase & {
       type: 'search';
       target: SearchTarget;
-      query: string;
-      searchOptions: JsonSearchOptions;
+      query: WorkerSearchRequest['query'];
+      searchOptions: WorkerSearchRequest['searchOptions'];
       startOffset: number;
       append: boolean;
-      text?: string;
-      rawRevision?: number;
+      text?: WorkerSearchRequest['text'];
+      rawRevision?: WorkerSearchRequest['rawRevision'];
     })
   | (WorkerRequestBase & { type: 'locate'; offset: number })
   | (WorkerRequestBase & { type: 'locate-right-direct'; offset: number })
-  | (WorkerRequestBase & { type: 'read-value'; offset: number })
-  | (WorkerRequestBase & { type: 'read-value-direct'; offset: number; text?: string })
   | (WorkerRequestBase & {
       type: 'edit-json';
-      operation: EditJsonWorkerOperation;
-      text: string;
-      originalText?: string;
-      path?: JsonEditPath;
-      offset?: number;
+      operation: EditJsonWorkerRequest['operation'];
+      text: EditJsonWorkerRequest['text'];
+      originalText?: EditJsonWorkerRequest['originalText'];
+      path?: EditJsonWorkerRequest['path'];
+      offset?: EditJsonWorkerRequest['offset'];
+      searchTerm?: EditJsonWorkerRequest['searchTerm'];
+      searchOptions?: EditJsonWorkerRequest['searchOptions'];
+      replacement?: EditJsonWorkerRequest['replacement'];
     });
 
 export interface WorkerMessage {
-  type: 'format-result' | 'repair-result' | 'structure-ready' | 'locate-result' | 'value-result' | 'viewer-ready' | 'search-result' | 'edit-json-result';
+  type:
+    | 'format-result'
+    | 'repair-result'
+    | 'structure-ready'
+    | 'locate-result'
+    | 'viewer-ready'
+    | 'search-result'
+    | 'edit-json-result';
   requestId: number;
   tabId: string;
   target?: SearchTarget;
@@ -104,13 +133,21 @@ export type EditJsonWorkerOperation =
   | 'read-node'
   | 'save-node'
   | 'delete-node'
-  | 'rename-node-key';
+  | 'rename-node-key'
+  | 'replace-text';
 export type SearchTarget = 'left' | 'right';
 export type StructureStatus = 'ready' | 'building' | 'disabled';
 export type PerformanceTrigger = 'import' | 'manual-format' | 'repair' | 'edit-save' | 'paste';
 export type PerformanceSnapshotStatus = 'running' | 'ready' | 'failed';
 export type LargeViewerStatus = 'idle' | 'building' | 'ready';
-export type ProcessingStage = 'idle' | 'reading' | 'syncing-left' | 'formatting' | 'repairing' | 'building-viewer' | 'building-index';
+export type ProcessingStage =
+  | 'idle'
+  | 'reading'
+  | 'syncing-left'
+  | 'formatting'
+  | 'repairing'
+  | 'building-viewer'
+  | 'building-index';
 
 export interface LargeJsonViewerRegion {
   startLine: number;

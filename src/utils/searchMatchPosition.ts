@@ -18,10 +18,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function getSafeOffsetAt(
-  model: SearchOffsetModel,
-  position: SearchPosition
-) {
+export function getSafeOffsetAt(model: SearchOffsetModel, position: SearchPosition) {
   const lineCount = Math.max(model.getLineCount(), 1);
   const lineNumber = clamp(position.lineNumber, 1, lineCount);
   const maxColumn = Math.max(model.getLineMaxColumn(lineNumber), 1);
@@ -30,10 +27,7 @@ export function getSafeOffsetAt(
   return model.getOffsetAt({ lineNumber, column });
 }
 
-export function getRangeStartOffset(
-  model: SearchOffsetModel,
-  range: SearchRangeLike
-) {
+export function getRangeStartOffset(model: SearchOffsetModel, range: SearchRangeLike) {
   return getSafeOffsetAt(model, {
     lineNumber: range.startLineNumber,
     column: range.startColumn,

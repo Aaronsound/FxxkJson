@@ -1,10 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  escapeJsonText,
-  looksLikeEscapedJson,
-  unescapeJsonText,
-} from './jsonEscape';
+import { escapeJsonText, looksLikeEscapedJson, unescapeJsonText } from './jsonEscape';
 
 describe('jsonEscape', () => {
   it('unescapes and formats a JSON string literal', () => {

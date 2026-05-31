@@ -79,10 +79,7 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
       }
 
       if (tabRight > visibleRight) {
-        container.scrollLeft = Math.min(
-          Math.max(0, tabRight - container.clientWidth + gap),
-          maxScrollableLeft
-        );
+        container.scrollLeft = Math.min(Math.max(0, tabRight - container.clientWidth + gap), maxScrollableLeft);
       }
     };
 
@@ -173,7 +170,9 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
           </div>
         );
       })}
-      <button type="button" className="add-tab" onClick={onAddTab}>+</button>
+      <button type="button" className="add-tab" onClick={onAddTab}>
+        +
+      </button>
     </div>
   );
 };

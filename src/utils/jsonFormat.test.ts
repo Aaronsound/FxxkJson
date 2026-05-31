@@ -41,11 +41,11 @@ describe('jsonFormat', () => {
   });
 
   it('does not auto-repair during regular formatting', () => {
-    expect(() => formatJsonText("{ok: true,}")).toThrow();
+    expect(() => formatJsonText('{ok: true,}')).toThrow();
   });
 
   it('repairs common invalid JSON before formatting', () => {
-    expect(repairJsonText("{ok: true,}")).toEqual({
+    expect(repairJsonText('{ok: true,}')).toEqual({
       repaired: '{"ok": true}',
       formatted: '{\n  "ok": true\n}',
       normalizedNestedString: false,

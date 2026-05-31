@@ -1,6 +1,5 @@
-import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import JsonPerformancePanel from './JsonPerformancePanel';
 import type { PerformanceSnapshot } from '../types/jsonTool';
 
@@ -40,5 +39,70 @@ describe('JsonPerformancePanel', () => {
 
     expect(screen.getByText(/当前慢在右侧渲染/)).toBeInTheDocument();
     expect(screen.getByText('瓶颈 右侧渲染')).toBeInTheDocument();
+  });
+
+  it('shows an anchored waiting state before any performance snapshot exists', () => {
+    const { container } = render(<JsonPerformancePanel snapshot={null} history={[]} isDarkMode={false} />);
+    const panel = container.querySelector('.performance-panel') as HTMLElement;
+
+    expect(screen.getByText('等待数据')).toBeInTheDocument();
+    expect(screen.getByText(/显示性能数据/)).toBeInTheDocument();
+    expect(panel.style.left).toBe('');
+    expect(panel.style.top).toBe('');
+  });
+
+  it('returns a dragged panel to its bottom-right anchor on viewport resize', async () => {
+    const { container } = render(<JsonPerformancePanel snapshot={buildSnapshot()} history={[]} isDarkMode={false} />);
+    const panel = container.querySelector('.performance-panel') as HTMLElement;
+    const topbar = container.querySelector('.performance-panel-topbar') as HTMLElement;
+    panel.getBoundingClientRect = () =>
+      ({
+        bottom: 200,
+        height: 120,
+        left: 40,
+        right: 400,
+        top: 80,
+        width: 360,
+        x: 40,
+        y: 80,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    fireEvent.pointerDown(topbar, { clientX: 72, clientY: 96 });
+
+    await waitFor(() => {
+      expect(panel.style.left).toBe('40px');
+      expect(panel.style.top).toBe('80px');
+    });
+
+    fireEvent(window, new Event('resize'));
+
+    await waitFor(() => {
+      expect(panel.style.left).toBe('');
+      expect(panel.style.top).toBe('');
+    });
+  });
+
+  it('copies a diagnostics summary from the expanded panel', async () => {
+    const writeClipboardText = vi.fn().mockResolvedValue(true);
+    window.electronAPI = {
+      writeClipboardText,
+    } as unknown as Window['electronAPI'];
+
+    render(
+      <JsonPerformancePanel
+        snapshot={buildSnapshot()}
+        history={[buildSnapshot({ runId: 'history' })]}
+        isDarkMode={false}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: '展开' }));
+    fireEvent.click(screen.getByRole('button', { name: '复制摘要' }));
+
+    await waitFor(() => {
+      expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('FxxkJson performance diagnostics'));
+    });
+    expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('bottleneck=右侧渲染'));
+    window.electronAPI = undefined;
   });
 });

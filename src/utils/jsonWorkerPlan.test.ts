@@ -1,13 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  LARGE_FILE_THRESHOLD,
-  STRUCTURE_SYNC_THRESHOLD,
-} from '../types/jsonTool';
-import {
-  buildJsonWorkerProcessingPlan,
-  getDeferredStructureWarmupDelayMs,
-} from './jsonWorkerPlan';
+import { LARGE_FILE_THRESHOLD, STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
+import { buildJsonWorkerProcessingPlan, getDeferredStructureWarmupDelayMs } from './jsonWorkerPlan';
 
 describe('jsonWorkerPlan', () => {
   it('keeps small documents out of large viewer and skips locate index until requested', () => {

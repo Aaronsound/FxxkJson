@@ -26,10 +26,12 @@ interface NodeEditCacheEntry {
 type NodeRangeKind = 'formatted' | 'raw';
 
 export function areJsonPathsEqual(left: unknown, right: unknown) {
-  return Array.isArray(left)
-    && Array.isArray(right)
-    && left.length === right.length
-    && left.every((segment, index) => segment === right[index]);
+  return (
+    Array.isArray(left) &&
+    Array.isArray(right) &&
+    left.length === right.length &&
+    left.every((segment, index) => segment === right[index])
+  );
 }
 
 export function createNodeEditCacheEntry({
@@ -70,12 +72,8 @@ export function getCachedNodeRange(
     return undefined;
   }
 
-  const startOffset = kind === 'raw'
-    ? cached.rawStartOffset
-    : cached.formattedStartOffset;
-  const endOffset = kind === 'raw'
-    ? cached.rawEndOffset
-    : cached.formattedEndOffset;
+  const startOffset = kind === 'raw' ? cached.rawStartOffset : cached.formattedStartOffset;
+  const endOffset = kind === 'raw' ? cached.rawEndOffset : cached.formattedEndOffset;
 
   if (typeof startOffset !== 'number' || typeof endOffset !== 'number') {
     return undefined;

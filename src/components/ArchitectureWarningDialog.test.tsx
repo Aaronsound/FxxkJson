@@ -1,4 +1,3 @@
-import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ArchitectureWarningDialog from './ArchitectureWarningDialog';
@@ -12,13 +11,7 @@ describe('ArchitectureWarningDialog', () => {
     const onClose = vi.fn();
     const onOpenAbout = vi.fn();
 
-    render(
-      <ArchitectureWarningDialog
-        isDarkMode={false}
-        onClose={onClose}
-        onOpenAbout={onOpenAbout}
-      />
-    );
+    render(<ArchitectureWarningDialog isDarkMode={false} onClose={onClose} onOpenAbout={onOpenAbout} />);
 
     expect(screen.getByRole('dialog', { name: '检测到 x64 版本正在转译运行' })).toBeInTheDocument();
     expect(screen.getByText(/macos-arm64/)).toBeInTheDocument();

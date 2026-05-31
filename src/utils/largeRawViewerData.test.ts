@@ -1,9 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import {
-  buildLargeRawViewerData,
-  findRawSegmentIndex,
-} from './largeRawViewerData';
+import { buildLargeRawViewerData, findRawSegmentIndex } from './largeRawViewerData';
 
 describe('largeRawViewerData', () => {
   it('splits long raw lines into stable chunks', () => {

@@ -8,15 +8,17 @@ const RIGHT_SEARCH_BATCH_SIZE = 2000;
 const FALLBACK_RECORD_COUNT = RIGHT_SEARCH_BATCH_SIZE + 105;
 
 function createFallbackSample() {
-  return JSON.stringify(Array.from({ length: FALLBACK_RECORD_COUNT }, (_, index) => ({
-    id: index,
-    name: `FxxkJson smoke sample ${index}`,
-    active: index % 2 === 0,
-    nested: {
-      requestId: `req-smoke-${String(index).padStart(4, '0')}`,
-      values: [index, index + 1, index + 2],
-    },
-  })));
+  return JSON.stringify(
+    Array.from({ length: FALLBACK_RECORD_COUNT }, (_, index) => ({
+      id: index,
+      name: `FxxkJson smoke sample ${index}`,
+      active: index % 2 === 0,
+      nested: {
+        requestId: `req-smoke-${String(index).padStart(4, '0')}`,
+        values: [index, index + 1, index + 2],
+      },
+    }))
+  );
 }
 
 async function readInput(filePath) {
@@ -122,9 +124,7 @@ function findFirstObjectKey(value) {
 function getSmokeSearchQuery(formatted) {
   const parsed = JSON.parse(formatted);
 
-  return formatted.includes('requestId')
-    ? 'requestId'
-    : findFirstObjectKey(parsed);
+  return formatted.includes('requestId') ? 'requestId' : findFirstObjectKey(parsed);
 }
 
 function readNodeLiteralAtOffset(formatted, offset) {
@@ -184,9 +184,10 @@ async function main() {
   const firstSearchBatch = searchQuery
     ? findLiteralSearchBatch(formatted, searchQuery, 0, RIGHT_SEARCH_BATCH_SIZE)
     : { hasMore: false, matches: [], nextStartOffset: 0 };
-  const secondSearchBatch = searchQuery && firstSearchBatch.hasMore
-    ? findLiteralSearchBatch(formatted, searchQuery, firstSearchBatch.nextStartOffset, RIGHT_SEARCH_BATCH_SIZE)
-    : { hasMore: false, matches: [], nextStartOffset: firstSearchBatch.nextStartOffset };
+  const secondSearchBatch =
+    searchQuery && firstSearchBatch.hasMore
+      ? findLiteralSearchBatch(formatted, searchQuery, firstSearchBatch.nextStartOffset, RIGHT_SEARCH_BATCH_SIZE)
+      : { hasMore: false, matches: [], nextStartOffset: firstSearchBatch.nextStartOffset };
   const rightNodeAction = smokeRightPaneNodeActions(formatted);
   const edited = editFirstRecord(formatted);
   const repaired = jsonrepair('{ok: true, trailing: [1,2,],}');
@@ -230,6 +231,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

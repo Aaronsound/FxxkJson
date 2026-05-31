@@ -4,11 +4,7 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import { getMonacoSearchBatch } from '../utils/jsonEditorInteractions';
-import {
-  findSearchIndexAtOrAfterOffset,
-  getRangeStartOffset,
-  getSafeOffsetAt,
-} from '../utils/searchMatchPosition';
+import { findSearchIndexAtOrAfterOffset, getRangeStartOffset, getSafeOffsetAt } from '../utils/searchMatchPosition';
 import { getSearchDecorationWindow } from '../utils/searchDecorationWindow';
 
 const EDIT_MODAL_SEARCH_DECORATION_RADIUS = 250;
@@ -18,10 +14,7 @@ interface UseEditModalSearchArgs {
   searchBatchSize: number;
 }
 
-export function useEditModalSearch({
-  editorRef,
-  searchBatchSize,
-}: UseEditModalSearchArgs) {
+export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalSearchArgs) {
   const searchDecorationIdsRef = useRef<string[]>([]);
   const searchAnchorOffsetRef = useRef<number | null>(null);
   const searchMatchesRef = useRef<monaco.Range[]>([]);
@@ -39,9 +32,8 @@ export function useEditModalSearch({
   const [searchNextOffset, setSearchNextOffset] = useState(0);
   const [editorRevision, setEditorRevision] = useState(0);
 
-  const normalizedSearchIndex = searchMatches.length > 0
-    ? ((searchIndex % searchMatches.length) + searchMatches.length) % searchMatches.length
-    : 0;
+  const normalizedSearchIndex =
+    searchMatches.length > 0 ? ((searchIndex % searchMatches.length) + searchMatches.length) % searchMatches.length : 0;
 
   useEffect(() => {
     searchMatchesRef.current = searchMatches;
@@ -64,35 +56,35 @@ export function useEditModalSearch({
 
   const clearSearchDecorations = useCallback(() => {
     if (editorRef.current && searchDecorationIdsRef.current.length > 0) {
-      searchDecorationIdsRef.current = editorRef.current.deltaDecorations(
-        searchDecorationIdsRef.current,
-        []
-      );
+      searchDecorationIdsRef.current = editorRef.current.deltaDecorations(searchDecorationIdsRef.current, []);
     }
   }, [editorRef]);
 
-  const captureSearchAnchor = useCallback((editor: monaco.editor.IStandaloneCodeEditor) => {
-    if (!isFindOpenRef.current || !searchTermRef.current) {
-      resetSearchAnchor();
-      return;
-    }
+  const captureSearchAnchor = useCallback(
+    (editor: monaco.editor.IStandaloneCodeEditor) => {
+      if (!isFindOpenRef.current || !searchTermRef.current) {
+        resetSearchAnchor();
+        return;
+      }
 
-    const model = editor.getModel();
-    if (!model) {
-      resetSearchAnchor();
-      return;
-    }
+      const model = editor.getModel();
+      if (!model) {
+        resetSearchAnchor();
+        return;
+      }
 
-    const activeMatch = searchMatchesRef.current[normalizedSearchIndexRef.current];
-    const fallbackPosition = editor.getPosition();
-    searchAnchorOffsetRef.current = activeMatch
-      ? getRangeStartOffset(model, activeMatch)
-      : fallbackPosition
-        ? getSafeOffsetAt(model, fallbackPosition)
-        : null;
-    searchPreservePositionRef.current = searchAnchorOffsetRef.current !== null;
-    searchSkipRevealRef.current = searchPreservePositionRef.current;
-  }, [resetSearchAnchor]);
+      const activeMatch = searchMatchesRef.current[normalizedSearchIndexRef.current];
+      const fallbackPosition = editor.getPosition();
+      searchAnchorOffsetRef.current = activeMatch
+        ? getRangeStartOffset(model, activeMatch)
+        : fallbackPosition
+          ? getSafeOffsetAt(model, fallbackPosition)
+          : null;
+      searchPreservePositionRef.current = searchAnchorOffsetRef.current !== null;
+      searchSkipRevealRef.current = searchPreservePositionRef.current;
+    },
+    [resetSearchAnchor]
+  );
 
   const closeFind = useCallback(() => {
     setIsFindOpen(false);
@@ -114,21 +106,27 @@ export function useEditModalSearch({
     setEditorRevision((current) => current + 1);
   }, []);
 
-  const handleSearchOptionsChange = useCallback((value: JsonSearchOptions) => {
-    resetSearchAnchor();
-    setSearchOptions(value);
-    setSearchIndex(0);
-    setSearchHasMore(false);
-    setSearchNextOffset(0);
-  }, [resetSearchAnchor]);
+  const handleSearchOptionsChange = useCallback(
+    (value: JsonSearchOptions) => {
+      resetSearchAnchor();
+      setSearchOptions(value);
+      setSearchIndex(0);
+      setSearchHasMore(false);
+      setSearchNextOffset(0);
+    },
+    [resetSearchAnchor]
+  );
 
-  const handleSearchTermChange = useCallback((value: string) => {
-    resetSearchAnchor();
-    setSearchTerm(value);
-    setSearchIndex(0);
-    setSearchHasMore(false);
-    setSearchNextOffset(0);
-  }, [resetSearchAnchor]);
+  const handleSearchTermChange = useCallback(
+    (value: string) => {
+      resetSearchAnchor();
+      setSearchTerm(value);
+      setSearchIndex(0);
+      setSearchHasMore(false);
+      setSearchNextOffset(0);
+    },
+    [resetSearchAnchor]
+  );
 
   const loadMoreSearch = useCallback(() => {
     if (!searchTerm || !searchHasMore) {
@@ -140,13 +138,7 @@ export function useEditModalSearch({
       return;
     }
 
-    const result = getMonacoSearchBatch(
-      model,
-      searchTerm,
-      searchOptions,
-      searchNextOffset,
-      searchBatchSize
-    );
+    const result = getMonacoSearchBatch(model, searchTerm, searchOptions, searchNextOffset, searchBatchSize);
     setSearchMatches((current) => [...current, ...result.ranges]);
     setSearchHasMore(result.hasMore);
     setSearchNextOffset(result.nextStartOffset);
@@ -181,13 +173,7 @@ export function useEditModalSearch({
         return;
       }
 
-      const result = getMonacoSearchBatch(
-        model,
-        searchTerm,
-        searchOptions,
-        0,
-        searchBatchSize
-      );
+      const result = getMonacoSearchBatch(model, searchTerm, searchOptions, 0, searchBatchSize);
       const nextSearchIndex = searchPreservePositionRef.current
         ? findSearchIndexAtOrAfterOffset(model, result.ranges, searchAnchorOffsetRef.current)
         : 0;
@@ -229,15 +215,11 @@ export function useEditModalSearch({
     const nextDecorations = visibleDecorationMatches.map(({ matchIndex, range }) => ({
       range,
       options: {
-        inlineClassName:
-          matchIndex === normalizedSearchIndex ? 'currentSearchHighlight' : 'searchHighlight',
+        inlineClassName: matchIndex === normalizedSearchIndex ? 'currentSearchHighlight' : 'searchHighlight',
       },
     }));
 
-    searchDecorationIdsRef.current = editor.deltaDecorations(
-      searchDecorationIdsRef.current,
-      nextDecorations
-    );
+    searchDecorationIdsRef.current = editor.deltaDecorations(searchDecorationIdsRef.current, nextDecorations);
 
     const activeMatch = searchMatches[normalizedSearchIndex];
     if (!activeMatch) {
@@ -259,18 +241,14 @@ export function useEditModalSearch({
         activeMatch.endColumn
       )
     );
-  }, [
-    clearSearchDecorations,
-    editorRef,
-    isFindOpen,
-    normalizedSearchIndex,
-    searchMatches,
-    searchTerm,
-  ]);
+  }, [clearSearchDecorations, editorRef, isFindOpen, normalizedSearchIndex, searchMatches, searchTerm]);
 
-  useEffect(() => () => {
-    clearSearchDecorations();
-  }, [clearSearchDecorations]);
+  useEffect(
+    () => () => {
+      clearSearchDecorations();
+    },
+    [clearSearchDecorations]
+  );
 
   return {
     captureSearchAnchor,

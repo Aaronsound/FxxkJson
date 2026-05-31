@@ -68,7 +68,9 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
             <span>{t('compare.left')}</span>
             <select value={leftTabId} onChange={(event) => setLeftTabId(event.target.value)}>
               {tabs.map((tab) => (
-                <option key={tab.id} value={tab.id}>{tab.title}</option>
+                <option key={tab.id} value={tab.id}>
+                  {tab.title}
+                </option>
               ))}
             </select>
           </label>
@@ -76,7 +78,9 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
             <span>{t('compare.right')}</span>
             <select value={rightTabId} onChange={(event) => setRightTabId(event.target.value)}>
               {tabs.map((tab) => (
-                <option key={tab.id} value={tab.id}>{tab.title}</option>
+                <option key={tab.id} value={tab.id}>
+                  {tab.title}
+                </option>
               ))}
             </select>
           </label>
@@ -85,11 +89,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
           </button>
         </div>
 
-        {!canCompare && (
-          <div className="modal-error">
-            {t('compare.needTwoTabs')}
-          </div>
-        )}
+        {!canCompare && <div className="modal-error">{t('compare.needTwoTabs')}</div>}
 
         <div className="json-compare-summary">
           <span>{selectedLeftTitle}</span>
@@ -130,7 +130,9 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
         )}
 
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>{t('compare.close')}</button>
+          <button type="button" onClick={onClose}>
+            {t('compare.close')}
+          </button>
         </div>
       </div>
     </div>

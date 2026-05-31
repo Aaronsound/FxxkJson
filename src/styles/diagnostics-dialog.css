@@ -1,0 +1,68 @@
+.diagnostics-log-card {
+  width: min(1040px, 100%);
+}
+
+.diagnostics-log-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.diagnostics-log-path {
+  min-width: 0;
+  overflow: hidden;
+  color: #6b7280;
+  font-family: var(--json-editor-font-family);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-card-dark .diagnostics-log-path {
+  color: #bdbdbd;
+}
+
+.diagnostics-log-meta {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.diagnostics-log-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.diagnostics-log-filter {
+  margin-left: auto;
+}
+
+.modal-card-dark .diagnostics-log-meta {
+  color: #bdbdbd;
+}
+
+.diagnostics-log-output {
+  min-height: min(56vh, 520px);
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid rgba(120, 96, 58, 0.24);
+  border-radius: 6px;
+  background: #111827;
+  color: #f9fafb;
+  font:
+    12px / 1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  outline: none;
+  white-space: pre;
+}
+
+.modal-card-dark .diagnostics-log-output {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: #0f172a;
+}

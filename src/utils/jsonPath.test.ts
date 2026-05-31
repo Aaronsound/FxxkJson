@@ -9,6 +9,8 @@ describe('jsonPath', () => {
   });
 
   it('uses bracket notation for keys that cannot use dot notation', () => {
-    expect(formatJsonPath(['foo-bar', '0', 'quote"key', 'path\\key'])).toBe('$["foo-bar"]["0"]["quote\\"key"]["path\\\\key"]');
+    expect(formatJsonPath(['foo-bar', '0', 'quote"key', 'path\\key'])).toBe(
+      '$["foo-bar"]["0"]["quote\\"key"]["path\\\\key"]'
+    );
   });
 });

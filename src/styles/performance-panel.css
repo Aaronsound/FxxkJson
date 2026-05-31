@@ -1,0 +1,298 @@
+.performance-panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid rgba(120, 96, 58, 0.2);
+  border-radius: 14px;
+  background: rgba(250, 247, 239, 0.96);
+  color: #3d3422;
+  box-shadow: 0 20px 44px rgba(31, 23, 12, 0.18);
+  backdrop-filter: blur(10px);
+  padding: 10px 12px;
+}
+
+.performance-panel-dark {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(34, 30, 24, 0.94);
+  color: #f1e7d1;
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.35);
+}
+
+.performance-panel-collapsed {
+  width: min(360px, calc(100vw - 32px));
+}
+
+.performance-panel-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.performance-panel-title-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.performance-panel-status-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(61, 52, 34, 0.1);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.performance-panel-dark .performance-panel-status-chip {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.performance-toggle-button {
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.performance-panel-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.86;
+}
+
+.performance-panel-dragging {
+  user-select: none;
+}
+
+.performance-panel-dragging .performance-panel-topbar {
+  cursor: grabbing;
+}
+
+.performance-panel-expanded .performance-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.performance-panel-subtitle {
+  font-size: 13px;
+  opacity: 0.82;
+}
+
+.performance-panel-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  opacity: 0.82;
+}
+
+.performance-copy-button {
+  padding: 3px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.performance-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.performance-diagnosis {
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  background: rgba(73, 104, 150, 0.1);
+  color: #3d3422;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.performance-panel-dark .performance-diagnosis {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1e7d1;
+}
+
+.performance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.performance-panel-dark .performance-card {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.performance-card-label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.performance-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.performance-stage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+}
+
+.performance-panel-dark .performance-stage-row {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.performance-history {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+}
+
+.performance-panel-dark .performance-history {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.performance-history-title {
+  font-weight: 700;
+  opacity: 0.82;
+}
+
+.performance-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.performance-history-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.performance-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 12px;
+  opacity: 0.82;
+}
+
+.performance-error {
+  margin-top: 8px;
+  color: #d13b31;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.performance-panel-dark .performance-error {
+  color: #ff8f7b;
+}
+
+/* ============================================= */
+/*              响应式：中等屏（≤1200px）           */
+/* ============================================= */
+@media (max-width: 1200px) {
+  .toolbar {
+    font-size: 13px;
+  }
+  button {
+    padding: 3px 10px;
+    font-size: 13px;
+  }
+  .toolbar-input {
+    width: 160px;
+    font-size: 13px;
+  }
+
+  .performance-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .performance-stage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ============================================= */
+/*              响应式：窄屏（≤800px）            */
+/* ============================================= */
+@media (max-width: 800px) {
+  .toolbar {
+    font-size: 12px;
+  }
+  button {
+    padding: 2px 8px;
+    font-size: 12px;
+  }
+  .toolbar-input {
+    width: 120px;
+    font-size: 12px;
+  }
+
+  .performance-panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .performance-panel {
+    right: 12px;
+    bottom: 12px;
+    width: calc(100vw - 24px);
+  }
+
+  .performance-summary-grid,
+  .performance-stage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 隐藏自动换行 + 深色切换 */
+  .toolbar-options {
+    display: none;
+  }
+
+  /* 显示“更多”下拉 */
+  .toolbar-more {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .toolbar-more select {
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--input-border);
+    background-color: var(--input-bg);
+    color: var(--input-text);
+    font-size: 12px;
+  }
+}
+
+/* ============================================= */
+/* 深色模式下工具栏控件配色优化                  */
+/* ============================================= */

@@ -1,0 +1,64 @@
+.large-raw-viewer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
+  font-family: var(--json-editor-font-family);
+  font-size: var(--json-editor-font-size);
+  line-height: var(--json-editor-line-height);
+  outline: none;
+}
+
+.large-raw-viewer.dark {
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
+}
+
+.large-raw-spacer {
+  position: relative;
+  min-width: max-content;
+}
+
+.large-raw-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  min-width: max-content;
+  white-space: pre;
+}
+
+.large-raw-row.highlighted {
+  background: rgba(255, 235, 59, 0.16);
+}
+
+.large-raw-offset {
+  position: sticky;
+  left: 0;
+  width: 88px;
+  flex: 0 0 88px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: #f3f4f6;
+  color: var(--json-editor-line-number);
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid #e5e7eb;
+}
+
+.large-raw-viewer.dark .large-raw-offset {
+  background: #252526;
+  color: var(--json-editor-line-number);
+  border-right-color: #3c3c3c;
+}
+
+.large-raw-text {
+  display: inline-block;
+  padding: 0 8px;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre;
+}

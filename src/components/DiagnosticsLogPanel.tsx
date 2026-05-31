@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { isErrorDiagnosticsLogLine } from '../utils/diagnosticsLogLevel';
 
 const LOG_PREVIEW_BYTES = 160 * 1024;
-const ERROR_LINE_PATTERN = /("event"\s*:\s*"[^"]*(failed|error|gone|exception|rejection)|\b(failed|error|exception|rejection)\b|失败|异常)/i;
 
 interface DiagnosticsLogPanelProps {
   isDarkMode: boolean;
@@ -17,7 +17,7 @@ export interface DiagnosticsContextItem {
 function getErrorLines(content: string) {
   return content
     .split('\n')
-    .filter((line) => ERROR_LINE_PATTERN.test(line))
+    .filter((line) => isErrorDiagnosticsLogLine(line))
     .join('\n');
 }
 
@@ -36,9 +36,10 @@ function buildIssueSummary(
 ) {
   const path = snapshot?.path ?? 'runtime.log';
   const truncated = snapshot?.truncated ? 'yes' : 'no';
-  const contextLines = context.length > 0
-    ? context.map((item) => `${item.label}=${formatContextValue(item.value)}`).join('\n')
-    : '(no app context)';
+  const contextLines =
+    context.length > 0
+      ? context.map((item) => `${item.label}=${formatContextValue(item.value)}`).join('\n')
+      : '(no app context)';
 
   return [
     `FxxkJson diagnostics summary`,
@@ -66,7 +67,9 @@ function getContextSummary(context: DiagnosticsContextItem[]) {
     tabTitle ? `标签 ${tabTitle}` : null,
     typeof rawBytes === 'number' ? `原始 ${rawBytes.toLocaleString()} bytes` : null,
     status ? `状态 ${status}` : null,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function countLines(content: string) {
@@ -82,11 +85,7 @@ async function writeDiagnosticsTextToClipboard(content: string) {
   await navigator.clipboard.writeText(content);
 }
 
-const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
-  isDarkMode,
-  context = [],
-  onClose,
-}) => {
+const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, context = [], onClose }) => {
   const [snapshot, setSnapshot] = useState<RuntimeLogSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -184,11 +183,15 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
     `日志行 ${countLines(logContent)}`,
     showErrorsOnly ? `错误行 ${countLines(errorLogContent)}` : null,
     contextSummary,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="modal-overlay">
-      <div className={isDarkMode ? 'modal-card modal-card-dark diagnostics-log-card' : 'modal-card diagnostics-log-card'}>
+      <div
+        className={isDarkMode ? 'modal-card modal-card-dark diagnostics-log-card' : 'modal-card diagnostics-log-card'}
+      >
         <div className="modal-header diagnostics-log-header">
           <h3>诊断日志</h3>
           <span className="diagnostics-log-path">{snapshot?.path ?? 'runtime.log'}</span>
@@ -206,30 +209,31 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({
           </label>
         </div>
 
-        <textarea
-          className="diagnostics-log-output"
-          readOnly
-          value={previewText}
-          spellCheck={false}
-        />
+        <textarea className="diagnostics-log-output" readOnly value={previewText} spellCheck={false} />
 
         <div className="modal-actions">
-          <button onClick={loadLog} disabled={isLoading}>刷新</button>
-          <button
-            onClick={() => copyLog(displayContent, '已复制当前内容')}
-            disabled={!displayContent}
-          >
+          <button type="button" onClick={loadLog} disabled={isLoading}>
+            刷新
+          </button>
+          <button type="button" onClick={() => copyLog(displayContent, '已复制当前内容')} disabled={!displayContent}>
             复制当前内容
           </button>
           <button
+            type="button"
             onClick={() => copyLog(buildIssueSummary(snapshot, displayContent, context), '已复制诊断包')}
             disabled={!logContent && context.length === 0}
           >
             复制诊断包
           </button>
-          <button onClick={clearLog} disabled={isLoading}>清空日志</button>
-          <button onClick={showLogFile}>定位文件</button>
-          <button onClick={onClose}>关闭</button>
+          <button type="button" onClick={clearLog} disabled={isLoading}>
+            清空日志
+          </button>
+          <button type="button" onClick={showLogFile}>
+            定位文件
+          </button>
+          <button type="button" onClick={onClose}>
+            关闭
+          </button>
           {copyNotice && <span className="modal-copy-hint">{copyNotice}</span>}
         </div>
 

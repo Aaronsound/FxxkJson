@@ -1,6 +1,4 @@
-import {
-  DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
-} from '../types/jsonTool';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD } from '../types/jsonTool';
 import type {
   JsonSearchOptions,
   LargeJsonSearchMatch,
@@ -78,11 +76,7 @@ export function buildLargeViewerData(
     if (char === '}' || char === ']') {
       const expectedClose = stackClose.pop();
       const regionIndex = stackRegionIndex.pop();
-      if (
-        expectedClose !== char
-        || typeof regionIndex !== 'number'
-        || !regions[regionIndex]
-      ) {
+      if (expectedClose !== char || typeof regionIndex !== 'number' || !regions[regionIndex]) {
         continue;
       }
 

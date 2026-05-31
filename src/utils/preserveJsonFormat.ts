@@ -120,11 +120,13 @@ function serializeWithOriginalStyle(originalText: string, value: JsonValue) {
 }
 
 function isValidRange(text: string, range: JsonNodeRange) {
-  return Number.isInteger(range.startOffset)
-    && Number.isInteger(range.endOffset)
-    && range.startOffset >= 0
-    && range.endOffset >= range.startOffset
-    && range.endOffset <= text.length;
+  return (
+    Number.isInteger(range.startOffset) &&
+    Number.isInteger(range.endOffset) &&
+    range.startOffset >= 0 &&
+    range.endOffset >= range.startOffset &&
+    range.endOffset <= text.length
+  );
 }
 
 function serializeDirectNodeReplacement(
@@ -154,12 +156,7 @@ function serializeDirectNodeReplacement(
   return null;
 }
 
-function collectDiffs(
-  originalValue: JsonValue,
-  editedValue: JsonValue,
-  path: JSONPath,
-  diffs: JsonDiff[]
-) {
+function collectDiffs(originalValue: JsonValue, editedValue: JsonValue, path: JSONPath, diffs: JsonDiff[]) {
   if (diffs.length > MAX_PRESERVED_EDITS) {
     return;
   }
@@ -244,12 +241,10 @@ export function saveJsonPreservingOriginalFormat(
 
   const formattingOptions = getFormattingOptions(originalText);
 
-  return diffs.reduce((currentText, diff) => (
-    applyEdits(
-      currentText,
-      modify(currentText, diff.path, diff.value, { formattingOptions })
-    )
-  ), originalText);
+  return diffs.reduce(
+    (currentText, diff) => applyEdits(currentText, modify(currentText, diff.path, diff.value, { formattingOptions })),
+    originalText
+  );
 }
 
 export function saveJsonNodePreservingOriginalFormat(
@@ -264,11 +259,7 @@ export function saveJsonNodePreservingOriginalFormat(
     return serializeWithOriginalStyle(originalText, editedValue);
   }
 
-  const directReplacement = serializeDirectNodeReplacement(
-    originalText,
-    options.range,
-    editedValue
-  );
+  const directReplacement = serializeDirectNodeReplacement(originalText, options.range, editedValue);
   if (directReplacement !== null) {
     const { startOffset, endOffset } = options.range!;
     return `${originalText.slice(0, startOffset)}${directReplacement}${originalText.slice(endOffset)}`;
@@ -282,10 +273,7 @@ export function saveJsonNodePreservingOriginalFormat(
   );
 }
 
-export function deleteJsonNodePreservingOriginalFormat(
-  originalText: string,
-  path: JSONPath
-) {
+export function deleteJsonNodePreservingOriginalFormat(originalText: string, path: JSONPath) {
   if (path.length === 0) {
     throw new Error('不能删除根节点');
   }
@@ -304,11 +292,7 @@ export function deleteJsonNodePreservingOriginalFormat(
   );
 }
 
-export function renameJsonObjectKeyPreservingOriginalFormat(
-  originalText: string,
-  path: JSONPath,
-  nextKey: string
-) {
+export function renameJsonObjectKeyPreservingOriginalFormat(originalText: string, path: JSONPath, nextKey: string) {
   const oldKey = path[path.length - 1];
   const parentPath = path.slice(0, -1);
   const normalizedNextKey = nextKey.trim();
@@ -349,10 +333,7 @@ export function renameJsonObjectKeyPreservingOriginalFormat(
   }
 
   const formattingOptions = getFormattingOptions(originalText);
-  const withoutOldKey = applyEdits(
-    originalText,
-    modify(originalText, path, undefined, { formattingOptions })
-  );
+  const withoutOldKey = applyEdits(originalText, modify(originalText, path, undefined, { formattingOptions }));
 
   return applyEdits(
     withoutOldKey,

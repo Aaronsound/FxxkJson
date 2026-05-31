@@ -94,7 +94,9 @@ const AboutDialog: React.FC<AboutDialogProps> = ({
         </section>
 
         <div className="modal-actions about-dialog-actions">
-          <button type="button" onClick={onClose}>{t('about.close')}</button>
+          <button type="button" onClick={onClose}>
+            {t('about.close')}
+          </button>
         </div>
       </div>
     </div>
