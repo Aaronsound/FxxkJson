@@ -50,7 +50,7 @@ jobs:
           fi
 
       - name: Create release entry
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -219,7 +219,7 @@ jobs:
           }
 
       - name: Publish release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
