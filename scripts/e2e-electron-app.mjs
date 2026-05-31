@@ -23,10 +23,18 @@ export async function getAvailablePort() {
 
 export async function startElectronApp({ appMain, cwd, electronCli, port }) {
   let stderr = '';
-  const child = spawn(process.execPath, [electronCli, `--remote-debugging-port=${port}`, appMain], {
+  const shouldDisableSandbox = process.platform === 'linux' && (process.env.CI === 'true' || process.env.CI === '1');
+  const electronArgs = [
+    electronCli,
+    ...(shouldDisableSandbox ? ['--no-sandbox'] : []),
+    `--remote-debugging-port=${port}`,
+    appMain,
+  ];
+  const child = spawn(process.execPath, electronArgs, {
     cwd,
     env: {
       ...process.env,
+      ...(shouldDisableSandbox ? { ELECTRON_DISABLE_SANDBOX: '1' } : {}),
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       ELECTRON_OPEN_DEVTOOLS: '0',
     },
