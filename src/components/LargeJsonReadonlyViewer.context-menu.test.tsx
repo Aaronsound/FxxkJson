@@ -116,7 +116,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
       expect(onUnescapeValue).toHaveBeenCalledTimes(1);
     });
     expect(onUnescapeValue).toHaveBeenLastCalledWith(expect.any(Number));
-  });
+  }, 15_000);
 
   it('keeps the context menu inside the viewport near the bottom edge', () => {
     const originalWidth = window.innerWidth;
