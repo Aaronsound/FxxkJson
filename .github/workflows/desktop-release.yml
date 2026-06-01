@@ -71,7 +71,7 @@ jobs:
             - Split large files and complex logic while expanding unit tests, Electron E2E, performance checks, and CI coverage.
             - Updated README, contributing docs, security policy, pull request template, and release workflow.
 
-            ## macOS 下载说明
+            ## 下载说明
 
             - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
             - Intel 芯片 Mac：下载 `macos-x64-*.dmg`
@@ -240,7 +240,7 @@ jobs:
             - Split large files and complex logic while expanding unit tests, Electron E2E, performance checks, and CI coverage.
             - Updated README, contributing docs, security policy, pull request template, and release workflow.
 
-            ## macOS 下载说明
+            ## 下载说明
 
             - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
             - Intel 芯片 Mac：下载 `macos-x64-*.dmg`
