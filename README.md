@@ -13,6 +13,17 @@
 
 FxxkJson 基于 Electron、React、Vite 和 Monaco Editor 构建，适合处理接口响应、日志、配置文件和 5MB+ 的大 JSON。所有 JSON 处理都在本机完成，不上传数据，不包含遥测或远程 JSON 处理逻辑。
 
+## 项目演进
+
+FxxkJson 是 [HanJson](https://github.com/Aaronsound/HanJson) 的重构优化版。它不是从零开始的新工具，而是在原有 JSON 格式化工具经验上继续演进：
+
+- HanJson 起步于 Create React App，后续加入 Electron 桌面运行、Monaco Editor 双栏编辑器、worker 后台格式化和 `jsonc-parser` 节点定位能力。
+- 中间迁移到 Vite 构建链，也就是早期提交中提到的 `HanJson-vite`，用于改善 Electron + Monaco worker 的打包路径、开发启动和构建体验。
+- FxxkJson 在此基础上继续重命名和重构，保留 Electron、React、Vite 和 Monaco Editor 技术栈，同时把原本集中的界面、状态、搜索、编辑和 worker 逻辑拆分到 components、hooks、utils 和 workers。
+- 针对 5MB+ 大 JSON，FxxkJson 不再只依赖右侧第二个 Monaco 编辑器，而是增加专用只读大文件查看器、虚拟滚动、延迟索引、性能面板、诊断日志、自动化测试和发布检查。
+
+Monaco Editor 是编辑器内核，Vite 是构建工具；二者在当前架构中并行存在，不是互相替代关系。
+
 ## 下载
 
 从 [Latest Release](https://github.com/Aaronsound/FxxkJson/releases/latest) 下载最新桌面安装包。

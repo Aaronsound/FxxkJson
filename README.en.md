@@ -13,6 +13,17 @@
 
 FxxkJson is built with Electron, React, Vite, and Monaco Editor. It is designed for API responses, logs, configuration files, and 5MB+ JSON documents. JSON processing happens locally on your machine; the app does not upload JSON content and does not include telemetry or remote JSON processing.
 
+## Project Evolution
+
+FxxkJson is a refactor and hardening of [HanJson](https://github.com/Aaronsound/HanJson). It is not a completely separate rewrite; it continues the same desktop JSON formatting tool lineage:
+
+- HanJson started with Create React App, then added the Electron desktop runtime, a Monaco Editor two-pane workflow, worker-based formatting, and `jsonc-parser` node-location support.
+- The project later moved to a Vite-based build, referenced in the early FxxkJson history as `HanJson-vite`, to improve Electron + Monaco worker packaging, local startup, and build behavior.
+- FxxkJson keeps the Electron, React, Vite, and Monaco Editor stack while splitting the previously centralized UI, state, search, editing, and worker logic into components, hooks, utils, and workers.
+- For 5MB+ JSON documents, FxxkJson no longer relies only on a second Monaco model on the right. It adds a dedicated readonly large-file viewer, virtual scrolling, deferred indexing, performance details, diagnostics logs, automated tests, and release checks.
+
+Monaco Editor is the editor engine, while Vite is the build tool. They coexist in the current architecture rather than replacing one another.
+
 ## Download
 
 Download the latest desktop package from [Latest Release](https://github.com/Aaronsound/FxxkJson/releases/latest).
