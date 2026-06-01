@@ -3,6 +3,10 @@
 ## Unreleased
 
 - Documented the project evolution from HanJson to HanJson-vite and FxxkJson in the Chinese and English README files.
+- Fixed bundle size reporting on Windows workspaces whose paths contain spaces.
+- Added repository line-ending defaults for consistent local formatting on Windows and CI.
+- Added an npm override for the transitive `tmp` dependency advisory pulled in by Electron packaging.
+- Moved desktop release notes into a shared Markdown file so the release workflow does not duplicate the same body text.
 
 ## v1.0.25
 

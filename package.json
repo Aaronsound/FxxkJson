@@ -68,6 +68,9 @@
     "vite-plugin-electron": "^0.29.1",
     "vitest": "^4.1.5"
   },
+  "overrides": {
+    "tmp": "^0.2.7"
+  },
   "build": {
     "appId": "com.aaronsound.fxxkjson",
     "productName": "FxxkJson",

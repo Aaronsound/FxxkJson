@@ -1,15 +1,16 @@
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const rendererDir = new URL('../dist-renderer/', import.meta.url);
-const assetsDir = new URL('../dist-renderer/assets/', import.meta.url);
+const rendererDir = fileURLToPath(new URL('../dist-renderer/', import.meta.url));
+const assetsDir = fileURLToPath(new URL('../dist-renderer/assets/', import.meta.url));
 const assetBudgetBytes = 2_500_000;
 
 async function readAssetSizes(directory) {
   const entries = await readdir(directory);
   return Promise.all(
     entries.map(async (entry) => {
-      const filePath = join(directory.pathname, entry);
+      const filePath = join(directory, entry);
       const fileStat = await stat(filePath);
       return {
         bytes: fileStat.size,
