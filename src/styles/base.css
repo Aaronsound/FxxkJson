@@ -124,17 +124,6 @@ body {
   --json-fold-icon-border-width: 1.6px;
   --json-fold-icon-color: rgba(120, 96, 58, 0.72);
   --json-fold-hover-bg: rgba(73, 104, 150, 0.14);
-  --json-editor-font-family: Menlo, Monaco, "Courier New", monospace;
-  --json-editor-font-size: 12px;
-  --json-editor-line-height: 18px;
-  --json-editor-foreground: #000000;
-  --json-editor-background: #ffffff;
-  --json-editor-line-number: #237893;
-  --json-editor-token-key: #a31515;
-  --json-editor-token-string: #0451a5;
-  --json-editor-token-number: #0451a5;
-  --json-editor-token-literal: #0451a5;
-  --json-editor-token-punctuation: #000000;
 }
 .app-container.dark-mode {
   /* 深色模式覆盖变量 */
@@ -149,14 +138,6 @@ body {
   --input-focus-border: #888888;
   --json-fold-icon-color: rgba(224, 214, 194, 0.8);
   --json-fold-hover-bg: rgba(141, 180, 255, 0.16);
-  --json-editor-foreground: #d4d4d4;
-  --json-editor-background: #1e1e1e;
-  --json-editor-line-number: #858585;
-  --json-editor-token-key: #ff8f8f;
-  --json-editor-token-string: #75beff;
-  --json-editor-token-number: #75beff;
-  --json-editor-token-literal: #75beff;
-  --json-editor-token-punctuation: #d4d4d4;
 }
 
 /* ============================================= */

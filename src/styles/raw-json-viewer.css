@@ -6,18 +6,16 @@
   resize: none;
   outline: none;
   padding: 16px;
-  background: #ffffff;
-  color: #1f1f1f;
-  font:
-    13px / 1.6 Consolas,
-    "SFMono-Regular",
-    "Courier New",
-    monospace;
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
+  font-family: var(--json-editor-font-family);
+  font-size: var(--json-editor-font-size);
+  line-height: var(--json-editor-line-height);
   white-space: pre;
   overflow: auto;
 }
 
 .native-json-viewer.dark {
-  background: #1e1e1e;
-  color: #e8e8e8;
+  background: var(--json-editor-background);
+  color: var(--json-editor-foreground);
 }

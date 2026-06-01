@@ -5,6 +5,7 @@ import JsonToolContextMenus from './JsonToolContextMenus';
 import JsonToolOverlayLayer from './JsonToolOverlayLayer';
 import JsonToolTabBar from './JsonToolTabBar';
 import JsonToolToolbar from './JsonToolToolbar';
+import { getJsonEditorCssVariables } from '../utils/jsonEditorTypography';
 
 interface JsonToolWorkspaceProps {
   contextMenusProps: React.ComponentProps<typeof JsonToolContextMenus>;
@@ -38,36 +39,41 @@ const JsonToolWorkspace: React.FC<JsonToolWorkspaceProps> = ({
   shouldShowPerformancePanel,
   tabBarProps,
   toolbarProps,
-}) => (
-  <div
-    className={isDarkMode ? 'app-container dark-mode' : 'app-container'}
-    onDragEnter={onDragEnter}
-    onDragOver={onDragOver}
-    onDragLeave={onDragLeave}
-    onDrop={onDrop}
-    style={{
-      height: '100vh',
-      width: '100vw',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-    }}
-  >
-    <input
-      ref={fileInputRef}
-      type="file"
-      accept=".json,.txt,application/json,text/plain"
-      style={{ display: 'none' }}
-      onChange={onFileSelection}
-    />
+}) => {
+  const workspaceStyle: React.CSSProperties & ReturnType<typeof getJsonEditorCssVariables> = {
+    ...getJsonEditorCssVariables(isDarkMode),
+    height: '100vh',
+    width: '100vw',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+  };
 
-    <JsonToolOverlayLayer {...overlayProps} />
-    <JsonToolToolbar {...toolbarProps} />
-    {shouldShowPerformancePanel && <JsonPerformancePanel {...performancePanelProps} />}
-    <JsonToolTabBar {...tabBarProps} />
-    <JsonEditorPanes {...panesProps} />
-    <JsonToolContextMenus {...contextMenusProps} />
-  </div>
-);
+  return (
+    <div
+      className={isDarkMode ? 'app-container dark-mode' : 'app-container'}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      style={workspaceStyle}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.txt,application/json,text/plain"
+        style={{ display: 'none' }}
+        onChange={onFileSelection}
+      />
+
+      <JsonToolOverlayLayer {...overlayProps} />
+      <JsonToolToolbar {...toolbarProps} />
+      {shouldShowPerformancePanel && <JsonPerformancePanel {...performancePanelProps} />}
+      <JsonToolTabBar {...tabBarProps} />
+      <JsonEditorPanes {...panesProps} />
+      <JsonToolContextMenus {...contextMenusProps} />
+    </div>
+  );
+};
 
 export default JsonToolWorkspace;
