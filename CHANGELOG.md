@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Documented the project evolution from HanJson to HanJson-vite and FxxkJson in the Chinese and English README files.
+
 ## v1.0.25
 
 - Renamed the public project and app metadata to FxxkJson.
