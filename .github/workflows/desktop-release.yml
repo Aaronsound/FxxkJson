@@ -57,21 +57,21 @@ jobs:
           body: |
             ## 本次更新
 
-            - 优化 5MB+ 大 JSON 的导入、格式化、搜索、替换、定位和查看流程。
-            - 增强右侧格式化视图的节点操作，包括复制值、编辑、重命名、删除、当前节点折叠和所属对象折叠。
-            - 改进右侧选中文本复制、左侧右键粘贴、性能面板定位和诊断日志体验。
-            - 拆分大文件和复杂逻辑，补充单元测试、Electron E2E、性能回归和 CI 检查。
-            - 完善 README、贡献指南、安全说明、PR 模板和发布流程。
+            - 统一 JSON 编辑器字体、字号、行高和语法配色配置，避免小 JSON 与大 JSON 视图样式来回漂移。
+            - 恢复 Windows 上更清晰的 Consolas / 14px / 19px 编辑器基线，改善格式化结果的可读性。
+            - 将大文件只读视图、原始大文件视图和原生 JSON 视图统一改为消费同一组编辑器 CSS 变量。
+            - 增强 typography 测试，确保 Monaco 配置和 CSS 变量都从 `jsonEditorTypography` 获取。
+            - 修正发布说明中的下载说明标题，避免把 Windows 下载项放在 macOS 小节下。
 
             ## What's New
 
-            - Improved import, formatting, search, replace, locate, and viewing flows for 5MB+ JSON files.
-            - Enhanced right-pane node actions, including copy value, edit, rename, delete, current-node folding, and parent-object folding.
-            - Improved right-pane selection copy, left-pane context-menu paste, performance panel placement, and diagnostics logging.
-            - Split large files and complex logic while expanding unit tests, Electron E2E, performance checks, and CI coverage.
-            - Updated README, contributing docs, security policy, pull request template, and release workflow.
+            - Unified JSON editor font, size, line-height, and syntax color settings to prevent small-file and large-file views from drifting apart.
+            - Restored the clearer Windows editor baseline with Consolas / 14px / 19px for better formatted-result readability.
+            - Updated large readonly, large raw, and native JSON viewers to consume the same editor CSS variables.
+            - Strengthened typography tests so Monaco options and CSS variables both come from `jsonEditorTypography`.
+            - Fixed the release download notes heading so Windows downloads are no longer listed under a macOS-only section.
 
-            ## macOS 下载说明
+            ## 下载说明
 
             - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
             - Intel 芯片 Mac：下载 `macos-x64-*.dmg`
@@ -226,21 +226,21 @@ jobs:
           body: |
             ## 本次更新
 
-            - 优化 5MB+ 大 JSON 的导入、格式化、搜索、替换、定位和查看流程。
-            - 增强右侧格式化视图的节点操作，包括复制值、编辑、重命名、删除、当前节点折叠和所属对象折叠。
-            - 改进右侧选中文本复制、左侧右键粘贴、性能面板定位和诊断日志体验。
-            - 拆分大文件和复杂逻辑，补充单元测试、Electron E2E、性能回归和 CI 检查。
-            - 完善 README、贡献指南、安全说明、PR 模板和发布流程。
+            - 统一 JSON 编辑器字体、字号、行高和语法配色配置，避免小 JSON 与大 JSON 视图样式来回漂移。
+            - 恢复 Windows 上更清晰的 Consolas / 14px / 19px 编辑器基线，改善格式化结果的可读性。
+            - 将大文件只读视图、原始大文件视图和原生 JSON 视图统一改为消费同一组编辑器 CSS 变量。
+            - 增强 typography 测试，确保 Monaco 配置和 CSS 变量都从 `jsonEditorTypography` 获取。
+            - 修正发布说明中的下载说明标题，避免把 Windows 下载项放在 macOS 小节下。
 
             ## What's New
 
-            - Improved import, formatting, search, replace, locate, and viewing flows for 5MB+ JSON files.
-            - Enhanced right-pane node actions, including copy value, edit, rename, delete, current-node folding, and parent-object folding.
-            - Improved right-pane selection copy, left-pane context-menu paste, performance panel placement, and diagnostics logging.
-            - Split large files and complex logic while expanding unit tests, Electron E2E, performance checks, and CI coverage.
-            - Updated README, contributing docs, security policy, pull request template, and release workflow.
+            - Unified JSON editor font, size, line-height, and syntax color settings to prevent small-file and large-file views from drifting apart.
+            - Restored the clearer Windows editor baseline with Consolas / 14px / 19px for better formatted-result readability.
+            - Updated large readonly, large raw, and native JSON viewers to consume the same editor CSS variables.
+            - Strengthened typography tests so Monaco options and CSS variables both come from `jsonEditorTypography`.
+            - Fixed the release download notes heading so Windows downloads are no longer listed under a macOS-only section.
 
-            ## macOS 下载说明
+            ## 下载说明
 
             - Apple M 系列芯片（M1 / M2 / M3 / M4）：下载 `macos-arm64-*.dmg`
             - Intel 芯片 Mac：下载 `macos-x64-*.dmg`
