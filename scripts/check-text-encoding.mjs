@@ -49,6 +49,10 @@ const MOJIBAKE_PATTERNS = [
   { label: 'Latin-1 mojibake', value: '\u00EF\u00BF\u00BD' },
 ];
 
+function hasUtf8ByteOrderMark(buffer) {
+  return buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf;
+}
+
 async function* walk(dir) {
   for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, entry.name);
@@ -86,7 +90,17 @@ async function main() {
   const findings = [];
 
   for await (const filePath of walk(ROOT)) {
-    const text = await fs.readFile(filePath, 'utf8');
+    const buffer = await fs.readFile(filePath);
+    if (hasUtf8ByteOrderMark(buffer)) {
+      findings.push({
+        file: path.relative(ROOT, filePath),
+        label: 'UTF-8 BOM',
+        line: 1,
+        column: 1,
+      });
+    }
+
+    const text = buffer.toString('utf8');
     for (const pattern of MOJIBAKE_PATTERNS) {
       const offset = text.indexOf(pattern.value);
       if (offset === -1) {

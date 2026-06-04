@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import JsonToolWorkspace from './components/JsonToolWorkspace';
 import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
@@ -12,7 +12,7 @@ import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
-import { usePaneSearchState } from './hooks/usePaneSearchState';
+import { useJsonToolPaneSearchStates } from './hooks/useJsonToolPaneSearchStates';
 import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
 import { useJsonImportActions } from './hooks/useJsonImportActions';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
@@ -74,48 +74,44 @@ const App: React.FC = () => {
     initialTabId: INITIAL_TAB_ID,
     initialTabTitle: 'HelloJson',
   });
-  const leftPaneSearch = usePaneSearchState();
-  const rightPaneSearch = usePaneSearchState();
   const {
-    isFindOpen: isLeftFindOpen,
-    isSearchLoadingMore: isLeftSearchLoadingMore,
-    matchIndex: leftMatchIndex,
-    matches: leftMatches,
-    resetSearchPaging: resetLeftSearchPaging,
-    resetSearchState: resetLeftSearchState,
-    searchHasMore: leftSearchHasMore,
-    searchNextOffset: leftSearchNextOffset,
-    searchOptions: leftSearchOptions,
-    searchTerm: leftSearchTerm,
-    setIsFindOpen: setIsLeftFindOpen,
-    setIsSearchLoadingMore: setIsLeftSearchLoadingMore,
-    setMatchIndex: setLeftMatchIndex,
-    setMatches: setLeftMatches,
-    setSearchHasMore: setLeftSearchHasMore,
-    setSearchNextOffset: setLeftSearchNextOffset,
-    setSearchOptions: setLeftSearchOptions,
-    setSearchTerm: setLeftSearchTerm,
-  } = leftPaneSearch;
-  const {
-    isFindOpen: isRightFindOpen,
-    isSearchLoadingMore: isRightSearchLoadingMore,
-    matchIndex: rightMatchIndex,
-    matches: rightMatches,
-    resetSearchPaging: resetRightSearchPaging,
-    resetSearchState: resetRightSearchState,
-    searchHasMore: rightSearchHasMore,
-    searchNextOffset: rightSearchNextOffset,
-    searchOptions: rightSearchOptions,
-    searchTerm: rightSearchTerm,
-    setIsFindOpen: setIsRightFindOpen,
-    setIsSearchLoadingMore: setIsRightSearchLoadingMore,
-    setMatchIndex: setRightMatchIndex,
-    setMatches: setRightMatches,
-    setSearchHasMore: setRightSearchHasMore,
-    setSearchNextOffset: setRightSearchNextOffset,
-    setSearchOptions: setRightSearchOptions,
-    setSearchTerm: setRightSearchTerm,
-  } = rightPaneSearch;
+    isLeftFindOpen,
+    isLeftSearchLoadingMore,
+    isRightFindOpen,
+    isRightSearchLoadingMore,
+    leftMatchIndex,
+    leftMatches,
+    leftSearchHasMore,
+    leftSearchNextOffset,
+    leftSearchOptions,
+    leftSearchTerm,
+    resetLeftSearchPaging,
+    resetLeftSearchState,
+    resetRightSearchPaging,
+    resetRightSearchState,
+    rightMatchIndex,
+    rightMatches,
+    rightSearchHasMore,
+    rightSearchNextOffset,
+    rightSearchOptions,
+    rightSearchTerm,
+    setIsLeftFindOpen,
+    setIsLeftSearchLoadingMore,
+    setIsRightFindOpen,
+    setIsRightSearchLoadingMore,
+    setLeftMatchIndex,
+    setLeftMatches,
+    setLeftSearchHasMore,
+    setLeftSearchNextOffset,
+    setLeftSearchOptions,
+    setLeftSearchTerm,
+    setRightMatchIndex,
+    setRightMatches,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
+    setRightSearchOptions,
+    setRightSearchTerm,
+  } = useJsonToolPaneSearchStates();
   const [leftReplaceText, setLeftReplaceText] = useState('');
   const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
   const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
