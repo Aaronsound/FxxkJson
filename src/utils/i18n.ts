@@ -305,7 +305,7 @@ export function getInitialLanguage(): AppLanguage {
     return 'zh';
   }
 
-  const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  const storedLanguage = readStorageItem(LANGUAGE_STORAGE_KEY);
   return isAppLanguage(storedLanguage) ? storedLanguage : 'zh';
 }
 
@@ -318,3 +318,4 @@ export function createTranslator(language: AppLanguage) {
     );
   };
 }
+import { readStorageItem } from './safeStorage';

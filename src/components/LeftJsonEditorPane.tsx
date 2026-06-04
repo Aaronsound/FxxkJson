@@ -1,10 +1,9 @@
 import React from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import type { OnMount } from '@monaco-editor/react';
+import JsonMonacoEditor from './JsonMonacoEditor';
 import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
 import PaneFindWidget from './PaneFindWidget';
 import type { JsonSearchOptions, LargeRawViewerData } from '../types/jsonTool';
-import { getMonacoOptions } from '../utils/jsonEditorInteractions';
-import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface LeftJsonEditorPaneProps {
@@ -123,16 +122,13 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           highlightRange={leftRawHighlightRange}
         />
       ) : (
-        <Editor
+        <JsonMonacoEditor
           onMount={onLeftMount}
-          theme={getJsonEditorTheme(isDarkMode)}
-          options={getMonacoOptions({
-            largeMode: isLargeFileMode,
-            wrapLongLines,
-          })}
+          isDarkMode={isDarkMode}
+          largeMode={isLargeFileMode}
+          wrapLongLines={wrapLongLines}
           onChange={onLeftChange}
           height="100%"
-          loading={null}
         />
       )}
       {shouldShowLeftPlaceholder && <div className="editor-center-placeholder">{t('pane.rawPlaceholder')}</div>}

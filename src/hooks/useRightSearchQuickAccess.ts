@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { RightNodeSelection } from '../types/jsonTool';
 import { addRecentSearchTerm, upsertPinnedPath } from '../utils/searchQuickAccess';
 import type { RightPinnedPath } from '../utils/searchQuickAccess';
+import { readStorageJson, writeStorageItem } from '../utils/safeStorage';
 
 const RIGHT_RECENT_SEARCHES_STORAGE_KEY = 'fxxkjson.rightSearch.recent.v1';
 const MAX_RECENT_SEARCHES = 8;
@@ -13,24 +14,12 @@ export function getCompactPathLabel(pathText: string) {
 }
 
 function readStoredStringList(key: string) {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(key) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch {
-    return [];
-  }
+  const parsed = readStorageJson<unknown>(key, []);
+  return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
 }
 
 function writeStoredStringList(key: string, values: string[]) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.localStorage.setItem(key, JSON.stringify(values));
+  writeStorageItem(key, JSON.stringify(values));
 }
 
 export function useRightSearchQuickAccess(activeTabId: string | null) {

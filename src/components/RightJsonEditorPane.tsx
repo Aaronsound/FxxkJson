@@ -1,11 +1,10 @@
 import React from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import type { OnMount } from '@monaco-editor/react';
+import JsonMonacoEditor from './JsonMonacoEditor';
 import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
 import type { PaneFindPathItem } from './PaneFindWidget';
 import PaneFindWidget from './PaneFindWidget';
 import type { JsonSearchOptions, LargeJsonSearchMatch, LargeJsonViewerData } from '../types/jsonTool';
-import { getMonacoOptions } from '../utils/jsonEditorInteractions';
-import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface RightJsonEditorPaneProps {
@@ -190,17 +189,14 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
           t={t}
         />
       ) : !isBuildingDedicatedRightViewer ? (
-        <Editor
+        <JsonMonacoEditor
           onMount={onRightMount}
-          theme={getJsonEditorTheme(isDarkMode)}
-          options={getMonacoOptions({
-            largeMode: isLargeFileMode,
-            wrapLongLines,
-            readOnly: true,
-            enableStructuralFolding: shouldEnableRightPaneFolding,
-          })}
+          isDarkMode={isDarkMode}
+          largeMode={isLargeFileMode}
+          wrapLongLines={wrapLongLines}
+          readOnly
+          enableStructuralFolding={shouldEnableRightPaneFolding}
           height="100%"
-          loading={null}
         />
       ) : null}
       {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (

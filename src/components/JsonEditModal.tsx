@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import type { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import JsonMonacoEditor from './JsonMonacoEditor';
 import PaneFindWidget from './PaneFindWidget';
 import { useEditModalSearch } from '../hooks/useEditModalSearch';
-import { getMonacoOptions } from '../utils/jsonEditorInteractions';
-import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
@@ -225,20 +224,17 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
               onClose={editSearch.closeFind}
             />
           )}
-          <Editor
+          <JsonMonacoEditor
             key={`modal-editor-${sessionKey}`}
             defaultLanguage="json"
             defaultValue={initialValue}
-            theme={getJsonEditorTheme(isDarkMode)}
+            isDarkMode={isDarkMode}
+            largeMode={false}
+            wrapLongLines
+            readOnly={isBusy}
             onMount={handleEditorMount}
             onChange={(value) => onValueChange(value ?? '')}
-            options={getMonacoOptions({
-              largeMode: false,
-              wrapLongLines: true,
-              readOnly: isBusy,
-            })}
             height="100%"
-            loading={null}
           />
         </div>
 

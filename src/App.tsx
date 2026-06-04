@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
-import JsonToolWorkspace from './components/JsonToolWorkspace';
+import JsonToolWorkspaceView from './components/JsonToolWorkspaceView';
 import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
 import { useJsonToolContentActions } from './hooks/useJsonToolContentActions';
 import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
@@ -631,8 +631,7 @@ const App: React.FC = () => {
   });
 
   return (
-    <JsonToolWorkspace
-      contextMenusProps={workspaceProps.contextMenusProps}
+    <JsonToolWorkspaceView
       fileInputRef={fileInputRef}
       isDarkMode={isDarkMode}
       onDragEnter={handleImportDragEnter}
@@ -640,12 +639,8 @@ const App: React.FC = () => {
       onDragLeave={handleImportDragLeave}
       onDrop={handleImportDrop}
       onFileSelection={handleFileSelection}
-      overlayProps={workspaceProps.overlayProps}
-      panesProps={workspaceProps.panesProps}
-      performancePanelProps={workspaceProps.performancePanelProps}
       shouldShowPerformancePanel={showPerformancePanel}
-      tabBarProps={workspaceProps.tabBarProps}
-      toolbarProps={workspaceProps.toolbarProps}
+      workspaceProps={workspaceProps}
     />
   );
 };

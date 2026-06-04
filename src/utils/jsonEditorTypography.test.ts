@@ -77,15 +77,21 @@ describe('JSON editor typography', () => {
     const workspaceSource = readFileSync(join(process.cwd(), 'src/components/JsonToolWorkspace.tsx'), 'utf8');
     expect(workspaceSource).toContain('getJsonEditorCssVariables(isDarkMode)');
 
-    for (const componentPath of [
-      'src/components/LeftJsonEditorPane.tsx',
-      'src/components/RightJsonEditorPane.tsx',
-      'src/components/JsonEditModal.tsx',
-    ]) {
+    for (const componentPath of ['src/components/LeftJsonEditorPane.tsx', 'src/components/RightJsonEditorPane.tsx']) {
       const editorSource = readFileSync(join(process.cwd(), componentPath), 'utf8');
-      expect(editorSource).toContain('getMonacoOptions({');
+      expect(editorSource).toContain('JsonMonacoEditor');
       expect(editorSource).not.toContain('options={{');
+      expect(editorSource).not.toContain('import Editor');
     }
+
+    const editModalSource = readFileSync(join(process.cwd(), 'src/components/JsonEditModal.tsx'), 'utf8');
+    expect(editModalSource).toContain('JsonMonacoEditor');
+    expect(editModalSource).not.toContain('options={{');
+    expect(editModalSource).not.toContain('import Editor');
+
+    const monacoWrapperSource = readFileSync(join(process.cwd(), 'src/components/JsonMonacoEditor.tsx'), 'utf8');
+    expect(monacoWrapperSource).toContain('getMonacoOptions({');
+    expect(monacoWrapperSource).toContain('getJsonEditorTheme(isDarkMode)');
 
     expect(getJsonEditorTheme(false)).toBe(JSON_EDITOR_LIGHT_THEME);
     expect(getJsonEditorTheme(true)).toBe(JSON_EDITOR_DARK_THEME);
