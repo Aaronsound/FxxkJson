@@ -1,6 +1,6 @@
 import { parseTree } from 'jsonc-parser';
 import { getDeferredStructureWarmupDelayMs } from '../utils/jsonWorkerPlan';
-import { getTextByteLength } from './jsonWorkerTextPayload';
+import { getTextByteLength } from './jsonWorkerTextPayload.ts';
 
 const DIRECT_VALUE_TREE_PREWARM_MAX_LENGTH = 5 * 1024 * 1024;
 

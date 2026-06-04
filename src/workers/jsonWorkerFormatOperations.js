@@ -3,7 +3,7 @@ import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
-import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload.ts';
 
 export function createJsonWorkerFormatOperations({
   cancelInteractiveRequests,

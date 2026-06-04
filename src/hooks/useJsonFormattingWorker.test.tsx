@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StructureStatus } from '../types/jsonTool';
 import { useJsonFormattingWorker } from './useJsonFormattingWorker';
@@ -91,5 +91,42 @@ describe('useJsonFormattingWorker', () => {
 
     unmount();
     expect(WorkerMock.instances[0].terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces worker load errors and clears active formatting state', () => {
+    vi.stubGlobal('Worker', WorkerMock);
+    const args = createArgs();
+    const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+
+    act(() => {
+      result.current.queueFormat('tab-a', '{"ok":true}', true);
+    });
+
+    act(() => {
+      WorkerMock.instances[0].onerror?.(
+        new ErrorEvent('error', {
+          colno: 3,
+          filename: 'jsonParser.worker.js',
+          lineno: 2,
+          message: 'Failed to fetch dynamically imported module',
+        })
+      );
+    });
+
+    expect(args.logEvent).toHaveBeenCalledWith(
+      'worker-error',
+      expect.objectContaining({
+        message: 'Failed to fetch dynamically imported module',
+        source: 'jsonParser.worker.js',
+      })
+    );
+    expect(args.setTabFormatting).toHaveBeenLastCalledWith('tab-a', false);
+    expect(args.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'idle');
+    expect(args.setTabError).toHaveBeenLastCalledWith(
+      'tab-a',
+      'JSON worker 加载失败：Failed to fetch dynamically imported module'
+    );
+
+    unmount();
   });
 });

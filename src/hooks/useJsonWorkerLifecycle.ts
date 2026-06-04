@@ -54,12 +54,34 @@ export function useJsonWorkerLifecycle({
 
     workerRef.current = worker;
     worker.onerror = (event) => {
+      const message = event.message || 'JSON worker failed to load';
       callbacksRef.current.logEvent('worker-error', {
-        message: event.message,
+        message,
         source: event.filename,
         line: event.lineno,
         column: event.colno,
       });
+      for (const tabId of Object.keys(latestRequestRef.current)) {
+        clearPendingFormat(tabId);
+        clearFormatWatchdog(tabId);
+        callbacksRef.current.setTabFormatting(tabId, false);
+        callbacksRef.current.setProcessingStage(tabId, 'idle');
+        callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+        callbacksRef.current.setStructureStatus(tabId, 'disabled');
+        callbacksRef.current.setTabError(tabId, `JSON worker 加载失败：${message}`);
+        callbacksRef.current.mutatePerformanceSession(
+          tabId,
+          (session) => {
+            if (session.requestId !== latestRequestRef.current[tabId]) {
+              return;
+            }
+
+            session.status = 'failed';
+            session.error = message;
+          },
+          true
+        );
+      }
     };
     worker.onmessageerror = () => {
       callbacksRef.current.logEvent('worker-message-error');
