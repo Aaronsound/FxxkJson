@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import JsonToolWorkspaceView from './components/JsonToolWorkspaceView';
 import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
@@ -36,9 +36,9 @@ import { useJsonEditActions } from './hooks/useJsonEditActions';
 import { useLeftEditorActions } from './hooks/useLeftEditorActions';
 import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
 import { useRightEditorDiagnostics } from './hooks/useRightEditorDiagnostics';
+import { useJsonToolViewerState } from './hooks/useJsonToolViewerState';
 import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
 import { INITIAL_TAB_ID } from './types/jsonTool';
-import type { LargeJsonSearchMatch } from './types/jsonTool';
 import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
 import './App.css';
 
@@ -112,9 +112,14 @@ const App: React.FC = () => {
     setRightSearchOptions,
     setRightSearchTerm,
   } = useJsonToolPaneSearchStates();
-  const [leftReplaceText, setLeftReplaceText] = useState('');
-  const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
-  const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
+  const {
+    largeViewerMatchCount,
+    largeViewerMatches,
+    leftReplaceText,
+    setLargeViewerMatchCount,
+    setLargeViewerMatches,
+    setLeftReplaceText,
+  } = useJsonToolViewerState();
   const {
     isDarkMode,
     language,

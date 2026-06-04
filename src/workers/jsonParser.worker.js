@@ -5,7 +5,7 @@ import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../util
 import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
 import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations';
 import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations';
-import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations';
+import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
 
 const structureCache = new Map();
 const viewerCache = new Map();

@@ -4,15 +4,13 @@ import process from 'node:process';
 import { describe, expect, it } from 'vitest';
 
 describe('jsonWorkerTextPayload imports', () => {
-  it('uses an explicit TypeScript extension from JavaScript worker modules', () => {
-    for (const filePath of [
-      'src/workers/jsonWorkerFormatOperations.js',
-      'src/workers/jsonWorkerStructureOperations.js',
-    ]) {
-      const source = readFileSync(join(process.cwd(), filePath), 'utf8');
+  it('uses explicit TypeScript extensions from JavaScript worker modules', () => {
+    const structureSource = readFileSync(join(process.cwd(), 'src/workers/jsonWorkerStructureOperations.js'), 'utf8');
+    const workerSource = readFileSync(join(process.cwd(), 'src/workers/jsonParser.worker.js'), 'utf8');
 
-      expect(source).toContain("./jsonWorkerTextPayload.ts'");
-      expect(source).not.toContain("./jsonWorkerTextPayload'");
-    }
+    expect(structureSource).toContain("./jsonWorkerTextPayload.ts'");
+    expect(structureSource).not.toContain("./jsonWorkerTextPayload'");
+    expect(workerSource).toContain("./jsonWorkerFormatOperations.ts'");
+    expect(workerSource).not.toContain("./jsonWorkerFormatOperations'");
   });
 });
