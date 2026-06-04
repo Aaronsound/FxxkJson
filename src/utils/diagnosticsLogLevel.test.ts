@@ -16,4 +16,12 @@ describe('diagnosticsLogLevel', () => {
     expect(isErrorDiagnosticsLogLine('[2026] {"event":"format-timeout"}')).toBe(true);
     expect(isErrorDiagnosticsLogLine('[2026] plain timeout line')).toBe(true);
   });
+
+  it('does not treat successful performance snapshots as errors because they contain an error field', () => {
+    expect(
+      isErrorDiagnosticsLogLine(
+        '[2026] {"event":"performance-snapshot","level":"info","snapshot":{"status":"ready","error":null}}'
+      )
+    ).toBe(false);
+  });
 });

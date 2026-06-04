@@ -24,7 +24,7 @@ function parseLogJson(line: string) {
   }
 
   try {
-    return JSON.parse(line.slice(jsonStart)) as { event?: unknown; level?: unknown };
+    return JSON.parse(line.slice(jsonStart)) as { error?: unknown; event?: unknown; level?: unknown };
   } catch {
     return null;
   }
@@ -32,12 +32,20 @@ function parseLogJson(line: string) {
 
 export function isErrorDiagnosticsLogLine(line: string) {
   const parsed = parseLogJson(line);
-  if (parsed?.level === 'error') {
-    return true;
-  }
+  if (parsed) {
+    if (parsed.level === 'error') {
+      return true;
+    }
 
-  if (typeof parsed?.event === 'string' && getDiagnosticsLogLevel(parsed.event) === 'error') {
-    return true;
+    if (typeof parsed.event === 'string' && getDiagnosticsLogLevel(parsed.event) === 'error') {
+      return true;
+    }
+
+    if (typeof parsed.error !== 'undefined' && parsed.error !== null && parsed.error !== '') {
+      return true;
+    }
+
+    return false;
   }
 
   return LEGACY_ERROR_LINE_PATTERN.test(line);
