@@ -95,7 +95,10 @@ export function getMonacoOptions({
   return {
     automaticLayout: true,
     fontFamily: JSON_EDITOR_FONT_FAMILY,
+    fontLigatures: false,
     fontSize: JSON_EDITOR_FONT_SIZE,
+    fontWeight: 'normal',
+    letterSpacing: 0,
     lineHeight: JSON_EDITOR_LINE_HEIGHT,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,

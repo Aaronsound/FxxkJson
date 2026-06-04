@@ -32,8 +32,14 @@ describe('JSON editor typography', () => {
     });
 
     expect(options.fontFamily).toBe(JSON_EDITOR_FONT_FAMILY);
+    expect(options.fontLigatures).toBe(false);
     expect(options.fontSize).toBe(JSON_EDITOR_FONT_SIZE);
+    expect(options.fontWeight).toBe('normal');
+    expect(options.letterSpacing).toBe(0);
     expect(options.lineHeight).toBe(JSON_EDITOR_LINE_HEIGHT);
+    expect(JSON_EDITOR_FONT_FAMILY).toBe('Menlo, Monaco, "Courier New", monospace');
+    expect(JSON_EDITOR_FONT_SIZE).toBe(12);
+    expect(JSON_EDITOR_LINE_HEIGHT).toBe(18);
 
     expect(getJsonEditorCssVariables(false)).toEqual(JSON_EDITOR_LIGHT_CSS_VARIABLES);
     expect(getJsonEditorCssVariables(true)).toEqual(JSON_EDITOR_DARK_CSS_VARIABLES);
@@ -70,6 +76,16 @@ describe('JSON editor typography', () => {
 
     const workspaceSource = readFileSync(join(process.cwd(), 'src/components/JsonToolWorkspace.tsx'), 'utf8');
     expect(workspaceSource).toContain('getJsonEditorCssVariables(isDarkMode)');
+
+    for (const componentPath of [
+      'src/components/LeftJsonEditorPane.tsx',
+      'src/components/RightJsonEditorPane.tsx',
+      'src/components/JsonEditModal.tsx',
+    ]) {
+      const editorSource = readFileSync(join(process.cwd(), componentPath), 'utf8');
+      expect(editorSource).toContain('getMonacoOptions({');
+      expect(editorSource).not.toContain('options={{');
+    }
 
     expect(getJsonEditorTheme(false)).toBe(JSON_EDITOR_LIGHT_THEME);
     expect(getJsonEditorTheme(true)).toBe(JSON_EDITOR_DARK_THEME);

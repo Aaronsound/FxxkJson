@@ -3,6 +3,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import PaneFindWidget from './PaneFindWidget';
 import { useEditModalSearch } from '../hooks/useEditModalSearch';
+import { getMonacoOptions } from '../utils/jsonEditorInteractions';
 import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
@@ -231,14 +232,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             theme={getJsonEditorTheme(isDarkMode)}
             onMount={handleEditorMount}
             onChange={(value) => onValueChange(value ?? '')}
-            options={{
-              automaticLayout: true,
-              minimap: { enabled: false },
-              wordWrap: 'on',
-              folding: true,
-              scrollBeyondLastLine: false,
+            options={getMonacoOptions({
+              largeMode: false,
+              wrapLongLines: true,
               readOnly: isBusy,
-            }}
+            })}
             height="100%"
             loading={null}
           />
