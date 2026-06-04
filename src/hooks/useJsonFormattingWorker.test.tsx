@@ -14,7 +14,7 @@ class WorkerMock {
 
   onerror: ((event: ErrorEvent) => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
-  onmessageerror: (() => void) | null = null;
+  onmessageerror: ((event: MessageEvent) => void) | null = null;
   postMessage = vi.fn();
   terminate = vi.fn();
 
@@ -126,6 +126,29 @@ describe('useJsonFormattingWorker', () => {
       'tab-a',
       'JSON worker 加载失败：Failed to fetch dynamically imported module'
     );
+
+    unmount();
+  });
+
+  it('surfaces worker message transfer errors and clears active formatting state', () => {
+    vi.stubGlobal('Worker', WorkerMock);
+    const args = createArgs();
+    const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+
+    act(() => {
+      result.current.queueFormat('tab-a', '{"ok":true}', true);
+    });
+
+    act(() => {
+      WorkerMock.instances[0].onmessageerror?.(new MessageEvent('messageerror'));
+    });
+
+    expect(args.logEvent).toHaveBeenCalledWith('worker-message-error', {
+      message: 'JSON worker message transfer failed',
+    });
+    expect(args.setTabFormatting).toHaveBeenLastCalledWith('tab-a', false);
+    expect(args.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'idle');
+    expect(args.setTabError).toHaveBeenLastCalledWith('tab-a', 'JSON worker 消息传输失败，请重试或重新导入文件');
 
     unmount();
   });
