@@ -2,9 +2,9 @@
 import { createJsonNodeEditOperations } from './jsonNodeEditOperations';
 import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
 import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../utils/jsonWorkerMessageRouting';
-import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
-import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations';
-import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations';
+import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations.ts';
+import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';
+import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations.ts';
 import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
 
 const structureCache = new Map();
