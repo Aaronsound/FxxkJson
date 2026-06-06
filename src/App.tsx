@@ -37,9 +37,9 @@ import { useLeftEditorActions } from './hooks/useLeftEditorActions';
 import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
 import { useRightEditorDiagnostics } from './hooks/useRightEditorDiagnostics';
 import { useJsonToolViewerState } from './hooks/useJsonToolViewerState';
+import { useJsonToolWorkspaceActions } from './hooks/useJsonToolWorkspaceActions';
 import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
 import { INITIAL_TAB_ID } from './types/jsonTool';
-import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
 import './App.css';
 
 const App: React.FC = () => {
@@ -439,18 +439,26 @@ const App: React.FC = () => {
     setTabError,
   });
 
+  const {
+    applyRawUpdate,
+    beginPastePerformanceSession,
+    handleOpenAbout,
+    handleOpenCompare,
+    handleOpenDiagnosticsLog,
+    handleToggleDarkMode,
+  } = useJsonToolWorkspaceActions({
+    beginPerformanceSession,
+    setIsAboutOpen,
+    setIsCompareOpen,
+    setIsDarkMode,
+    setIsDiagnosticsLogOpen,
+    setTabLargeMode,
+    updateTabContent,
+  });
+
   const { handleLeftChange, handleLeftMount, replaceAllLeftText, replaceCurrentLargeLeftText } = useLeftEditorActions({
     ...{ activeTab, activeTabIdRef },
-    beginPastePerformanceSession(tabId, nextContent) {
-      beginPerformanceSession(
-        tabId,
-        'paste',
-        '剪贴板粘贴',
-        null,
-        getUtf8ByteLength(nextContent),
-        isLargeDocument(nextContent)
-      );
-    },
+    beginPastePerformanceSession,
     ...{ getTabContent, largeRawViewerMatches, leftEditorRef, normalizedLeftMatchIndex, openLeftFind },
     ...{ queueFormat, registerLeftEditorContextMenu, renameTab },
     requestReplaceText: ({ tabId, text, searchTerm, searchOptions, replacement }) =>
@@ -500,10 +508,7 @@ const App: React.FC = () => {
     });
 
   const { applyRightNodeMutationAtOffset, copyNodeDetailAtOffset, copyValueAtOffset } = useRightNodeActions({
-    applyRawUpdate(tabId, updated) {
-      updateTabContent(tabId, updated, true);
-      setTabLargeMode(tabId, isLargeDocument(updated));
-    },
+    applyRawUpdate,
     ...{ getTabContent, logEvent, queueFormatAfterEditSave, readEditableNodeAtOffset, requestWorkerEditJson },
     requestDeleteConfirmation: requestDeleteNode,
     requestRenameKey,
@@ -598,13 +603,13 @@ const App: React.FC = () => {
     ...{ handleClear, handleCopyEscapedJson, handleEscapeEditJsonContent, handleEscapeJson },
     ...{ handleFormat, handleImport, handleLargeFileLocateToggle },
     ...{ handleLeftChange, handleLeftMount, handleLeftSearchOptionsChange, handleLeftSearchTermChange },
-    handleOpenAbout: () => setIsAboutOpen(true),
-    handleOpenCompare: () => setIsCompareOpen(true),
-    handleOpenDiagnosticsLog: () => setIsDiagnosticsLogOpen(true),
+    handleOpenAbout,
+    handleOpenCompare,
+    handleOpenDiagnosticsLog,
     ...{ handleOpenEditJson, handleOpenEditNodeAtOffset, handleOpenUnescapedNodeAtOffset },
     ...{ handleRepairJson, handleRenamingChange, handleRightMount },
     ...{ handleRightSearchOptionsChange, handleRightSearchTermChange, handleSaveEditJson },
-    handleToggleDarkMode: () => setIsDarkMode((current: boolean) => !current),
+    handleToggleDarkMode,
     ...{ handleUnescapeEditJsonContent, handleUnescapeJson, hasCopiedLiteral, importingFileName },
     ...{ isAboutOpen, isArchitectureWarningDismissed, isBuildingDedicatedRightViewer, isCompareOpen },
     ...{ isDarkMode, isDiagnosticsLogOpen, isDragImportActive, isFormattingActiveTab, isImportingActiveTab },
