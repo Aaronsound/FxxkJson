@@ -92,7 +92,7 @@ describe('jsonWorkerLocateOperations', () => {
     };
     const cached = {
       directLocate: true,
-      directLocateMode: 'identity',
+      directLocateMode: 'identity' as const,
       formattedText,
       viewerData,
     };

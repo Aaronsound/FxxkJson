@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-globals */
-import { createJsonNodeEditOperations } from './jsonNodeEditOperations';
-import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
+import { createJsonNodeEditOperations } from './jsonNodeEditOperations.ts';
+import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations.ts';
 import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../utils/jsonWorkerMessageRouting';
 import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations.ts';
 import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';

@@ -1,9 +1,36 @@
 import { findNodeAtLocation, getLocation } from 'jsonc-parser';
+import type { Node } from 'jsonc-parser';
+import type { JsonEditPath, LargeJsonViewerData, WorkerMessage } from '../types/jsonTool';
+import type { LightweightLocateCache, LocateRange } from '../utils/lightweightLocate';
 import { getIdentityLocateRange, getLightweightTokenLocateRange } from '../utils/lightweightLocate';
 import { getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import { getLocateCandidateOffsets } from './jsonWorkerLocateCandidates';
 
-export function getDirectLocateRange(cached, offset) {
+interface DirectLocateCacheEntry {
+  directLocate?: boolean;
+  directLocateMode?: 'identity' | 'token-search';
+  formattedText?: string;
+  rawText?: string;
+  requestId?: number;
+  tokenLocateCache?: LightweightLocateCache;
+  viewerData?: LargeJsonViewerData;
+}
+
+interface RightLocateViewerEntry {
+  formattedText?: string;
+  requestId?: number;
+  viewerData?: LargeJsonViewerData;
+}
+
+interface PathCalibratedDirectLocateRange {
+  leftRange: LocateRange;
+  path: JsonEditPath;
+  rightRange: LocateRange;
+}
+
+type GetDirectValueTree = (tabId: string, requestId: number, text: string) => Node | undefined;
+
+export function getDirectLocateRange(cached: DirectLocateCacheEntry | null | undefined, offset: number) {
   if (!cached || !cached.directLocate || !cached.viewerData || !(cached.viewerData.lineStarts instanceof Uint32Array)) {
     return null;
   }
@@ -29,7 +56,7 @@ export function getDirectLocateRange(cached, offset) {
   );
 }
 
-export function getDirectRightLocateRange(cached, offset) {
+export function getDirectRightLocateRange(cached: DirectLocateCacheEntry | null | undefined, offset: number) {
   if (
     !cached ||
     typeof cached.formattedText !== 'string' ||
@@ -46,13 +73,22 @@ export function getDirectRightLocateRange(cached, offset) {
   return getIdentityLocateRange(cached.formattedText.length, cached.viewerData, offset);
 }
 
-export function getPathCalibratedDirectLocateRange(tabId, cached, offset, getDirectValueTree) {
+export function getPathCalibratedDirectLocateRange(
+  tabId: string,
+  cached: DirectLocateCacheEntry | null | undefined,
+  offset: number,
+  getDirectValueTree: GetDirectValueTree
+): PathCalibratedDirectLocateRange | null {
   if (
     !cached ||
     !cached.directLocate ||
     typeof cached.rawText !== 'string' ||
     typeof cached.formattedText !== 'string'
   ) {
+    return null;
+  }
+
+  if (typeof cached.requestId !== 'number') {
     return null;
   }
 
@@ -86,7 +122,13 @@ export function getPathCalibratedDirectLocateRange(tabId, cached, offset, getDir
   return null;
 }
 
-export function getRightOnlyLocateResult(tabId, requestId, offset, cachedViewer, getDirectValueTree) {
+export function getRightOnlyLocateResult(
+  tabId: string,
+  requestId: number,
+  offset: number,
+  cachedViewer: RightLocateViewerEntry | null | undefined,
+  getDirectValueTree: GetDirectValueTree
+): WorkerMessage {
   const sourceText = cachedViewer?.formattedText;
   const sourceRequestId = cachedViewer?.requestId ?? requestId;
 
@@ -149,3 +191,5 @@ export function getRightOnlyLocateResult(tabId, requestId, offset, cachedViewer,
     };
   }
 }
+
+export type { DirectLocateCacheEntry, PathCalibratedDirectLocateRange, RightLocateViewerEntry };

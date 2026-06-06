@@ -4,6 +4,7 @@ import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
+import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
 
 type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
@@ -16,7 +17,7 @@ interface StructureCacheEntry {
   rawText?: string;
   rawTree?: unknown;
   requestId: number;
-  tokenLocateCache?: { tokenOffsetsByToken: Map<string, number[]> };
+  tokenLocateCache?: LightweightLocateCache;
   viewerData?: LargeJsonViewerData | null;
 }
 

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { isErrorDiagnosticsLogLine } from '../utils/diagnosticsLogLevel';
+import { getDiagnosticsLogLineCategory } from '../utils/diagnosticsLogLevel';
 
 const LOG_PREVIEW_BYTES = 160 * 1024;
+type DiagnosticsLogFilter = 'all' | 'error' | 'warn' | 'performance';
 
 interface DiagnosticsLogPanelProps {
   isDarkMode: boolean;
@@ -14,10 +15,14 @@ export interface DiagnosticsContextItem {
   value: string | number | boolean | null | undefined;
 }
 
-function getErrorLines(content: string) {
+function getFilteredLines(content: string, filter: DiagnosticsLogFilter) {
+  if (filter === 'all') {
+    return content;
+  }
+
   return content
     .split('\n')
-    .filter((line) => isErrorDiagnosticsLogLine(line))
+    .filter((line) => getDiagnosticsLogLineCategory(line) === filter)
     .join('\n');
 }
 
@@ -90,7 +95,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
-  const [showErrorsOnly, setShowErrorsOnly] = useState(false);
+  const [logFilter, setLogFilter] = useState<DiagnosticsLogFilter>('all');
 
   const loadLog = useCallback(async () => {
     if (!window.electronAPI?.readRecentLog) {
@@ -150,7 +155,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
     try {
       const path = await window.electronAPI.clearLog();
       setSnapshot({ path, content: '', truncated: false });
-      setShowErrorsOnly(false);
+      setLogFilter('all');
       setCopyNotice('日志已清空');
       setError(null);
     } catch (nextError) {
@@ -172,16 +177,26 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
   };
 
   const logContent = snapshot?.content ?? '';
-  const errorLogContent = getErrorLines(logContent);
-  const displayContent = showErrorsOnly ? errorLogContent : logContent;
+  const errorLogContent = getFilteredLines(logContent, 'error');
+  const warnLogContent = getFilteredLines(logContent, 'warn');
+  const performanceLogContent = getFilteredLines(logContent, 'performance');
+  const displayContent = getFilteredLines(logContent, logFilter);
   const contextSummary = getContextSummary(context);
-  const previewText = isLoading
-    ? '正在读取日志...'
-    : displayContent || (showErrorsOnly ? '没有匹配到错误日志' : '暂无日志');
+  const emptyFilterText =
+    logFilter === 'error'
+      ? '没有匹配到错误日志'
+      : logFilter === 'warn'
+        ? '没有匹配到警告日志'
+        : logFilter === 'performance'
+          ? '没有匹配到性能日志'
+          : '暂无日志';
+  const previewText = isLoading ? '正在读取日志...' : displayContent || emptyFilterText;
   const metaText = [
     snapshot?.truncated ? '显示最近日志片段' : '显示完整日志',
     `日志行 ${countLines(logContent)}`,
-    showErrorsOnly ? `错误行 ${countLines(errorLogContent)}` : null,
+    `错误 ${countLines(errorLogContent)}`,
+    `警告 ${countLines(warnLogContent)}`,
+    `性能 ${countLines(performanceLogContent)}`,
     contextSummary,
   ]
     .filter(Boolean)
@@ -199,13 +214,18 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
 
         <div className="diagnostics-log-meta diagnostics-log-meta-row">
           <span>{metaText}</span>
-          <label className="toolbar-checkbox diagnostics-log-filter">
-            <input
-              type="checkbox"
-              checked={showErrorsOnly}
-              onChange={(event) => setShowErrorsOnly(event.target.checked)}
-            />
-            只看错误
+          <label className="diagnostics-log-filter">
+            日志筛选
+            <select
+              aria-label="日志筛选"
+              value={logFilter}
+              onChange={(event) => setLogFilter(event.target.value as DiagnosticsLogFilter)}
+            >
+              <option value="all">全部</option>
+              <option value="error">错误</option>
+              <option value="warn">警告</option>
+              <option value="performance">性能</option>
+            </select>
           </label>
         </div>
 

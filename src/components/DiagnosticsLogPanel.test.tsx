@@ -42,6 +42,8 @@ describe('DiagnosticsLogPanel', () => {
           '[2026-05-09] {"event":"format-success","level":"info"}',
           '[2026-05-09] {"event":"format-failed","level":"error","error":"bad json"}',
           '[2026-05-09] {"event":"format-timeout","error":"JSON 格式化超时"}',
+          '[2026-05-09] {"event":"fallback-format","level":"info"}',
+          '[2026-05-09] {"event":"performance-snapshot","level":"info"}',
         ].join('\n'),
         truncated: true,
       }),
@@ -67,13 +69,23 @@ describe('DiagnosticsLogPanel', () => {
       expect(screen.getByDisplayValue(/format-success/)).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByLabelText('只看错误'));
+    fireEvent.change(screen.getByLabelText('日志筛选'), { target: { value: 'error' } });
 
     await waitFor(() => {
       expect(screen.getByDisplayValue(/format-failed/)).toBeInTheDocument();
       expect(screen.getByDisplayValue(/format-timeout/)).toBeInTheDocument();
       expect(screen.queryByDisplayValue(/format-success/)).not.toBeInTheDocument();
+      expect(screen.queryByDisplayValue(/performance-snapshot/)).not.toBeInTheDocument();
     });
+
+    fireEvent.change(screen.getByLabelText('日志筛选'), { target: { value: 'performance' } });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue(/performance-snapshot/)).toBeInTheDocument();
+      expect(screen.queryByDisplayValue(/format-failed/)).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('日志筛选'), { target: { value: 'error' } });
 
     expect(screen.getByText(/标签 large-sample.json/)).toBeInTheDocument();
 

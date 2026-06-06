@@ -2,6 +2,7 @@ import { findNodeAtLocation, getLocation } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
 import type { LargeJsonViewerData, WorkerMessage } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
+import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import { getLocateCandidateOffsets } from './jsonWorkerLocateCandidates';
 import {
   getDirectLocateRange,
@@ -22,7 +23,7 @@ interface LocateStructureCacheEntry {
   rawText?: string;
   rawTree?: Node;
   requestId?: number;
-  tokenLocateCache?: { tokenOffsetsByToken: Map<string, number[]> };
+  tokenLocateCache?: LightweightLocateCache;
   viewerData?: LargeJsonViewerData;
 }
 
