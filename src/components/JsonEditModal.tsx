@@ -72,29 +72,52 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   }, [editSearch.closeFind, isBusy, onClose]);
 
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
+    const openModalFind = () => {
+      editSearch.openFind();
+      window.setTimeout(() => {
+        const input = modalRef.current?.querySelector<HTMLInputElement>('.pane-find-input');
+        input?.focus();
+        input?.select();
+      }, 0);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      const isTargetInsideModal = target instanceof Node && modalRef.current?.contains(target);
+
+      if (!isTargetInsideModal) {
+        return;
+      }
+
+      const isPrimaryFindShortcut = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+      if (event.key.toLowerCase() === 'f' && isPrimaryFindShortcut) {
+        event.preventDefault();
+        event.stopPropagation();
+        openModalFind();
+        return;
+      }
+
       if (event.key !== 'Escape' || isBusyRef.current) {
         return;
       }
 
-      const target = event.target;
-      if (target instanceof Node && modalRef.current?.contains(target)) {
-        event.preventDefault();
-        event.stopPropagation();
-        if (editSearch.isFindOpenRef.current) {
-          closeFindRef.current();
-          return;
-        }
-        onCloseRef.current();
+      event.preventDefault();
+      event.stopPropagation();
+      if (editSearch.isFindOpenRef.current) {
+        closeFindRef.current();
+        return;
       }
+      onCloseRef.current();
     };
 
-    window.addEventListener('keydown', handleEscape, true);
+    window.addEventListener('keydown', handleKeyDown, true);
+    const unsubscribeFindShortcut = window.electronAPI?.onFindShortcut?.(openModalFind);
 
     return () => {
-      window.removeEventListener('keydown', handleEscape, true);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      unsubscribeFindShortcut?.();
     };
-  }, []);
+  }, [editSearch.openFind]);
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;

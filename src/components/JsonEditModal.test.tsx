@@ -299,6 +299,49 @@ describe('JsonEditModal search position', () => {
     expect(mockEditorState.editor?.revealRangeInCenter).toHaveBeenCalledTimes(revealCountBeforeEdit ?? 0);
   });
 
+  it('opens modal search from the window find shortcut while focus is inside the modal', async () => {
+    const { container } = renderModal('{"name":"first"}');
+    const editorElement = screen.getByLabelText('mock-json-editor');
+
+    fireEvent.keyDown(editorElement, {
+      key: 'f',
+      metaKey: true,
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(getFindInput(container)).toBeInTheDocument();
+  });
+
+  it('opens modal search from the Electron find shortcut', async () => {
+    let findShortcut: (() => void) | undefined;
+    window.electronAPI = {
+      appendLog: vi.fn(),
+      clearLog: vi.fn(),
+      onFindShortcut: vi.fn((callback) => {
+        findShortcut = callback;
+        return vi.fn();
+      }),
+      openJsonFile: vi.fn(),
+      readRecentLog: vi.fn(),
+      showLogFile: vi.fn(),
+      writeClipboardText: vi.fn(),
+    };
+    const { container } = renderModal('{"name":"first"}');
+
+    act(() => {
+      findShortcut?.();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(getFindInput(container)).toBeInTheDocument();
+  });
+
   it('moves to the nearby next match after deleting the active key/value', async () => {
     const { container } = renderModal(
       [
