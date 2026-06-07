@@ -11,6 +11,7 @@ import {
   startElectronApp,
 } from './e2e-electron-app.mjs';
 import { importSampleByE2eBridge, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
+import { runEditTransformScenario } from './e2e-json-edit-transform-scenario.mjs';
 import {
   runClipboardAndCompareScenario,
   runRightNodeScenario,
@@ -29,6 +30,7 @@ function printSuccessSummary(sizeMb, samplePath) {
     { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
     { step: 'rename warnings', detail: 'right node rename dialog shows whitespace and duplicate-key warnings' },
     { step: 'edit', detail: 'large right node edit saved back to original JSON' },
+    { step: 'edit transforms', detail: 'edit modal converts selected and full JSON into string values' },
     { step: 'save state', detail: 'edited content and locate status remained available after save' },
     { step: 'selection copy', detail: 'right selected value remains selected and copies with Alt+C' },
     { step: 'context paste', detail: 'left editor context menu paste inserts desktop clipboard text' },
@@ -63,6 +65,7 @@ async function run() {
     getStderr = electronApp.getStderr;
 
     cdp = await connectAndPrepareElectronPage(port);
+    await runEditTransformScenario(cdp);
     await importSampleByE2eBridge(cdp, samplePath);
     await waitFor(
       () => evaluate(cdp, `document.body.innerText.includes('req-e2e-000000')`),

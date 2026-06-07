@@ -130,6 +130,8 @@ class MockEditor {
 
   contentListeners: Array<() => void> = [];
 
+  cursorSelectionListeners: Array<() => void> = [];
+
   position: { lineNumber: number; column: number };
 
   focus = vi.fn();
@@ -141,6 +143,7 @@ class MockEditor {
   setSelection = vi.fn((selection: InstanceType<typeof mockEditorState.MockSelection>) => {
     this.selection = selection;
     this.position = selection.getEndPosition();
+    this.cursorSelectionListeners.forEach((listener) => listener());
   });
 
   revealPositionInCenter = vi.fn();
@@ -176,6 +179,11 @@ class MockEditor {
 
   onDidChangeModelContent(listener: () => void) {
     this.contentListeners.push(listener);
+    return { dispose: vi.fn() };
+  }
+
+  onDidChangeCursorSelection(listener: () => void) {
+    this.cursorSelectionListeners.push(listener);
     return { dispose: vi.fn() };
   }
 
@@ -420,6 +428,7 @@ describe('JsonEditModal search position', () => {
     expect(screen.getByRole('button', { name: '还原转义内容' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '转成 JSON 字符串' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '复制 JSON 字符串字面量' })).toBeInTheDocument();
+    expect(screen.getByText('未选中内容，将转换整段')).toBeInTheDocument();
   });
 
   it('keeps the cursor near its previous offset after escaping the full document', async () => {
@@ -441,6 +450,7 @@ describe('JsonEditModal search position', () => {
     expect(editor?.getPosition()).not.toEqual(editor?.model.getPositionAt(editor.model.getValue().length));
     expect(editor?.revealPositionInCenter).toHaveBeenCalledWith(editor?.getPosition());
     expect(screen.getByText('已转换整段内容，可保存或复制')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '复制转换结果' })).toBeInTheDocument();
   });
 
   it('writes transformed content even if Monaco is still read-only after a busy transform', async () => {
@@ -487,14 +497,16 @@ describe('JsonEditModal search position', () => {
       throw new Error('Selection positions were not available');
     }
 
-    editor.setSelection(
-      new mockEditorState.MockSelection(
-        startPosition.lineNumber,
-        startPosition.column,
-        endPosition.lineNumber,
-        endPosition.column
-      )
-    );
+    act(() => {
+      editor.setSelection(
+        new mockEditorState.MockSelection(
+          startPosition.lineNumber,
+          startPosition.column,
+          endPosition.lineNumber,
+          endPosition.column
+        )
+      );
+    });
 
     fireEvent.click(screen.getByRole('button', { name: '转成 JSON 字符串' }));
 
@@ -517,6 +529,58 @@ describe('JsonEditModal search position', () => {
     );
     expect(editor.revealRangeInCenter).toHaveBeenCalledWith(editor.selection);
     expect(screen.getByText('已转换选中内容，可直接复制选区')).toBeInTheDocument();
+  });
+
+  it('shows selection scope and copies the latest transform result', async () => {
+    const escapedObject = '"{\\"name\\":\\"second\\"}"';
+    const onEscapeContent = vi.fn(async () => escapedObject);
+    window.electronAPI = {
+      appendLog: vi.fn(),
+      clearLog: vi.fn(),
+      onFindShortcut: vi.fn(),
+      openJsonFile: vi.fn(),
+      readRecentLog: vi.fn(),
+      showLogFile: vi.fn(),
+      writeClipboardText: vi.fn(),
+    };
+
+    renderModal('{"items":[{"name":"first"},{"name":"second"}]}', { onEscapeContent });
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    const selectedObject = '{"name":"second"}';
+    const selectionStart = editor.getValue().indexOf(selectedObject);
+    const startPosition = editor.model.getPositionAt(selectionStart);
+    const endPosition = editor.model.getPositionAt(selectionStart + selectedObject.length);
+    act(() => {
+      editor.setSelection(
+        new mockEditorState.MockSelection(
+          startPosition.lineNumber,
+          startPosition.column,
+          endPosition.lineNumber,
+          endPosition.column
+        )
+      );
+    });
+
+    expect(screen.getByText('将转换选中内容')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '转成 JSON 字符串' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '复制转换结果' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(window.electronAPI.writeClipboardText).toHaveBeenCalledWith(escapedObject);
+    expect(screen.getByText('已复制转换结果')).toBeInTheDocument();
   });
 
   it('shows a transform error when conversion fails', async () => {

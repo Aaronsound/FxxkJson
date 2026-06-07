@@ -4,6 +4,14 @@ import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonMonacoEditor from './JsonMonacoEditor';
 import PaneFindWidget from './PaneFindWidget';
 import { useEditModalSearch } from '../hooks/useEditModalSearch';
+import { writeTextToClipboard } from '../utils/clipboard';
+import {
+  getJsonEditSelectionContext,
+  hasJsonEditSelection,
+  replaceJsonEditDocument,
+  replaceJsonEditSelection,
+  runWritableEditorEdit,
+} from '../utils/jsonEditModalTransforms';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
@@ -29,14 +37,11 @@ interface JsonEditModalProps {
 
 const defaultT = createTranslator('zh');
 
-function runWritableEditorEdit(editor: monaco.editor.IStandaloneCodeEditor, edit: () => void) {
-  editor.updateOptions({ readOnly: false });
-  edit();
-}
-
 type JsonEditModalE2EWindow = Window & {
   __HANJSON_E2E__?: boolean;
   __HANJSON_E2E_EDIT_MODAL__?: {
+    getValue: () => string;
+    selectText: (text: string) => boolean;
     setValue: (value: string) => void;
   };
 };
@@ -67,6 +72,9 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const closeFindRef = useRef<() => void>(() => undefined);
   const [transformNotice, setTransformNotice] = useState<string | null>(null);
   const [transformError, setTransformError] = useState<string | null>(null);
+  const [transformCopyNotice, setTransformCopyNotice] = useState<string | null>(null);
+  const [lastTransformResult, setLastTransformResult] = useState<string | null>(null);
+  const [hasActiveSelection, setHasActiveSelection] = useState(false);
   const editSearch = useEditModalSearch({
     editorRef,
     searchBatchSize: EDIT_MODAL_SEARCH_BATCH_SIZE,
@@ -131,18 +139,44 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const e2eWindow = window as JsonEditModalE2EWindow;
     if (e2eWindow.__HANJSON_E2E__) {
       e2eWindow.__HANJSON_E2E_EDIT_MODAL__ = {
+        getValue() {
+          return editor.getValue();
+        },
+        selectText(text: string) {
+          const model = editor.getModel();
+          const value = model?.getValue() ?? '';
+          const offset = value.indexOf(text);
+          if (!model || offset < 0) {
+            return false;
+          }
+
+          const startPosition = model.getPositionAt(offset);
+          const endPosition = model.getPositionAt(offset + text.length);
+          editor.setSelection(
+            new monaco.Selection(
+              startPosition.lineNumber,
+              startPosition.column,
+              endPosition.lineNumber,
+              endPosition.column
+            )
+          );
+          editor.revealRangeInCenter(editor.getSelection() ?? model.getFullModelRange());
+          return true;
+        },
         setValue(nextValue: string) {
           const model = editor.getModel();
           if (model) {
-            editor.pushUndoStop();
-            editor.executeEdits('fxxkjson-e2e', [
-              {
-                range: model.getFullModelRange(),
-                text: nextValue,
-                forceMoveMarkers: true,
-              },
-            ]);
-            editor.pushUndoStop();
+            runWritableEditorEdit(editor, () => {
+              editor.pushUndoStop();
+              editor.executeEdits('fxxkjson-e2e', [
+                {
+                  range: model.getFullModelRange(),
+                  text: nextValue,
+                  forceMoveMarkers: true,
+                },
+              ]);
+              editor.pushUndoStop();
+            });
           }
           onValueChange(nextValue);
           editSearch.refreshSearch();
@@ -160,6 +194,9 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     editor.onDidChangeModelContent(() => {
       editSearch.captureSearchAnchor(editor);
       editSearch.refreshSearch();
+    });
+    const selectionDisposable = editor.onDidChangeCursorSelection(() => {
+      setHasActiveSelection(hasJsonEditSelection(editor));
     });
 
     window.setTimeout(() => {
@@ -181,31 +218,17 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
       editSearch.openFind();
     });
+
+    setHasActiveSelection(hasJsonEditSelection(editor));
+    editor.onDidDispose(() => {
+      selectionDisposable.dispose();
+    });
   };
 
   const replaceEditorValue = useCallback(
     (nextValue: string) => {
       const editor = editorRef.current;
-      const model = editor?.getModel() ?? null;
-
-      if (editor && model) {
-        const currentPosition = editor.getPosition();
-        const currentOffset = currentPosition ? model.getOffsetAt(currentPosition) : 0;
-        runWritableEditorEdit(editor, () => {
-          editor.pushUndoStop();
-          editor.executeEdits('json-edit-transform', [
-            {
-              range: model.getFullModelRange(),
-              text: nextValue,
-              forceMoveMarkers: true,
-            },
-          ]);
-          editor.pushUndoStop();
-        });
-        const nextPosition = model.getPositionAt(Math.min(currentOffset, nextValue.length));
-        editor.setPosition(nextPosition);
-        editor.revealPositionInCenter(nextPosition);
-      }
+      replaceJsonEditDocument(editor, nextValue);
 
       onValueChange(nextValue);
       editSearch.refreshSearch();
@@ -219,67 +242,51 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     }
 
     const editor = editorRef.current;
-    const model = editor?.getModel() ?? null;
-    const selection = editor?.getSelection() ?? null;
-    const selectionStart = selection && model ? model.getOffsetAt(selection.getStartPosition()) : null;
-    const selectionEnd = selection && model ? model.getOffsetAt(selection.getEndPosition()) : null;
-    const selectedContext =
-      editor &&
-      model &&
-      selection &&
-      selectionStart !== null &&
-      selectionEnd !== null &&
-      selectionStart !== selectionEnd
-        ? {
-            editor,
-            model,
-            selection,
-            startOffset: Math.min(selectionStart, selectionEnd),
-          }
-        : null;
+    const selectedContext = getJsonEditSelectionContext(editor);
     const currentValue = selectedContext
       ? selectedContext.model.getValueInRange(selectedContext.selection)
       : (editor?.getValue() ?? initialValue);
 
     setTransformNotice(null);
     setTransformError(null);
+    setTransformCopyNotice(null);
+    setLastTransformResult(null);
 
     try {
       const nextValue = await transform(currentValue);
       if (selectedContext) {
-        runWritableEditorEdit(selectedContext.editor, () => {
-          selectedContext.editor.pushUndoStop();
-          selectedContext.editor.executeEdits('json-edit-transform-selection', [
-            {
-              range: selectedContext.selection,
-              text: nextValue,
-              forceMoveMarkers: true,
-            },
-          ]);
-          selectedContext.editor.pushUndoStop();
-        });
-
-        const startPosition = selectedContext.model.getPositionAt(selectedContext.startOffset);
-        const endPosition = selectedContext.model.getPositionAt(selectedContext.startOffset + nextValue.length);
-        const nextSelection = new monaco.Selection(
-          startPosition.lineNumber,
-          startPosition.column,
-          endPosition.lineNumber,
-          endPosition.column
-        );
-        selectedContext.editor.setSelection(nextSelection);
-        selectedContext.editor.revealRangeInCenter(nextSelection);
+        replaceJsonEditSelection(selectedContext, nextValue);
         onValueChange(selectedContext.editor.getValue());
         editSearch.refreshSearch();
         setTransformNotice(t('edit.transformedSelection'));
+        setLastTransformResult(nextValue);
+        setHasActiveSelection(true);
         return;
       }
 
       replaceEditorValue(nextValue);
       setTransformNotice(t('edit.transformedDocument'));
+      setLastTransformResult(nextValue);
+      setHasActiveSelection(false);
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
       setTransformError(t('edit.transformFailed', { message }));
+    }
+  };
+
+  const handleCopyTransformResult = async () => {
+    if (!lastTransformResult || isBusy) {
+      return;
+    }
+
+    setTransformCopyNotice(null);
+    setTransformError(null);
+    try {
+      await writeTextToClipboard(lastTransformResult);
+      setTransformCopyNotice(t('edit.copiedTransformResult'));
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      setTransformError(t('edit.copyTransformResultFailed', { message }));
     }
   };
 
@@ -338,7 +345,16 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             <button type="button" onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
               {t('edit.escapeContent')}
             </button>
-            {transformNotice && <span className="modal-copy-hint">{transformNotice}</span>}
+            <span className="modal-copy-hint">
+              {transformNotice ??
+                (hasActiveSelection ? t('edit.transformScopeSelection') : t('edit.transformScopeDocument'))}
+            </span>
+            {lastTransformResult && (
+              <button type="button" onClick={() => void handleCopyTransformResult()} disabled={isBusy}>
+                {t('edit.copyTransformResult')}
+              </button>
+            )}
+            {transformCopyNotice && <span className="modal-copy-hint">{transformCopyNotice}</span>}
           </div>
           <div className="modal-copy-group">
             <button type="button" onClick={onCopyLiteral} disabled={isBusy}>
