@@ -71,6 +71,10 @@ class MockTextModel {
 
   dispose = vi.fn();
 
+  isDisposed() {
+    return false;
+  }
+
   getLineCount() {
     return this.value.split('\n').length;
   }
@@ -136,6 +140,8 @@ class MockEditor {
 
   disposeListeners: Array<() => void> = [];
 
+  scrollListeners: Array<() => void> = [];
+
   position: { lineNumber: number; column: number };
 
   focus = vi.fn();
@@ -151,6 +157,33 @@ class MockEditor {
   });
 
   revealPositionInCenter = vi.fn();
+
+  layout = vi.fn();
+
+  foldingRegions = {
+    length: 2,
+    getStartLineNumber: vi.fn((index: number) => (index === 0 ? 1 : 2)),
+    getEndLineNumber: vi.fn((index: number) => (index === 0 ? 5 : 4)),
+    isCollapsed: vi.fn(() => false),
+    toRegion: vi.fn((index: number) => ({
+      endLineNumber: index === 0 ? 5 : 4,
+      isCollapsed: false,
+      regionIndex: index,
+      startLineNumber: index === 0 ? 1 : 2,
+    })),
+  };
+
+  foldingModel = {
+    regions: this.foldingRegions,
+    toggleCollapseState: vi.fn(),
+  };
+
+  foldingContribution = {
+    triggerFoldingModelChanged: vi.fn(),
+    getFoldingModel: vi.fn(() => Promise.resolve(this.foldingModel)),
+  };
+
+  getContribution = vi.fn(() => this.foldingContribution);
 
   pushUndoStop = vi.fn();
 
@@ -177,6 +210,18 @@ class MockEditor {
     return this.model.getValue();
   }
 
+  getVisibleRanges() {
+    return [new mockEditorState.MockRange(1, 1, Math.min(20, this.model.getLineCount()), 1)];
+  }
+
+  getTopForLineNumber(lineNumber: number) {
+    return (lineNumber - 1) * 18;
+  }
+
+  getScrollTop() {
+    return 0;
+  }
+
   onDidDispose(listener: () => void) {
     this.disposeListeners.push(listener);
     return { dispose: vi.fn() };
@@ -189,6 +234,11 @@ class MockEditor {
 
   onDidChangeCursorSelection(listener: () => void) {
     this.cursorSelectionListeners.push(listener);
+    return { dispose: vi.fn() };
+  }
+
+  onDidScrollChange(listener: () => void) {
+    this.scrollListeners.push(listener);
     return { dispose: vi.fn() };
   }
 
@@ -596,6 +646,50 @@ describe('JsonEditModal search position', () => {
 
     expect(editor.getValue()).toBe(expectedValue);
     expect(onValueChange).toHaveBeenCalledWith(expectedValue);
+  });
+
+  it('refreshes edit folding controls after mount and content changes', async () => {
+    const { container } = renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    expect(editor.updateOptions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        folding: true,
+        showFoldingControls: 'always',
+        foldingStrategy: 'indentation',
+        foldingMaximumRegions: 200000,
+        largeFileOptimizations: false,
+      })
+    );
+    expect(editor.layout).toHaveBeenCalled();
+    expect(editor.foldingContribution.triggerFoldingModelChanged).toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('mock-json-editor'), {
+      target: { value: ['[', '  {', '    "name": "second"', '  }', ']'].join('\n') },
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
+    fireEvent.click(container.querySelector('.edit-modal-fold-button') as HTMLButtonElement);
+    expect(editor.foldingModel.toggleCollapseState).toHaveBeenCalledWith([
+      expect.objectContaining({
+        regionIndex: 0,
+        startLineNumber: 1,
+      }),
+    ]);
+    expect(editor.updateOptions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        folding: true,
+        showFoldingControls: 'always',
+      })
+    );
+    expect(container.querySelector('.modal-editor-shell')).toBeTruthy();
   });
 
   it('disposes the edit model when the modal editor is disposed', () => {

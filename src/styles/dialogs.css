@@ -54,6 +54,53 @@
   min-height: 0;
 }
 
+.edit-modal-fold-overlay {
+  position: absolute;
+  top: 0;
+  left: 46px;
+  z-index: 5;
+  width: 24px;
+  pointer-events: none;
+}
+
+.edit-modal-fold-button {
+  position: absolute;
+  left: 0;
+  width: var(--json-fold-control-width);
+  height: var(--json-fold-control-height);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--json-fold-icon-color);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.edit-modal-fold-button::before {
+  content: "";
+  display: block;
+  width: var(--json-fold-icon-size);
+  height: var(--json-fold-icon-size);
+  margin: 3px auto 0;
+  border: solid currentColor;
+  border-width: 0 var(--json-fold-icon-border-width) var(--json-fold-icon-border-width) 0;
+  box-sizing: border-box;
+}
+
+.edit-modal-fold-button.expanded::before {
+  transform: rotate(45deg);
+}
+
+.edit-modal-fold-button.collapsed::before {
+  transform: rotate(-45deg);
+}
+
+.edit-modal-fold-button:hover {
+  background: var(--json-fold-hover-bg);
+}
+
 .modal-actions {
   display: flex;
   flex-wrap: wrap;
