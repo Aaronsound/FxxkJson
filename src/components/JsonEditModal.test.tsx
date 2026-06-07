@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JsonEditModal from './JsonEditModal';
 
@@ -20,7 +21,21 @@ const mockEditorState = vi.hoisted(() => {
     }
   }
 
-  class MockSelection extends MockRange {}
+  class MockSelection extends MockRange {
+    getStartPosition() {
+      return {
+        lineNumber: this.startLineNumber,
+        column: this.startColumn,
+      };
+    }
+
+    getEndPosition() {
+      return {
+        lineNumber: this.endLineNumber,
+        column: this.endColumn,
+      };
+    }
+  }
 
   const keyCode = {
     Escape: 9,
@@ -99,6 +114,13 @@ class MockTextModel {
     const lineCount = this.getLineCount();
     return new mockEditorState.MockRange(1, 1, lineCount, this.getLineMaxColumn(lineCount));
   }
+
+  getValueInRange(range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) {
+    const startOffset = this.getOffsetAt({ lineNumber: range.startLineNumber, column: range.startColumn });
+    const endOffset = this.getOffsetAt({ lineNumber: range.endLineNumber, column: range.endColumn });
+
+    return this.value.slice(Math.min(startOffset, endOffset), Math.max(startOffset, endOffset));
+  }
 }
 
 class MockEditor {
@@ -108,20 +130,28 @@ class MockEditor {
 
   contentListeners: Array<() => void> = [];
 
+  position: { lineNumber: number; column: number };
+
   focus = vi.fn();
 
   revealRangeInCenter = vi.fn();
 
-  setSelection = vi.fn();
+  selection: InstanceType<typeof mockEditorState.MockSelection> | null = null;
 
-  setPosition = vi.fn();
+  setSelection = vi.fn((selection: InstanceType<typeof mockEditorState.MockSelection>) => {
+    this.selection = selection;
+    this.position = selection.getEndPosition();
+  });
 
   revealPositionInCenter = vi.fn();
 
   pushUndoStop = vi.fn();
 
+  readOnly = false;
+
   constructor(value: string) {
     this.model = new MockTextModel(value);
+    this.position = this.model.getPositionAt(value.length);
   }
 
   getModel() {
@@ -129,7 +159,11 @@ class MockEditor {
   }
 
   getPosition() {
-    return this.model.getPositionAt(this.model.getValue().length);
+    return this.position;
+  }
+
+  getSelection() {
+    return this.selection;
   }
 
   getValue() {
@@ -153,8 +187,46 @@ class MockEditor {
     return decorations.map((__, index) => `decoration-${index}`);
   }
 
-  executeEdits(_: string, edits: Array<{ range: unknown; text: string }>) {
-    this.model.setValue(edits[0]?.text ?? '');
+  updateOptions = vi.fn((options: { readOnly?: boolean }) => {
+    if (typeof options.readOnly === 'boolean') {
+      this.readOnly = options.readOnly;
+    }
+  });
+
+  setPosition(position: { lineNumber: number; column: number }) {
+    this.position = position;
+  }
+
+  executeEdits(
+    _: string,
+    edits: Array<{
+      range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+      text: string;
+    }>
+  ) {
+    const edit = edits[0];
+    if (!edit) {
+      return;
+    }
+
+    if (this.readOnly) {
+      return;
+    }
+
+    const currentValue = this.model.getValue();
+    const startOffset = this.model.getOffsetAt({
+      lineNumber: edit.range.startLineNumber,
+      column: edit.range.startColumn,
+    });
+    const endOffset = this.model.getOffsetAt({
+      lineNumber: edit.range.endLineNumber,
+      column: edit.range.endColumn,
+    });
+    this.model.setValue(
+      `${currentValue.slice(0, Math.min(startOffset, endOffset))}${edit.text}${currentValue.slice(
+        Math.max(startOffset, endOffset)
+      )}`
+    );
     this.contentListeners.forEach((listener) => listener());
   }
 }
@@ -220,8 +292,8 @@ const baseProps = {
   onClose: vi.fn(),
 };
 
-function renderModal(initialValue: string) {
-  return render(<JsonEditModal {...baseProps} initialValue={initialValue} />);
+function renderModal(initialValue: string, props: Partial<React.ComponentProps<typeof JsonEditModal>> = {}) {
+  return render(<JsonEditModal {...baseProps} {...props} initialValue={initialValue} />);
 }
 
 function openFind() {
@@ -340,6 +412,127 @@ describe('JsonEditModal search position', () => {
     });
 
     expect(getFindInput(container)).toBeInTheDocument();
+  });
+
+  it('uses clearer transform button labels', () => {
+    renderModal('{"name":"first"}');
+
+    expect(screen.getByRole('button', { name: '还原转义内容' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '转成 JSON 字符串' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '复制 JSON 字符串字面量' })).toBeInTheDocument();
+  });
+
+  it('keeps the cursor near its previous offset after escaping the full document', async () => {
+    const onEscapeContent = vi.fn(async () => '"escaped document value"');
+    renderModal('{\n  "name": "first",\n  "age": 18\n}', { onEscapeContent });
+    const editor = mockEditorState.editor;
+
+    editor?.setPosition({ lineNumber: 2, column: 5 });
+    const previousOffset = editor?.model.getOffsetAt({ lineNumber: 2, column: 5 });
+
+    fireEvent.click(screen.getByRole('button', { name: '转成 JSON 字符串' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onEscapeContent).toHaveBeenCalled();
+    expect(editor?.getPosition()).toEqual(editor?.model.getPositionAt(previousOffset ?? 0));
+    expect(editor?.getPosition()).not.toEqual(editor?.model.getPositionAt(editor.model.getValue().length));
+    expect(editor?.revealPositionInCenter).toHaveBeenCalledWith(editor?.getPosition());
+    expect(screen.getByText('已转换整段内容，可保存或复制')).toBeInTheDocument();
+  });
+
+  it('writes transformed content even if Monaco is still read-only after a busy transform', async () => {
+    const onEscapeContent = vi.fn(async () => '"escaped document value"');
+    const onValueChange = vi.fn();
+
+    renderModal('{"name":"first"}', { onEscapeContent, onValueChange });
+    const editor = mockEditorState.editor;
+
+    editor?.updateOptions({ readOnly: true });
+
+    fireEvent.click(screen.getByRole('button', { name: '转成 JSON 字符串' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(editor?.updateOptions).toHaveBeenCalledWith({ readOnly: false });
+    expect(editor?.getValue()).toBe('"escaped document value"');
+    expect(onValueChange).toHaveBeenCalledWith('"escaped document value"');
+  });
+
+  it('transforms only the selected JSON fragment when a selection exists', async () => {
+    const initialValue = ['{', '  "items": [', '    { "name": "first" },', '    { "name": "second" }', '  ]', '}'].join(
+      '\n'
+    );
+    const selectedObject = '{ "name": "second" }';
+    const escapedObject = '"{ \\"name\\": \\"second\\" }"';
+    const onEscapeContent = vi.fn(async () => escapedObject);
+    const onValueChange = vi.fn();
+
+    renderModal(initialValue, { onEscapeContent, onValueChange });
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    const selectionStart = initialValue.indexOf(selectedObject);
+    const selectionEnd = selectionStart + selectedObject.length;
+    const startPosition = editor.model.getPositionAt(selectionStart);
+    const endPosition = editor.model.getPositionAt(selectionEnd);
+
+    if (!startPosition || !endPosition) {
+      throw new Error('Selection positions were not available');
+    }
+
+    editor.setSelection(
+      new mockEditorState.MockSelection(
+        startPosition.lineNumber,
+        startPosition.column,
+        endPosition.lineNumber,
+        endPosition.column
+      )
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '转成 JSON 字符串' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const expectedValue = initialValue.replace(selectedObject, escapedObject);
+
+    expect(onEscapeContent).toHaveBeenCalledWith(selectedObject);
+    expect(editor.getValue()).toBe(expectedValue);
+    expect(onValueChange).toHaveBeenCalledWith(expectedValue);
+    expect(editor.setSelection).toHaveBeenLastCalledWith(
+      new mockEditorState.MockSelection(
+        startPosition.lineNumber,
+        startPosition.column,
+        editor.model.getPositionAt(selectionStart + escapedObject.length).lineNumber,
+        editor.model.getPositionAt(selectionStart + escapedObject.length).column
+      )
+    );
+    expect(editor.revealRangeInCenter).toHaveBeenCalledWith(editor.selection);
+    expect(screen.getByText('已转换选中内容，可直接复制选区')).toBeInTheDocument();
+  });
+
+  it('shows a transform error when conversion fails', async () => {
+    const onEscapeContent = vi.fn(async () => {
+      throw new Error('不是合法 JSON 字符串');
+    });
+
+    renderModal('{"name":"first"}', { onEscapeContent });
+
+    fireEvent.click(screen.getByRole('button', { name: '转成 JSON 字符串' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('转换失败：不是合法 JSON 字符串')).toBeInTheDocument();
   });
 
   it('moves to the nearby next match after deleting the active key/value', async () => {

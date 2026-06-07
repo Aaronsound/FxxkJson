@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import JsonMonacoEditor from './JsonMonacoEditor';
@@ -28,6 +28,11 @@ interface JsonEditModalProps {
 }
 
 const defaultT = createTranslator('zh');
+
+function runWritableEditorEdit(editor: monaco.editor.IStandaloneCodeEditor, edit: () => void) {
+  editor.updateOptions({ readOnly: false });
+  edit();
+}
 
 type JsonEditModalE2EWindow = Window & {
   __HANJSON_E2E__?: boolean;
@@ -60,6 +65,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const isBusyRef = useRef(isBusy);
   const onCloseRef = useRef(onClose);
   const closeFindRef = useRef<() => void>(() => undefined);
+  const [transformNotice, setTransformNotice] = useState<string | null>(null);
+  const [transformError, setTransformError] = useState<string | null>(null);
   const editSearch = useEditModalSearch({
     editorRef,
     searchBatchSize: EDIT_MODAL_SEARCH_BATCH_SIZE,
@@ -182,16 +189,20 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       const model = editor?.getModel() ?? null;
 
       if (editor && model) {
-        editor.pushUndoStop();
-        editor.executeEdits('json-edit-transform', [
-          {
-            range: model.getFullModelRange(),
-            text: nextValue,
-            forceMoveMarkers: true,
-          },
-        ]);
-        editor.pushUndoStop();
-        const nextPosition = model.getPositionAt(nextValue.length);
+        const currentPosition = editor.getPosition();
+        const currentOffset = currentPosition ? model.getOffsetAt(currentPosition) : 0;
+        runWritableEditorEdit(editor, () => {
+          editor.pushUndoStop();
+          editor.executeEdits('json-edit-transform', [
+            {
+              range: model.getFullModelRange(),
+              text: nextValue,
+              forceMoveMarkers: true,
+            },
+          ]);
+          editor.pushUndoStop();
+        });
+        const nextPosition = model.getPositionAt(Math.min(currentOffset, nextValue.length));
         editor.setPosition(nextPosition);
         editor.revealPositionInCenter(nextPosition);
       }
@@ -207,13 +218,68 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       return;
     }
 
-    const currentValue = editorRef.current?.getValue() ?? initialValue;
+    const editor = editorRef.current;
+    const model = editor?.getModel() ?? null;
+    const selection = editor?.getSelection() ?? null;
+    const selectionStart = selection && model ? model.getOffsetAt(selection.getStartPosition()) : null;
+    const selectionEnd = selection && model ? model.getOffsetAt(selection.getEndPosition()) : null;
+    const selectedContext =
+      editor &&
+      model &&
+      selection &&
+      selectionStart !== null &&
+      selectionEnd !== null &&
+      selectionStart !== selectionEnd
+        ? {
+            editor,
+            model,
+            selection,
+            startOffset: Math.min(selectionStart, selectionEnd),
+          }
+        : null;
+    const currentValue = selectedContext
+      ? selectedContext.model.getValueInRange(selectedContext.selection)
+      : (editor?.getValue() ?? initialValue);
+
+    setTransformNotice(null);
+    setTransformError(null);
 
     try {
       const nextValue = await transform(currentValue);
+      if (selectedContext) {
+        runWritableEditorEdit(selectedContext.editor, () => {
+          selectedContext.editor.pushUndoStop();
+          selectedContext.editor.executeEdits('json-edit-transform-selection', [
+            {
+              range: selectedContext.selection,
+              text: nextValue,
+              forceMoveMarkers: true,
+            },
+          ]);
+          selectedContext.editor.pushUndoStop();
+        });
+
+        const startPosition = selectedContext.model.getPositionAt(selectedContext.startOffset);
+        const endPosition = selectedContext.model.getPositionAt(selectedContext.startOffset + nextValue.length);
+        const nextSelection = new monaco.Selection(
+          startPosition.lineNumber,
+          startPosition.column,
+          endPosition.lineNumber,
+          endPosition.column
+        );
+        selectedContext.editor.setSelection(nextSelection);
+        selectedContext.editor.revealRangeInCenter(nextSelection);
+        onValueChange(selectedContext.editor.getValue());
+        editSearch.refreshSearch();
+        setTransformNotice(t('edit.transformedSelection'));
+        return;
+      }
+
       replaceEditorValue(nextValue);
-    } catch {
-      // The parent owns the user-facing error copy so worker errors stay consistent.
+      setTransformNotice(t('edit.transformedDocument'));
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      setTransformError(t('edit.transformFailed', { message }));
     }
   };
 
@@ -272,6 +338,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             <button type="button" onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
               {t('edit.escapeContent')}
             </button>
+            {transformNotice && <span className="modal-copy-hint">{transformNotice}</span>}
           </div>
           <div className="modal-copy-group">
             <button type="button" onClick={onCopyLiteral} disabled={isBusy}>
@@ -286,6 +353,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
 
         {busyLabel && <div className="modal-error">{busyLabel}</div>}
         {error && <div className="modal-error">{error}</div>}
+        {transformError && <div className="modal-error">{transformError}</div>}
       </div>
     </div>
   );
