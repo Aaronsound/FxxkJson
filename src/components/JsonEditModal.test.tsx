@@ -69,6 +69,8 @@ class MockTextModel {
     return this.value;
   }
 
+  dispose = vi.fn();
+
   getLineCount() {
     return this.value.split('\n').length;
   }
@@ -132,6 +134,8 @@ class MockEditor {
 
   cursorSelectionListeners: Array<() => void> = [];
 
+  disposeListeners: Array<() => void> = [];
+
   position: { lineNumber: number; column: number };
 
   focus = vi.fn();
@@ -173,7 +177,8 @@ class MockEditor {
     return this.model.getValue();
   }
 
-  onDidDispose() {
+  onDidDispose(listener: () => void) {
+    this.disposeListeners.push(listener);
     return { dispose: vi.fn() };
   }
 
@@ -542,6 +547,64 @@ describe('JsonEditModal search position', () => {
       )
     );
     expect(editor.revealRangeInCenter).toHaveBeenCalledWith(editor.selection);
+  });
+
+  it('keeps restored multiline selection indented for array folding', async () => {
+    const initialValue = ['[', '  "{\\"name\\":\\"second\\",\\"nested\\":{\\"ok\\":true}}"', ']'].join('\n');
+    const selectedString = '"{\\"name\\":\\"second\\",\\"nested\\":{\\"ok\\":true}}"';
+    const restoredObject = ['{', '  "name": "second",', '  "nested": {', '    "ok": true', '  }', '}'].join('\n');
+    const onUnescapeContent = vi.fn(async () => restoredObject);
+    const onValueChange = vi.fn();
+
+    const { container } = renderModal(initialValue, { onUnescapeContent, onValueChange });
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    const selectionStart = initialValue.indexOf(selectedString);
+    const startPosition = editor.model.getPositionAt(selectionStart);
+    const endPosition = editor.model.getPositionAt(selectionStart + selectedString.length);
+    act(() => {
+      editor.setSelection(
+        new mockEditorState.MockSelection(
+          startPosition.lineNumber,
+          startPosition.column,
+          endPosition.lineNumber,
+          endPosition.column
+        )
+      );
+    });
+
+    openEditorContextMenu(container);
+    fireEvent.click(screen.getByRole('button', { name: '还原选中转义内容' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const expectedValue = [
+      '[',
+      '  {',
+      '    "name": "second",',
+      '    "nested": {',
+      '      "ok": true',
+      '    }',
+      '  }',
+      ']',
+    ].join('\n');
+
+    expect(editor.getValue()).toBe(expectedValue);
+    expect(onValueChange).toHaveBeenCalledWith(expectedValue);
+  });
+
+  it('disposes the edit model when the modal editor is disposed', () => {
+    renderModal('{"name":"first"}');
+    const editor = mockEditorState.editor;
+
+    editor?.disposeListeners.forEach((listener) => listener());
+
+    expect(editor?.model.dispose).toHaveBeenCalled();
   });
 
   it('copies the selected edit text from the context menu', async () => {

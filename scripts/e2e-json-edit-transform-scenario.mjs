@@ -146,6 +146,12 @@ export async function runEditTransformScenario(cdp) {
       ),
     'converted selection copied'
   );
+  await openEditContextMenu(cdp);
+  await clickButtonByText(cdp, '还原选中转义内容');
+  await waitFor(
+    () => getEditModalValue(cdp).then((value) => value.includes(selectedObject)),
+    'selected JSON string restored with surrounding indentation'
+  );
   await clickButtonByText(cdp, '取消');
   await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), 'array edit modal closed');
 

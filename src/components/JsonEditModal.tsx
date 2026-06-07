@@ -143,6 +143,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
+    const editModel = editor.getModel();
     const e2eWindow = window as JsonEditModalE2EWindow;
     if (e2eWindow.__HANJSON_E2E__) {
       e2eWindow.__HANJSON_E2E_EDIT_MODAL__ = {
@@ -215,6 +216,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       if (e2eWindow.__HANJSON_E2E_EDIT_MODAL__) {
         delete e2eWindow.__HANJSON_E2E_EDIT_MODAL__;
       }
+      editModel?.dispose();
     });
     editor.onDidChangeModelContent(() => {
       editSearch.captureSearchAnchor(editor);

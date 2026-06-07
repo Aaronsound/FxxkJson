@@ -7,6 +7,21 @@ export interface JsonEditSelectionContext {
   startOffset: number;
 }
 
+function indentSelectionReplacement(context: JsonEditSelectionContext, nextValue: string) {
+  if (!nextValue.includes('\n')) {
+    return nextValue;
+  }
+
+  const baseIndentLength = Math.max(0, context.selection.startColumn - 1);
+  if (baseIndentLength === 0) {
+    return nextValue;
+  }
+
+  const baseIndent = ' '.repeat(baseIndentLength);
+  const lines = nextValue.split('\n');
+  return lines.map((line, index) => (index === 0 || line.length === 0 ? line : `${baseIndent}${line}`)).join('\n');
+}
+
 export function runWritableEditorEdit(editor: monaco.editor.IStandaloneCodeEditor, edit: () => void) {
   editor.updateOptions({ readOnly: false });
   edit();
@@ -74,12 +89,14 @@ export function replaceJsonEditDocument(
 }
 
 export function replaceJsonEditSelection(context: JsonEditSelectionContext, nextValue: string) {
+  const replacementText = indentSelectionReplacement(context, nextValue);
+
   runWritableEditorEdit(context.editor, () => {
     context.editor.pushUndoStop();
     context.editor.executeEdits('json-edit-transform-selection', [
       {
         range: context.selection,
-        text: nextValue,
+        text: replacementText,
         forceMoveMarkers: true,
       },
     ]);
@@ -87,7 +104,7 @@ export function replaceJsonEditSelection(context: JsonEditSelectionContext, next
   });
 
   const startPosition = context.model.getPositionAt(context.startOffset);
-  const endPosition = context.model.getPositionAt(context.startOffset + nextValue.length);
+  const endPosition = context.model.getPositionAt(context.startOffset + replacementText.length);
   const nextSelection = new monaco.Selection(
     startPosition.lineNumber,
     startPosition.column,
