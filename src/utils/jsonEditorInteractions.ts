@@ -9,6 +9,7 @@ interface JsonEditorOptionsArgs {
   wrapLongLines: boolean;
   readOnly?: boolean;
   enableStructuralFolding?: boolean;
+  preserveStructuralFolding?: boolean;
 }
 
 export function formatBytes(value: number) {
@@ -89,8 +90,11 @@ export function getMonacoOptions({
   wrapLongLines,
   readOnly = false,
   enableStructuralFolding = !largeMode,
+  preserveStructuralFolding = false,
 }: JsonEditorOptionsArgs): monaco.editor.IStandaloneEditorConstructionOptions {
   const preserveFoldingForLargeReadonly = readOnly && enableStructuralFolding;
+  const shouldDisableLargeFileOptimizations =
+    enableStructuralFolding && (preserveStructuralFolding || preserveFoldingForLargeReadonly);
 
   return {
     automaticLayout: true,
@@ -102,12 +106,12 @@ export function getMonacoOptions({
     lineHeight: JSON_EDITOR_LINE_HEIGHT,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
-    largeFileOptimizations: preserveFoldingForLargeReadonly ? false : true,
+    largeFileOptimizations: shouldDisableLargeFileOptimizations ? false : true,
     wordWrap: wrapLongLines ? 'on' : 'off',
     folding: enableStructuralFolding,
     showFoldingControls: enableStructuralFolding ? 'always' : 'never',
     foldingStrategy: 'indentation',
-    foldingMaximumRegions: preserveFoldingForLargeReadonly ? 50000 : 5000,
+    foldingMaximumRegions: preserveStructuralFolding ? 200000 : preserveFoldingForLargeReadonly ? 50000 : 5000,
     foldingHighlight: enableStructuralFolding,
     glyphMargin: false,
     occurrencesHighlight: 'off',

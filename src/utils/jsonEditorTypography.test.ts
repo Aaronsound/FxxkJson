@@ -96,4 +96,22 @@ describe('JSON editor typography', () => {
     expect(getJsonEditorTheme(false)).toBe(JSON_EDITOR_LIGHT_THEME);
     expect(getJsonEditorTheme(true)).toBe(JSON_EDITOR_DARK_THEME);
   });
+
+  it('can preserve structural folding for repeated large edit modal sessions', () => {
+    const options = getMonacoOptions({
+      largeMode: false,
+      wrapLongLines: true,
+      enableStructuralFolding: true,
+      preserveStructuralFolding: true,
+    });
+
+    expect(options.folding).toBe(true);
+    expect(options.showFoldingControls).toBe('always');
+    expect(options.largeFileOptimizations).toBe(false);
+    expect(options.foldingMaximumRegions).toBe(200000);
+
+    const editModalSource = readFileSync(join(process.cwd(), 'src/components/JsonEditModal.tsx'), 'utf8');
+    expect(editModalSource).toContain('preserveStructuralFolding');
+    expect(editModalSource).toContain('path={`hanjson-edit-${sessionKey}.json`}');
+  });
 });

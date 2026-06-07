@@ -11,6 +11,7 @@ import {
   startElectronApp,
 } from './e2e-electron-app.mjs';
 import { importSampleByE2eBridge, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
+import { runRepeatedEditFoldingScenario } from './e2e-json-edit-folding-scenario.mjs';
 import { runEditTransformScenario } from './e2e-json-edit-transform-scenario.mjs';
 import {
   runClipboardAndCompareScenario,
@@ -25,6 +26,7 @@ function printSuccessSummary(sizeMb, samplePath) {
   console.table([
     { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
     { step: 'import', detail: 'E2E bridge imported JSON through app import flow' },
+    { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
     { step: 'search', detail: 'right pane traceId search returned results' },
     { step: 'locate', detail: 'right node click highlighted left raw JSON' },
     { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
@@ -73,6 +75,7 @@ async function run() {
       90000
     );
 
+    await runRepeatedEditFoldingScenario(cdp);
     await runSearchReplaceScenario(cdp);
     await runRightNodeScenario(cdp);
     await runClipboardAndCompareScenario(cdp);

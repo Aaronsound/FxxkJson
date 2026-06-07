@@ -9,6 +9,7 @@ type JsonMonacoEditorProps = Omit<EditorProps, 'options' | 'theme' | 'loading' |
   isDarkMode: boolean;
   largeMode: boolean;
   onMount?: OnMount;
+  preserveStructuralFolding?: boolean;
   readOnly?: boolean;
   wrapLongLines: boolean;
 };
@@ -18,6 +19,7 @@ const JsonMonacoEditor: React.FC<JsonMonacoEditorProps> = ({
   isDarkMode,
   largeMode,
   onMount,
+  preserveStructuralFolding,
   readOnly = false,
   wrapLongLines,
   ...editorProps
@@ -29,6 +31,7 @@ const JsonMonacoEditor: React.FC<JsonMonacoEditorProps> = ({
     options={getMonacoOptions({
       enableStructuralFolding,
       largeMode,
+      preserveStructuralFolding,
       readOnly,
       wrapLongLines,
     })}

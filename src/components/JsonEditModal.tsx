@@ -40,6 +40,12 @@ const defaultT = createTranslator('zh');
 type JsonEditModalE2EWindow = Window & {
   __HANJSON_E2E__?: boolean;
   __HANJSON_E2E_EDIT_MODAL__?: {
+    getFoldingConfig: () => {
+      folding: boolean;
+      foldingMaximumRegions: number;
+      largeFileOptimizations: boolean;
+      showFoldingControls: string;
+    };
     getValue: () => string;
     selectText: (text: string) => boolean;
     setValue: (value: string) => void;
@@ -140,6 +146,24 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const e2eWindow = window as JsonEditModalE2EWindow;
     if (e2eWindow.__HANJSON_E2E__) {
       e2eWindow.__HANJSON_E2E_EDIT_MODAL__ = {
+        getFoldingConfig() {
+          const rawOptions = editor.getRawOptions() as {
+            folding?: boolean;
+            foldingMaximumRegions?: number;
+            largeFileOptimizations?: boolean;
+            showFoldingControls?: string;
+          };
+
+          return {
+            folding: rawOptions.folding ?? editor.getOption(monaco.editor.EditorOption.folding),
+            foldingMaximumRegions:
+              rawOptions.foldingMaximumRegions ?? editor.getOption(monaco.editor.EditorOption.foldingMaximumRegions),
+            largeFileOptimizations: rawOptions.largeFileOptimizations ?? true,
+            showFoldingControls:
+              rawOptions.showFoldingControls ??
+              String(editor.getOption(monaco.editor.EditorOption.showFoldingControls)),
+          };
+        },
         getValue() {
           return editor.getValue();
         },
@@ -342,9 +366,12 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           <JsonMonacoEditor
             key={`modal-editor-${sessionKey}`}
             defaultLanguage="json"
+            path={`hanjson-edit-${sessionKey}.json`}
             defaultValue={initialValue}
+            enableStructuralFolding
             isDarkMode={isDarkMode}
             largeMode={false}
+            preserveStructuralFolding
             wrapLongLines
             readOnly={isBusy}
             onMount={handleEditorMount}
