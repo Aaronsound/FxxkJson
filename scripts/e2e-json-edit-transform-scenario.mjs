@@ -41,6 +41,31 @@ async function openEditModal(cdp) {
   );
 }
 
+async function openEditContextMenu(cdp) {
+  const opened = await evaluate(
+    cdp,
+    `(() => {
+      const shell = document.querySelector('.modal-editor-shell');
+      if (!shell) return false;
+      shell.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 180,
+        clientY: 260,
+        button: 2
+      }));
+      return true;
+    })()`
+  );
+  if (!opened) {
+    throw new Error('Could not open edit modal context menu');
+  }
+  await waitFor(
+    () => evaluate(cdp, `Boolean(document.querySelector('.large-json-context-menu'))`),
+    'edit context menu'
+  );
+}
+
 function extractObjectAroundMarker(text, marker) {
   const markerOffset = text.indexOf(marker);
   const startOffset = text.lastIndexOf('{', markerOffset);
@@ -105,13 +130,14 @@ export async function runEditTransformScenario(cdp) {
     throw new Error('Could not select JSON object in edit modal');
   }
 
-  await waitFor(() => evaluate(cdp, `document.body.innerText.includes('将转换选中内容')`), 'selection transform hint');
-  await clickButtonByText(cdp, '转成 JSON 字符串');
+  await openEditContextMenu(cdp);
+  await clickButtonByText(cdp, '选中内容转成 JSON 字符串');
   await waitFor(
     () => getEditModalValue(cdp).then((value) => value.includes(expectedSelectedString)),
     'selected object converted to JSON string'
   );
-  await clickButtonByText(cdp, '复制转换结果');
+  await openEditContextMenu(cdp);
+  await clickButtonByText(cdp, '复制');
   await waitFor(
     () =>
       evaluate(
@@ -136,23 +162,11 @@ export async function runEditTransformScenario(cdp) {
   );
 
   const expectedDocumentString = JSON.stringify(JSON.stringify(JSON.parse(OBJECT_SAMPLE)));
-  await waitFor(
-    () => evaluate(cdp, `document.body.innerText.includes('未选中内容，将转换整段')`),
-    'document transform hint'
-  );
-  await clickButtonByText(cdp, '转成 JSON 字符串');
+  await openEditContextMenu(cdp);
+  await clickButtonByText(cdp, '整段转成 JSON 字符串');
   await waitFor(
     () => getEditModalValue(cdp).then((value) => value === expectedDocumentString),
     'whole object converted to JSON string'
-  );
-  await clickButtonByText(cdp, '复制转换结果');
-  await waitFor(
-    () =>
-      evaluate(
-        cdp,
-        `window.electronAPI.readClipboardText().then((text) => text === ${JSON.stringify(expectedDocumentString)})`
-      ),
-    'converted document copied'
   );
   await clickButtonByText(cdp, '取消');
   await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), 'object edit modal closed');

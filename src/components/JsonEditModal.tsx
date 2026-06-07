@@ -70,11 +70,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const isBusyRef = useRef(isBusy);
   const onCloseRef = useRef(onClose);
   const closeFindRef = useRef<() => void>(() => undefined);
-  const [transformNotice, setTransformNotice] = useState<string | null>(null);
   const [transformError, setTransformError] = useState<string | null>(null);
-  const [transformCopyNotice, setTransformCopyNotice] = useState<string | null>(null);
-  const [lastTransformResult, setLastTransformResult] = useState<string | null>(null);
-  const [hasActiveSelection, setHasActiveSelection] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null);
   const editSearch = useEditModalSearch({
     editorRef,
     searchBatchSize: EDIT_MODAL_SEARCH_BATCH_SIZE,
@@ -118,6 +115,10 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
 
       event.preventDefault();
       event.stopPropagation();
+      if (contextMenu) {
+        setContextMenu(null);
+        return;
+      }
       if (editSearch.isFindOpenRef.current) {
         closeFindRef.current();
         return;
@@ -132,7 +133,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       window.removeEventListener('keydown', handleKeyDown, true);
       unsubscribeFindShortcut?.();
     };
-  }, [editSearch.openFind]);
+  }, [contextMenu, editSearch.openFind]);
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
@@ -195,10 +196,6 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       editSearch.captureSearchAnchor(editor);
       editSearch.refreshSearch();
     });
-    const selectionDisposable = editor.onDidChangeCursorSelection(() => {
-      setHasActiveSelection(hasJsonEditSelection(editor));
-    });
-
     window.setTimeout(() => {
       editor.focus();
     }, 0);
@@ -218,12 +215,22 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
       editSearch.openFind();
     });
-
-    setHasActiveSelection(hasJsonEditSelection(editor));
-    editor.onDidDispose(() => {
-      selectionDisposable.dispose();
-    });
   };
+
+  useEffect(() => {
+    if (!contextMenu) {
+      return undefined;
+    }
+
+    const closeContextMenu = () => setContextMenu(null);
+    window.addEventListener('pointerdown', closeContextMenu);
+    window.addEventListener('blur', closeContextMenu);
+
+    return () => {
+      window.removeEventListener('pointerdown', closeContextMenu);
+      window.removeEventListener('blur', closeContextMenu);
+    };
+  }, [contextMenu]);
 
   const replaceEditorValue = useCallback(
     (nextValue: string) => {
@@ -247,10 +254,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       ? selectedContext.model.getValueInRange(selectedContext.selection)
       : (editor?.getValue() ?? initialValue);
 
-    setTransformNotice(null);
     setTransformError(null);
-    setTransformCopyNotice(null);
-    setLastTransformResult(null);
 
     try {
       const nextValue = await transform(currentValue);
@@ -258,36 +262,51 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         replaceJsonEditSelection(selectedContext, nextValue);
         onValueChange(selectedContext.editor.getValue());
         editSearch.refreshSearch();
-        setTransformNotice(t('edit.transformedSelection'));
-        setLastTransformResult(nextValue);
-        setHasActiveSelection(true);
         return;
       }
 
       replaceEditorValue(nextValue);
-      setTransformNotice(t('edit.transformedDocument'));
-      setLastTransformResult(nextValue);
-      setHasActiveSelection(false);
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
       setTransformError(t('edit.transformFailed', { message }));
     }
   };
 
-  const handleCopyTransformResult = async () => {
-    if (!lastTransformResult || isBusy) {
+  const handleCopySelection = async () => {
+    if (isBusy) {
       return;
     }
 
-    setTransformCopyNotice(null);
+    const selectedContext = getJsonEditSelectionContext(editorRef.current);
+    if (!selectedContext) {
+      return;
+    }
+
     setTransformError(null);
     try {
-      await writeTextToClipboard(lastTransformResult);
-      setTransformCopyNotice(t('edit.copiedTransformResult'));
+      await writeTextToClipboard(selectedContext.model.getValueInRange(selectedContext.selection));
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : String(caughtError);
-      setTransformError(t('edit.copyTransformResultFailed', { message }));
+      setTransformError(t('edit.copySelectionFailed', { message }));
     }
+  };
+
+  const runContextAction = async (action: () => void | Promise<void>) => {
+    setContextMenu(null);
+    await action();
+  };
+
+  const openEditorContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (isBusy) {
+      return;
+    }
+
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      hasSelection: hasJsonEditSelection(editorRef.current),
+    });
   };
 
   return (
@@ -302,7 +321,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           )}
         </div>
 
-        <div className="modal-editor-shell">
+        <div className="modal-editor-shell" onContextMenu={openEditorContextMenu}>
           {editSearch.isFindOpen && (
             <PaneFindWidget
               value={editSearch.searchTerm}
@@ -332,36 +351,50 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             onChange={(value) => onValueChange(value ?? '')}
             height="100%"
           />
+          {contextMenu && (
+            <div
+              className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onContextMenu={(event) => event.preventDefault()}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="large-json-context-menu-item"
+                onClick={() => runContextAction(() => handleTransformContent(onEscapeContent))}
+              >
+                {contextMenu.hasSelection ? t('edit.contextEscapeSelection') : t('edit.contextEscapeDocument')}
+              </button>
+              <button
+                type="button"
+                className="large-json-context-menu-item"
+                onClick={() => runContextAction(() => handleTransformContent(onUnescapeContent))}
+              >
+                {contextMenu.hasSelection ? t('edit.contextUnescapeSelection') : t('edit.contextUnescapeDocument')}
+              </button>
+              <button
+                type="button"
+                className="large-json-context-menu-item"
+                disabled={!contextMenu.hasSelection}
+                onClick={() => runContextAction(handleCopySelection)}
+              >
+                {t('editorContext.copy')}
+              </button>
+              <button
+                type="button"
+                className="large-json-context-menu-item"
+                onClick={() => runContextAction(onCopyLiteral)}
+              >
+                {t('edit.copyLiteral')}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="modal-actions">
           <button type="button" onClick={onSave} disabled={isBusy}>
             {saveLabel}
           </button>
-          <div className="modal-copy-group">
-            <button type="button" onClick={() => void handleTransformContent(onUnescapeContent)} disabled={isBusy}>
-              {t('edit.unescapeContent')}
-            </button>
-            <button type="button" onClick={() => void handleTransformContent(onEscapeContent)} disabled={isBusy}>
-              {t('edit.escapeContent')}
-            </button>
-            <span className="modal-copy-hint">
-              {transformNotice ??
-                (hasActiveSelection ? t('edit.transformScopeSelection') : t('edit.transformScopeDocument'))}
-            </span>
-            {lastTransformResult && (
-              <button type="button" onClick={() => void handleCopyTransformResult()} disabled={isBusy}>
-                {t('edit.copyTransformResult')}
-              </button>
-            )}
-            {transformCopyNotice && <span className="modal-copy-hint">{transformCopyNotice}</span>}
-          </div>
-          <div className="modal-copy-group">
-            <button type="button" onClick={onCopyLiteral} disabled={isBusy}>
-              {t('edit.copyLiteral')}
-            </button>
-            {hasCopiedLiteral && <span className="modal-copy-hint">{t('edit.copiedLiteral')}</span>}
-          </div>
           <button type="button" onClick={onClose} disabled={isBusy}>
             {t('edit.cancel')}
           </button>
