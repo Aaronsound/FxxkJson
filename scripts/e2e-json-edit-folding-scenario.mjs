@@ -48,6 +48,30 @@ async function closeEditModal(cdp, label) {
   await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), `${label} closed`);
 }
 
+async function clickObjectFoldAndRequireCollapse(cdp, label) {
+  await waitFor(
+    () => evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button').length >= 2`),
+    `${label} fallback fold controls`,
+    90000
+  );
+  await evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button')[1].click()`);
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length > 0
+          && Array.from(document.querySelectorAll('.modal-editor-shell .view-line'))
+            .slice(0, 25)
+            .map((line) => line.textContent ?? '')
+            .join('\\n')
+            .replace(/\\u00a0/g, ' ')
+            .includes('FxxkJson e2e sample 1')`
+      ),
+    `${label} object collapsed`,
+    90000
+  );
+}
+
 async function openEditContextMenu(cdp) {
   const opened = await evaluate(
     cdp,
@@ -144,6 +168,7 @@ export async function runRepeatedEditFoldingScenario(cdp) {
   await openEditAndRequireFolding(cdp, 'first edit JSON folding controls');
   await copyLiteralIntoSecondTab(cdp);
   await openEditAndRequireFolding(cdp, 'first edit after copy literal and tab switch folding controls');
+  await clickObjectFoldAndRequireCollapse(cdp, 'first edit after copy literal and tab switch folding controls');
   await closeEditModal(cdp, 'first edit after copy literal and tab switch folding controls');
   await openEditAndRequireFolding(cdp, 'second edit JSON folding controls');
   await closeEditModal(cdp, 'second edit JSON folding controls');

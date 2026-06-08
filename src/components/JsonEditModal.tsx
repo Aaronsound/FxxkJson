@@ -67,6 +67,7 @@ type FoldingModel = {
 type EditFoldControl = {
   index: number;
   collapsed: boolean;
+  endLineNumber: number;
   lineNumber: number;
   top: number;
 };
@@ -74,6 +75,10 @@ type EditFoldControl = {
 type FoldingTextModel = monaco.editor.ITextModel & {
   __hanjsonEditFoldingOverride?: boolean;
   isTooLargeForTokenization?: () => boolean;
+};
+
+type HiddenAreaEditor = monaco.editor.IStandaloneCodeEditor & {
+  setHiddenAreas: (ranges: monaco.Range[]) => void;
 };
 
 type JsonEditModalE2EWindow = Window & {
@@ -133,6 +138,18 @@ function enableLargeEditModelFolding(editor: monaco.editor.IStandaloneCodeEditor
   editor.updateOptions({ folding: false });
 }
 
+function prepareLargeEditModel(editorApi: typeof monaco, path: string, initialValue: string) {
+  const uri = editorApi.Uri.parse(path);
+  let model = editorApi.editor.getModel(uri) as FoldingTextModel | null;
+
+  if (!model) {
+    model = editorApi.editor.createModel(initialValue, 'json', uri) as FoldingTextModel;
+  }
+
+  model.__hanjsonEditFoldingOverride = true;
+  model.isTooLargeForTokenization = () => false;
+}
+
 function getNativeFoldingControlCount() {
   const foldingIconCount = document.querySelectorAll(
     '.modal-editor-shell .codicon-folding-expanded, .modal-editor-shell .codicon-folding-collapsed, .modal-editor-shell .codicon-folding-manual-expanded, .modal-editor-shell .codicon-folding-manual-collapsed'
@@ -147,6 +164,10 @@ function getNativeFoldingControlCount() {
       return rect.width > 0 && rect.height > 0;
     }
   ).length;
+}
+
+function getEditFoldKey(startLineNumber: number, endLineNumber: number) {
+  return `${startLineNumber}:${endLineNumber}`;
 }
 
 const JsonEditModal: React.FC<JsonEditModalProps> = ({
@@ -176,21 +197,18 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const [transformError, setTransformError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null);
   const [foldControls, setFoldControls] = useState<EditFoldControl[]>([]);
+  const collapsedFoldRangesRef = useRef<Map<string, monaco.Range>>(new Map());
   const foldingModelRef = useRef<FoldingModel | null>(null);
   const editSearch = useEditModalSearch({
     editorRef,
     searchBatchSize: EDIT_MODAL_SEARCH_BATCH_SIZE,
   });
+  const editModelPath = `hanjson-edit-${sessionKey}.json`;
 
   const updateFoldControls = useCallback(async () => {
     const editor = editorRef.current;
     const model = editor?.getModel();
     if (!editor || !model || model.isDisposed()) {
-      setFoldControls([]);
-      return;
-    }
-
-    if (getNativeFoldingControlCount() > 0) {
       setFoldControls([]);
       return;
     }
@@ -217,9 +235,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         break;
       }
 
+      const endLineNumber = regions.getEndLineNumber(index);
       nextControls.push({
         index,
-        collapsed: regions.isCollapsed(index),
+        collapsed: collapsedFoldRangesRef.current.has(getEditFoldKey(lineNumber, endLineNumber)),
+        endLineNumber,
         lineNumber,
         top: editor.getTopForLineNumber(lineNumber) - editor.getScrollTop(),
       });
@@ -238,12 +258,38 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   }, [updateFoldControls]);
 
   const handleToggleFoldControl = (control: EditFoldControl) => {
-    const foldingModel = foldingModelRef.current;
-    if (!foldingModel) {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model || control.endLineNumber <= control.lineNumber) {
       return;
     }
 
-    foldingModel.toggleCollapseState([foldingModel.regions.toRegion(control.index)]);
+    const foldKey = getEditFoldKey(control.lineNumber, control.endLineNumber);
+    if (collapsedFoldRangesRef.current.has(foldKey)) {
+      collapsedFoldRangesRef.current.delete(foldKey);
+    } else {
+      collapsedFoldRangesRef.current.set(
+        foldKey,
+        new monaco.Range(
+          control.lineNumber + 1,
+          1,
+          control.endLineNumber,
+          model.getLineMaxColumn(control.endLineNumber)
+        )
+      );
+      const selection = editor.getSelection();
+      if (
+        selection &&
+        selection.startLineNumber > control.lineNumber &&
+        selection.startLineNumber <= control.endLineNumber
+      ) {
+        editor.setPosition({ lineNumber: control.lineNumber, column: model.getLineMaxColumn(control.lineNumber) });
+      }
+    }
+
+    (editor as HiddenAreaEditor).setHiddenAreas(Array.from(collapsedFoldRangesRef.current.values()));
+    editor.render(true);
+    editor.layout();
     scheduleFoldControlsUpdate();
   };
 
@@ -335,10 +381,10 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           return editor.getValue();
         },
         getVisibleFoldingControlCount() {
-          const nativeFoldingControlCount = getNativeFoldingControlCount();
-          return nativeFoldingControlCount > 0
-            ? nativeFoldingControlCount
-            : document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button').length;
+          const customFoldingControlCount = document.querySelectorAll(
+            '.modal-editor-shell .edit-modal-fold-button'
+          ).length;
+          return customFoldingControlCount > 0 ? customFoldingControlCount : getNativeFoldingControlCount();
         },
         getDebugInfo() {
           const model = editor.getModel();
@@ -399,19 +445,6 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         },
       };
     }
-    const nativeFoldObserver = new MutationObserver(() => {
-      if (getNativeFoldingControlCount() > 0) {
-        setFoldControls([]);
-      }
-    });
-    if (modalRef.current) {
-      nativeFoldObserver.observe(modalRef.current, {
-        attributes: true,
-        attributeFilter: ['class'],
-        childList: true,
-        subtree: true,
-      });
-    }
     editor.onDidDispose(() => {
       if (editorRef.current === editor) {
         editorRef.current = null;
@@ -419,10 +452,14 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       if (e2eWindow.__HANJSON_E2E_EDIT_MODAL__) {
         delete e2eWindow.__HANJSON_E2E_EDIT_MODAL__;
       }
-      nativeFoldObserver.disconnect();
+      collapsedFoldRangesRef.current.clear();
       editModel?.dispose();
     });
     editor.onDidChangeModelContent(() => {
+      collapsedFoldRangesRef.current.clear();
+      (editor as HiddenAreaEditor).setHiddenAreas([]);
+      editor.render(true);
+      editor.layout();
       editSearch.captureSearchAnchor(editor);
       editSearch.refreshSearch();
       refreshEditFoldingControls(editor);
@@ -577,7 +614,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           <JsonMonacoEditor
             key={`modal-editor-${sessionKey}`}
             defaultLanguage="json"
-            path={`hanjson-edit-${sessionKey}.json`}
+            path={editModelPath}
             defaultValue={initialValue}
             enableStructuralFolding
             isDarkMode={isDarkMode}
@@ -585,6 +622,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             preserveStructuralFolding
             wrapLongLines
             readOnly={isBusy}
+            beforeMount={(editorApi) => prepareLargeEditModel(editorApi, editModelPath, initialValue)}
             onMount={handleEditorMount}
             onChange={(value) => onValueChange(value ?? '')}
             height="100%"

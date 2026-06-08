@@ -54,6 +54,14 @@
   min-height: 0;
 }
 
+.modal-editor-shell .codicon-folding-expanded,
+.modal-editor-shell .codicon-folding-collapsed,
+.modal-editor-shell .codicon-folding-manual-expanded,
+.modal-editor-shell .codicon-folding-manual-collapsed {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .edit-modal-fold-overlay {
   position: absolute;
   top: 0;

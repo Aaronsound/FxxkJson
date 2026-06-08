@@ -156,9 +156,13 @@ class MockEditor {
     this.cursorSelectionListeners.forEach((listener) => listener());
   });
 
+  setHiddenAreas = vi.fn();
+
   revealPositionInCenter = vi.fn();
 
   layout = vi.fn();
+
+  render = vi.fn();
 
   foldingRegions = {
     length: 2,
@@ -184,6 +188,24 @@ class MockEditor {
   };
 
   getContribution = vi.fn(() => this.foldingContribution);
+
+  foldAction = {
+    run: vi.fn(() => Promise.resolve()),
+  };
+
+  unfoldAction = {
+    run: vi.fn(() => Promise.resolve()),
+  };
+
+  getAction = vi.fn((actionId: string) => {
+    if (actionId === 'editor.fold') {
+      return this.foldAction;
+    }
+    if (actionId === 'editor.unfold') {
+      return this.unfoldAction;
+    }
+    return null;
+  });
 
   pushUndoStop = vi.fn();
 
@@ -677,12 +699,18 @@ describe('JsonEditModal search position', () => {
 
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
     fireEvent.click(container.querySelector('.edit-modal-fold-button') as HTMLButtonElement);
-    expect(editor.foldingModel.toggleCollapseState).toHaveBeenCalledWith([
+    expect(editor.setHiddenAreas).toHaveBeenCalledWith([
       expect.objectContaining({
-        regionIndex: 0,
-        startLineNumber: 1,
+        startLineNumber: 2,
+        endLineNumber: 5,
       }),
     ]);
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+    fireEvent.click(container.querySelector('.edit-modal-fold-button.collapsed') as HTMLButtonElement);
+    expect(editor.setHiddenAreas).toHaveBeenLastCalledWith([]);
+    expect(editor.foldingModel.toggleCollapseState).not.toHaveBeenCalled();
     expect(editor.updateOptions).toHaveBeenCalledWith(
       expect.objectContaining({
         folding: true,
@@ -692,10 +720,11 @@ describe('JsonEditModal search position', () => {
     expect(container.querySelector('.modal-editor-shell')).toBeTruthy();
   });
 
-  it('hides fallback fold buttons when Monaco renders native fold controls', async () => {
+  it('keeps clickable fallback fold buttons when Monaco renders native fold controls', async () => {
     const { container } = renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editor = mockEditorState.editor;
     const editorShell = container.querySelector('.modal-editor-shell');
-    if (!(editorShell instanceof HTMLElement)) {
+    if (!editor || !(editorShell instanceof HTMLElement)) {
       throw new Error('Edit modal editor shell was not rendered');
     }
 
@@ -708,31 +737,14 @@ describe('JsonEditModal search position', () => {
     });
 
     expect(container.querySelectorAll('.codicon-folding-expanded')).toHaveLength(1);
-    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(0);
-  });
-
-  it('clears fallback fold buttons when Monaco native controls appear later', async () => {
-    const { container } = renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
-    const editorShell = container.querySelector('.modal-editor-shell');
-    if (!(editorShell instanceof HTMLElement)) {
-      throw new Error('Edit modal editor shell was not rendered');
-    }
-
-    await act(async () => {
-      vi.advanceTimersByTime(250);
-    });
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
-
-    const nativeFoldIcon = document.createElement('span');
-    nativeFoldIcon.className = 'codicon-folding-expanded';
-    editorShell.appendChild(nativeFoldIcon);
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(container.querySelectorAll('.codicon-folding-expanded')).toHaveLength(1);
-    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(0);
+    fireEvent.click(container.querySelector('.edit-modal-fold-button') as HTMLButtonElement);
+    expect(editor.setHiddenAreas).toHaveBeenCalledWith([
+      expect.objectContaining({
+        startLineNumber: 2,
+        endLineNumber: 5,
+      }),
+    ]);
   });
 
   it('disposes the edit model when the modal editor is disposed', () => {
