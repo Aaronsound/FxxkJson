@@ -170,6 +170,22 @@ function getEditFoldKey(startLineNumber: number, endLineNumber: number) {
   return `${startLineNumber}:${endLineNumber}`;
 }
 
+function getEditFoldOverlayLeft() {
+  const shellRect = document.querySelector('.modal-editor-shell')?.getBoundingClientRect();
+  if (!shellRect) {
+    return null;
+  }
+
+  const lineNumberRight = Array.from(
+    document.querySelectorAll<HTMLElement>('.modal-editor-shell .monaco-editor .line-numbers')
+  ).reduce((right, lineNumber) => {
+    const rect = lineNumber.getBoundingClientRect();
+    return rect.width > 0 ? Math.max(right, rect.right) : right;
+  }, 0);
+
+  return lineNumberRight > 0 ? Math.ceil(lineNumberRight - shellRect.left + 3) : null;
+}
+
 const JsonEditModal: React.FC<JsonEditModalProps> = ({
   sessionKey,
   initialValue,
@@ -197,6 +213,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const [transformError, setTransformError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null);
   const [foldControls, setFoldControls] = useState<EditFoldControl[]>([]);
+  const [foldOverlayLeft, setFoldOverlayLeft] = useState<number | null>(null);
   const collapsedFoldRangesRef = useRef<Map<string, monaco.Range>>(new Map());
   const foldingModelRef = useRef<FoldingModel | null>(null);
   const editSearch = useEditModalSearch({
@@ -225,6 +242,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const lastVisibleLine = Math.min(model.getLineCount(), (visibleRanges.at(-1)?.endLineNumber ?? 1) + 2);
     const regions = foldingModel.regions;
     const nextControls: EditFoldControl[] = [];
+    const nextOverlayLeft = getEditFoldOverlayLeft();
 
     for (let index = 0; index < regions.length && nextControls.length < 200; index += 1) {
       const lineNumber = regions.getStartLineNumber(index);
@@ -245,6 +263,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       });
     }
 
+    setFoldOverlayLeft(nextOverlayLeft);
     setFoldControls(nextControls);
   }, []);
 
@@ -627,7 +646,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             onChange={(value) => onValueChange(value ?? '')}
             height="100%"
           />
-          <div className="edit-modal-fold-overlay" aria-hidden="true">
+          <div
+            className="edit-modal-fold-overlay"
+            aria-hidden="true"
+            style={foldOverlayLeft === null ? undefined : { left: `${foldOverlayLeft}px` }}
+          >
             {foldControls.map((control) => (
               <button
                 type="button"

@@ -31,6 +31,31 @@ async function openEditAndRequireFolding(cdp, label) {
     `${label} visible folding controls`,
     90000
   );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const nativeVisibleCount = Array.from(document.querySelectorAll(
+            '.modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-expanded, .modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-collapsed, .modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded, .modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed'
+          )).filter((icon) => {
+            const style = window.getComputedStyle(icon);
+            const rect = icon.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+          }).length;
+          const firstButton = document.querySelector('.modal-editor-shell .edit-modal-fold-button');
+          const lineNumberRight = Math.max(
+            0,
+            ...Array.from(document.querySelectorAll('.modal-editor-shell .monaco-editor .line-numbers'))
+              .map((lineNumber) => lineNumber.getBoundingClientRect().right)
+          );
+          if (!firstButton || lineNumberRight <= 0) return false;
+          return nativeVisibleCount === 0 && firstButton.getBoundingClientRect().left >= lineNumberRight + 1;
+        })()`
+      ),
+    `${label} fold controls separated from line numbers`,
+    90000
+  );
 }
 
 async function closeEditModal(cdp, label) {
