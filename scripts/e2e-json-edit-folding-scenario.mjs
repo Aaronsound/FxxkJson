@@ -85,6 +85,17 @@ async function clickObjectFoldAndRequireCollapse(cdp, label) {
       evaluate(
         cdp,
         `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length > 0
+          && (() => {
+            const rects = Array.from(document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button'))
+              .map((button) => button.getBoundingClientRect());
+            return rects.every((rect, index) => rects.every((other, otherIndex) => {
+              if (index >= otherIndex) return true;
+              return rect.right <= other.left
+                || other.right <= rect.left
+                || rect.bottom <= other.top
+                || other.bottom <= rect.top;
+            }));
+          })()
           && Array.from(document.querySelectorAll('.modal-editor-shell .view-line'))
             .slice(0, 25)
             .map((line) => line.textContent ?? '')

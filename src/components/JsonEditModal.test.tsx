@@ -708,6 +708,8 @@ describe('JsonEditModal search position', () => {
     await act(async () => {
       vi.advanceTimersByTime(250);
     });
+    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(1);
+    expect(container.querySelector('.edit-modal-fold-button.collapsed')).toBeTruthy();
     fireEvent.click(container.querySelector('.edit-modal-fold-button.collapsed') as HTMLButtonElement);
     expect(editor.setHiddenAreas).toHaveBeenLastCalledWith([]);
     expect(editor.foldingModel.toggleCollapseState).not.toHaveBeenCalled();

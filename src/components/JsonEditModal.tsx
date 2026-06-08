@@ -186,6 +186,16 @@ function getEditFoldOverlayLeft() {
   return lineNumberRight > 0 ? Math.ceil(lineNumberRight - shellRect.left + 3) : null;
 }
 
+function isLineInsideCollapsedEditFold(lineNumber: number, ranges: Iterable<monaco.Range>) {
+  for (const range of ranges) {
+    if (lineNumber >= range.startLineNumber && lineNumber <= range.endLineNumber) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 const JsonEditModal: React.FC<JsonEditModalProps> = ({
   sessionKey,
   initialValue,
@@ -243,6 +253,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const regions = foldingModel.regions;
     const nextControls: EditFoldControl[] = [];
     const nextOverlayLeft = getEditFoldOverlayLeft();
+    const collapsedFoldRanges = Array.from(collapsedFoldRangesRef.current.values());
 
     for (let index = 0; index < regions.length && nextControls.length < 200; index += 1) {
       const lineNumber = regions.getStartLineNumber(index);
@@ -254,9 +265,14 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       }
 
       const endLineNumber = regions.getEndLineNumber(index);
+      const isCollapsed = collapsedFoldRangesRef.current.has(getEditFoldKey(lineNumber, endLineNumber));
+      if (!isCollapsed && isLineInsideCollapsedEditFold(lineNumber, collapsedFoldRanges)) {
+        continue;
+      }
+
       nextControls.push({
         index,
-        collapsed: collapsedFoldRangesRef.current.has(getEditFoldKey(lineNumber, endLineNumber)),
+        collapsed: isCollapsed,
         endLineNumber,
         lineNumber,
         top: editor.getTopForLineNumber(lineNumber) - editor.getScrollTop(),
