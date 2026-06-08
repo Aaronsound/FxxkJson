@@ -133,6 +133,22 @@ function enableLargeEditModelFolding(editor: monaco.editor.IStandaloneCodeEditor
   editor.updateOptions({ folding: false });
 }
 
+function getNativeFoldingControlCount() {
+  const foldingIconCount = document.querySelectorAll(
+    '.modal-editor-shell .codicon-folding-expanded, .modal-editor-shell .codicon-folding-collapsed, .modal-editor-shell .codicon-folding-manual-expanded, .modal-editor-shell .codicon-folding-manual-collapsed'
+  ).length;
+  if (foldingIconCount > 0) {
+    return foldingIconCount;
+  }
+
+  return Array.from(document.querySelectorAll<HTMLElement>('.modal-editor-shell .margin-view-overlays .cldr')).filter(
+    (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    }
+  ).length;
+}
+
 const JsonEditModal: React.FC<JsonEditModalProps> = ({
   sessionKey,
   initialValue,
@@ -170,6 +186,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const editor = editorRef.current;
     const model = editor?.getModel();
     if (!editor || !model || model.isDisposed()) {
+      setFoldControls([]);
+      return;
+    }
+
+    if (getNativeFoldingControlCount() > 0) {
       setFoldControls([]);
       return;
     }
@@ -314,26 +335,10 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           return editor.getValue();
         },
         getVisibleFoldingControlCount() {
-          const customFoldingControlCount = document.querySelectorAll(
-            '.modal-editor-shell .edit-modal-fold-button'
-          ).length;
-          if (customFoldingControlCount > 0) {
-            return customFoldingControlCount;
-          }
-
-          const foldingIconCount = document.querySelectorAll(
-            '.modal-editor-shell .codicon-folding-expanded, .modal-editor-shell .codicon-folding-collapsed, .modal-editor-shell .codicon-folding-manual-expanded, .modal-editor-shell .codicon-folding-manual-collapsed'
-          ).length;
-          if (foldingIconCount > 0) {
-            return foldingIconCount;
-          }
-
-          return Array.from(
-            document.querySelectorAll<HTMLElement>('.modal-editor-shell .margin-view-overlays .cldr')
-          ).filter((element) => {
-            const rect = element.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
-          }).length;
+          const nativeFoldingControlCount = getNativeFoldingControlCount();
+          return nativeFoldingControlCount > 0
+            ? nativeFoldingControlCount
+            : document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button').length;
         },
         getDebugInfo() {
           const model = editor.getModel();
@@ -394,6 +399,19 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         },
       };
     }
+    const nativeFoldObserver = new MutationObserver(() => {
+      if (getNativeFoldingControlCount() > 0) {
+        setFoldControls([]);
+      }
+    });
+    if (modalRef.current) {
+      nativeFoldObserver.observe(modalRef.current, {
+        attributes: true,
+        attributeFilter: ['class'],
+        childList: true,
+        subtree: true,
+      });
+    }
     editor.onDidDispose(() => {
       if (editorRef.current === editor) {
         editorRef.current = null;
@@ -401,6 +419,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       if (e2eWindow.__HANJSON_E2E_EDIT_MODAL__) {
         delete e2eWindow.__HANJSON_E2E_EDIT_MODAL__;
       }
+      nativeFoldObserver.disconnect();
       editModel?.dispose();
     });
     editor.onDidChangeModelContent(() => {

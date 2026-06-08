@@ -692,6 +692,49 @@ describe('JsonEditModal search position', () => {
     expect(container.querySelector('.modal-editor-shell')).toBeTruthy();
   });
 
+  it('hides fallback fold buttons when Monaco renders native fold controls', async () => {
+    const { container } = renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editorShell = container.querySelector('.modal-editor-shell');
+    if (!(editorShell instanceof HTMLElement)) {
+      throw new Error('Edit modal editor shell was not rendered');
+    }
+
+    const nativeFoldIcon = document.createElement('span');
+    nativeFoldIcon.className = 'codicon-folding-expanded';
+    editorShell.appendChild(nativeFoldIcon);
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(container.querySelectorAll('.codicon-folding-expanded')).toHaveLength(1);
+    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(0);
+  });
+
+  it('clears fallback fold buttons when Monaco native controls appear later', async () => {
+    const { container } = renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editorShell = container.querySelector('.modal-editor-shell');
+    if (!(editorShell instanceof HTMLElement)) {
+      throw new Error('Edit modal editor shell was not rendered');
+    }
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
+
+    const nativeFoldIcon = document.createElement('span');
+    nativeFoldIcon.className = 'codicon-folding-expanded';
+    editorShell.appendChild(nativeFoldIcon);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.querySelectorAll('.codicon-folding-expanded')).toHaveLength(1);
+    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(0);
+  });
+
   it('disposes the edit model when the modal editor is disposed', () => {
     renderModal('{"name":"first"}');
     const editor = mockEditorState.editor;
