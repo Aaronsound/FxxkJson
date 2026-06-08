@@ -54,10 +54,15 @@
   min-height: 0;
 }
 
-.modal-editor-shell .codicon-folding-expanded,
-.modal-editor-shell .codicon-folding-collapsed,
-.modal-editor-shell .codicon-folding-manual-expanded,
-.modal-editor-shell .codicon-folding-manual-collapsed {
+.modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-collapsed,
+.modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-manual-expanded,
+.modal-editor-shell .monaco-editor .margin-view-overlays .codicon-folding-manual-collapsed,
+.modal-editor-shell .monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-expanded,
+.modal-editor-shell .monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-collapsed,
+.modal-editor-shell .monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-manual-expanded,
+.modal-editor-shell .monaco-editor .margin-view-overlays .cldr.codicon.codicon-folding-manual-collapsed {
+  display: none !important;
   opacity: 0 !important;
   pointer-events: none !important;
 }
