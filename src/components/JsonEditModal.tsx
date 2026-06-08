@@ -15,6 +15,7 @@ import {
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
+const EDIT_FOLD_CONTROL_VISUAL_DEDUPE_PX = 4;
 
 interface JsonEditModalProps {
   sessionKey: number;
@@ -212,6 +213,28 @@ function chooseEditFoldControl(current: EditFoldControl | undefined, next: EditF
   return current;
 }
 
+function dedupeEditFoldControlsByVisualPosition(controls: EditFoldControl[]) {
+  const nextControls: EditFoldControl[] = [];
+  const sortedControls = [...controls].sort(
+    (left, right) => left.top - right.top || left.lineNumber - right.lineNumber
+  );
+
+  for (const control of sortedControls) {
+    const existingIndex = nextControls.findIndex(
+      (existingControl) => Math.abs(existingControl.top - control.top) < EDIT_FOLD_CONTROL_VISUAL_DEDUPE_PX
+    );
+
+    if (existingIndex < 0) {
+      nextControls.push(control);
+      continue;
+    }
+
+    nextControls[existingIndex] = chooseEditFoldControl(nextControls[existingIndex], control);
+  }
+
+  return nextControls.sort((left, right) => left.top - right.top || left.lineNumber - right.lineNumber);
+}
+
 const JsonEditModal: React.FC<JsonEditModalProps> = ({
   sessionKey,
   initialValue,
@@ -268,7 +291,6 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const lastVisibleLine = Math.min(model.getLineCount(), (visibleRanges.at(-1)?.endLineNumber ?? 1) + 2);
     const regions = foldingModel.regions;
     const controlsByLine = new Map<number, EditFoldControl>();
-    const controlsByTop = new Map<number, EditFoldControl>();
     const nextOverlayLeft = getEditFoldOverlayLeft();
     const collapsedFoldRanges = Array.from(collapsedFoldRangesRef.current.values());
 
@@ -294,15 +316,12 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         lineNumber,
         top: editor.getTopForLineNumber(lineNumber) - editor.getScrollTop(),
       };
-      const topKey = Math.round(nextControl.top);
       const lineWinner = chooseEditFoldControl(controlsByLine.get(lineNumber), nextControl);
       controlsByLine.set(lineNumber, lineWinner);
-      const topWinner = chooseEditFoldControl(controlsByTop.get(topKey), lineWinner);
-      controlsByTop.set(topKey, topWinner);
     }
 
     setFoldOverlayLeft(nextOverlayLeft);
-    setFoldControls(Array.from(controlsByTop.values()));
+    setFoldControls(dedupeEditFoldControlsByVisualPosition(Array.from(controlsByLine.values())));
   }, []);
 
   const scheduleFoldControlsUpdate = useCallback(() => {
@@ -709,6 +728,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
                 type="button"
                 key={`${control.lineNumber}-${control.index}`}
                 className={`edit-modal-fold-button ${control.collapsed ? 'collapsed' : 'expanded'}`}
+                data-end-line-number={control.endLineNumber}
+                data-line-number={control.lineNumber}
                 style={{ top: `${control.top}px` }}
                 tabIndex={-1}
                 title={control.collapsed ? '展开' : '折叠'}

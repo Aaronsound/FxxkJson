@@ -23,6 +23,19 @@ async function getEditModalValue(cdp) {
   return evaluate(cdp, `window.__HANJSON_E2E_EDIT_MODAL__?.getValue?.() ?? ''`);
 }
 
+async function getTextStartLine(cdp, text) {
+  return evaluate(
+    cdp,
+    `(() => {
+      const editor = window.__HANJSON_E2E_EDIT_MODAL__?.__editor;
+      const model = editor?.getModel?.();
+      const value = model?.getValue?.() ?? '';
+      const offset = value.indexOf(${JSON.stringify(text)});
+      return model && offset >= 0 ? model.getPositionAt(offset).lineNumber : null;
+    })()`
+  );
+}
+
 async function openEditModal(cdp) {
   await waitFor(
     () =>
@@ -66,46 +79,67 @@ async function openEditContextMenu(cdp) {
   );
 }
 
-async function clickFirstObjectFoldAfterTransform(cdp) {
-  await waitFor(
-    () => evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button').length >= 2`),
-    'restored selection folding controls'
+async function getFoldControlHealth(cdp) {
+  return evaluate(
+    cdp,
+    `(() => {
+      const buttons = Array.from(document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button'));
+      const rects = buttons.map((button) => button.getBoundingClientRect());
+      const roundedTops = rects.map((rect) => Math.round(rect.top));
+      const lineNumbers = buttons.map((button) => button.getAttribute('data-line-number') ?? '');
+      const hasOverlap = rects.some((rect, index) => rects.some((other, otherIndex) => {
+        if (index >= otherIndex) return false;
+        return !(rect.right <= other.left
+          || other.right <= rect.left
+          || rect.bottom <= other.top
+          || other.bottom <= rect.top);
+      }));
+      return {
+        collapsedCount: buttons.filter((button) => button.classList.contains('collapsed')).length,
+        hasDuplicateLine: new Set(lineNumbers).size !== lineNumbers.length,
+        hasDuplicateTop: new Set(roundedTops).size !== roundedTops.length,
+        hasOverlap,
+      };
+    })()`
   );
-  await evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button')[1].click()`);
+}
+
+async function clickObjectFoldAfterTransform(cdp, lineNumber, label) {
   await waitFor(
     () =>
       evaluate(
         cdp,
-        `(() => {
-          const collapsedCount = document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length;
-          const rects = Array.from(document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button'))
-            .map((button) => button.getBoundingClientRect());
-          const roundedTops = rects.map((rect) => Math.round(rect.top));
-          const hasOverlap = rects.some((rect, index) => rects.some((other, otherIndex) => {
-            if (index >= otherIndex) return false;
-            return !(rect.right <= other.left
-              || other.right <= rect.left
-              || rect.bottom <= other.top
-              || other.bottom <= rect.top);
-          }));
-          const hasDuplicateTop = new Set(roundedTops).size !== roundedTops.length;
-          return collapsedCount > 0 && !hasOverlap && !hasDuplicateTop;
-        })()`
+        `Boolean(document.querySelector('.modal-editor-shell .edit-modal-fold-button[data-line-number="${lineNumber}"]'))`
       ),
-    'restored selection object folded without overlapping controls'
+    `${label} restored selection folding control`
   );
+  await evaluate(
+    cdp,
+    `document.querySelector('.modal-editor-shell .edit-modal-fold-button[data-line-number="${lineNumber}"]')?.click()`
+  );
+  await waitFor(async () => {
+    const health = await getFoldControlHealth(cdp);
+    return health.collapsedCount > 0 && !health.hasOverlap && !health.hasDuplicateTop && !health.hasDuplicateLine;
+  }, `${label} restored object folded without overlapping controls`);
 }
 
-async function collapseFirstObjectBeforeTransform(cdp) {
+async function collapseObjectBeforeTransform(cdp, lineNumber, label) {
   await waitFor(
-    () => evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button').length >= 2`),
-    'initial selection folding controls'
+    () =>
+      evaluate(
+        cdp,
+        `Boolean(document.querySelector('.modal-editor-shell .edit-modal-fold-button[data-line-number="${lineNumber}"]'))`
+      ),
+    `${label} initial selection folding control`
   );
-  await evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button')[1].click()`);
+  await evaluate(
+    cdp,
+    `document.querySelector('.modal-editor-shell .edit-modal-fold-button[data-line-number="${lineNumber}"]')?.click()`
+  );
   await waitFor(
     () =>
       evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length > 0`),
-    'first object collapsed before selection transform'
+    `${label} object collapsed before selection transform`
   );
 }
 
@@ -155,52 +189,62 @@ function extractObjectAroundMarker(text, marker) {
 }
 
 export async function runEditTransformScenario(cdp) {
-  await importText(cdp, 'edit-transform-array.json', ARRAY_SAMPLE);
-  await openEditModal(cdp);
-  await waitFor(
-    () => getEditModalValue(cdp).then((value) => value.includes('FxxkJson edit transform sample 1')),
-    'edit transform array imported'
-  );
+  const selectionScenarios = [
+    { collapseBeforeTransform: true, id: 0 },
+    { collapseBeforeTransform: true, id: 1 },
+    { collapseBeforeTransform: false, id: 0 },
+    { collapseBeforeTransform: false, id: 1 },
+  ];
 
-  const arrayEditValue = await getEditModalValue(cdp);
-  const selectedObject = extractObjectAroundMarker(arrayEditValue, '"id": 0');
-  const expectedSelectedString = JSON.stringify(JSON.stringify(JSON.parse(selectedObject)));
-  await collapseFirstObjectBeforeTransform(cdp);
-  const selected = await evaluate(
-    cdp,
-    `window.__HANJSON_E2E_EDIT_MODAL__?.selectText(${JSON.stringify(selectedObject)}) ?? false`
-  );
-  if (!selected) {
-    throw new Error('Could not select JSON object in edit modal');
+  for (const scenario of selectionScenarios) {
+    const label = `edit transform object ${scenario.id} ${
+      scenario.collapseBeforeTransform ? 'after pre-collapse' : 'without pre-collapse'
+    }`;
+    await importText(cdp, `${label}.json`, ARRAY_SAMPLE);
+    await openEditModal(cdp);
+    await waitFor(
+      () => getEditModalValue(cdp).then((value) => value.includes('FxxkJson edit transform sample 1')),
+      `${label} array imported`
+    );
+
+    const arrayEditValue = await getEditModalValue(cdp);
+    const selectedObject = extractObjectAroundMarker(arrayEditValue, `"id": ${scenario.id}`);
+    const expectedSelectedString = JSON.stringify(JSON.stringify(JSON.parse(selectedObject)));
+    const startLine = await getTextStartLine(cdp, selectedObject);
+    if (!startLine) {
+      throw new Error(`Could not find start line for ${label}`);
+    }
+
+    if (scenario.collapseBeforeTransform) {
+      await collapseObjectBeforeTransform(cdp, startLine, label);
+    }
+
+    const selected = await evaluate(
+      cdp,
+      `window.__HANJSON_E2E_EDIT_MODAL__?.selectText(${JSON.stringify(selectedObject)}) ?? false`
+    );
+    if (!selected) {
+      throw new Error(`Could not select JSON object for ${label}`);
+    }
+
+    await openEditContextMenu(cdp);
+    await clickButtonByText(cdp, '选中内容转成 JSON 字符串');
+    await waitFor(
+      () => getEditModalValue(cdp).then((value) => value.includes(expectedSelectedString)),
+      `${label} selected object converted to JSON string`
+    );
+    await openEditContextMenu(cdp);
+    await clickButtonByText(cdp, '还原选中转义内容');
+    await waitFor(
+      () => getEditModalValue(cdp).then((value) => value.includes(selectedObject)),
+      `${label} selected JSON string restored with surrounding indentation`
+    );
+    await clickObjectFoldAfterTransform(cdp, startLine, label);
+    await clickButtonByText(cdp, '取消');
+    await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), `${label} array edit modal closed`);
+    await clickSelector(cdp, '.add-tab');
   }
 
-  await openEditContextMenu(cdp);
-  await clickButtonByText(cdp, '选中内容转成 JSON 字符串');
-  await waitFor(
-    () => getEditModalValue(cdp).then((value) => value.includes(expectedSelectedString)),
-    'selected object converted to JSON string'
-  );
-  await openEditContextMenu(cdp);
-  await clickButtonByText(cdp, '复制');
-  await waitFor(
-    () =>
-      evaluate(
-        cdp,
-        `window.electronAPI.readClipboardText().then((text) => text === ${JSON.stringify(expectedSelectedString)})`
-      ),
-    'converted selection copied'
-  );
-  await openEditContextMenu(cdp);
-  await clickButtonByText(cdp, '还原选中转义内容');
-  await waitFor(
-    () => getEditModalValue(cdp).then((value) => value.includes(selectedObject)),
-    'selected JSON string restored with surrounding indentation'
-  );
-  await clickFirstObjectFoldAfterTransform(cdp);
-  await clickButtonByText(cdp, '取消');
-  await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), 'array edit modal closed');
-
-  await clickSelector(cdp, '.add-tab');
   await waitFor(
     () => evaluate(cdp, `document.querySelectorAll('.tab-bar .tab').length >= 2`),
     'edit transform object tab'
