@@ -251,11 +251,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const firstVisibleLine = Math.max(1, (visibleRanges[0]?.startLineNumber ?? 1) - 2);
     const lastVisibleLine = Math.min(model.getLineCount(), (visibleRanges.at(-1)?.endLineNumber ?? 1) + 2);
     const regions = foldingModel.regions;
-    const nextControls: EditFoldControl[] = [];
+    const controlsByLine = new Map<number, EditFoldControl>();
     const nextOverlayLeft = getEditFoldOverlayLeft();
     const collapsedFoldRanges = Array.from(collapsedFoldRangesRef.current.values());
 
-    for (let index = 0; index < regions.length && nextControls.length < 200; index += 1) {
+    for (let index = 0; index < regions.length && controlsByLine.size < 200; index += 1) {
       const lineNumber = regions.getStartLineNumber(index);
       if (lineNumber < firstVisibleLine) {
         continue;
@@ -270,17 +270,26 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         continue;
       }
 
-      nextControls.push({
+      const nextControl = {
         index,
         collapsed: isCollapsed,
         endLineNumber,
         lineNumber,
         top: editor.getTopForLineNumber(lineNumber) - editor.getScrollTop(),
-      });
+      };
+      const existingControl = controlsByLine.get(lineNumber);
+      if (
+        !existingControl ||
+        (!existingControl.collapsed && nextControl.collapsed) ||
+        (existingControl.collapsed === nextControl.collapsed &&
+          nextControl.endLineNumber > existingControl.endLineNumber)
+      ) {
+        controlsByLine.set(lineNumber, nextControl);
+      }
     }
 
     setFoldOverlayLeft(nextOverlayLeft);
-    setFoldControls(nextControls);
+    setFoldControls(Array.from(controlsByLine.values()));
   }, []);
 
   const scheduleFoldControlsUpdate = useCallback(() => {

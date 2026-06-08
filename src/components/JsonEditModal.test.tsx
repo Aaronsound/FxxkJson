@@ -166,8 +166,8 @@ class MockEditor {
 
   foldingRegions = {
     length: 2,
-    getStartLineNumber: vi.fn((index: number) => (index === 0 ? 1 : 2)),
-    getEndLineNumber: vi.fn((index: number) => (index === 0 ? 5 : 4)),
+    getStartLineNumber: vi.fn((index: number): number => (index === 0 ? 1 : 2)),
+    getEndLineNumber: vi.fn((index: number): number => (index === 0 ? 5 : 4)),
     isCollapsed: vi.fn(() => false),
     toRegion: vi.fn((index: number) => ({
       endLineNumber: index === 0 ? 5 : 4,
@@ -745,6 +745,33 @@ describe('JsonEditModal search position', () => {
       expect.objectContaining({
         startLineNumber: 2,
         endLineNumber: 5,
+      }),
+    ]);
+  });
+
+  it('deduplicates repeated fallback fold buttons on the same line', async () => {
+    const { container } = renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    editor.foldingRegions.length = 3;
+    editor.foldingRegions.getStartLineNumber.mockImplementation((index: number) => (index === 0 ? 1 : 2));
+    editor.foldingRegions.getEndLineNumber.mockImplementation((index: number) =>
+      index === 0 ? 5 : index === 1 ? 3 : 4
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
+    fireEvent.click(container.querySelectorAll('.edit-modal-fold-button')[1] as HTMLButtonElement);
+    expect(editor.setHiddenAreas).toHaveBeenCalledWith([
+      expect.objectContaining({
+        startLineNumber: 3,
+        endLineNumber: 4,
       }),
     ]);
   });

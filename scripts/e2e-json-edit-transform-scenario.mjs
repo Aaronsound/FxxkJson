@@ -148,7 +148,7 @@ export async function runEditTransformScenario(cdp) {
   );
 
   const arrayEditValue = await getEditModalValue(cdp);
-  const selectedObject = extractObjectAroundMarker(arrayEditValue, '"id": 1');
+  const selectedObject = extractObjectAroundMarker(arrayEditValue, '"id": 0');
   const expectedSelectedString = JSON.stringify(JSON.stringify(JSON.parse(selectedObject)));
   const selected = await evaluate(
     cdp,
