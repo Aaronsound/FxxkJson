@@ -79,6 +79,10 @@ class MockTextModel {
     return this.value.split('\n').length;
   }
 
+  getLineContent(lineNumber: number) {
+    return this.value.split('\n')[lineNumber - 1] ?? '';
+  }
+
   getLineMaxColumn(lineNumber: number) {
     return this.value.split('\n')[lineNumber - 1].length + 1;
   }
@@ -201,7 +205,7 @@ class MockEditor {
     if (actionId === 'editor.fold') {
       return this.foldAction;
     }
-    if (actionId === 'editor.unfold') {
+    if (actionId === 'editor.unfold' || actionId === 'editor.unfoldAll') {
       return this.unfoldAction;
     }
     return null;

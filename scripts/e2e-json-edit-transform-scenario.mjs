@@ -201,16 +201,18 @@ function extractObjectAroundMarker(text, marker) {
 
 export async function runEditTransformScenario(cdp) {
   const selectionScenarios = [
-    { collapseBeforeTransform: true, id: 0 },
-    { collapseBeforeTransform: true, id: 1 },
-    { collapseBeforeTransform: false, id: 0 },
-    { collapseBeforeTransform: false, id: 1 },
+    { collapseBeforeTransform: true, id: 0, selectBeforeCollapse: true },
+    { collapseBeforeTransform: true, id: 1, selectBeforeCollapse: true },
+    { collapseBeforeTransform: true, id: 0, selectBeforeCollapse: false },
+    { collapseBeforeTransform: true, id: 1, selectBeforeCollapse: false },
+    { collapseBeforeTransform: false, id: 0, selectBeforeCollapse: false },
+    { collapseBeforeTransform: false, id: 1, selectBeforeCollapse: false },
   ];
 
   for (const scenario of selectionScenarios) {
     const label = `edit transform object ${scenario.id} ${
       scenario.collapseBeforeTransform ? 'after pre-collapse' : 'without pre-collapse'
-    }`;
+    }${scenario.selectBeforeCollapse ? ' with pre-selection' : ''}`;
     await importText(cdp, `${label}.json`, ARRAY_SAMPLE);
     await openEditModal(cdp);
     await waitFor(
@@ -226,16 +228,27 @@ export async function runEditTransformScenario(cdp) {
       throw new Error(`Could not find start line for ${label}`);
     }
 
+    let selected = false;
+    if (scenario.selectBeforeCollapse || !scenario.collapseBeforeTransform) {
+      selected = await evaluate(
+        cdp,
+        `window.__HANJSON_E2E_EDIT_MODAL__?.selectText(${JSON.stringify(selectedObject)}) ?? false`
+      );
+      if (!selected) {
+        throw new Error(`Could not select JSON object for ${label}`);
+      }
+    }
     if (scenario.collapseBeforeTransform) {
       await collapseObjectBeforeTransform(cdp, startLine, label);
-    }
-
-    const selected = await evaluate(
-      cdp,
-      `window.__HANJSON_E2E_EDIT_MODAL__?.selectText(${JSON.stringify(selectedObject)}) ?? false`
-    );
-    if (!selected) {
-      throw new Error(`Could not select JSON object for ${label}`);
+      if (!scenario.selectBeforeCollapse) {
+        selected = await evaluate(
+          cdp,
+          `window.__HANJSON_E2E_EDIT_MODAL__?.selectText(${JSON.stringify(selectedObject)}) ?? false`
+        );
+        if (!selected) {
+          throw new Error(`Could not reselect collapsed JSON object for ${label}`);
+        }
+      }
     }
 
     await openEditContextMenu(cdp);

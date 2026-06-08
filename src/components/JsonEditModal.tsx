@@ -199,6 +199,54 @@ function isLineInsideCollapsedEditFold(lineNumber: number, ranges: Iterable<mona
   return false;
 }
 
+function findJsonFoldEndLine(model: monaco.editor.ITextModel, startLineNumber: number) {
+  const startLine = model.getLineContent(startLineNumber);
+  const startColumn = startLine.search(/\S/);
+  const startCharacter = startColumn >= 0 ? startLine[startColumn] : '';
+  if (startCharacter !== '{' && startCharacter !== '[') {
+    return null;
+  }
+
+  let depth = 0;
+  let escaped = false;
+  let inString = false;
+
+  for (let lineNumber = startLineNumber; lineNumber <= model.getLineCount(); lineNumber += 1) {
+    const line = model.getLineContent(lineNumber);
+    const columnStart = lineNumber === startLineNumber ? startColumn : 0;
+
+    for (let column = columnStart; column < line.length; column += 1) {
+      const character = line[column];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (character === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) {
+        continue;
+      }
+
+      if (character === '{' || character === '[') {
+        depth += 1;
+      } else if (character === '}' || character === ']') {
+        depth -= 1;
+        if (depth === 0) {
+          return lineNumber > startLineNumber ? lineNumber : null;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function chooseEditFoldControl(current: EditFoldControl | undefined, next: EditFoldControl) {
   if (!current) {
     return next;
@@ -322,6 +370,34 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       controlsByLine.set(lineNumber, lineWinner);
     }
 
+    for (
+      let lineNumber = firstVisibleLine;
+      lineNumber <= lastVisibleLine && controlsByLine.size < 200;
+      lineNumber += 1
+    ) {
+      if (lineNumber === 1 || controlsByLine.has(lineNumber)) {
+        continue;
+      }
+
+      const endLineNumber = findJsonFoldEndLine(model, lineNumber);
+      if (!endLineNumber) {
+        continue;
+      }
+
+      const isCollapsed = collapsedFoldRangesRef.current.has(getEditFoldKey(lineNumber, endLineNumber));
+      if (!isCollapsed && isLineInsideCollapsedEditFold(lineNumber, collapsedFoldRanges)) {
+        continue;
+      }
+
+      controlsByLine.set(lineNumber, {
+        collapsed: isCollapsed,
+        endLineNumber,
+        index: -lineNumber,
+        lineNumber,
+        top: editor.getTopForLineNumber(lineNumber) - editor.getScrollTop(),
+      });
+    }
+
     setFoldOverlayLeft(nextOverlayLeft);
     setFoldControls(dedupeEditFoldControlsByVisualPosition(Array.from(controlsByLine.values())));
   }, []);
@@ -350,6 +426,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         return;
       }
 
+      void editor.getAction('editor.unfoldAll')?.run();
       (editor as HiddenAreaEditor).setHiddenAreas([]);
       editor.render(true);
       editor.layout();
