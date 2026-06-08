@@ -66,6 +66,34 @@ async function openEditContextMenu(cdp) {
   );
 }
 
+async function clickFirstObjectFoldAfterTransform(cdp) {
+  await waitFor(
+    () => evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button').length >= 2`),
+    'restored selection folding controls'
+  );
+  await evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button')[1].click()`);
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const collapsedCount = document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length;
+          const rects = Array.from(document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button'))
+            .map((button) => button.getBoundingClientRect());
+          const hasOverlap = rects.some((rect, index) => rects.some((other, otherIndex) => {
+            if (index >= otherIndex) return false;
+            return !(rect.right <= other.left
+              || other.right <= rect.left
+              || rect.bottom <= other.top
+              || other.bottom <= rect.top);
+          }));
+          return collapsedCount > 0 && !hasOverlap;
+        })()`
+      ),
+    'restored selection object folded without overlapping controls'
+  );
+}
+
 function extractObjectAroundMarker(text, marker) {
   const markerOffset = text.indexOf(marker);
   const startOffset = text.lastIndexOf('{', markerOffset);
@@ -152,6 +180,7 @@ export async function runEditTransformScenario(cdp) {
     () => getEditModalValue(cdp).then((value) => value.includes(selectedObject)),
     'selected JSON string restored with surrounding indentation'
   );
+  await clickFirstObjectFoldAfterTransform(cdp);
   await clickButtonByText(cdp, '取消');
   await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), 'array edit modal closed');
 

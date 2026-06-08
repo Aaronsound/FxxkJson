@@ -292,6 +292,24 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     }, 250);
   }, [updateFoldControls]);
 
+  const resetEditFoldControls = useCallback(
+    (editor: monaco.editor.IStandaloneCodeEditor | null) => {
+      collapsedFoldRangesRef.current.clear();
+      setFoldControls([]);
+
+      if (!editor) {
+        return;
+      }
+
+      (editor as HiddenAreaEditor).setHiddenAreas([]);
+      editor.render(true);
+      editor.layout();
+      refreshEditFoldingControls(editor);
+      scheduleFoldControlsUpdate();
+    },
+    [scheduleFoldControlsUpdate]
+  );
+
   const handleToggleFoldControl = (control: EditFoldControl) => {
     const editor = editorRef.current;
     const model = editor?.getModel();
@@ -491,14 +509,9 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       editModel?.dispose();
     });
     editor.onDidChangeModelContent(() => {
-      collapsedFoldRangesRef.current.clear();
-      (editor as HiddenAreaEditor).setHiddenAreas([]);
-      editor.render(true);
-      editor.layout();
+      resetEditFoldControls(editor);
       editSearch.captureSearchAnchor(editor);
       editSearch.refreshSearch();
-      refreshEditFoldingControls(editor);
-      scheduleFoldControlsUpdate();
     });
     editor.onDidScrollChange(scheduleFoldControlsUpdate);
     refreshEditFoldingControls(editor);
@@ -566,9 +579,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     try {
       const nextValue = await transform(currentValue);
       if (selectedContext) {
+        resetEditFoldControls(selectedContext.editor);
         replaceJsonEditSelection(selectedContext, nextValue);
         onValueChange(selectedContext.editor.getValue());
         editSearch.refreshSearch();
+        resetEditFoldControls(selectedContext.editor);
         return;
       }
 
