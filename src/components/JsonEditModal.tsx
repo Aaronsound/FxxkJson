@@ -196,6 +196,22 @@ function isLineInsideCollapsedEditFold(lineNumber: number, ranges: Iterable<mona
   return false;
 }
 
+function chooseEditFoldControl(current: EditFoldControl | undefined, next: EditFoldControl) {
+  if (!current) {
+    return next;
+  }
+
+  if (!current.collapsed && next.collapsed) {
+    return next;
+  }
+
+  if (current.collapsed === next.collapsed && next.endLineNumber > current.endLineNumber) {
+    return next;
+  }
+
+  return current;
+}
+
 const JsonEditModal: React.FC<JsonEditModalProps> = ({
   sessionKey,
   initialValue,
@@ -252,6 +268,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     const lastVisibleLine = Math.min(model.getLineCount(), (visibleRanges.at(-1)?.endLineNumber ?? 1) + 2);
     const regions = foldingModel.regions;
     const controlsByLine = new Map<number, EditFoldControl>();
+    const controlsByTop = new Map<number, EditFoldControl>();
     const nextOverlayLeft = getEditFoldOverlayLeft();
     const collapsedFoldRanges = Array.from(collapsedFoldRangesRef.current.values());
 
@@ -277,19 +294,15 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         lineNumber,
         top: editor.getTopForLineNumber(lineNumber) - editor.getScrollTop(),
       };
-      const existingControl = controlsByLine.get(lineNumber);
-      if (
-        !existingControl ||
-        (!existingControl.collapsed && nextControl.collapsed) ||
-        (existingControl.collapsed === nextControl.collapsed &&
-          nextControl.endLineNumber > existingControl.endLineNumber)
-      ) {
-        controlsByLine.set(lineNumber, nextControl);
-      }
+      const topKey = Math.round(nextControl.top);
+      const lineWinner = chooseEditFoldControl(controlsByLine.get(lineNumber), nextControl);
+      controlsByLine.set(lineNumber, lineWinner);
+      const topWinner = chooseEditFoldControl(controlsByTop.get(topKey), lineWinner);
+      controlsByTop.set(topKey, topWinner);
     }
 
     setFoldOverlayLeft(nextOverlayLeft);
-    setFoldControls(Array.from(controlsByLine.values()));
+    setFoldControls(Array.from(controlsByTop.values()));
   }, []);
 
   const scheduleFoldControlsUpdate = useCallback(() => {

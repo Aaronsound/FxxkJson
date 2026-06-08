@@ -776,6 +776,25 @@ describe('JsonEditModal search position', () => {
     ]);
   });
 
+  it('deduplicates repeated fallback fold buttons at the same visual position', async () => {
+    const { container } = renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    editor.foldingRegions.length = 3;
+    editor.foldingRegions.getStartLineNumber.mockImplementation((index: number) => index + 1);
+    editor.foldingRegions.getEndLineNumber.mockImplementation((index: number) => (index === 0 ? 5 : index + 3));
+    editor.getTopForLineNumber = vi.fn((lineNumber: number) => (lineNumber <= 1 ? 0 : 18));
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
+  });
+
   it('disposes the edit model when the modal editor is disposed', () => {
     renderModal('{"name":"first"}');
     const editor = mockEditorState.editor;

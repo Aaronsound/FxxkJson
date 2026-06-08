@@ -80,6 +80,7 @@ async function clickFirstObjectFoldAfterTransform(cdp) {
           const collapsedCount = document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length;
           const rects = Array.from(document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button'))
             .map((button) => button.getBoundingClientRect());
+          const roundedTops = rects.map((rect) => Math.round(rect.top));
           const hasOverlap = rects.some((rect, index) => rects.some((other, otherIndex) => {
             if (index >= otherIndex) return false;
             return !(rect.right <= other.left
@@ -87,10 +88,24 @@ async function clickFirstObjectFoldAfterTransform(cdp) {
               || rect.bottom <= other.top
               || other.bottom <= rect.top);
           }));
-          return collapsedCount > 0 && !hasOverlap;
+          const hasDuplicateTop = new Set(roundedTops).size !== roundedTops.length;
+          return collapsedCount > 0 && !hasOverlap && !hasDuplicateTop;
         })()`
       ),
     'restored selection object folded without overlapping controls'
+  );
+}
+
+async function collapseFirstObjectBeforeTransform(cdp) {
+  await waitFor(
+    () => evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button').length >= 2`),
+    'initial selection folding controls'
+  );
+  await evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button')[1].click()`);
+  await waitFor(
+    () =>
+      evaluate(cdp, `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length > 0`),
+    'first object collapsed before selection transform'
   );
 }
 
@@ -150,6 +165,7 @@ export async function runEditTransformScenario(cdp) {
   const arrayEditValue = await getEditModalValue(cdp);
   const selectedObject = extractObjectAroundMarker(arrayEditValue, '"id": 0');
   const expectedSelectedString = JSON.stringify(JSON.stringify(JSON.parse(selectedObject)));
+  await collapseFirstObjectBeforeTransform(cdp);
   const selected = await evaluate(
     cdp,
     `window.__HANJSON_E2E_EDIT_MODAL__?.selectText(${JSON.stringify(selectedObject)}) ?? false`
