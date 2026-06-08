@@ -123,6 +123,17 @@ async function clickObjectFoldAfterTransform(cdp, lineNumber, label) {
   }, `${label} restored object folded without overlapping controls`);
 }
 
+async function requireObjectFoldControl(cdp, lineNumber, label) {
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Boolean(document.querySelector('.modal-editor-shell .edit-modal-fold-button[data-line-number="${lineNumber}"]:not(.collapsed)'))`
+      ),
+    `${label} restored expanded folding control`
+  );
+}
+
 async function collapseObjectBeforeTransform(cdp, lineNumber, label) {
   await waitFor(
     () =>
@@ -239,6 +250,7 @@ export async function runEditTransformScenario(cdp) {
       () => getEditModalValue(cdp).then((value) => value.includes(selectedObject)),
       `${label} selected JSON string restored with surrounding indentation`
     );
+    await requireObjectFoldControl(cdp, startLine, label);
     await clickObjectFoldAfterTransform(cdp, startLine, label);
     await clickButtonByText(cdp, '取消');
     await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), `${label} array edit modal closed`);

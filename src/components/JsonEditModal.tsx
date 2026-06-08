@@ -125,7 +125,9 @@ function refreshEditFoldingControls(editor: monaco.editor.IStandaloneCodeEditor)
     refresh();
     window.requestAnimationFrame(refresh);
   });
+  window.setTimeout(refresh, 50);
   window.setTimeout(refresh, 250);
+  window.setTimeout(refresh, 750);
 }
 
 function enableLargeEditModelFolding(editor: monaco.editor.IStandaloneCodeEditor) {
@@ -330,15 +332,21 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     });
     window.setTimeout(() => {
       void updateFoldControls();
+    }, 50);
+    window.setTimeout(() => {
+      void updateFoldControls();
     }, 250);
+    window.setTimeout(() => {
+      void updateFoldControls();
+    }, 750);
   }, [updateFoldControls]);
 
   const resetEditFoldControls = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor | null) => {
       collapsedFoldRangesRef.current.clear();
-      setFoldControls([]);
 
       if (!editor) {
+        setFoldControls([]);
         return;
       }
 
@@ -346,9 +354,10 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       editor.render(true);
       editor.layout();
       refreshEditFoldingControls(editor);
+      void updateFoldControls();
       scheduleFoldControlsUpdate();
     },
-    [scheduleFoldControlsUpdate]
+    [scheduleFoldControlsUpdate, updateFoldControls]
   );
 
   const handleToggleFoldControl = (control: EditFoldControl) => {
@@ -596,12 +605,14 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const replaceEditorValue = useCallback(
     (nextValue: string) => {
       const editor = editorRef.current;
+      resetEditFoldControls(editor);
       replaceJsonEditDocument(editor, nextValue);
 
       onValueChange(nextValue);
       editSearch.refreshSearch();
+      resetEditFoldControls(editor);
     },
-    [editSearch, onValueChange]
+    [editSearch, onValueChange, resetEditFoldControls]
   );
 
   const handleTransformContent = async (transform: (value: string) => Promise<string>) => {
