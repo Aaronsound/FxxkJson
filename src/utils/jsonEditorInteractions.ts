@@ -118,6 +118,9 @@ export function getMonacoOptions({
     selectionHighlight: false,
     renderWhitespace: 'none',
     renderValidationDecorations: 'off',
+    bracketPairColorization: {
+      enabled: false,
+    },
     matchBrackets: 'never',
     codeLens: false,
     lineDecorationsWidth: enableStructuralFolding ? 16 : 0,

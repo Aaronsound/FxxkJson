@@ -13,9 +13,15 @@ import {
 import { createSampleJson, importSampleByE2eBridge } from './e2e-json-fixtures.mjs';
 
 const require = createRequire(import.meta.url);
-const EXPECTED_FONT_SIZE = '12px';
-const EXPECTED_LINE_HEIGHT = '18px';
-const EXPECTED_FONT_FAMILY_PATTERN = /Menlo|Monaco|Courier New|monospace/i;
+const EXPECTED_FONT_SIZE = '14px';
+const EXPECTED_LINE_HEIGHT = '19px';
+const EXPECTED_FONT_FAMILY_PATTERN = /Consolas|Courier New|monospace/i;
+const EXPECTED_LIGHT_TOKEN_COLORS = {
+  foreground: 'rgb(0, 0, 0)',
+  key: 'rgb(163, 21, 21)',
+  string: 'rgb(4, 81, 165)',
+  number: 'rgb(4, 81, 165)',
+};
 
 async function importText(cdp, fileName, text) {
   await evaluate(
@@ -82,6 +88,61 @@ async function assertTypography(cdp, label, selector) {
   assertEditorTypography(label, await readTypography(cdp, selector));
 }
 
+async function readMonacoTokens(cdp, selector) {
+  return evaluate(
+    cdp,
+    `(() => Array.from(document.querySelectorAll(${JSON.stringify(`${selector} .view-line span`)}))
+      .filter((element) => String(element.className).includes('mtk'))
+      .map((element) => ({
+        text: element.textContent,
+        color: getComputedStyle(element).color
+      })))()`
+  );
+}
+
+function requireTokenColor(label, tokens, text, color) {
+  const matchingToken = tokens.find((token) => token.text === text);
+  if (!matchingToken) {
+    throw new Error(`${label} token ${text} was not rendered`);
+  }
+
+  if (matchingToken.color !== color) {
+    throw new Error(`${label} token ${text} color drifted: ${matchingToken.color}`);
+  }
+}
+
+async function assertMonacoJsonTokenColors(cdp, label, selector) {
+  const tokens = await readMonacoTokens(cdp, selector);
+  requireTokenColor(label, tokens, '{', EXPECTED_LIGHT_TOKEN_COLORS.foreground);
+  requireTokenColor(label, tokens, '"name"', EXPECTED_LIGHT_TOKEN_COLORS.key);
+  requireTokenColor(label, tokens, '"FxxkJson"', EXPECTED_LIGHT_TOKEN_COLORS.string);
+  requireTokenColor(label, tokens, '3', EXPECTED_LIGHT_TOKEN_COLORS.number);
+}
+
+async function assertLargeJsonTokenColors(cdp) {
+  const colors = await evaluate(
+    cdp,
+    `(() => {
+      const readColor = (selector) => {
+        const element = document.querySelector(selector);
+        return element ? getComputedStyle(element).color : null;
+      };
+      return {
+        foreground: getComputedStyle(document.querySelector('.right-editor-pane .large-json-viewer')).color,
+        key: readColor('.right-editor-pane .large-json-token-key'),
+        string: readColor('.right-editor-pane .large-json-token-string'),
+        number: readColor('.right-editor-pane .large-json-token-number')
+      };
+    })()`
+  );
+
+  for (const [tokenName, expectedColor] of Object.entries(EXPECTED_LIGHT_TOKEN_COLORS)) {
+    if (colors[tokenName] !== expectedColor) {
+      throw new Error(`large JSON viewer ${tokenName} color drifted: ${colors[tokenName]}`);
+    }
+  }
+}
+
 async function run() {
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.HANJSON_E2E_FORCE) {
     console.log('FxxkJson typography E2E skipped: no DISPLAY is available on Linux');
@@ -114,6 +175,7 @@ async function run() {
 
     await assertTypography(cdp, 'left editor', '.left-editor-pane .monaco-editor .view-lines');
     await assertTypography(cdp, 'right editor', '.right-editor-pane .monaco-editor .view-lines');
+    await assertMonacoJsonTokenColors(cdp, 'right editor', '.right-editor-pane .monaco-editor');
 
     await clickButtonByText(cdp, '编辑 JSON');
     await waitFor(
@@ -121,6 +183,7 @@ async function run() {
       'edit modal editor'
     );
     await assertTypography(cdp, 'edit modal editor', '.modal-editor-shell .monaco-editor .view-lines');
+    await assertMonacoJsonTokenColors(cdp, 'edit modal editor', '.modal-editor-shell .monaco-editor');
     await clickButtonByText(cdp, '取消');
 
     const largeSamplePath = path.join(tempDir, 'typography-large.json');
@@ -132,6 +195,7 @@ async function run() {
       90000
     );
     await assertTypography(cdp, 'large JSON viewer', '.right-editor-pane .large-json-viewer');
+    await assertLargeJsonTokenColors(cdp);
     await assertTypography(cdp, 'large raw viewer', '.left-editor-pane .large-raw-viewer');
 
     console.log('FxxkJson typography E2E passed');
