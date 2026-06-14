@@ -13,9 +13,9 @@ import {
 import { createSampleJson, importSampleByE2eBridge } from './e2e-json-fixtures.mjs';
 
 const require = createRequire(import.meta.url);
-const EXPECTED_FONT_SIZE = '14px';
-const EXPECTED_LINE_HEIGHT = '19px';
-const EXPECTED_FONT_FAMILY_PATTERN = /Consolas|Courier New|monospace/i;
+const EXPECTED_FONT_SIZE = '12px';
+const EXPECTED_LINE_HEIGHT = '18px';
+const EXPECTED_FONT_FAMILY_PATTERN = /Menlo|Monaco|Courier New|monospace/i;
 const EXPECTED_LIGHT_TOKEN_COLORS = {
   foreground: 'rgb(0, 0, 0)',
   key: 'rgb(163, 21, 21)',
