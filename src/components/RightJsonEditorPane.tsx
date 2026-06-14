@@ -135,7 +135,7 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
         <span className={`editor-pane-header-flag ${isLargeFileMode ? 'visible' : ''}`}>{t('pane.lightMode')}</span>
       </div>
     </div>
-    <div className="editor-pane-body">
+    <div className={`editor-pane-body ${isRightFindOpen ? 'pane-find-open' : ''}`}>
       {isRightFindOpen && (
         <PaneFindWidget
           value={rightSearchTerm}
@@ -160,45 +160,47 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
           onClose={onCloseRightFind}
         />
       )}
-      {shouldUseDedicatedRightViewer && activeLargeViewerData ? (
-        <LargeJsonReadonlyViewer
-          ref={largeViewerRef}
-          text={formattedValue}
-          data={activeLargeViewerData}
-          isDarkMode={isDarkMode}
-          wrapLongLines={wrapLongLines}
-          collapsedLines={activeLargeViewerCollapsedLines}
-          searchTerm={rightSearchTerm}
-          searchOptions={rightSearchOptions}
-          searchMatches={largeViewerMatches}
-          activeMatchIndex={rightMatchIndex}
-          selectedRange={rightSelectedRange}
-          onCollapsedLinesChange={onRightCollapsedLinesChange}
-          onMatchCountChange={onRightMatchCountChange}
-          onLocateOffset={onLocateRightOffset}
-          onCopyPath={onCopyRightPath}
-          onCopyKey={onCopyRightKey}
-          onCopyValue={onCopyRightValue}
-          onCopyCompactJson={onCopyRightCompactJson}
-          onCopyFormattedJson={onCopyRightFormattedJson}
-          onEditValue={onEditRightValue}
-          onDeleteValue={onDeleteRightValue}
-          onRenameKey={onRenameRightKey}
-          onUnescapeValue={onUnescapeRightValue}
-          onOpenFind={onOpenRightFind}
-          t={t}
-        />
-      ) : !isBuildingDedicatedRightViewer ? (
-        <JsonMonacoEditor
-          onMount={onRightMount}
-          isDarkMode={isDarkMode}
-          largeMode={isLargeFileMode}
-          wrapLongLines={wrapLongLines}
-          readOnly
-          enableStructuralFolding={shouldEnableRightPaneFolding}
-          height="100%"
-        />
-      ) : null}
+      <div className="editor-pane-content">
+        {shouldUseDedicatedRightViewer && activeLargeViewerData ? (
+          <LargeJsonReadonlyViewer
+            ref={largeViewerRef}
+            text={formattedValue}
+            data={activeLargeViewerData}
+            isDarkMode={isDarkMode}
+            wrapLongLines={wrapLongLines}
+            collapsedLines={activeLargeViewerCollapsedLines}
+            searchTerm={rightSearchTerm}
+            searchOptions={rightSearchOptions}
+            searchMatches={largeViewerMatches}
+            activeMatchIndex={rightMatchIndex}
+            selectedRange={rightSelectedRange}
+            onCollapsedLinesChange={onRightCollapsedLinesChange}
+            onMatchCountChange={onRightMatchCountChange}
+            onLocateOffset={onLocateRightOffset}
+            onCopyPath={onCopyRightPath}
+            onCopyKey={onCopyRightKey}
+            onCopyValue={onCopyRightValue}
+            onCopyCompactJson={onCopyRightCompactJson}
+            onCopyFormattedJson={onCopyRightFormattedJson}
+            onEditValue={onEditRightValue}
+            onDeleteValue={onDeleteRightValue}
+            onRenameKey={onRenameRightKey}
+            onUnescapeValue={onUnescapeRightValue}
+            onOpenFind={onOpenRightFind}
+            t={t}
+          />
+        ) : !isBuildingDedicatedRightViewer ? (
+          <JsonMonacoEditor
+            onMount={onRightMount}
+            isDarkMode={isDarkMode}
+            largeMode={isLargeFileMode}
+            wrapLongLines={wrapLongLines}
+            readOnly
+            enableStructuralFolding={shouldEnableRightPaneFolding}
+            height="100%"
+          />
+        ) : null}
+      </div>
       {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
         <div className="editor-center-placeholder">
           {processingStageText ?? (isFormattingActiveTab ? t('pane.formatting') : t('pane.formattedPlaceholder'))}

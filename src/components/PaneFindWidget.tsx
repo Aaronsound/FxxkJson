@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import './PaneFindWidget.css';
 
@@ -78,6 +78,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   onClose,
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const layerRef = useRef<HTMLDivElement | null>(null);
   const shouldShowResultList = resultItems.length > 0;
   const shouldShowQuickItems = recentSearches.length > 0 || favoritePaths.length > 0 || canPinPath;
   const countText = matchCount > 0 ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}` : '0/0';
@@ -88,6 +89,66 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
     inputRef.current?.select();
   }, []);
 
+  useLayoutEffect(() => {
+    const layer = layerRef.current;
+    const paneBody = layer?.closest<HTMLElement>('.editor-pane-body');
+
+    if (!layer || !paneBody) {
+      return;
+    }
+
+    let animationFrameId: number | null = null;
+
+    const updateReservedBlockSize = () => {
+      animationFrameId = null;
+
+      const style = window.getComputedStyle(layer);
+      const top = Number.parseFloat(style.top);
+      const bottomGap = Number.parseFloat(style.getPropertyValue('--pane-find-layer-bottom-gap'));
+      const reservedBlockSize =
+        layer.getBoundingClientRect().height +
+        (Number.isFinite(top) ? top : 0) +
+        (Number.isFinite(bottomGap) ? bottomGap : 8);
+      const nextReservedBlockSize = `${Math.ceil(reservedBlockSize)}px`;
+
+      if (paneBody.style.getPropertyValue('--pane-find-reserved-block-size') !== nextReservedBlockSize) {
+        paneBody.style.setProperty('--pane-find-reserved-block-size', nextReservedBlockSize);
+      }
+    };
+
+    const scheduleReservedBlockSizeUpdate = () => {
+      if (animationFrameId !== null) {
+        return;
+      }
+
+      animationFrameId = window.requestAnimationFrame(updateReservedBlockSize);
+    };
+
+    scheduleReservedBlockSizeUpdate();
+
+    if (!window.ResizeObserver) {
+      return () => {
+        if (animationFrameId !== null) {
+          window.cancelAnimationFrame(animationFrameId);
+        }
+
+        paneBody.style.removeProperty('--pane-find-reserved-block-size');
+      };
+    }
+
+    const observer = new window.ResizeObserver(scheduleReservedBlockSizeUpdate);
+    observer.observe(layer);
+
+    return () => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+
+      observer.disconnect();
+      paneBody.style.removeProperty('--pane-find-reserved-block-size');
+    };
+  }, []);
+
   const updateOption = (key: keyof JsonSearchOptions) => {
     onSearchOptionsChange({
       ...searchOptions,
@@ -96,7 +157,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   };
 
   return (
-    <div className="pane-find-layer">
+    <div className="pane-find-layer" ref={layerRef}>
       <div
         className={`pane-find-widget ${isDarkMode ? 'dark' : ''} ${canReplace ? 'with-replace' : ''}`}
         onPointerDown={(event) => event.stopPropagation()}

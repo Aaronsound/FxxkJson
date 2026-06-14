@@ -9,7 +9,7 @@ vi.mock('@monaco-editor/react', () => ({
 }));
 
 describe('JsonEditorPanes', () => {
-  it('shows left search and replace controls for the dedicated raw viewer', () => {
+  it('keeps pane search widgets in the layout above editor content', () => {
     const noOp = vi.fn();
     const leftPaneProps: LeftPaneProps = {
       activeLargeRawViewerData: null,
@@ -53,7 +53,7 @@ describe('JsonEditorPanes', () => {
       isFormattingActiveTab: false,
       isImportingActiveTab: false,
       isLargeFileMode: true,
-      isRightFindOpen: false,
+      isRightFindOpen: true,
       isRightSearchLoadingMore: false,
       largeViewerMatches: [],
       largeViewerRef: { current: null },
@@ -99,5 +99,7 @@ describe('JsonEditorPanes', () => {
 
     expect(screen.getByPlaceholderText('搜索原始 JSON')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('替换为')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('搜索原始 JSON').closest('.editor-pane-body')).toHaveClass('pane-find-open');
+    expect(screen.getByPlaceholderText('搜索格式化结果').closest('.editor-pane-body')).toHaveClass('pane-find-open');
   });
 });
