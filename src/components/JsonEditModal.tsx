@@ -16,6 +16,7 @@ import { createTranslator, type I18nKey } from '../utils/i18n';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 const EDIT_FOLD_CONTROL_VISUAL_DEDUPE_PX = 4;
+const EDIT_MODAL_HIDDEN_AREA_SOURCE = { id: 'hanjson-edit-modal-folding' };
 
 interface JsonEditModalProps {
   sessionKey: number;
@@ -79,7 +80,7 @@ type FoldingTextModel = monaco.editor.ITextModel & {
 };
 
 type HiddenAreaEditor = monaco.editor.IStandaloneCodeEditor & {
-  setHiddenAreas: (ranges: monaco.Range[]) => void;
+  setHiddenAreas: (ranges: monaco.Range[], source?: unknown) => void;
 };
 
 type JsonEditModalE2EWindow = Window & {
@@ -263,6 +264,42 @@ function chooseEditFoldControl(current: EditFoldControl | undefined, next: EditF
   return current;
 }
 
+function expandNativeEditFolds(editor: monaco.editor.IStandaloneCodeEditor) {
+  const foldingContribution = editor.getContribution('editor.contrib.folding') as FoldingContribution | null;
+  const hiddenAreaEditor = editor as HiddenAreaEditor;
+
+  hiddenAreaEditor.setHiddenAreas([], foldingContribution ?? undefined);
+
+  const unfoldCollapsedRegions = (foldingModel: FoldingModel | null | undefined) => {
+    if (!foldingModel) {
+      return;
+    }
+
+    const collapsedRegions: FoldingRegion[] = [];
+    for (let index = 0; index < foldingModel.regions.length; index += 1) {
+      if (foldingModel.regions.isCollapsed(index)) {
+        collapsedRegions.push(foldingModel.regions.toRegion(index));
+      }
+    }
+
+    if (collapsedRegions.length > 0) {
+      foldingModel.toggleCollapseState(collapsedRegions);
+    }
+  };
+
+  unfoldCollapsedRegions(foldingContribution?.foldingModel);
+  const foldingModelPromise = foldingContribution?.getFoldingModel?.() ?? null;
+  void foldingModelPromise?.then((foldingModel) => {
+    hiddenAreaEditor.setHiddenAreas([], foldingContribution ?? undefined);
+    unfoldCollapsedRegions(foldingModel);
+  });
+}
+
+function setEditHiddenAreas(editor: monaco.editor.IStandaloneCodeEditor, ranges: monaco.Range[]) {
+  expandNativeEditFolds(editor);
+  (editor as HiddenAreaEditor).setHiddenAreas(ranges, EDIT_MODAL_HIDDEN_AREA_SOURCE);
+}
+
 function dedupeEditFoldControlsByVisualPosition(controls: EditFoldControl[]) {
   const nextControls: EditFoldControl[] = [];
   const sortedControls = [...controls].sort(
@@ -427,7 +464,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       }
 
       void editor.getAction('editor.unfoldAll')?.run();
-      (editor as HiddenAreaEditor).setHiddenAreas([]);
+      setEditHiddenAreas(editor, []);
       editor.render(true);
       editor.layout();
       refreshEditFoldingControls(editor);
@@ -467,7 +504,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       }
     }
 
-    (editor as HiddenAreaEditor).setHiddenAreas(Array.from(collapsedFoldRangesRef.current.values()));
+    setEditHiddenAreas(editor, Array.from(collapsedFoldRangesRef.current.values()));
     editor.render(true);
     editor.layout();
     scheduleFoldControlsUpdate();

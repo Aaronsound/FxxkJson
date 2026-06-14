@@ -703,19 +703,25 @@ describe('JsonEditModal search position', () => {
 
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
     fireEvent.click(container.querySelector('.edit-modal-fold-button') as HTMLButtonElement);
-    expect(editor.setHiddenAreas).toHaveBeenCalledWith([
-      expect.objectContaining({
-        startLineNumber: 2,
-        endLineNumber: 5,
-      }),
-    ]);
+    expect(editor.setHiddenAreas).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          startLineNumber: 2,
+          endLineNumber: 5,
+        }),
+      ],
+      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+    );
     await act(async () => {
       vi.advanceTimersByTime(250);
     });
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(1);
     expect(container.querySelector('.edit-modal-fold-button.collapsed')).toBeTruthy();
     fireEvent.click(container.querySelector('.edit-modal-fold-button.collapsed') as HTMLButtonElement);
-    expect(editor.setHiddenAreas).toHaveBeenLastCalledWith([]);
+    expect(editor.setHiddenAreas).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+    );
     expect(editor.foldingModel.toggleCollapseState).not.toHaveBeenCalled();
     expect(editor.updateOptions).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -745,12 +751,15 @@ describe('JsonEditModal search position', () => {
     expect(container.querySelectorAll('.codicon-folding-expanded')).toHaveLength(1);
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
     fireEvent.click(container.querySelector('.edit-modal-fold-button') as HTMLButtonElement);
-    expect(editor.setHiddenAreas).toHaveBeenCalledWith([
-      expect.objectContaining({
-        startLineNumber: 2,
-        endLineNumber: 5,
-      }),
-    ]);
+    expect(editor.setHiddenAreas).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          startLineNumber: 2,
+          endLineNumber: 5,
+        }),
+      ],
+      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+    );
   });
 
   it('deduplicates repeated fallback fold buttons on the same line', async () => {
@@ -772,12 +781,15 @@ describe('JsonEditModal search position', () => {
 
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
     fireEvent.click(container.querySelectorAll('.edit-modal-fold-button')[1] as HTMLButtonElement);
-    expect(editor.setHiddenAreas).toHaveBeenCalledWith([
-      expect.objectContaining({
-        startLineNumber: 3,
-        endLineNumber: 4,
-      }),
-    ]);
+    expect(editor.setHiddenAreas).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          startLineNumber: 3,
+          endLineNumber: 4,
+        }),
+      ],
+      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+    );
   });
 
   it('deduplicates repeated fallback fold buttons at the same visual position', async () => {

@@ -123,6 +123,35 @@ async function clickObjectFoldAfterTransform(cdp, lineNumber, label) {
   }, `${label} restored object folded without overlapping controls`);
 }
 
+async function clickObjectUnfoldAfterTransform(cdp, lineNumber, marker, label) {
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Boolean(document.querySelector('.modal-editor-shell .edit-modal-fold-button.collapsed[data-line-number="${lineNumber}"]'))`
+      ),
+    `${label} restored collapsed folding control`
+  );
+  await evaluate(
+    cdp,
+    `document.querySelector('.modal-editor-shell .edit-modal-fold-button.collapsed[data-line-number="${lineNumber}"]')?.click()`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button.collapsed').length === 0
+          && Array.from(document.querySelectorAll('.modal-editor-shell .view-line'))
+            .slice(0, 25)
+            .map((line) => line.textContent ?? '')
+            .join('\\n')
+            .replace(/\\u00a0/g, ' ')
+            .includes(${JSON.stringify(marker)})`
+      ),
+    `${label} restored object unfolded`
+  );
+}
+
 async function requireObjectFoldControl(cdp, lineNumber, label) {
   await waitFor(
     () =>
@@ -265,6 +294,7 @@ export async function runEditTransformScenario(cdp) {
     );
     await requireObjectFoldControl(cdp, startLine, label);
     await clickObjectFoldAfterTransform(cdp, startLine, label);
+    await clickObjectUnfoldAfterTransform(cdp, startLine, `FxxkJson edit transform sample ${scenario.id}`, label);
     await clickButtonByText(cdp, '取消');
     await waitFor(() => evaluate(cdp, `!document.querySelector('.modal-card')`), `${label} array edit modal closed`);
     await clickSelector(cdp, '.add-tab');
