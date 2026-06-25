@@ -1,8 +1,22 @@
 import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
+import '@fontsource/jetbrains-mono/400.css';
 import './index.css';
 
+async function preloadEditorFont() {
+  if (!('fonts' in document)) {
+    return;
+  }
+
+  try {
+    await document.fonts.load('400 12px "JetBrains Mono"');
+  } catch {
+    // Font loading is best effort; the editor font stack still has platform fallbacks.
+  }
+}
+
 const App = React.lazy(async () => {
+  await preloadEditorFont();
   const { setupMonacoWorker } = await import('./setup/monaco');
   setupMonacoWorker();
   return import('./App');
