@@ -1,11 +1,11 @@
 /* eslint-disable no-restricted-globals */
-import { createJsonNodeEditOperations } from './jsonNodeEditOperations';
-import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
+import { createJsonNodeEditOperations } from './jsonNodeEditOperations.ts';
+import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations.ts';
 import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../utils/jsonWorkerMessageRouting';
-import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
-import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations';
-import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations';
-import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations';
+import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations.ts';
+import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';
+import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations.ts';
+import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
 
 const structureCache = new Map();
 const viewerCache = new Map();

@@ -1,5 +1,8 @@
 import { findNodeAtLocation, getLocation } from 'jsonc-parser';
+import type { Node } from 'jsonc-parser';
+import type { LargeJsonViewerData, WorkerMessage } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
+import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import { getLocateCandidateOffsets } from './jsonWorkerLocateCandidates';
 import {
   getDirectLocateRange,
@@ -12,7 +15,35 @@ const LOCATE_REQUEST_DEBOUNCE_MS = 16;
 
 export { getLocateCandidateOffsets };
 
-export function getResolvedNodes(cached, offset) {
+interface LocateStructureCacheEntry {
+  directLocate?: boolean;
+  directLocateMode?: 'identity' | 'token-search';
+  formattedText?: string;
+  formattedTree?: Node;
+  rawText?: string;
+  rawTree?: Node;
+  requestId?: number;
+  tokenLocateCache?: LightweightLocateCache;
+  viewerData?: LargeJsonViewerData;
+}
+
+interface LocateViewerCacheEntry {
+  formattedText?: string;
+  requestId?: number;
+  viewerData?: LargeJsonViewerData;
+}
+
+type LocateRequestMessage = { offset: number; requestId: number; tabId: string };
+
+interface JsonWorkerLocateOperationsArgs {
+  ensureStructureTrees: (tabId: string, cached: LocateStructureCacheEntry | undefined) => boolean;
+  getDirectValueTree: (tabId: string, requestId: number, text: string) => Node | undefined;
+  latestLocateRequestByTab: Map<string, number>;
+  structureCache: Map<string, LocateStructureCacheEntry>;
+  viewerCache: Map<string, LocateViewerCacheEntry>;
+}
+
+export function getResolvedNodes(cached: LocateStructureCacheEntry | null | undefined, offset: number) {
   if (!cached || typeof cached.formattedText !== 'string' || !cached.rawTree || !cached.formattedTree) {
     return null;
   }
@@ -38,12 +69,12 @@ export function createJsonWorkerLocateOperations({
   latestLocateRequestByTab,
   structureCache,
   viewerCache,
-}) {
-  function isLatestLocateRequest(tabId, requestId) {
+}: JsonWorkerLocateOperationsArgs) {
+  function isLatestLocateRequest(tabId: string, requestId: number) {
     return latestLocateRequestByTab.get(tabId) === requestId;
   }
 
-  function postLocateResultIfLatest(payload) {
+  function postLocateResultIfLatest(payload: WorkerMessage) {
     if (!isLatestLocateRequest(payload.tabId, payload.requestId)) {
       return;
     }
@@ -51,7 +82,7 @@ export function createJsonWorkerLocateOperations({
     postMessage(payload);
   }
 
-  function runLocateRequest(message) {
+  function runLocateRequest(message: LocateRequestMessage) {
     const { requestId, tabId, offset } = message;
 
     if (!isLatestLocateRequest(tabId, requestId)) {
@@ -153,14 +184,14 @@ export function createJsonWorkerLocateOperations({
     });
   }
 
-  function handleLocateMessage(message) {
+  function handleLocateMessage(message: LocateRequestMessage) {
     latestLocateRequestByTab.set(message.tabId, message.requestId);
     setTimeout(() => {
       runLocateRequest(message);
     }, LOCATE_REQUEST_DEBOUNCE_MS);
   }
 
-  function handleLocateRightDirectMessage(message) {
+  function handleLocateRightDirectMessage(message: LocateRequestMessage) {
     latestLocateRequestByTab.set(message.tabId, message.requestId);
     setTimeout(() => {
       const { requestId, tabId, offset } = message;
@@ -171,10 +202,12 @@ export function createJsonWorkerLocateOperations({
 
       const cachedViewer = viewerCache.get(tabId);
       const result = getRightOnlyLocateResult(tabId, requestId, offset, cachedViewer, getDirectValueTree);
+      const path = Array.isArray(result.path) ? result.path : undefined;
       postLocateResultIfLatest({
         ...result,
-        pathText: result.path ? formatJsonPath(result.path) : undefined,
-      });
+        path,
+        pathText: path ? formatJsonPath(path) : undefined,
+      } as WorkerMessage);
     }, LOCATE_REQUEST_DEBOUNCE_MS);
   }
 
@@ -184,3 +217,5 @@ export function createJsonWorkerLocateOperations({
     isLatestLocateRequest,
   };
 }
+
+export type { LocateRequestMessage, LocateStructureCacheEntry, LocateViewerCacheEntry };

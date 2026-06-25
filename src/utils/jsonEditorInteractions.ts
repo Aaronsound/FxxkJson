@@ -9,6 +9,7 @@ interface JsonEditorOptionsArgs {
   wrapLongLines: boolean;
   readOnly?: boolean;
   enableStructuralFolding?: boolean;
+  preserveStructuralFolding?: boolean;
 }
 
 export function formatBytes(value: number) {
@@ -89,28 +90,37 @@ export function getMonacoOptions({
   wrapLongLines,
   readOnly = false,
   enableStructuralFolding = !largeMode,
+  preserveStructuralFolding = false,
 }: JsonEditorOptionsArgs): monaco.editor.IStandaloneEditorConstructionOptions {
   const preserveFoldingForLargeReadonly = readOnly && enableStructuralFolding;
+  const shouldDisableLargeFileOptimizations =
+    enableStructuralFolding && (preserveStructuralFolding || preserveFoldingForLargeReadonly);
 
   return {
     automaticLayout: true,
     fontFamily: JSON_EDITOR_FONT_FAMILY,
+    fontLigatures: false,
     fontSize: JSON_EDITOR_FONT_SIZE,
+    fontWeight: 'normal',
+    letterSpacing: 0,
     lineHeight: JSON_EDITOR_LINE_HEIGHT,
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
-    largeFileOptimizations: preserveFoldingForLargeReadonly ? false : true,
+    largeFileOptimizations: shouldDisableLargeFileOptimizations ? false : true,
     wordWrap: wrapLongLines ? 'on' : 'off',
     folding: enableStructuralFolding,
     showFoldingControls: enableStructuralFolding ? 'always' : 'never',
     foldingStrategy: 'indentation',
-    foldingMaximumRegions: preserveFoldingForLargeReadonly ? 50000 : 5000,
+    foldingMaximumRegions: preserveStructuralFolding ? 200000 : preserveFoldingForLargeReadonly ? 50000 : 5000,
     foldingHighlight: enableStructuralFolding,
     glyphMargin: false,
     occurrencesHighlight: 'off',
     selectionHighlight: false,
     renderWhitespace: 'none',
     renderValidationDecorations: 'off',
+    bracketPairColorization: {
+      enabled: false,
+    },
     matchBrackets: 'never',
     codeLens: false,
     lineDecorationsWidth: enableStructuralFolding ? 16 : 0,

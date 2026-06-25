@@ -1,9 +1,63 @@
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
+import type { LargeJsonViewerData, WorkerRequestMessage } from '../types/jsonTool';
 import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
+import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+
+type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
+
+interface StructureCacheEntry {
+  directLocate?: boolean;
+  directLocateMode?: 'identity' | 'token-search';
+  formattedText?: string;
+  formattedTree?: unknown;
+  rawText?: string;
+  rawTree?: unknown;
+  requestId: number;
+  tokenLocateCache?: LightweightLocateCache;
+  viewerData?: LargeJsonViewerData | null;
+}
+
+interface ViewerCacheEntry {
+  formattedText: string;
+  requestId: number;
+  viewerData: LargeJsonViewerData;
+}
+
+interface JsonWorkerFormatOperationsArgs {
+  cancelInteractiveRequests: (tabId: string) => void;
+  clearDeferredStructureWarmup: (tabId: string) => void;
+  clearDirectValueWarmup: (tabId: string) => void;
+  directValueTreeCache: Map<string, unknown>;
+  editJsonCache: Map<string, { originalText?: string }>;
+  ensureStructureTrees: (tabId: string, cached: StructureCacheEntry) => boolean;
+  latestFormatRequestByTab: Map<string, number>;
+  nodeEditCache: Map<string, unknown>;
+  scheduleDeferredStructureWarmup: (tabId: string, requestId: number, delayMs?: number) => void;
+  scheduleDirectValueTreeWarmup: (tabId: string, requestId: number, text: string) => void;
+  structureCache: Map<string, StructureCacheEntry>;
+  viewerCache: Map<string, ViewerCacheEntry>;
+}
+
+interface BuildFormatArtifactsArgs {
+  buildViewer: boolean;
+  deferStructure: boolean;
+  enableDirectLocate: boolean;
+  enableStructure: boolean;
+  formatted: string;
+  normalizedNestedString: boolean;
+  requestId: number;
+  sourceText: string;
+  structureWarmupDelayMs?: number;
+  tabId: string;
+}
+
+function postWorkerMessage(message: Record<string, unknown>) {
+  postMessage(message);
+}
 
 export function createJsonWorkerFormatOperations({
   cancelInteractiveRequests,
@@ -18,8 +72,8 @@ export function createJsonWorkerFormatOperations({
   scheduleDirectValueTreeWarmup,
   structureCache,
   viewerCache,
-}) {
-  function prepareFormatRequest(tabId, requestId, sourceText) {
+}: JsonWorkerFormatOperationsArgs) {
+  function prepareFormatRequest(tabId: string, requestId: number, sourceText: string) {
     latestFormatRequestByTab.set(tabId, requestId);
     cancelInteractiveRequests(tabId);
     clearDirectValueWarmup(tabId);
@@ -44,7 +98,7 @@ export function createJsonWorkerFormatOperations({
     deferStructure,
     buildViewer,
     structureWarmupDelayMs,
-  }) {
+  }: BuildFormatArtifactsArgs) {
     const shouldBuildViewer = buildViewer || shouldUseDedicatedRightViewer(sourceText, formatted);
 
     if (shouldBuildViewer) {
@@ -77,7 +131,7 @@ export function createJsonWorkerFormatOperations({
               viewerData,
               tokenLocateCache: { tokenOffsetsByToken: new Map() },
             });
-            postMessage({
+            postWorkerMessage({
               type: 'structure-ready',
               requestId,
               tabId,
@@ -85,7 +139,7 @@ export function createJsonWorkerFormatOperations({
             });
           } else {
             structureCache.delete(tabId);
-            postMessage({
+            postWorkerMessage({
               type: 'structure-ready',
               requestId,
               tabId,
@@ -94,7 +148,7 @@ export function createJsonWorkerFormatOperations({
           }
         }
 
-        postMessage({
+        postWorkerMessage({
           type: 'viewer-ready',
           requestId,
           tabId,
@@ -108,7 +162,7 @@ export function createJsonWorkerFormatOperations({
       }, 0);
     } else {
       viewerCache.delete(tabId);
-      postMessage({
+      postWorkerMessage({
         type: 'viewer-ready',
         requestId,
         tabId,
@@ -119,7 +173,7 @@ export function createJsonWorkerFormatOperations({
 
     if (normalizedNestedString) {
       structureCache.delete(tabId);
-      postMessage({
+      postWorkerMessage({
         type: 'structure-ready',
         requestId,
         tabId,
@@ -130,7 +184,7 @@ export function createJsonWorkerFormatOperations({
 
     if (!enableStructure && enableDirectLocate && !buildViewer) {
       structureCache.delete(tabId);
-      postMessage({
+      postWorkerMessage({
         type: 'structure-ready',
         requestId,
         tabId,
@@ -145,7 +199,7 @@ export function createJsonWorkerFormatOperations({
       }
 
       structureCache.delete(tabId);
-      postMessage({
+      postWorkerMessage({
         type: 'structure-ready',
         requestId,
         tabId,
@@ -179,7 +233,7 @@ export function createJsonWorkerFormatOperations({
         return;
       }
 
-      postMessage({
+      postWorkerMessage({
         type: 'structure-ready',
         requestId,
         tabId,
@@ -188,14 +242,14 @@ export function createJsonWorkerFormatOperations({
     }, 0);
   }
 
-  function clearFormatFailureArtifacts(tabId) {
+  function clearFormatFailureArtifacts(tabId: string) {
     structureCache.delete(tabId);
     viewerCache.delete(tabId);
     directValueTreeCache.delete(tabId);
     clearDeferredStructureWarmup(tabId);
   }
 
-  function handleFormatMessage(message) {
+  function handleFormatMessage(message: FormatWorkerRequest) {
     const { requestId, tabId, enableStructure, enableDirectLocate, deferStructure = false, buildViewer } = message;
     const text = readMessageText(message);
     prepareFormatRequest(tabId, requestId, text);
@@ -227,7 +281,7 @@ export function createJsonWorkerFormatOperations({
       });
     } catch (err) {
       clearFormatFailureArtifacts(tabId);
-      postMessage({
+      postWorkerMessage({
         type: 'format-result',
         requestId,
         tabId,
@@ -237,7 +291,7 @@ export function createJsonWorkerFormatOperations({
     }
   }
 
-  function handleRepairMessage(message) {
+  function handleRepairMessage(message: FormatWorkerRequest) {
     const { requestId, tabId, enableStructure, enableDirectLocate, deferStructure = false, buildViewer } = message;
     const text = readMessageText(message);
     prepareFormatRequest(tabId, requestId, text);
@@ -271,7 +325,7 @@ export function createJsonWorkerFormatOperations({
       });
     } catch (err) {
       clearFormatFailureArtifacts(tabId);
-      postMessage({
+      postWorkerMessage({
         type: 'repair-result',
         requestId,
         tabId,

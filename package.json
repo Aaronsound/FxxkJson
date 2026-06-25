@@ -21,7 +21,7 @@
     "lint": "biome lint .",
     "format": "biome format . --write",
     "format:check": "biome format .",
-    "check": "npm run check:text && npm run format:check && npm run lint && npm run typecheck && npm run coverage && npm run smoke && npm run build && npm run bundle:size",
+    "check": "npm run check:text && npm run format:check && npm run lint && npm run typecheck && npm run coverage && npm run smoke && npm run perf:smoke && npm run smoke:dev-worker && npm run build && npm run bundle:size",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -30,9 +30,12 @@
     "check:text": "node ./scripts/check-text-encoding.mjs",
     "perf:ci": "node ./scripts/perf-ci.mjs",
     "perf:regression": "node ./scripts/perf-regression.mjs",
+    "perf:smoke": "node ./scripts/perf-smoke.mjs",
     "setup:electron": "node ./scripts/ensure-electron-install.mjs",
     "smoke": "node ./scripts/smoke-json-flow.mjs",
+    "smoke:dev-worker": "node ./scripts/smoke-vite-worker-imports.mjs",
     "e2e:electron": "npm run build && node ./scripts/e2e-electron-json-flow.mjs",
+    "e2e:electron:typography": "npm run build && node ./scripts/e2e-electron-typography.mjs",
     "e2e:electron:large": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 5",
     "e2e:electron:large20": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 20",
     "release:assets:check": "node ./scripts/verify-release-assets.mjs",
@@ -67,6 +70,9 @@
     "vite": "^8.0.11",
     "vite-plugin-electron": "^0.29.1",
     "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "tmp": "^0.2.7"
   },
   "build": {
     "appId": "com.aaronsound.fxxkjson",

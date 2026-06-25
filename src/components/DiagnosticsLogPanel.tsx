@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { isErrorDiagnosticsLogLine } from '../utils/diagnosticsLogLevel';
+import {
+  buildDiagnosticsIssueSummary,
+  buildDiagnosticsLogViewState,
+  type DiagnosticsContextItem,
+  type DiagnosticsLogFilter,
+} from '../utils/diagnosticsLogView';
 
 const LOG_PREVIEW_BYTES = 160 * 1024;
 
@@ -7,73 +12,6 @@ interface DiagnosticsLogPanelProps {
   isDarkMode: boolean;
   context?: DiagnosticsContextItem[];
   onClose: () => void;
-}
-
-export interface DiagnosticsContextItem {
-  label: string;
-  value: string | number | boolean | null | undefined;
-}
-
-function getErrorLines(content: string) {
-  return content
-    .split('\n')
-    .filter((line) => isErrorDiagnosticsLogLine(line))
-    .join('\n');
-}
-
-function formatContextValue(value: DiagnosticsContextItem['value']) {
-  if (value === null || typeof value === 'undefined' || value === '') {
-    return '(none)';
-  }
-
-  return String(value);
-}
-
-function buildIssueSummary(
-  snapshot: RuntimeLogSnapshot | null,
-  content: string,
-  context: DiagnosticsContextItem[] = []
-) {
-  const path = snapshot?.path ?? 'runtime.log';
-  const truncated = snapshot?.truncated ? 'yes' : 'no';
-  const contextLines =
-    context.length > 0
-      ? context.map((item) => `${item.label}=${formatContextValue(item.value)}`).join('\n')
-      : '(no app context)';
-
-  return [
-    `FxxkJson diagnostics summary`,
-    `logPath=${path}`,
-    `truncated=${truncated}`,
-    '',
-    '[app-context]',
-    contextLines,
-    '',
-    '[log-excerpt]',
-    content || '(no matching log lines)',
-  ].join('\n');
-}
-
-function getContextSummary(context: DiagnosticsContextItem[]) {
-  if (context.length === 0) {
-    return null;
-  }
-
-  const tabTitle = context.find((item) => item.label === 'tabTitle')?.value;
-  const rawBytes = context.find((item) => item.label === 'rawBytes')?.value;
-  const status = context.find((item) => item.label === 'performanceStatus')?.value;
-
-  return [
-    tabTitle ? `标签 ${tabTitle}` : null,
-    typeof rawBytes === 'number' ? `原始 ${rawBytes.toLocaleString()} bytes` : null,
-    status ? `状态 ${status}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-}
-
-function countLines(content: string) {
-  return content ? content.split('\n').length : 0;
 }
 
 async function writeDiagnosticsTextToClipboard(content: string) {
@@ -90,7 +28,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
-  const [showErrorsOnly, setShowErrorsOnly] = useState(false);
+  const [logFilter, setLogFilter] = useState<DiagnosticsLogFilter>('all');
 
   const loadLog = useCallback(async () => {
     if (!window.electronAPI?.readRecentLog) {
@@ -150,7 +88,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
     try {
       const path = await window.electronAPI.clearLog();
       setSnapshot({ path, content: '', truncated: false });
-      setShowErrorsOnly(false);
+      setLogFilter('all');
       setCopyNotice('日志已清空');
       setError(null);
     } catch (nextError) {
@@ -172,20 +110,13 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
   };
 
   const logContent = snapshot?.content ?? '';
-  const errorLogContent = getErrorLines(logContent);
-  const displayContent = showErrorsOnly ? errorLogContent : logContent;
-  const contextSummary = getContextSummary(context);
-  const previewText = isLoading
-    ? '正在读取日志...'
-    : displayContent || (showErrorsOnly ? '没有匹配到错误日志' : '暂无日志');
-  const metaText = [
-    snapshot?.truncated ? '显示最近日志片段' : '显示完整日志',
-    `日志行 ${countLines(logContent)}`,
-    showErrorsOnly ? `错误行 ${countLines(errorLogContent)}` : null,
-    contextSummary,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const { displayContent, metaText, previewText } = buildDiagnosticsLogViewState({
+    context,
+    filter: logFilter,
+    isLoading,
+    logContent,
+    snapshot,
+  });
 
   return (
     <div className="modal-overlay">
@@ -199,13 +130,18 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
 
         <div className="diagnostics-log-meta diagnostics-log-meta-row">
           <span>{metaText}</span>
-          <label className="toolbar-checkbox diagnostics-log-filter">
-            <input
-              type="checkbox"
-              checked={showErrorsOnly}
-              onChange={(event) => setShowErrorsOnly(event.target.checked)}
-            />
-            只看错误
+          <label className="diagnostics-log-filter">
+            日志筛选
+            <select
+              aria-label="日志筛选"
+              value={logFilter}
+              onChange={(event) => setLogFilter(event.target.value as DiagnosticsLogFilter)}
+            >
+              <option value="all">全部</option>
+              <option value="error">错误</option>
+              <option value="warn">警告</option>
+              <option value="performance">性能</option>
+            </select>
           </label>
         </div>
 
@@ -220,7 +156,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
           </button>
           <button
             type="button"
-            onClick={() => copyLog(buildIssueSummary(snapshot, displayContent, context), '已复制诊断包')}
+            onClick={() => copyLog(buildDiagnosticsIssueSummary(snapshot, displayContent, context), '已复制诊断包')}
             disabled={!logContent && context.length === 0}
           >
             复制诊断包
@@ -244,3 +180,4 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
 };
 
 export default DiagnosticsLogPanel;
+export type { DiagnosticsContextItem };

@@ -10,6 +10,8 @@
   color: var(--json-editor-foreground);
   font-family: var(--json-editor-font-family);
   font-size: var(--json-editor-font-size);
+  font-weight: normal;
+  letter-spacing: 0;
   line-height: var(--json-editor-line-height);
   white-space: pre;
   overflow: auto;

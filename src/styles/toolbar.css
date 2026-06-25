@@ -169,6 +169,19 @@
   margin-left: 0;
 }
 
+.toolbar-feedback-action {
+  height: 22px;
+  padding: 0 8px;
+  border-color: rgba(220, 38, 38, 0.24);
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.toolbar-feedback-action:hover {
+  background: rgba(220, 38, 38, 0.14);
+}
+
 .app-container.dark-mode .toolbar-section-label {
   color: #d9c18c;
   background: rgba(217, 193, 140, 0.08);

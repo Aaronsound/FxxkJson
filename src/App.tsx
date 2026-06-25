@@ -1,6 +1,6 @@
-﻿import React, { useState } from 'react';
+import React from 'react';
 import type { OnMount } from '@monaco-editor/react';
-import JsonToolWorkspace from './components/JsonToolWorkspace';
+import JsonToolAppView from './components/JsonToolAppView';
 import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
 import { useJsonToolContentActions } from './hooks/useJsonToolContentActions';
 import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
@@ -12,7 +12,7 @@ import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
-import { usePaneSearchState } from './hooks/usePaneSearchState';
+import { useJsonToolPaneSearchStates } from './hooks/useJsonToolPaneSearchStates';
 import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
 import { useJsonImportActions } from './hooks/useJsonImportActions';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
@@ -36,10 +36,10 @@ import { useJsonEditActions } from './hooks/useJsonEditActions';
 import { useLeftEditorActions } from './hooks/useLeftEditorActions';
 import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
 import { useRightEditorDiagnostics } from './hooks/useRightEditorDiagnostics';
+import { useJsonToolViewerState } from './hooks/useJsonToolViewerState';
+import { useJsonToolWorkspaceActions } from './hooks/useJsonToolWorkspaceActions';
 import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
 import { INITIAL_TAB_ID } from './types/jsonTool';
-import type { LargeJsonSearchMatch } from './types/jsonTool';
-import { getUtf8ByteLength, isLargeDocument } from './utils/jsonDocumentMetrics';
 import './App.css';
 
 const App: React.FC = () => {
@@ -74,51 +74,52 @@ const App: React.FC = () => {
     initialTabId: INITIAL_TAB_ID,
     initialTabTitle: 'HelloJson',
   });
-  const leftPaneSearch = usePaneSearchState();
-  const rightPaneSearch = usePaneSearchState();
   const {
-    isFindOpen: isLeftFindOpen,
-    isSearchLoadingMore: isLeftSearchLoadingMore,
-    matchIndex: leftMatchIndex,
-    matches: leftMatches,
-    resetSearchPaging: resetLeftSearchPaging,
-    resetSearchState: resetLeftSearchState,
-    searchHasMore: leftSearchHasMore,
-    searchNextOffset: leftSearchNextOffset,
-    searchOptions: leftSearchOptions,
-    searchTerm: leftSearchTerm,
-    setIsFindOpen: setIsLeftFindOpen,
-    setIsSearchLoadingMore: setIsLeftSearchLoadingMore,
-    setMatchIndex: setLeftMatchIndex,
-    setMatches: setLeftMatches,
-    setSearchHasMore: setLeftSearchHasMore,
-    setSearchNextOffset: setLeftSearchNextOffset,
-    setSearchOptions: setLeftSearchOptions,
-    setSearchTerm: setLeftSearchTerm,
-  } = leftPaneSearch;
+    isLeftFindOpen,
+    isLeftSearchLoadingMore,
+    isRightFindOpen,
+    isRightSearchLoadingMore,
+    leftMatchIndex,
+    leftMatches,
+    leftSearchHasMore,
+    leftSearchNextOffset,
+    leftSearchOptions,
+    leftSearchTerm,
+    resetLeftSearchPaging,
+    resetLeftSearchState,
+    resetRightSearchPaging,
+    resetRightSearchState,
+    rightMatchIndex,
+    rightMatches,
+    rightSearchHasMore,
+    rightSearchNextOffset,
+    rightSearchOptions,
+    rightSearchTerm,
+    setIsLeftFindOpen,
+    setIsLeftSearchLoadingMore,
+    setIsRightFindOpen,
+    setIsRightSearchLoadingMore,
+    setLeftMatchIndex,
+    setLeftMatches,
+    setLeftSearchHasMore,
+    setLeftSearchNextOffset,
+    setLeftSearchOptions,
+    setLeftSearchTerm,
+    setRightMatchIndex,
+    setRightMatches,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
+    setRightSearchOptions,
+    setRightSearchTerm,
+  } = useJsonToolPaneSearchStates();
   const {
-    isFindOpen: isRightFindOpen,
-    isSearchLoadingMore: isRightSearchLoadingMore,
-    matchIndex: rightMatchIndex,
-    matches: rightMatches,
-    resetSearchPaging: resetRightSearchPaging,
-    resetSearchState: resetRightSearchState,
-    searchHasMore: rightSearchHasMore,
-    searchNextOffset: rightSearchNextOffset,
-    searchOptions: rightSearchOptions,
-    searchTerm: rightSearchTerm,
-    setIsFindOpen: setIsRightFindOpen,
-    setIsSearchLoadingMore: setIsRightSearchLoadingMore,
-    setMatchIndex: setRightMatchIndex,
-    setMatches: setRightMatches,
-    setSearchHasMore: setRightSearchHasMore,
-    setSearchNextOffset: setRightSearchNextOffset,
-    setSearchOptions: setRightSearchOptions,
-    setSearchTerm: setRightSearchTerm,
-  } = rightPaneSearch;
-  const [leftReplaceText, setLeftReplaceText] = useState('');
-  const [largeViewerMatchCount, setLargeViewerMatchCount] = useState(0);
-  const [largeViewerMatches, setLargeViewerMatches] = useState<LargeJsonSearchMatch[]>([]);
+    largeViewerMatchCount,
+    largeViewerMatches,
+    leftReplaceText,
+    setLargeViewerMatchCount,
+    setLargeViewerMatches,
+    setLeftReplaceText,
+  } = useJsonToolViewerState();
   const {
     isDarkMode,
     language,
@@ -438,18 +439,26 @@ const App: React.FC = () => {
     setTabError,
   });
 
+  const {
+    applyRawUpdate,
+    beginPastePerformanceSession,
+    handleOpenAbout,
+    handleOpenCompare,
+    handleOpenDiagnosticsLog,
+    handleToggleDarkMode,
+  } = useJsonToolWorkspaceActions({
+    beginPerformanceSession,
+    setIsAboutOpen,
+    setIsCompareOpen,
+    setIsDarkMode,
+    setIsDiagnosticsLogOpen,
+    setTabLargeMode,
+    updateTabContent,
+  });
+
   const { handleLeftChange, handleLeftMount, replaceAllLeftText, replaceCurrentLargeLeftText } = useLeftEditorActions({
     ...{ activeTab, activeTabIdRef },
-    beginPastePerformanceSession(tabId, nextContent) {
-      beginPerformanceSession(
-        tabId,
-        'paste',
-        '剪贴板粘贴',
-        null,
-        getUtf8ByteLength(nextContent),
-        isLargeDocument(nextContent)
-      );
-    },
+    beginPastePerformanceSession,
     ...{ getTabContent, largeRawViewerMatches, leftEditorRef, normalizedLeftMatchIndex, openLeftFind },
     ...{ queueFormat, registerLeftEditorContextMenu, renameTab },
     requestReplaceText: ({ tabId, text, searchTerm, searchOptions, replacement }) =>
@@ -499,10 +508,7 @@ const App: React.FC = () => {
     });
 
   const { applyRightNodeMutationAtOffset, copyNodeDetailAtOffset, copyValueAtOffset } = useRightNodeActions({
-    applyRawUpdate(tabId, updated) {
-      updateTabContent(tabId, updated, true);
-      setTabLargeMode(tabId, isLargeDocument(updated));
-    },
+    applyRawUpdate,
     ...{ getTabContent, logEvent, queueFormatAfterEditSave, readEditableNodeAtOffset, requestWorkerEditJson },
     requestDeleteConfirmation: requestDeleteNode,
     requestRenameKey,
@@ -597,13 +603,13 @@ const App: React.FC = () => {
     ...{ handleClear, handleCopyEscapedJson, handleEscapeEditJsonContent, handleEscapeJson },
     ...{ handleFormat, handleImport, handleLargeFileLocateToggle },
     ...{ handleLeftChange, handleLeftMount, handleLeftSearchOptionsChange, handleLeftSearchTermChange },
-    handleOpenAbout: () => setIsAboutOpen(true),
-    handleOpenCompare: () => setIsCompareOpen(true),
-    handleOpenDiagnosticsLog: () => setIsDiagnosticsLogOpen(true),
+    handleOpenAbout,
+    handleOpenCompare,
+    handleOpenDiagnosticsLog,
     ...{ handleOpenEditJson, handleOpenEditNodeAtOffset, handleOpenUnescapedNodeAtOffset },
     ...{ handleRepairJson, handleRenamingChange, handleRightMount },
     ...{ handleRightSearchOptionsChange, handleRightSearchTermChange, handleSaveEditJson },
-    handleToggleDarkMode: () => setIsDarkMode((current: boolean) => !current),
+    handleToggleDarkMode,
     ...{ handleUnescapeEditJsonContent, handleUnescapeJson, hasCopiedLiteral, importingFileName },
     ...{ isAboutOpen, isArchitectureWarningDismissed, isBuildingDedicatedRightViewer, isCompareOpen },
     ...{ isDarkMode, isDiagnosticsLogOpen, isDragImportActive, isFormattingActiveTab, isImportingActiveTab },
@@ -635,8 +641,7 @@ const App: React.FC = () => {
   });
 
   return (
-    <JsonToolWorkspace
-      contextMenusProps={workspaceProps.contextMenusProps}
+    <JsonToolAppView
       fileInputRef={fileInputRef}
       isDarkMode={isDarkMode}
       onDragEnter={handleImportDragEnter}
@@ -644,12 +649,8 @@ const App: React.FC = () => {
       onDragLeave={handleImportDragLeave}
       onDrop={handleImportDrop}
       onFileSelection={handleFileSelection}
-      overlayProps={workspaceProps.overlayProps}
-      panesProps={workspaceProps.panesProps}
-      performancePanelProps={workspaceProps.performancePanelProps}
       shouldShowPerformancePanel={showPerformancePanel}
-      tabBarProps={workspaceProps.tabBarProps}
-      toolbarProps={workspaceProps.toolbarProps}
+      workspaceProps={workspaceProps}
     />
   );
 };

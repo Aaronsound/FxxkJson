@@ -33,6 +33,46 @@ interface UseJsonWorkerLifecycleArgs {
   workerRef: MutableRefObject<Worker | null>;
 }
 
+interface FailActiveWorkerRequestsArgs {
+  callbacksRef: MutableRefObject<JsonWorkerLifecycleCallbacks>;
+  clearFormatWatchdog: (tabId: string) => void;
+  clearPendingFormat: (tabId: string) => void;
+  latestRequestRef: MutableRefObject<Record<string, number>>;
+  message: string;
+  userMessage: string;
+}
+
+function failActiveWorkerRequests({
+  callbacksRef,
+  clearFormatWatchdog,
+  clearPendingFormat,
+  latestRequestRef,
+  message,
+  userMessage,
+}: FailActiveWorkerRequestsArgs) {
+  for (const tabId of Object.keys(latestRequestRef.current)) {
+    clearPendingFormat(tabId);
+    clearFormatWatchdog(tabId);
+    callbacksRef.current.setTabFormatting(tabId, false);
+    callbacksRef.current.setProcessingStage(tabId, 'idle');
+    callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
+    callbacksRef.current.setStructureStatus(tabId, 'disabled');
+    callbacksRef.current.setTabError(tabId, userMessage);
+    callbacksRef.current.mutatePerformanceSession(
+      tabId,
+      (session) => {
+        if (session.requestId !== latestRequestRef.current[tabId]) {
+          return;
+        }
+
+        session.status = 'failed';
+        session.error = message;
+      },
+      true
+    );
+  }
+}
+
 export function useJsonWorkerLifecycle({
   callbacksRef,
   clearFormatWatchdog,
@@ -54,15 +94,35 @@ export function useJsonWorkerLifecycle({
 
     workerRef.current = worker;
     worker.onerror = (event) => {
+      const message = event.message || 'JSON worker failed to load';
       callbacksRef.current.logEvent('worker-error', {
-        message: event.message,
+        message,
         source: event.filename,
         line: event.lineno,
         column: event.colno,
       });
+      failActiveWorkerRequests({
+        callbacksRef,
+        clearFormatWatchdog,
+        clearPendingFormat,
+        latestRequestRef,
+        message,
+        userMessage: `JSON worker 加载失败：${message}`,
+      });
     };
     worker.onmessageerror = () => {
-      callbacksRef.current.logEvent('worker-message-error');
+      const message = 'JSON worker message transfer failed';
+      callbacksRef.current.logEvent('worker-message-error', {
+        message,
+      });
+      failActiveWorkerRequests({
+        callbacksRef,
+        clearFormatWatchdog,
+        clearPendingFormat,
+        latestRequestRef,
+        message,
+        userMessage: 'JSON worker 消息传输失败，请重试或重新导入文件',
+      });
     };
     worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       if (interactiveFlow.handleResult(event.data)) {

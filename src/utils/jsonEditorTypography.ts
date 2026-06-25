@@ -1,12 +1,13 @@
-export const JSON_EDITOR_FONT_FAMILY = 'Consolas, "Courier New", monospace';
-export const JSON_EDITOR_FONT_SIZE = 14;
-export const JSON_EDITOR_LINE_HEIGHT = 19;
+// Stable product typography: keep these values unchanged unless the JSON editor visual baseline is intentionally updated.
+export const JSON_EDITOR_FONT_FAMILY = 'Menlo, Monaco, "Courier New", monospace';
+export const JSON_EDITOR_FONT_SIZE = 12;
+export const JSON_EDITOR_LINE_HEIGHT = 18;
 
 export const JSON_EDITOR_FONT_SIZE_CSS = `${JSON_EDITOR_FONT_SIZE}px`;
 export const JSON_EDITOR_LINE_HEIGHT_CSS = `${JSON_EDITOR_LINE_HEIGHT}px`;
 
-export const JSON_EDITOR_LIGHT_THEME = 'vs-light';
-export const JSON_EDITOR_DARK_THEME = 'vs-dark';
+export const JSON_EDITOR_LIGHT_THEME = 'fxxkjson-light';
+export const JSON_EDITOR_DARK_THEME = 'fxxkjson-dark';
 
 type JsonEditorThemeColors = {
   foreground: string;
@@ -80,4 +81,78 @@ export function getJsonEditorCssVariables(isDarkMode: boolean) {
 
 export function getJsonEditorTheme(isDarkMode: boolean) {
   return isDarkMode ? JSON_EDITOR_DARK_THEME : JSON_EDITOR_LIGHT_THEME;
+}
+
+type MonacoThemeRegistry = {
+  editor: {
+    defineTheme: (
+      themeName: string,
+      themeData: {
+        base: 'vs' | 'vs-dark';
+        inherit: boolean;
+        rules: Array<{ token: string; foreground?: string; fontStyle?: string }>;
+        colors: Record<string, string>;
+      }
+    ) => void;
+  };
+};
+
+let jsonEditorThemesConfigured = false;
+
+function stripHash(color: string) {
+  return color.replace(/^#/, '');
+}
+
+function getJsonEditorThemeRules(colors: JsonEditorThemeColors) {
+  return [
+    { token: '', foreground: stripHash(colors.foreground), fontStyle: '' },
+    { token: 'delimiter', foreground: stripHash(colors.punctuation), fontStyle: '' },
+    { token: 'delimiter.bracket', foreground: stripHash(colors.punctuation), fontStyle: '' },
+    { token: 'delimiter.array', foreground: stripHash(colors.punctuation), fontStyle: '' },
+    { token: 'delimiter.object', foreground: stripHash(colors.punctuation), fontStyle: '' },
+    { token: 'string', foreground: stripHash(colors.string), fontStyle: '' },
+    { token: 'string.key', foreground: stripHash(colors.key), fontStyle: '' },
+    { token: 'string.value', foreground: stripHash(colors.string), fontStyle: '' },
+    { token: 'number', foreground: stripHash(colors.number), fontStyle: '' },
+    { token: 'keyword', foreground: stripHash(colors.literal), fontStyle: '' },
+    { token: 'constant.language', foreground: stripHash(colors.literal), fontStyle: '' },
+  ];
+}
+
+function getJsonEditorThemeColors(colors: JsonEditorThemeColors) {
+  return {
+    'editor.background': colors.background,
+    'editor.foreground': colors.foreground,
+    'editorBracketHighlight.foreground1': colors.punctuation,
+    'editorBracketHighlight.foreground2': colors.punctuation,
+    'editorBracketHighlight.foreground3': colors.punctuation,
+    'editorBracketHighlight.foreground4': colors.punctuation,
+    'editorBracketHighlight.foreground5': colors.punctuation,
+    'editorBracketHighlight.foreground6': colors.punctuation,
+    'editorLineNumber.foreground': colors.lineNumber,
+    'editorLineNumber.activeForeground': colors.foreground,
+    'editorCursor.foreground': colors.foreground,
+  };
+}
+
+export function configureJsonEditorThemes(monaco: MonacoThemeRegistry, force = false) {
+  if (jsonEditorThemesConfigured && !force) {
+    return;
+  }
+
+  monaco.editor.defineTheme(JSON_EDITOR_LIGHT_THEME, {
+    base: 'vs',
+    inherit: false,
+    rules: getJsonEditorThemeRules(JSON_EDITOR_LIGHT_COLORS),
+    colors: getJsonEditorThemeColors(JSON_EDITOR_LIGHT_COLORS),
+  });
+
+  monaco.editor.defineTheme(JSON_EDITOR_DARK_THEME, {
+    base: 'vs-dark',
+    inherit: false,
+    rules: getJsonEditorThemeRules(JSON_EDITOR_DARK_COLORS),
+    colors: getJsonEditorThemeColors(JSON_EDITOR_DARK_COLORS),
+  });
+
+  jsonEditorThemesConfigured = true;
 }

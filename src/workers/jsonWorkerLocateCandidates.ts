@@ -1,4 +1,4 @@
-export function getLocateCandidateOffsets(text, offset) {
+export function getLocateCandidateOffsets(text: string, offset: number) {
   const safeOffset = Math.max(0, Math.min(offset, text.length));
   const lineStart = text.lastIndexOf('\n', Math.max(0, safeOffset - 1)) + 1;
   const nextLineBreak = text.indexOf('\n', safeOffset);

@@ -1,10 +1,9 @@
 import React from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import type { OnMount } from '@monaco-editor/react';
+import JsonMonacoEditor from './JsonMonacoEditor';
 import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
 import PaneFindWidget from './PaneFindWidget';
 import type { JsonSearchOptions, LargeRawViewerData } from '../types/jsonTool';
-import { getMonacoOptions } from '../utils/jsonEditorInteractions';
-import { getJsonEditorTheme } from '../utils/jsonEditorTypography';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface LeftJsonEditorPaneProps {
@@ -90,7 +89,7 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
     <div className={`editor-pane-header editor-pane-header-subtle ${isDarkMode ? 'dark' : ''}`}>
       <span className="editor-pane-header-text">{leftPaneMetaText}</span>
     </div>
-    <div className="editor-pane-body">
+    <div className={`editor-pane-body ${isLeftFindOpen ? 'pane-find-open' : ''}`}>
       {isLeftFindOpen && (
         <PaneFindWidget
           value={leftSearchTerm}
@@ -114,27 +113,26 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           onClose={onCloseLeftFind}
         />
       )}
-      {shouldUseDedicatedLeftViewer ? (
-        <LargeRawReadonlyViewer
-          ref={largeRawViewerRef}
-          text={activeRawText}
-          data={activeLargeRawViewerData}
-          isDarkMode={isDarkMode}
-          highlightRange={leftRawHighlightRange}
-        />
-      ) : (
-        <Editor
-          onMount={onLeftMount}
-          theme={getJsonEditorTheme(isDarkMode)}
-          options={getMonacoOptions({
-            largeMode: isLargeFileMode,
-            wrapLongLines,
-          })}
-          onChange={onLeftChange}
-          height="100%"
-          loading={null}
-        />
-      )}
+      <div className="editor-pane-content">
+        {shouldUseDedicatedLeftViewer ? (
+          <LargeRawReadonlyViewer
+            ref={largeRawViewerRef}
+            text={activeRawText}
+            data={activeLargeRawViewerData}
+            isDarkMode={isDarkMode}
+            highlightRange={leftRawHighlightRange}
+          />
+        ) : (
+          <JsonMonacoEditor
+            onMount={onLeftMount}
+            isDarkMode={isDarkMode}
+            largeMode={isLargeFileMode}
+            wrapLongLines={wrapLongLines}
+            onChange={onLeftChange}
+            height="100%"
+          />
+        )}
+      </div>
       {shouldShowLeftPlaceholder && <div className="editor-center-placeholder">{t('pane.rawPlaceholder')}</div>}
       {processingStageText && <div className="editor-loading-overlay">{processingStageText}</div>}
     </div>

@@ -266,7 +266,14 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
         <div className="toolbar-feedback">
           {processingStageText && <span className="toolbar-hint">{processingStageText}</span>}
           {hintMessage && <span className="toolbar-hint">{hintMessage}</span>}
-          {currentError && <span className="toolbar-error">{currentError}</span>}
+          {currentError && (
+            <>
+              <span className="toolbar-error">{currentError}</span>
+              <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
+                {t('toolbar.diagnostics')}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

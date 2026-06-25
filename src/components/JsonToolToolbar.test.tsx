@@ -89,4 +89,15 @@ describe('JsonToolToolbar', () => {
 
     expect(props.onOpenCompare).toHaveBeenCalledTimes(1);
   });
+
+  it('offers diagnostics next to visible errors', () => {
+    const { props } = renderToolbar({ currentError: 'JSON worker 加载失败' });
+
+    expect(screen.getByText('JSON worker 加载失败')).toBeInTheDocument();
+
+    const diagnosticsButtons = screen.getAllByRole('button', { name: '诊断日志' });
+    fireEvent.click(diagnosticsButtons.at(-1)!);
+
+    expect(props.onOpenDiagnosticsLog).toHaveBeenCalledTimes(1);
+  });
 });

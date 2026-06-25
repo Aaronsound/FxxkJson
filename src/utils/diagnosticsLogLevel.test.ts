@@ -1,6 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { getDiagnosticsLogLevel, isErrorDiagnosticsLogLine } from './diagnosticsLogLevel';
+import {
+  getDiagnosticsLogLevel,
+  getDiagnosticsLogLineCategory,
+  isErrorDiagnosticsLogLine,
+} from './diagnosticsLogLevel';
 
 describe('diagnosticsLogLevel', () => {
   it('classifies diagnostic events', () => {
@@ -15,5 +19,19 @@ describe('diagnosticsLogLevel', () => {
     expect(isErrorDiagnosticsLogLine('[2026] {"event":"format-success","level":"error"}')).toBe(true);
     expect(isErrorDiagnosticsLogLine('[2026] {"event":"format-timeout"}')).toBe(true);
     expect(isErrorDiagnosticsLogLine('[2026] plain timeout line')).toBe(true);
+  });
+
+  it('does not treat successful performance snapshots as errors because they contain an error field', () => {
+    expect(
+      isErrorDiagnosticsLogLine(
+        '[2026] {"event":"performance-snapshot","level":"info","snapshot":{"status":"ready","error":null}}'
+      )
+    ).toBe(false);
+  });
+
+  it('classifies structured log lines for diagnostics filters', () => {
+    expect(getDiagnosticsLogLineCategory('[2026] {"event":"performance-snapshot","level":"info"}')).toBe('performance');
+    expect(getDiagnosticsLogLineCategory('[2026] {"event":"fallback-format","level":"info"}')).toBe('warn');
+    expect(getDiagnosticsLogLineCategory('[2026] {"event":"format-success","level":"info"}')).toBe('info');
   });
 });

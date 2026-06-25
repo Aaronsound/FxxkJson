@@ -1,10 +1,49 @@
+import type { EditJsonWorkerOperation, EditJsonWorkerRequest, JsonEditPath, WorkerMessage } from '../types/jsonTool';
 import { parseJsonForFormatting } from '../utils/jsonFormat';
 import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
 import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
+import type { JsonValue } from '../utils/preserveJsonFormat';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import { replaceTextSearchMatches } from '../utils/searchText';
+import type { SaveNodeEditResult } from './jsonNodeEditOperations';
 
-function formatJsonForEdit(tabId, text, editJsonCache) {
+interface EditJsonCacheEntry {
+  originalText: string;
+  originalValue: JsonValue;
+}
+
+interface JsonNodeEditOperations {
+  deleteJsonNodeForEdit: (tabId: string, originalText: string | undefined, path: JsonEditPath | undefined) => string;
+  readJsonNodeForEdit: (tabId: string, text: string | undefined, offset: number | undefined) => string;
+  renameJsonNodeKeyForEdit: (
+    tabId: string,
+    text: string,
+    originalText: string | undefined,
+    path: JsonEditPath | undefined
+  ) => string;
+  saveJsonNodeForEdit: (
+    tabId: string,
+    text: string,
+    originalText: string | undefined,
+    path: JsonEditPath | undefined
+  ) => SaveNodeEditResult;
+}
+
+interface JsonWorkerEditJsonOperationsArgs {
+  editJsonCache: Map<string, EditJsonCacheEntry>;
+  jsonNodeEditOperations: JsonNodeEditOperations;
+}
+
+type EditJsonWorkerRequestMessage = EditJsonWorkerRequest & {
+  requestId: number;
+  type?: 'edit-json';
+};
+
+function postWorkerMessage(message: WorkerMessage) {
+  postMessage(message);
+}
+
+function formatJsonForEdit(tabId: string, text: string, editJsonCache: Map<string, EditJsonCacheEntry>) {
   const { value, normalizedNestedString } = parseJsonForFormatting(text);
 
   if (normalizedNestedString) {
@@ -12,14 +51,19 @@ function formatJsonForEdit(tabId, text, editJsonCache) {
   } else {
     editJsonCache.set(tabId, {
       originalText: text,
-      originalValue: value,
+      originalValue: value as JsonValue,
     });
   }
 
   return JSON.stringify(value, null, 2);
 }
 
-function saveJsonForEdit(tabId, text, originalText, editJsonCache) {
+function saveJsonForEdit(
+  tabId: string,
+  text: string,
+  originalText: string | undefined,
+  editJsonCache: Map<string, EditJsonCacheEntry>
+) {
   if (typeof originalText === 'string') {
     const cached = editJsonCache.get(tabId);
     const saved = saveJsonPreservingOriginalFormat(
@@ -35,17 +79,20 @@ function saveJsonForEdit(tabId, text, originalText, editJsonCache) {
   return formatJsonForEdit(tabId, text, editJsonCache);
 }
 
-function copyJsonAsStringLiteral(text) {
+function copyJsonAsStringLiteral(text: string) {
   return JSON.stringify(JSON.stringify(JSON.parse(text)));
 }
 
-function transformJsonEscape(operation, text) {
+function transformJsonEscape(operation: EditJsonWorkerOperation, text: string) {
   const result = operation === 'escape-json' ? escapeJsonText(text) : unescapeJsonText(text);
   return result.text;
 }
 
-export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEditOperations }) {
-  function handleEditJsonMessage(message) {
+export function createJsonWorkerEditJsonOperations({
+  editJsonCache,
+  jsonNodeEditOperations,
+}: JsonWorkerEditJsonOperationsArgs) {
+  function handleEditJsonMessage(message: EditJsonWorkerRequestMessage) {
     const { requestId, tabId, operation, text, originalText, path, offset, replacement, searchOptions, searchTerm } =
       message;
 
@@ -74,15 +121,17 @@ export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEdit
 
         if (operation === 'save-node') {
           const result = jsonNodeEditOperations.saveJsonNodeForEdit(tabId, text, originalText, path);
+          const formattedPatch =
+            typeof result.formattedText === 'string' ? { formattedText: result.formattedText } : {};
 
-          postMessage({
+          postWorkerMessage({
             type: 'edit-json-result',
             requestId,
             tabId,
             operation,
             success: true,
             data: result.rawText,
-            formattedText: result.formattedText,
+            ...formattedPatch,
             structureWarming: result.structureWarming,
             rawViewerData: result.rawViewerData,
             viewerData: result.viewerData,
@@ -110,7 +159,7 @@ export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEdit
         return;
       }
 
-      postMessage({
+      postWorkerMessage({
         type: 'edit-json-result',
         requestId,
         tabId,
@@ -119,7 +168,7 @@ export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEdit
         data,
       });
     } catch (err) {
-      postMessage({
+      postWorkerMessage({
         type: 'edit-json-result',
         requestId,
         tabId,
@@ -134,3 +183,5 @@ export function createJsonWorkerEditJsonOperations({ editJsonCache, jsonNodeEdit
     handleEditJsonMessage,
   };
 }
+
+export type { EditJsonCacheEntry, EditJsonWorkerRequestMessage, JsonNodeEditOperations };

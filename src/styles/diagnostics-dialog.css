@@ -37,7 +37,26 @@
 }
 
 .diagnostics-log-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-left: auto;
+}
+
+.diagnostics-log-filter select {
+  min-width: 88px;
+  border: 1px solid rgba(120, 96, 58, 0.24);
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+  padding: 4px 8px;
+}
+
+.modal-card-dark .diagnostics-log-filter select {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: #111827;
+  color: #f9fafb;
 }
 
 .modal-card-dark .diagnostics-log-meta {

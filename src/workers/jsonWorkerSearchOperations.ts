@@ -1,12 +1,58 @@
 import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
+import type {
+  JsonSearchOptions,
+  LargeJsonViewerData,
+  SearchTarget,
+  WorkerMessage,
+  WorkerSearchRequest,
+} from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
 
-export function getSearchRequestKey(tabId, target) {
+type SearchRequestMessage = WorkerSearchRequest & {
+  append?: boolean;
+  requestId: number;
+  startOffset?: number;
+  type?: 'search';
+};
+
+interface RawSearchCacheEntry {
+  lowerFormattedText?: string | null;
+  lineStarts: Uint32Array | null;
+  lowerRawText: string | null;
+  rawRevision: number | null;
+  rawText: string;
+}
+
+interface ViewerSearchCacheEntry {
+  formattedText: string;
+  lowerRawText?: string | null;
+  lowerFormattedText?: string | null;
+  viewerData: LargeJsonViewerData;
+}
+
+interface JsonWorkerSearchOperationsArgs {
+  latestSearchRequestByKey: Map<string, number>;
+  rawSearchCache: Map<string, RawSearchCacheEntry>;
+  viewerCache: Map<string, ViewerSearchCacheEntry>;
+}
+
+type NormalizedSearchTextKey = 'lowerFormattedText' | 'lowerRawText';
+
+export function getSearchRequestKey(tabId: string, target: SearchTarget) {
   return `${target}:${tabId}`;
 }
 
-export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, rawSearchCache, viewerCache }) {
-  function getNormalizedText(cached, key, text, searchOptions) {
+export function createJsonWorkerSearchOperations({
+  latestSearchRequestByKey,
+  rawSearchCache,
+  viewerCache,
+}: JsonWorkerSearchOperationsArgs) {
+  function getNormalizedText(
+    cached: RawSearchCacheEntry | ViewerSearchCacheEntry,
+    key: NormalizedSearchTextKey,
+    text: string,
+    searchOptions: JsonSearchOptions
+  ) {
     if (searchOptions.matchCase || searchOptions.useRegex) {
       return undefined;
     }
@@ -18,19 +64,19 @@ export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, raw
     return cached[key];
   }
 
-  function isLatestSearchRequest(tabId, target, requestId) {
+  function isLatestSearchRequest(tabId: string, target: SearchTarget, requestId: number) {
     return latestSearchRequestByKey.get(getSearchRequestKey(tabId, target)) === requestId;
   }
 
-  function postSearchResultIfLatest(payload) {
-    if (!isLatestSearchRequest(payload.tabId, payload.target, payload.requestId)) {
+  function postSearchResultIfLatest(payload: WorkerMessage) {
+    if (!isLatestSearchRequest(payload.tabId, payload.target ?? 'right', payload.requestId)) {
       return;
     }
 
     postMessage(payload);
   }
 
-  function postEmptySearchResult(message) {
+  function postEmptySearchResult(message: SearchRequestMessage) {
     postSearchResultIfLatest({
       type: 'search-result',
       requestId: message.requestId,
@@ -44,7 +90,7 @@ export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, raw
     });
   }
 
-  async function runSearchRequest(message) {
+  async function runSearchRequest(message: SearchRequestMessage) {
     const { requestId, tabId, target = 'right', query, searchOptions, startOffset = 0, append = false } = message;
     const shouldCancel = () => !isLatestSearchRequest(tabId, target, requestId);
 
@@ -157,7 +203,7 @@ export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, raw
     }
   }
 
-  function handleSearchMessage(message) {
+  function handleSearchMessage(message: SearchRequestMessage) {
     const target = message.target ?? 'right';
     latestSearchRequestByKey.set(getSearchRequestKey(message.tabId, target), message.requestId);
     setTimeout(() => {
@@ -175,3 +221,5 @@ export function createJsonWorkerSearchOperations({ latestSearchRequestByKey, raw
     isLatestSearchRequest,
   };
 }
+
+export type { RawSearchCacheEntry, SearchRequestMessage, ViewerSearchCacheEntry };

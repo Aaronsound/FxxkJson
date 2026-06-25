@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations';
+import type { StructureCacheEntry } from './jsonWorkerStructureOperations';
 
 function createStructureHarness() {
   const directValueTreeCache = new Map();
@@ -44,7 +45,7 @@ describe('jsonWorkerStructureOperations', () => {
 
   it('parses and caches raw/formatted structure trees on demand', () => {
     const { directValueTreeCache, operations, structureCache } = createStructureHarness();
-    const cached: Record<string, unknown> = {
+    const cached: StructureCacheEntry = {
       requestId: 1,
       rawText: '{"a":1}',
       formattedText: '{\n  "a": 1\n}',

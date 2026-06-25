@@ -1,4 +1,5 @@
 .pane-find-layer {
+  --pane-find-layer-bottom-gap: 8px;
   position: absolute;
   top: 8px;
   right: 16px;
