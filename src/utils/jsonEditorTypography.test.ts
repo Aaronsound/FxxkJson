@@ -39,7 +39,7 @@ describe('JSON editor typography', () => {
     expect(options.letterSpacing).toBe(0);
     expect(options.lineHeight).toBe(JSON_EDITOR_LINE_HEIGHT);
     expect(options.bracketPairColorization).toEqual({ enabled: false });
-    expect(JSON_EDITOR_FONT_FAMILY).toBe('Menlo, Monaco, "Courier New", monospace');
+    expect(JSON_EDITOR_FONT_FAMILY).toBe('Menlo, Monaco, Consolas, "Courier New", monospace');
     expect(JSON_EDITOR_FONT_SIZE).toBe(12);
     expect(JSON_EDITOR_LINE_HEIGHT).toBe(18);
 

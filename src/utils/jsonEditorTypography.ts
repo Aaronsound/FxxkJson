@@ -1,5 +1,5 @@
 // Stable product typography: keep these values unchanged unless the JSON editor visual baseline is intentionally updated.
-export const JSON_EDITOR_FONT_FAMILY = 'Menlo, Monaco, "Courier New", monospace';
+export const JSON_EDITOR_FONT_FAMILY = 'Menlo, Monaco, Consolas, "Courier New", monospace';
 export const JSON_EDITOR_FONT_SIZE = 12;
 export const JSON_EDITOR_LINE_HEIGHT = 18;
 
