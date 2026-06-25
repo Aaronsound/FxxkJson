@@ -39,7 +39,7 @@ describe('JSON editor typography', () => {
     expect(options.letterSpacing).toBe(0);
     expect(options.lineHeight).toBe(JSON_EDITOR_LINE_HEIGHT);
     expect(options.bracketPairColorization).toEqual({ enabled: false });
-    expect(JSON_EDITOR_FONT_FAMILY).toBe('Menlo, Monaco, Consolas, "Courier New", monospace');
+    expect(JSON_EDITOR_FONT_FAMILY).toBe('"JetBrains Mono", Menlo, Monaco, Consolas, "Courier New", monospace');
     expect(JSON_EDITOR_FONT_SIZE).toBe(12);
     expect(JSON_EDITOR_LINE_HEIGHT).toBe(18);
 
@@ -78,6 +78,10 @@ describe('JSON editor typography', () => {
 
     const workspaceSource = readFileSync(join(process.cwd(), 'src/components/JsonToolWorkspace.tsx'), 'utf8');
     expect(workspaceSource).toContain('getJsonEditorCssVariables(isDarkMode)');
+
+    const indexSource = readFileSync(join(process.cwd(), 'src/index.tsx'), 'utf8');
+    expect(indexSource).toContain("import '@fontsource/jetbrains-mono/400.css';");
+    expect(indexSource).toContain('document.fonts.load(\'400 12px "JetBrains Mono"\')');
 
     for (const componentPath of ['src/components/LeftJsonEditorPane.tsx', 'src/components/RightJsonEditorPane.tsx']) {
       const editorSource = readFileSync(join(process.cwd(), componentPath), 'utf8');
