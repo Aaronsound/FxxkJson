@@ -16,7 +16,7 @@ import { createTranslator, type I18nKey } from '../utils/i18n';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 const EDIT_FOLD_CONTROL_VISUAL_DEDUPE_PX = 4;
-const EDIT_MODAL_HIDDEN_AREA_SOURCE = { id: 'hanjson-edit-modal-folding' };
+const EDIT_MODAL_HIDDEN_AREA_SOURCE = { id: 'fxxkjson-edit-modal-folding' };
 
 interface JsonEditModalProps {
   sessionKey: number;
@@ -75,7 +75,7 @@ type EditFoldControl = {
 };
 
 type FoldingTextModel = monaco.editor.ITextModel & {
-  __hanjsonEditFoldingOverride?: boolean;
+  __fxxkjsonEditFoldingOverride?: boolean;
   isTooLargeForTokenization?: () => boolean;
 };
 
@@ -133,11 +133,11 @@ function refreshEditFoldingControls(editor: monaco.editor.IStandaloneCodeEditor)
 
 function enableLargeEditModelFolding(editor: monaco.editor.IStandaloneCodeEditor) {
   const model = editor.getModel() as FoldingTextModel | null;
-  if (!model || model.__hanjsonEditFoldingOverride) {
+  if (!model || model.__fxxkjsonEditFoldingOverride) {
     return;
   }
 
-  model.__hanjsonEditFoldingOverride = true;
+  model.__fxxkjsonEditFoldingOverride = true;
   model.isTooLargeForTokenization = () => false;
   editor.updateOptions({ folding: false });
 }
@@ -150,7 +150,7 @@ function prepareLargeEditModel(editorApi: typeof monaco, path: string, initialVa
     model = editorApi.editor.createModel(initialValue, 'json', uri) as FoldingTextModel;
   }
 
-  model.__hanjsonEditFoldingOverride = true;
+  model.__fxxkjsonEditFoldingOverride = true;
   model.isTooLargeForTokenization = () => false;
 }
 
@@ -356,7 +356,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     editorRef,
     searchBatchSize: EDIT_MODAL_SEARCH_BATCH_SIZE,
   });
-  const editModelPath = `hanjson-edit-${sessionKey}.json`;
+  const editModelPath = `fxxkjson-edit-${sessionKey}.json`;
 
   const updateFoldControls = useCallback(async () => {
     const editor = editorRef.current;

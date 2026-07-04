@@ -7,6 +7,10 @@ export interface TextSearchBatch {
   cancelled?: boolean;
 }
 
+const MAX_REGEX_SEARCH_PATTERN_LENGTH = 512;
+const NESTED_QUANTIFIER_PATTERN =
+  /\((?:[^()[\]\\]|\\.|\[[^\]]*\])*(?:[+*]|\{\d+(?:,\d*)?\})(?:[^()[\]\\]|\\.|\[[^\]]*\])*\)(?:[+*]|\{\d+(?:,\d*)?\})/;
+
 export function buildLineStarts(text: string) {
   const lineStarts = [0];
 
@@ -71,6 +75,13 @@ function escapeRegExp(text: string) {
 
 export function getSearchMatcher(searchTerm: string, options: JsonSearchOptions) {
   if (!searchTerm) {
+    return null;
+  }
+
+  if (
+    options.useRegex &&
+    (searchTerm.length > MAX_REGEX_SEARCH_PATTERN_LENGTH || NESTED_QUANTIFIER_PATTERN.test(searchTerm))
+  ) {
     return null;
   }
 

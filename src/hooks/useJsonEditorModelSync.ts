@@ -10,7 +10,7 @@ import {
   getRightModelPath,
   recreateModel,
 } from '../utils/jsonToolModels';
-import { getUtf8ByteLength, isLargeDocument } from '../utils/jsonDocumentMetrics';
+import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 import { getMonacoOptions } from '../utils/jsonEditorInteractions';
 
 interface UseJsonEditorModelSyncArgs {
@@ -140,7 +140,7 @@ export function useJsonEditorModelSync({
       }
 
       const enableStructuralFolding = rawByteLength <= STRUCTURE_SYNC_THRESHOLD;
-      const effectiveLargeMode = largeModeRef.current[tabId] || isLargeDocument(rawText);
+      const effectiveLargeMode = largeModeRef.current[tabId] || rawByteLength >= LARGE_FILE_THRESHOLD;
       const language =
         rawByteLength > 0 && rawByteLength <= STRUCTURE_SYNC_THRESHOLD ? 'json' : getEditorLanguageByLength(byteLength);
       let model = getOrCreateModel(path, language);

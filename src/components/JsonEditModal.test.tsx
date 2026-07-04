@@ -710,7 +710,7 @@ describe('JsonEditModal search position', () => {
           endLineNumber: 5,
         }),
       ],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
     await act(async () => {
       vi.advanceTimersByTime(250);
@@ -720,7 +720,7 @@ describe('JsonEditModal search position', () => {
     fireEvent.click(container.querySelector('.edit-modal-fold-button.collapsed') as HTMLButtonElement);
     expect(editor.setHiddenAreas).toHaveBeenLastCalledWith(
       [],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
     expect(editor.foldingModel.toggleCollapseState).not.toHaveBeenCalled();
     expect(editor.updateOptions).toHaveBeenCalledWith(
@@ -758,7 +758,7 @@ describe('JsonEditModal search position', () => {
           endLineNumber: 5,
         }),
       ],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
   });
 
@@ -788,7 +788,7 @@ describe('JsonEditModal search position', () => {
           endLineNumber: 4,
         }),
       ],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
   });
 

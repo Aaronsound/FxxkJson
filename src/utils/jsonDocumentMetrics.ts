@@ -5,10 +5,37 @@ import {
   STRUCTURE_SYNC_THRESHOLD,
 } from '../types/jsonTool';
 
-const utf8Encoder = new TextEncoder();
-
 export function getUtf8ByteLength(text: string) {
-  return utf8Encoder.encode(text).length;
+  let byteLength = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+
+    if (code <= 0x7f) {
+      byteLength += 1;
+      continue;
+    }
+
+    if (code <= 0x7ff) {
+      byteLength += 2;
+      continue;
+    }
+
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const nextCode = text.charCodeAt(index + 1);
+      if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+        byteLength += 4;
+        index += 1;
+      } else {
+        byteLength += 3;
+      }
+      continue;
+    }
+
+    byteLength += 3;
+  }
+
+  return byteLength;
 }
 
 export function isLargeDocument(text: string) {

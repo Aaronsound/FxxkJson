@@ -174,7 +174,7 @@ describe('JSON editor typography', () => {
 
     const editModalSource = readFileSync(join(process.cwd(), 'src/components/JsonEditModal.tsx'), 'utf8');
     expect(editModalSource).toContain('preserveStructuralFolding');
-    expect(editModalSource).toContain('const editModelPath = `hanjson-edit-${sessionKey}.json`;');
+    expect(editModalSource).toContain('const editModelPath = `fxxkjson-edit-${sessionKey}.json`;');
     expect(editModalSource).toContain('path={editModelPath}');
   });
 });

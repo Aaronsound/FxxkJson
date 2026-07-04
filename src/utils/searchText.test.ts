@@ -107,4 +107,22 @@ describe('searchText', () => {
     expect(result.cancelled).toBe(true);
     expect(result.matches).toHaveLength(0);
   });
+
+  it('rejects regex patterns that are likely to cause catastrophic backtracking', async () => {
+    const text = `${'a'.repeat(5000)}!`;
+    const lineStarts = buildLineStarts(text);
+
+    const result = await findTextSearchBatchAsync(
+      text,
+      lineStarts,
+      lineStarts.length,
+      '(a+)+$',
+      { matchCase: true, wholeWord: false, useRegex: true },
+      0,
+      500
+    );
+
+    expect(result.matches).toHaveLength(0);
+    expect(result.hasMore).toBe(false);
+  });
 });

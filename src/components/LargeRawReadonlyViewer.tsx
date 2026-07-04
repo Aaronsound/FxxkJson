@@ -1,9 +1,10 @@
 import { useCallback, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { LargeRawViewerData } from '../types/jsonTool';
 import { buildLargeRawViewerData, findRawSegmentIndex } from '../utils/largeRawViewerData';
+import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 import './LargeRawReadonlyViewer.css';
 
-const LINE_HEIGHT = 19;
+const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
 const OVERSCAN = 20;
 const APPROX_CHAR_WIDTH = 7.7;
 const REVEAL_CONTEXT_CHARS = 24;

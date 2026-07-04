@@ -1,5 +1,5 @@
-import { DEDICATED_RIGHT_VIEWER_THRESHOLD } from '../types/jsonTool';
-import { getUtf8ByteLength, shouldBuildWorkerStructure, shouldUseLargeMode } from './jsonDocumentMetrics';
+import { DEDICATED_RIGHT_VIEWER_THRESHOLD, LARGE_FILE_THRESHOLD, STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
+import { exceedsLineCountThreshold, getUtf8ByteLength } from './jsonDocumentMetrics';
 
 export interface JsonWorkerProcessingPlan {
   textByteLength: number;
@@ -35,8 +35,8 @@ export function getDeferredStructureWarmupDelayMs(
 
 export function buildJsonWorkerProcessingPlan(text: string, locateRequested: boolean): JsonWorkerProcessingPlan {
   const textByteLength = getUtf8ByteLength(text);
-  const largeMode = shouldUseLargeMode(text);
-  const shouldBuildStructureIndex = shouldBuildWorkerStructure(text, locateRequested);
+  const largeMode = textByteLength >= LARGE_FILE_THRESHOLD || exceedsLineCountThreshold(text);
+  const shouldBuildStructureIndex = textByteLength > 0 && textByteLength <= STRUCTURE_SYNC_THRESHOLD && locateRequested;
   const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
   const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
 

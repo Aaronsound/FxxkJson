@@ -14,6 +14,8 @@ describe('jsonToolModels', () => {
   it('measures UTF-8 byte length instead of string length', () => {
     expect(getUtf8ByteLength('abc')).toBe(3);
     expect(getUtf8ByteLength('汉字')).toBe(6);
+    expect(getUtf8ByteLength('😀')).toBe(4);
+    expect(getUtf8ByteLength('\ud800')).toBe(3);
   });
 
   it('uses byte-based large document thresholds', () => {

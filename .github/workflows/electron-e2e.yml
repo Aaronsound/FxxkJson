@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - main
-      - dev-codex
+      - dev
     paths:
       - '.github/workflows/electron-e2e.yml'
       - 'electron/**'

@@ -2,6 +2,7 @@ import { createRef } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
+import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 describe('LargeRawReadonlyViewer', () => {
   function makeRect(left: number, right: number): DOMRect {
@@ -9,10 +10,10 @@ describe('LargeRawReadonlyViewer', () => {
       x: left,
       y: 0,
       width: right - left,
-      height: 19,
+      height: JSON_EDITOR_LINE_HEIGHT,
       top: 0,
       right,
-      bottom: 19,
+      bottom: JSON_EDITOR_LINE_HEIGHT,
       left,
       toJSON: () => ({}),
     } as DOMRect;
