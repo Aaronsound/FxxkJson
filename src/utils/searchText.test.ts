@@ -4,6 +4,15 @@ import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatch, findTextSearchBatchAsync, replaceTextSearchMatches } from './searchText';
 
 describe('searchText', () => {
+  it('builds compact typed line indexes after the inline threshold', () => {
+    const text = Array.from({ length: 5_000 }, (_, index) => String(index)).join('\n');
+    const lineStarts = buildLineStarts(text);
+
+    expect(lineStarts).toBeInstanceOf(Uint32Array);
+    expect(lineStarts).toHaveLength(5_000);
+    expect(lineStarts[4_999]).toBe(text.lastIndexOf('\n') + 1);
+  });
+
   it('loads complete search results across multiple batches', () => {
     const text = Array.from({ length: 5 }, (_, index) => `FxxkJson item ${index}`).join('\n');
     const lineStarts = buildLineStarts(text);
@@ -83,6 +92,14 @@ describe('searchText', () => {
 
     expect(result.cancelled).toBe(true);
     expect(result.matches).toHaveLength(0);
+  });
+
+  it('keeps escaped literal and case-insensitive semantics in async searches', async () => {
+    const text = 'A.B a.b axb';
+    const lineStarts = buildLineStarts(text);
+    const result = await findTextSearchBatchAsync(text, lineStarts, lineStarts.length, 'a.b', DEFAULT_SEARCH_OPTIONS);
+
+    expect(result.matches.map((match) => text.slice(match.start, match.end))).toEqual(['A.B', 'a.b']);
   });
 
   it('yields and cancels regex batches before stale matches finish scanning', async () => {

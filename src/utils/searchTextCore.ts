@@ -12,15 +12,37 @@ const NESTED_QUANTIFIER_PATTERN =
   /\((?:[^()[\]\\]|\\.|\[[^\]]*\])*(?:[+*]|\{\d+(?:,\d*)?\})(?:[^()[\]\\]|\\.|\[[^\]]*\])*\)(?:[+*]|\{\d+(?:,\d*)?\})/;
 
 export function buildLineStarts(text: string) {
-  const lineStarts = [0];
+  const inlineLineStarts = [0];
+  let lineStarts: Uint32Array | null = null;
+  let lineCount = 1;
 
   for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === '\n') {
-      lineStarts.push(index + 1);
+    if (text.charCodeAt(index) !== 10) {
+      continue;
     }
+
+    if (!lineStarts && lineCount < 4096) {
+      inlineLineStarts.push(index + 1);
+      lineCount += 1;
+      continue;
+    }
+
+    let currentLineStarts: Uint32Array | null = lineStarts;
+    if (!currentLineStarts) {
+      currentLineStarts = new Uint32Array(8192);
+      currentLineStarts.set(inlineLineStarts);
+    } else if (lineCount === currentLineStarts.length) {
+      const nextLineStarts: Uint32Array = new Uint32Array(currentLineStarts.length * 2);
+      nextLineStarts.set(currentLineStarts);
+      currentLineStarts = nextLineStarts;
+    }
+
+    currentLineStarts[lineCount] = index + 1;
+    lineStarts = currentLineStarts;
+    lineCount += 1;
   }
 
-  return Uint32Array.from(lineStarts);
+  return lineStarts ? lineStarts.slice(0, lineCount) : Uint32Array.from(inlineLineStarts);
 }
 
 function isWordChar(char: string | undefined) {

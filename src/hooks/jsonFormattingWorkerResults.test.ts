@@ -96,7 +96,7 @@ describe('handleJsonFormattingWorkerResult', () => {
 
   it('applies a successful format result and clears the watchdog', () => {
     const rawViewerData = {
-      ends: new Uint32Array([2]),
+      lengths: new Uint16Array([2]),
       rowCount: 1,
       starts: new Uint32Array([0]),
     } satisfies LargeRawViewerData;
@@ -143,7 +143,7 @@ describe('handleJsonFormattingWorkerResult', () => {
 
   it('applies a successful repair result and resets search state', () => {
     const rawViewerData = {
-      ends: new Uint32Array([7]),
+      lengths: new Uint16Array([7]),
       rowCount: 1,
       starts: new Uint32Array([0]),
     } satisfies LargeRawViewerData;

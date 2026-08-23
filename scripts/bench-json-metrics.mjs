@@ -271,6 +271,77 @@ export function buildWrapLayoutStats(text, lineStarts, lineCount, wrapColumnCoun
   };
 }
 
+export function buildRawViewerDataStats(text, chunkSize = 2000) {
+  let starts = new Uint32Array(1024);
+  let lengths = new Uint16Array(1024);
+  let rowCount = 0;
+  let lineStart = 0;
+
+  const appendRow = (start, end) => {
+    if (rowCount === starts.length) {
+      starts = growTypedBuffer(starts, rowCount + 1);
+      lengths = growTypedBuffer(lengths, rowCount + 1);
+    }
+    starts[rowCount] = start;
+    lengths[rowCount] = end - start;
+    rowCount += 1;
+  };
+
+  while (lineStart <= text.length) {
+    const newlineIndex = text.indexOf('\n', lineStart);
+    const lineEnd = newlineIndex === -1 ? text.length : newlineIndex;
+
+    if (lineStart === lineEnd) {
+      appendRow(lineStart, lineEnd);
+    } else {
+      let segmentStart = lineStart;
+      while (segmentStart < lineEnd) {
+        const segmentEnd = Math.min(lineEnd, segmentStart + chunkSize);
+        appendRow(segmentStart, segmentEnd);
+        segmentStart = segmentEnd;
+      }
+    }
+
+    if (newlineIndex === -1) {
+      break;
+    }
+    lineStart = newlineIndex + 1;
+    if (lineStart === text.length) {
+      appendRow(lineStart, lineStart);
+      break;
+    }
+  }
+
+  return {
+    indexBytes: rowCount * (Uint32Array.BYTES_PER_ELEMENT + Uint16Array.BYTES_PER_ELEMENT),
+    legacyIndexBytes: rowCount * Uint32Array.BYTES_PER_ELEMENT * 2,
+    rowCount,
+    workingBytes: starts.byteLength + lengths.byteLength,
+  };
+}
+
+function escapeSearchPattern(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function findCaseInsensitiveSearchBatch(text, query, startOffset = 0, maxResults = RIGHT_SEARCH_BATCH_SIZE) {
+  const matcher = new RegExp(escapeSearchPattern(query), 'gi');
+  const matches = [];
+  let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
+  matcher.lastIndex = nextStartOffset;
+  let match;
+
+  while ((match = matcher.exec(text)) !== null) {
+    if (matches.length >= maxResults) {
+      return { count: matches.length, hasMore: true, nextStartOffset };
+    }
+    matches.push(match.index);
+    nextStartOffset = matcher.lastIndex;
+  }
+
+  return { count: matches.length, hasMore: false, nextStartOffset };
+}
+
 export function findLiteralSearchBatch(text, query, startOffset = 0, maxResults = RIGHT_SEARCH_BATCH_SIZE) {
   let count = 0;
   let offset = Math.max(0, startOffset);

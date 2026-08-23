@@ -74,14 +74,13 @@ describe('jsonWorkerSearchOperations', () => {
       rawText: '{"name":"Alpha"}\n{"name":"beta alpha"}',
     });
     expect(cachedRaw?.lineStarts).toBeInstanceOf(Uint32Array);
-    expect(cachedRaw?.lowerRawText).toContain('alpha');
+    expect(cachedRaw).not.toHaveProperty('lowerRawText');
   });
 
   it('returns an empty left result when cached raw revision is stale', async () => {
     const { operations, rawSearchCache } = createOperations();
     rawSearchCache.set('tab-a', {
       lineStarts: buildLineStarts('{"name":"alpha"}'),
-      lowerRawText: null,
       rawRevision: 1,
       rawText: '{"name":"alpha"}',
     });
@@ -110,7 +109,6 @@ describe('jsonWorkerSearchOperations', () => {
     const { operations, viewerCache } = createOperations();
     viewerCache.set('tab-a', {
       formattedText: '{\n  "name": "alpha",\n  "other": "Alpha"\n}',
-      lowerFormattedText: null,
       viewerData: {
         lineCount: 4,
         lineStarts: buildLineStarts('{\n  "name": "alpha",\n  "other": "Alpha"\n}'),
@@ -140,7 +138,7 @@ describe('jsonWorkerSearchOperations', () => {
       })
     );
     expect(getPostedSearchResult().matches).toHaveLength(2);
-    expect(viewerCache.get('tab-a')?.lowerFormattedText).toContain('alpha');
+    expect(viewerCache.get('tab-a')).not.toHaveProperty('lowerFormattedText');
   });
 
   it('does not post stale search results after a newer request arrives', async () => {

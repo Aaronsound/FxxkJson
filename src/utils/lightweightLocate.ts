@@ -2,6 +2,7 @@ import type { LargeJsonViewerData } from '../types/jsonTool';
 import { binarySearchLineStarts } from './largeJsonViewerData';
 
 const JSON_TOKEN_SOURCE = String.raw`"(?:\\.|[^"\\])*"|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|\b(?:true|false|null)\b`;
+export const MAX_LIGHTWEIGHT_LOCATE_TOKEN_CACHE_ENTRIES = 64;
 
 export interface LocateRange {
   startOffset: number;
@@ -14,14 +15,13 @@ export interface LightweightLocateCache {
 
 interface TokenCandidate {
   token: string;
-  occurrenceIndex: number;
   distance: number;
   start: number;
 }
 
 interface TokenOffsets {
-  rawOffsets: number[];
-  formattedOffsets: number[];
+  rawOffsets: Uint32Array;
+  formattedOffsets: Uint32Array;
 }
 
 function createJsonTokenPattern() {
@@ -75,7 +75,7 @@ function getTokenOccurrenceIndex(text: string, token: string, targetStart: numbe
   return occurrenceIndex;
 }
 
-function lowerBound(values: number[], target: number) {
+function lowerBound(values: Uint32Array, target: number) {
   let low = 0;
   let high = values.length;
 
@@ -93,16 +93,23 @@ function lowerBound(values: number[], target: number) {
 
 function findTokenOffsets(text: string, token: string) {
   const pattern = createJsonTokenPattern();
-  const offsets: number[] = [];
+  let offsets = new Uint32Array(16);
+  let offsetCount = 0;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(text)) !== null) {
     if (match[0] === token) {
-      offsets.push(match.index);
+      if (offsetCount === offsets.length) {
+        const next = new Uint32Array(offsets.length * 2);
+        next.set(offsets);
+        offsets = next;
+      }
+      offsets[offsetCount] = match.index;
+      offsetCount += 1;
     }
   }
 
-  return offsets;
+  return offsets.slice(0, offsetCount);
 }
 
 function getTokenOffsets(rawText: string, formattedText: string, token: string, cache?: LightweightLocateCache) {
@@ -112,6 +119,8 @@ function getTokenOffsets(rawText: string, formattedText: string, token: string, 
 
   const cached = cache.tokenOffsetsByToken.get(token);
   if (cached) {
+    cache.tokenOffsetsByToken.delete(token);
+    cache.tokenOffsetsByToken.set(token, cached);
     return cached;
   }
 
@@ -119,6 +128,13 @@ function getTokenOffsets(rawText: string, formattedText: string, token: string, 
     rawOffsets: findTokenOffsets(rawText, token),
     formattedOffsets: findTokenOffsets(formattedText, token),
   };
+
+  if (cache.tokenOffsetsByToken.size >= MAX_LIGHTWEIGHT_LOCATE_TOKEN_CACHE_ENTRIES) {
+    const oldestToken = cache.tokenOffsetsByToken.keys().next().value;
+    if (typeof oldestToken === 'string') {
+      cache.tokenOffsetsByToken.delete(oldestToken);
+    }
+  }
   cache.tokenOffsetsByToken.set(token, next);
   return next;
 }
@@ -193,7 +209,6 @@ function getTokenCandidates(
 
     candidates.push({
       token,
-      occurrenceIndex: getCachedTokenOccurrenceIndex(rawText, formattedText, token, start, cache),
       distance: getDistanceToRange(offset, start, end),
       start,
     });
@@ -233,13 +248,14 @@ export function getLightweightTokenLocateRange(
   );
 
   for (const candidate of candidates) {
-    const rawStart = findCachedTokenOccurrence(
+    const occurrenceIndex = getCachedTokenOccurrenceIndex(
       rawText,
       formattedText,
       candidate.token,
-      candidate.occurrenceIndex,
+      candidate.start,
       cache
     );
+    const rawStart = findCachedTokenOccurrence(rawText, formattedText, candidate.token, occurrenceIndex, cache);
 
     if (rawStart !== -1) {
       return {

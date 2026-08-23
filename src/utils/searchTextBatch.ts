@@ -82,8 +82,7 @@ export async function findTextSearchBatchAsync(
   options: JsonSearchOptions,
   startOffset = 0,
   maxResults = Number.POSITIVE_INFINITY,
-  shouldCancel: () => boolean = () => false,
-  normalizedText?: string
+  shouldCancel: () => boolean = () => false
 ): Promise<TextSearchBatch> {
   if (shouldCancel()) {
     return cancelledSearchBatch(startOffset, text.length);
@@ -93,20 +92,7 @@ export async function findTextSearchBatchAsync(
     return getEmptySearchBatch(startOffset, text.length);
   }
 
-  if (options.useRegex) {
-    return findRegexTextSearchBatchAsync(
-      text,
-      lineStarts,
-      lineCount,
-      searchTerm,
-      options,
-      startOffset,
-      maxResults,
-      shouldCancel
-    );
-  }
-
-  return findPlainTextSearchBatchAsync(
+  return findPatternTextSearchBatchAsync(
     text,
     lineStarts,
     lineCount,
@@ -114,12 +100,11 @@ export async function findTextSearchBatchAsync(
     options,
     startOffset,
     maxResults,
-    shouldCancel,
-    normalizedText
+    shouldCancel
   );
 }
 
-async function findRegexTextSearchBatchAsync(
+async function findPatternTextSearchBatchAsync(
   text: string,
   lineStarts: Uint32Array,
   lineCount: number,
@@ -174,63 +159,6 @@ async function findRegexTextSearchBatchAsync(
         return cancelledSearchBatch(nextStartOffset, text.length);
       }
     }
-  }
-
-  return {
-    matches,
-    hasMore: false,
-    nextStartOffset,
-  };
-}
-
-async function findPlainTextSearchBatchAsync(
-  text: string,
-  lineStarts: Uint32Array,
-  lineCount: number,
-  searchTerm: string,
-  options: JsonSearchOptions,
-  startOffset: number,
-  maxResults: number,
-  shouldCancel: () => boolean,
-  normalizedText?: string
-): Promise<TextSearchBatch> {
-  const sourceText = options.matchCase ? text : (normalizedText ?? text.toLowerCase());
-  const sourceTerm = options.matchCase ? searchTerm : searchTerm.toLowerCase();
-  const matches: LargeJsonSearchMatch[] = [];
-  let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
-  let index = sourceText.indexOf(sourceTerm, nextStartOffset);
-  let iteration = 0;
-
-  while (index !== -1) {
-    if (shouldCancel()) {
-      return cancelledSearchBatch(nextStartOffset, text.length);
-    }
-
-    const start = index;
-    const end = start + sourceTerm.length;
-
-    if (!options.wholeWord || isWholeWordMatch(text, start, end)) {
-      if (matches.length >= maxResults) {
-        return {
-          matches,
-          hasMore: true,
-          nextStartOffset,
-        };
-      }
-
-      matches.push(getLineMatch(text, lineStarts, lineCount, start, end));
-      nextStartOffset = end;
-    }
-
-    iteration += 1;
-    if (iteration % 250 === 0) {
-      await yieldToEventLoop();
-      if (shouldCancel()) {
-        return cancelledSearchBatch(nextStartOffset, text.length);
-      }
-    }
-
-    index = sourceText.indexOf(sourceTerm, Math.max(end, index + 1));
   }
 
   return {

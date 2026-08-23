@@ -4,9 +4,11 @@ import { performance } from 'node:perf_hooks';
 import { parseTree } from 'jsonc-parser';
 import {
   buildFoldAllStats,
+  buildRawViewerDataStats,
   buildViewerDataStats,
   buildWrapLayoutStats,
   countTextLines,
+  findCaseInsensitiveSearchBatch,
   findLiteralSearchBatch,
   getRightSearchQuery,
   measure,
@@ -34,6 +36,7 @@ export async function benchFile(filePath) {
   const stringifyResult = measure('stringify', () => JSON.stringify(parseResult.value, null, 2));
   const formattedText = stringifyResult.value;
   const formattedBytes = Buffer.byteLength(formattedText, 'utf8');
+  const rawViewerResult = measure('raw-viewer-index', () => buildRawViewerDataStats(rawText));
   const formattedLineCount = countTextLines(formattedText);
   const viewerResult = measure('viewer-index', () => buildViewerDataStats(formattedText, formattedLineCount));
   const foldAllResult = measure('fold-all-index', () => buildFoldAllStats(viewerResult.value.regions));
@@ -45,6 +48,9 @@ export async function benchFile(filePath) {
   const rightSearchQuery = getRightSearchQuery(formattedText);
   const rightSearchBatchResult = measure('rightSearchBatch', () =>
     findLiteralSearchBatch(formattedText, rightSearchQuery)
+  );
+  const caseInsensitiveSearchBatchResult = measure('caseInsensitiveSearchBatch', () =>
+    findCaseInsensitiveSearchBatch(formattedText, rightSearchQuery.toUpperCase())
   );
   const rightSearchLoadMoreResult = measure('rightSearchLoadMore', () =>
     rightSearchBatchResult.value.hasMore
@@ -111,6 +117,14 @@ export async function benchFile(filePath) {
     nodeValueReadMs: nodeValueReadResult.ms,
     nodeEditPatchMs: nodeEditPatchResult.ms,
     rawBytes,
+    rawViewerIndexMs: rawViewerResult.ms,
+    rawViewerIndexBytes: rawViewerResult.value.indexBytes,
+    rawViewerLegacyIndexBytes: rawViewerResult.value.legacyIndexBytes,
+    rawViewerRowCount: rawViewerResult.value.rowCount,
+    rawViewerWorkingBytes: rawViewerResult.value.workingBytes,
+    caseInsensitiveSearchBatchMs: caseInsensitiveSearchBatchResult.ms,
+    caseInsensitiveSearchBatchCount: caseInsensitiveSearchBatchResult.value.count,
+    normalizedSearchCopyCharsAvoided: formattedText.length,
     formattedBytes,
   };
 }

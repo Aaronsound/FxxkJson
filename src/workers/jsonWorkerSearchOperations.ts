@@ -16,17 +16,13 @@ type SearchRequestMessage = WorkerSearchRequest & {
 };
 
 interface RawSearchCacheEntry {
-  lowerFormattedText?: string | null;
   lineStarts: Uint32Array | null;
-  lowerRawText: string | null;
   rawRevision: number | null;
   rawText: string;
 }
 
 interface ViewerSearchCacheEntry {
   formattedText: string;
-  lowerRawText?: string | null;
-  lowerFormattedText?: string | null;
   viewerData: LargeJsonViewerData;
 }
 
@@ -35,8 +31,6 @@ interface JsonWorkerSearchOperationsArgs {
   rawSearchCache: Map<string, RawSearchCacheEntry>;
   viewerCache: Map<string, ViewerSearchCacheEntry>;
 }
-
-type NormalizedSearchTextKey = 'lowerFormattedText' | 'lowerRawText';
 
 export function getSearchRequestKey(tabId: string, target: SearchTarget) {
   return `${target}:${tabId}`;
@@ -47,23 +41,6 @@ export function createJsonWorkerSearchOperations({
   rawSearchCache,
   viewerCache,
 }: JsonWorkerSearchOperationsArgs) {
-  function getNormalizedText(
-    cached: RawSearchCacheEntry | ViewerSearchCacheEntry,
-    key: NormalizedSearchTextKey,
-    text: string,
-    searchOptions: JsonSearchOptions
-  ) {
-    if (searchOptions.matchCase || searchOptions.useRegex) {
-      return undefined;
-    }
-
-    if (typeof cached[key] !== 'string') {
-      cached[key] = text.toLowerCase();
-    }
-
-    return cached[key];
-  }
-
   function isLatestSearchRequest(tabId: string, target: SearchTarget, requestId: number) {
     return latestSearchRequestByKey.get(getSearchRequestKey(tabId, target)) === requestId;
   }
@@ -104,7 +81,6 @@ export function createJsonWorkerSearchOperations({
           rawText: message.text,
           rawRevision: message.rawRevision ?? null,
           lineStarts: null,
-          lowerRawText: null,
         });
       }
 
@@ -137,8 +113,7 @@ export function createJsonWorkerSearchOperations({
           effectiveSearchOptions,
           startOffset,
           SEARCH_BATCH_SIZE,
-          shouldCancel,
-          getNormalizedText(cachedRaw, 'lowerRawText', cachedRaw.rawText, effectiveSearchOptions)
+          shouldCancel
         );
 
         if (result.cancelled || shouldCancel()) {
@@ -179,8 +154,7 @@ export function createJsonWorkerSearchOperations({
         effectiveSearchOptions,
         startOffset,
         SEARCH_BATCH_SIZE,
-        shouldCancel,
-        getNormalizedText(cachedViewer, 'lowerFormattedText', cachedViewer.formattedText, effectiveSearchOptions)
+        shouldCancel
       );
 
       if (result.cancelled || shouldCancel()) {

@@ -1,6 +1,6 @@
 import { useCallback, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { LargeRawViewerData } from '../types/jsonTool';
-import { buildLargeRawViewerData, findRawSegmentIndex } from '../utils/largeRawViewerData';
+import { buildLargeRawViewerData, findRawSegmentIndex, getRawSegmentEnd } from '../utils/largeRawViewerData';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 import './LargeRawReadonlyViewer.css';
 
@@ -143,7 +143,7 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
           const safeEndOffset = clamp(endOffset, safeOffset, text.length);
           const rowIndex = findRawSegmentIndex(segments, safeOffset);
           const rowStart = segments.starts[rowIndex] ?? 0;
-          const rowEnd = segments.ends[rowIndex] ?? rowStart;
+          const rowEnd = getRawSegmentEnd(segments, rowIndex);
           const localStart = clamp(safeOffset - rowStart, 0, Math.max(0, rowEnd - rowStart));
           const nextScrollTop = Math.max(0, (rowIndex - 3) * LINE_HEIGHT);
           const nextScrollLeft = Math.max(0, (localStart - REVEAL_CONTEXT_CHARS) * APPROX_CHAR_WIDTH);
@@ -216,7 +216,7 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
     const rows = [];
     for (let rowIndex = visibleRange.start; rowIndex <= visibleRange.end; rowIndex += 1) {
       const chunkStart = segments.starts[rowIndex] ?? 0;
-      const chunkEnd = segments.ends[rowIndex] ?? chunkStart;
+      const chunkEnd = getRawSegmentEnd(segments, rowIndex);
       const isHighlighted = Boolean(
         highlightRange && highlightRange.end > chunkStart && highlightRange.start < chunkEnd
       );

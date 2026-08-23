@@ -181,7 +181,7 @@ export const EMPTY_LARGE_JSON_FOLD_STATE: LargeJsonFoldState = { mode: 'explicit
 
 export interface LargeRawViewerData {
   starts: Uint32Array;
-  ends: Uint32Array;
+  lengths: Uint16Array;
   rowCount: number;
 }
 
