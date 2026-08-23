@@ -186,6 +186,7 @@ function printResults(results, failures, baselinePath) {
       formattedTree: formatDuration(result.formattedTreeMs),
       treeWarmupAvoided: formatDuration(result.structureTreeWarmupAvoidedMs),
       rightSearch: formatDuration(result.rightSearchBatchMs),
+      searchHotPath: `${formatDuration(result.optimizedSearchHotPathMs)} / ${formatDuration(result.legacySearchHotPathMs)}`,
       rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
       leftSearch: formatDuration(result.leftSearchBatchMs),
       leftSearchMore: formatDuration(result.leftSearchLoadMoreMs),

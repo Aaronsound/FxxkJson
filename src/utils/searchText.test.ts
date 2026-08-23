@@ -102,6 +102,77 @@ describe('searchText', () => {
     expect(result.matches.map((match) => text.slice(match.start, match.end))).toEqual(['A.B', 'a.b']);
   });
 
+  it('keeps exact literal, whole-word, paging, and line metadata semantics on the native path', () => {
+    const text = ['a.b axa a.b_extra', 'prefix a.b suffix', 'a.b'].join('\n');
+    const lineStarts = buildLineStarts(text);
+    const options = { matchCase: true, wholeWord: true, useRegex: false };
+
+    const first = findTextSearchBatch(text, lineStarts, lineStarts.length, 'a.b', options, 0, 2);
+    const second = findTextSearchBatch(text, lineStarts, lineStarts.length, 'a.b', options, first.nextStartOffset, 2);
+
+    expect(first.hasMore).toBe(true);
+    expect(first.matches.map(({ lineNumber, localStart }) => ({ lineNumber, localStart }))).toEqual([
+      { lineNumber: 1, localStart: 0 },
+      { lineNumber: 2, localStart: 7 },
+    ]);
+    expect(second.hasMore).toBe(false);
+    expect(second.matches).toMatchObject([{ lineNumber: 3, localStart: 0, localEnd: 3 }]);
+  });
+
+  it('advances line metadata monotonically across a late search batch', () => {
+    const text = Array.from({ length: 5_000 }, (_, index) => `line-${index} needle`).join('\n');
+    const lineStarts = buildLineStarts(text);
+    const startOffset = lineStarts[4_000];
+    const result = findTextSearchBatch(
+      text,
+      lineStarts,
+      lineStarts.length,
+      'needle',
+      { matchCase: true, wholeWord: true, useRegex: false },
+      startOffset,
+      3
+    );
+
+    expect(result.matches.map((match) => match.lineNumber)).toEqual([4_001, 4_002, 4_003]);
+    expect(result.matches.every((match) => match.localStart === 10 && match.localEnd === 16)).toBe(true);
+  });
+
+  it('keeps ASCII whole-word boundary semantics without treating non-ASCII letters as word chars', () => {
+    const text = 'alpha alpha_1 éalphaé (alpha)';
+    const lineStarts = buildLineStarts(text);
+    const result = findTextSearchBatch(text, lineStarts, lineStarts.length, 'alpha', {
+      matchCase: true,
+      wholeWord: true,
+      useRegex: false,
+    });
+
+    expect(result.matches.map((match) => text.slice(match.start, match.end))).toEqual(['alpha', 'alpha', 'alpha']);
+    expect(result.matches.map((match) => match.start)).toEqual([0, 15, 23]);
+  });
+
+  it('yields and cancels exact literal batches before stale matches finish scanning', async () => {
+    const text = Array.from({ length: 1_000 }, (_, index) => `needle item ${index}`).join('\n');
+    const lineStarts = buildLineStarts(text);
+    let checks = 0;
+
+    const result = await findTextSearchBatchAsync(
+      text,
+      lineStarts,
+      lineStarts.length,
+      'needle',
+      { matchCase: true, wholeWord: true, useRegex: false },
+      0,
+      500,
+      () => {
+        checks += 1;
+        return checks > 252;
+      }
+    );
+
+    expect(result.cancelled).toBe(true);
+    expect(result.matches).toHaveLength(0);
+  });
+
   it('yields and cancels regex batches before stale matches finish scanning', async () => {
     const text = Array.from({ length: 1000 }, (_, index) => `FxxkJson item ${index}`).join('\n');
     const lineStarts = buildLineStarts(text);

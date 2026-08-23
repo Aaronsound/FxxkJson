@@ -1,13 +1,50 @@
 import type { JsonSearchOptions, LargeJsonSearchMatch } from '../types/jsonTool';
 import {
   cancelledSearchBatch,
+  createLineMatchResolver,
   getEmptySearchBatch,
-  getLineMatch,
   getSearchMatcher,
   isWholeWordMatch,
   type TextSearchBatch,
   yieldToEventLoop,
 } from './searchTextCore';
+
+function findCaseSensitiveLiteralSearchBatch(
+  text: string,
+  lineStarts: Uint32Array,
+  lineCount: number,
+  searchTerm: string,
+  options: JsonSearchOptions,
+  startOffset: number,
+  maxResults: number
+): TextSearchBatch {
+  const matches: LargeJsonSearchMatch[] = [];
+  let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
+  let searchOffset = nextStartOffset;
+  const resolveLineMatch = createLineMatchResolver(text, lineStarts, lineCount, nextStartOffset);
+
+  while (searchOffset < text.length) {
+    const start = text.indexOf(searchTerm, searchOffset);
+    if (start < 0) {
+      break;
+    }
+
+    const end = start + searchTerm.length;
+    searchOffset = end;
+    if (options.wholeWord && !isWholeWordMatch(text, start, end)) {
+      continue;
+    }
+
+    if (matches.length >= maxResults) {
+      return { matches, hasMore: true, nextStartOffset };
+    }
+
+    matches.push(resolveLineMatch(start, end));
+    nextStartOffset = end;
+  }
+
+  return { matches, hasMore: false, nextStartOffset };
+}
 
 export function findTextSearchMatches(
   text: string,
@@ -33,6 +70,18 @@ export function findTextSearchBatch(
     return getEmptySearchBatch(startOffset, text.length);
   }
 
+  if (!options.useRegex && options.matchCase) {
+    return findCaseSensitiveLiteralSearchBatch(
+      text,
+      lineStarts,
+      lineCount,
+      searchTerm,
+      options,
+      startOffset,
+      maxResults
+    );
+  }
+
   const matcher = getSearchMatcher(searchTerm, options);
   if (!matcher) {
     return getEmptySearchBatch(startOffset, text.length);
@@ -41,6 +90,7 @@ export function findTextSearchBatch(
   const matches: LargeJsonSearchMatch[] = [];
   let match: RegExpExecArray | null;
   let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
+  const resolveLineMatch = createLineMatchResolver(text, lineStarts, lineCount, nextStartOffset);
   matcher.lastIndex = nextStartOffset;
 
   while ((match = matcher.exec(text)) !== null) {
@@ -62,7 +112,7 @@ export function findTextSearchBatch(
         };
       }
 
-      matches.push(getLineMatch(text, lineStarts, lineCount, start, end));
+      matches.push(resolveLineMatch(start, end));
       nextStartOffset = Math.max(end, matcher.lastIndex);
     }
   }
@@ -92,6 +142,19 @@ export async function findTextSearchBatchAsync(
     return getEmptySearchBatch(startOffset, text.length);
   }
 
+  if (!options.useRegex && options.matchCase) {
+    return findCaseSensitiveLiteralSearchBatchAsync(
+      text,
+      lineStarts,
+      lineCount,
+      searchTerm,
+      options,
+      startOffset,
+      maxResults,
+      shouldCancel
+    );
+  }
+
   return findPatternTextSearchBatchAsync(
     text,
     lineStarts,
@@ -102,6 +165,55 @@ export async function findTextSearchBatchAsync(
     maxResults,
     shouldCancel
   );
+}
+
+async function findCaseSensitiveLiteralSearchBatchAsync(
+  text: string,
+  lineStarts: Uint32Array,
+  lineCount: number,
+  searchTerm: string,
+  options: JsonSearchOptions,
+  startOffset: number,
+  maxResults: number,
+  shouldCancel: () => boolean
+): Promise<TextSearchBatch> {
+  const matches: LargeJsonSearchMatch[] = [];
+  let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
+  let searchOffset = nextStartOffset;
+  let iteration = 0;
+  const resolveLineMatch = createLineMatchResolver(text, lineStarts, lineCount, nextStartOffset);
+
+  while (searchOffset < text.length) {
+    if (shouldCancel()) {
+      return cancelledSearchBatch(nextStartOffset, text.length);
+    }
+
+    const start = text.indexOf(searchTerm, searchOffset);
+    if (start < 0) {
+      break;
+    }
+
+    const end = start + searchTerm.length;
+    searchOffset = end;
+    if (!options.wholeWord || isWholeWordMatch(text, start, end)) {
+      if (matches.length >= maxResults) {
+        return { matches, hasMore: true, nextStartOffset };
+      }
+
+      matches.push(resolveLineMatch(start, end));
+      nextStartOffset = end;
+    }
+
+    iteration += 1;
+    if (iteration % 250 === 0) {
+      await yieldToEventLoop();
+      if (shouldCancel()) {
+        return cancelledSearchBatch(nextStartOffset, text.length);
+      }
+    }
+  }
+
+  return { matches, hasMore: false, nextStartOffset };
 }
 
 async function findPatternTextSearchBatchAsync(
@@ -123,6 +235,7 @@ async function findPatternTextSearchBatchAsync(
   let nextStartOffset = Math.min(Math.max(0, startOffset), text.length);
   let iteration = 0;
   let match: RegExpExecArray | null;
+  const resolveLineMatch = createLineMatchResolver(text, lineStarts, lineCount, nextStartOffset);
   matcher.lastIndex = nextStartOffset;
 
   while ((match = matcher.exec(text)) !== null) {
@@ -148,7 +261,7 @@ async function findPatternTextSearchBatchAsync(
         };
       }
 
-      matches.push(getLineMatch(text, lineStarts, lineCount, start, end));
+      matches.push(resolveLineMatch(start, end));
       nextStartOffset = Math.max(end, matcher.lastIndex);
     }
 

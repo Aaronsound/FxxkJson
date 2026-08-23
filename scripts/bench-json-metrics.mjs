@@ -36,6 +36,18 @@ export function measure(label, fn) {
   };
 }
 
+export function measureRepeated(label, iterations, fn) {
+  fn();
+  let value;
+  const result = measure(label, () => {
+    for (let index = 0; index < iterations; index += 1) {
+      value = fn();
+    }
+    return value;
+  });
+  return { ...result, ms: result.ms / iterations };
+}
+
 function growTypedBuffer(buffer, minimumCapacity) {
   let capacity = Math.max(1, buffer.length);
   while (capacity < minimumCapacity) {
@@ -403,6 +415,82 @@ export function findLiteralSearchBatch(text, query, startOffset = 0, maxResults 
     hasMore: false,
     nextStartOffset: offset,
   };
+}
+
+function isLegacyWordChar(char) {
+  return typeof char === 'string' && /[A-Za-z0-9_]/.test(char);
+}
+
+function isWordCharCode(charCode) {
+  return (
+    (charCode >= 48 && charCode <= 57) ||
+    (charCode >= 65 && charCode <= 90) ||
+    charCode === 95 ||
+    (charCode >= 97 && charCode <= 122)
+  );
+}
+
+function findLineIndex(lineStarts, offset) {
+  let low = 0;
+  let high = lineStarts.length - 1;
+  let lineIndex = 0;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lineStarts[middle] <= offset) {
+      lineIndex = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return lineIndex;
+}
+
+export function findLegacyLineAwareLiteralBatch(text, query, lineStarts, maxResults = RIGHT_SEARCH_BATCH_SIZE) {
+  const matcher = new RegExp(escapeSearchPattern(query), 'g');
+  let count = 0;
+  let lineChecksum = 0;
+  let match;
+  while ((match = matcher.exec(text)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (isLegacyWordChar(text[start - 1]) || isLegacyWordChar(text[end])) {
+      continue;
+    }
+    if (count >= maxResults) {
+      break;
+    }
+    lineChecksum += findLineIndex(lineStarts, start);
+    count += 1;
+  }
+  return { count, lineChecksum };
+}
+
+export function findOptimizedLineAwareLiteralBatch(text, query, lineStarts, maxResults = RIGHT_SEARCH_BATCH_SIZE) {
+  let count = 0;
+  let lineChecksum = 0;
+  let lineIndex = 0;
+  let offset = 0;
+  while (offset < text.length) {
+    const start = text.indexOf(query, offset);
+    if (start < 0) {
+      break;
+    }
+    const end = start + query.length;
+    offset = end;
+    if (isWordCharCode(text.charCodeAt(start - 1)) || isWordCharCode(text.charCodeAt(end))) {
+      continue;
+    }
+    if (count >= maxResults) {
+      break;
+    }
+    while (lineIndex + 1 < lineStarts.length && lineStarts[lineIndex + 1] <= start) {
+      lineIndex += 1;
+    }
+    lineChecksum += lineIndex;
+    count += 1;
+  }
+  return { count, lineChecksum };
 }
 
 export function replaceLiteralMatches(text, query, replacement) {

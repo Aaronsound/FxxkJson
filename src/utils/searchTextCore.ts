@@ -45,30 +45,27 @@ export function buildLineStarts(text: string) {
   return lineStarts ? lineStarts.slice(0, lineCount) : Uint32Array.from(inlineLineStarts);
 }
 
-function isWordChar(char: string | undefined) {
-  return typeof char === 'string' && /[A-Za-z0-9_]/.test(char);
+function isWordCharCode(charCode: number) {
+  return (
+    (charCode >= 48 && charCode <= 57) ||
+    (charCode >= 65 && charCode <= 90) ||
+    charCode === 95 ||
+    (charCode >= 97 && charCode <= 122)
+  );
 }
 
 export function isWholeWordMatch(text: string, start: number, end: number) {
-  return !isWordChar(text[start - 1]) && !isWordChar(text[end]);
+  return !isWordCharCode(text.charCodeAt(start - 1)) && !isWordCharCode(text.charCodeAt(end));
 }
 
-export function getLineMatch(
-  text: string,
-  lineStarts: Uint32Array,
-  lineCount: number,
-  start: number,
-  end: number
-): LargeJsonSearchMatch {
+function findLineIndexAtOffset(lineStarts: Uint32Array, lineCount: number, offset: number) {
   let low = 0;
-  let high = lineStarts.length - 1;
+  let high = Math.min(lineCount, lineStarts.length) - 1;
   let lineIndex = 0;
 
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
-    const value = lineStarts[mid];
-
-    if (value <= start) {
+    if (lineStarts[mid] <= offset) {
       lineIndex = mid;
       low = mid + 1;
     } else {
@@ -76,18 +73,34 @@ export function getLineMatch(
     }
   }
 
-  const lineNumber = lineIndex + 1;
-  const lineStartOffset = lineStarts[lineIndex] ?? 0;
-  const lineEndOffset =
-    lineNumber < lineCount ? Math.max(lineStartOffset, (lineStarts[lineNumber] ?? text.length) - 1) : text.length;
+  return lineIndex;
+}
 
-  return {
-    start,
-    end,
-    lineNumber,
-    lineStartOffset,
-    localStart: start - lineStartOffset,
-    localEnd: Math.min(end, lineEndOffset) - lineStartOffset,
+export function createLineMatchResolver(text: string, lineStarts: Uint32Array, lineCount: number, startOffset: number) {
+  let lineIndex = findLineIndexAtOffset(lineStarts, lineCount, startOffset);
+
+  return (start: number, end: number): LargeJsonSearchMatch => {
+    while (lineIndex > 0 && lineStarts[lineIndex] > start) {
+      lineIndex -= 1;
+    }
+
+    while (lineIndex + 1 < lineCount && lineStarts[lineIndex + 1] <= start) {
+      lineIndex += 1;
+    }
+
+    const lineNumber = lineIndex + 1;
+    const lineStartOffset = lineStarts[lineIndex] ?? 0;
+    const lineEndOffset =
+      lineNumber < lineCount ? Math.max(lineStartOffset, (lineStarts[lineNumber] ?? text.length) - 1) : text.length;
+
+    return {
+      start,
+      end,
+      lineNumber,
+      lineStartOffset,
+      localStart: start - lineStartOffset,
+      localEnd: Math.min(end, lineEndOffset) - lineStartOffset,
+    };
   };
 }
 

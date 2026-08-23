@@ -9,10 +9,13 @@ import {
   buildWrapLayoutStats,
   countTextLines,
   findCaseInsensitiveSearchBatch,
+  findLegacyLineAwareLiteralBatch,
   findLiteralSearchBatch,
+  findOptimizedLineAwareLiteralBatch,
   getRightSearchQuery,
   measure,
   measureDocumentMetrics,
+  measureRepeated,
   readFirstRequestValue,
   readFirstRequestValueStreaming,
   replaceLiteralMatches,
@@ -55,6 +58,18 @@ export async function benchFile(filePath) {
   const rightSearchBatchResult = measure('rightSearchBatch', () =>
     findLiteralSearchBatch(formattedText, rightSearchQuery)
   );
+  const optimizedSearchHotPathResult = measureRepeated('optimizedSearchHotPath', 20, () =>
+    findOptimizedLineAwareLiteralBatch(formattedText, rightSearchQuery, viewerResult.value.lineStarts)
+  );
+  const legacySearchHotPathResult = measureRepeated('legacySearchHotPath', 20, () =>
+    findLegacyLineAwareLiteralBatch(formattedText, rightSearchQuery, viewerResult.value.lineStarts)
+  );
+  if (
+    optimizedSearchHotPathResult.value.count !== legacySearchHotPathResult.value.count ||
+    optimizedSearchHotPathResult.value.lineChecksum !== legacySearchHotPathResult.value.lineChecksum
+  ) {
+    throw new Error(`Search benchmark implementations diverged for ${absolutePath}`);
+  }
   const caseInsensitiveSearchBatchResult = measure('caseInsensitiveSearchBatch', () =>
     findCaseInsensitiveSearchBatch(formattedText, rightSearchQuery.toUpperCase())
   );
@@ -124,6 +139,8 @@ export async function benchFile(filePath) {
     structureTreeWarmupAvoidedMs: rawTreeResult.ms + formattedTreeResult.ms,
     rightSearchBatchMs: rightSearchBatchResult.ms,
     rightSearchBatchCount: rightSearchBatchResult.value.count,
+    optimizedSearchHotPathMs: optimizedSearchHotPathResult.ms,
+    legacySearchHotPathMs: legacySearchHotPathResult.ms,
     rightSearchLoadMoreMs: rightSearchLoadMoreResult.ms,
     rightSearchLoadMoreCount: rightSearchLoadMoreResult.value.count,
     leftSearchBatchMs: leftSearchBatchResult.ms,
