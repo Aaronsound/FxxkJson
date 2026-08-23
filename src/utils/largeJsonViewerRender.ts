@@ -96,6 +96,78 @@ export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
 
+const LARGE_JSON_ESTIMATED_CHARACTER_WIDTH = 7.2;
+const LARGE_JSON_HORIZONTAL_GUTTER_WIDTH = 40;
+export const LARGE_JSON_MAX_WRAPPED_ROWS = 4;
+
+export function getLargeJsonWrapColumnCount(viewportWidth: number, lineNumberDigits: number) {
+  const effectiveViewportWidth = viewportWidth > 0 ? viewportWidth : 520;
+  const lineNumberWidth = Math.max(3, lineNumberDigits) * LARGE_JSON_ESTIMATED_CHARACTER_WIDTH;
+  return Math.max(
+    24,
+    Math.floor(
+      (effectiveViewportWidth - lineNumberWidth - LARGE_JSON_HORIZONTAL_GUTTER_WIDTH) /
+        LARGE_JSON_ESTIMATED_CHARACTER_WIDTH
+    )
+  );
+}
+
+interface BuildLargeJsonRowOffsetsArgs {
+  lineHeight: number;
+  lineStarts: Uint32Array;
+  textLength: number;
+  visibleLineCount: number;
+  visibleSegments: VisibleSegment[];
+  wrapColumnCount: number;
+}
+
+export function buildLargeJsonRowOffsets({
+  lineHeight,
+  lineStarts,
+  textLength,
+  visibleLineCount,
+  visibleSegments,
+  wrapColumnCount,
+}: BuildLargeJsonRowOffsetsArgs) {
+  const offsets = new Uint32Array(visibleLineCount + 1);
+  const safeWrapColumnCount = Math.max(1, wrapColumnCount);
+
+  for (const segment of visibleSegments) {
+    for (let lineNumber = segment.actualStart; lineNumber <= segment.actualEnd; lineNumber += 1) {
+      const visibleIndex = segment.visibleStart + (lineNumber - segment.actualStart);
+      const lineStart = lineStarts[lineNumber - 1] ?? 0;
+      const nextLineStart = lineNumber < lineStarts.length ? lineStarts[lineNumber] : textLength;
+      const lineLength = Math.max(0, nextLineStart - lineStart - (lineNumber < lineStarts.length ? 1 : 0));
+      const wrappedRows = lineLength > safeWrapColumnCount ? LARGE_JSON_MAX_WRAPPED_ROWS : 1;
+      offsets[visibleIndex + 1] = offsets[visibleIndex] + wrappedRows * lineHeight;
+    }
+  }
+
+  return offsets;
+}
+
+export function getLargeJsonVisibleIndexAtOffset(rowOffsets: Uint32Array, offset: number) {
+  const rowCount = Math.max(0, rowOffsets.length - 1);
+  if (rowCount === 0) {
+    return 0;
+  }
+
+  const target = Math.max(0, offset);
+  let low = 0;
+  let high = rowCount;
+
+  while (low < high) {
+    const middle = Math.floor((low + high + 1) / 2);
+    if (rowOffsets[middle] <= target) {
+      low = middle;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  return Math.min(low, rowCount - 1);
+}
+
 function getJsonStringEnd(lineText: string, start: number) {
   let index = start + 1;
   let escaped = false;

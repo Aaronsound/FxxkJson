@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react';
 import type { EditorProps, OnMount } from '@monaco-editor/react';
-import type React from 'react';
+import { useMemo, type FC } from 'react';
 import { getMonacoOptions } from '../utils/jsonEditorInteractions';
 import { configureJsonEditorThemes, getJsonEditorTheme } from '../utils/jsonEditorTypography';
 
@@ -14,7 +14,7 @@ type JsonMonacoEditorProps = Omit<EditorProps, 'options' | 'theme' | 'loading' |
   wrapLongLines: boolean;
 };
 
-const JsonMonacoEditor: React.FC<JsonMonacoEditorProps> = ({
+const JsonMonacoEditor: FC<JsonMonacoEditorProps> = ({
   beforeMount,
   enableStructuralFolding,
   isDarkMode,
@@ -25,6 +25,17 @@ const JsonMonacoEditor: React.FC<JsonMonacoEditorProps> = ({
   wrapLongLines,
   ...editorProps
 }) => {
+  const options = useMemo(
+    () =>
+      getMonacoOptions({
+        enableStructuralFolding,
+        largeMode,
+        preserveStructuralFolding,
+        readOnly,
+        wrapLongLines,
+      }),
+    [enableStructuralFolding, largeMode, preserveStructuralFolding, readOnly, wrapLongLines]
+  );
   const handleBeforeMount: EditorProps['beforeMount'] = (monaco) => {
     configureJsonEditorThemes(monaco);
     beforeMount?.(monaco);
@@ -36,13 +47,7 @@ const JsonMonacoEditor: React.FC<JsonMonacoEditorProps> = ({
       beforeMount={handleBeforeMount}
       onMount={onMount}
       theme={getJsonEditorTheme(isDarkMode)}
-      options={getMonacoOptions({
-        enableStructuralFolding,
-        largeMode,
-        preserveStructuralFolding,
-        readOnly,
-        wrapLongLines,
-      })}
+      options={options}
       loading={null}
     />
   );

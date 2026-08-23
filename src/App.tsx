@@ -10,6 +10,7 @@ import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
 import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
 import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
+import { useDismissRightNodeSelection } from './hooks/useDismissRightNodeSelection';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
 import { useJsonToolPaneSearchStates } from './hooks/useJsonToolPaneSearchStates';
@@ -315,7 +316,7 @@ const App: React.FC = () => {
   const { syncLeftModel, syncRightModel } = useJsonEditorModelSync({
     ...{ activeTabIdRef, largeModeRef, largeViewerDataByTab, largeViewerStatusByTab },
     ...{ leftEditorRef, leftViewStateByTabRef, logEvent, logRightEditorState },
-    ...{ rawTextByTabRef, rightEditorRef, rightViewStateByTabRef, suppressLeftChangeRef, wrapLongLines },
+    ...{ rawTextByTabRef, rightEditorRef, rightViewStateByTabRef, suppressLeftChangeRef },
   });
 
   const {
@@ -399,9 +400,9 @@ const App: React.FC = () => {
 
   useJsonEditorRuntimeEffects({
     ...{ activeDocumentMeta, activeLargeViewerData, activeLargeViewerStatus, activeTab, activeTabId, activeTabIdRef },
-    ...{ formattedTextByTabRef, getTabContent, isBuildingDedicatedRightViewer, isLargeFileMode, leftEditorRef },
-    ...{ logRightEditorState, rightEditorRef, shouldEnableRightPaneFolding },
-    ...{ shouldUseDedicatedLeftViewer, shouldUseDedicatedRightViewer, syncLeftModel, syncRightModel, wrapLongLines },
+    ...{ formattedTextByTabRef, getTabContent, isBuildingDedicatedRightViewer, isLargeFileMode },
+    ...{ logRightEditorState, shouldEnableRightPaneFolding },
+    ...{ shouldUseDedicatedRightViewer, syncLeftModel, syncRightModel, wrapLongLines },
   });
 
   const { closeLeftFind, closeRightFind, openLeftFind, openRightFind } = useJsonToolSearchEffects({
@@ -422,6 +423,11 @@ const App: React.FC = () => {
     editorRef: rightEditorRef,
     isDisabled: shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer,
     selection: activeRightNodeSelection,
+  });
+  useDismissRightNodeSelection({
+    activeTabId: activeTab?.id ?? null,
+    hasSelection: Boolean(activeRightNodeSelection),
+    onDismiss: (tabId) => setRightNodeSelection(tabId, null),
   });
 
   const {

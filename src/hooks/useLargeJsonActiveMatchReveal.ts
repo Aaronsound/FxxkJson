@@ -12,10 +12,10 @@ interface UseLargeJsonActiveMatchRevealArgs {
   collapsedIntervals: CollapsedInterval[];
   containerRef: RefObject<HTMLDivElement | null>;
   getVisibleIndexForActualLine: (lineNumber: number) => number | null;
+  getRowTop: (visibleIndex: number) => number;
   normalizedCollapsedLines: number[];
   onCollapsedLinesChange: (lines: number[]) => void;
   onLocateOffset: (offset: number) => void;
-  rowHeight: number;
 }
 
 export function useLargeJsonActiveMatchReveal({
@@ -23,10 +23,10 @@ export function useLargeJsonActiveMatchReveal({
   collapsedIntervals,
   containerRef,
   getVisibleIndexForActualLine,
+  getRowTop,
   normalizedCollapsedLines,
   onCollapsedLinesChange,
   onLocateOffset,
-  rowHeight,
 }: UseLargeJsonActiveMatchRevealArgs) {
   const onCollapsedLinesChangeRef = useRef(onCollapsedLinesChange);
   const onLocateOffsetRef = useRef(onLocateOffset);
@@ -53,7 +53,7 @@ export function useLargeJsonActiveMatchReveal({
 
     const visibleIndex = getVisibleIndexForActualLine(activeMatch.lineNumber);
     if (visibleIndex !== null && containerRef.current) {
-      containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
+      containerRef.current.scrollTop = getRowTop(Math.max(0, visibleIndex - 3));
     }
 
     onLocateOffsetRef.current(activeMatch.start);
@@ -62,7 +62,7 @@ export function useLargeJsonActiveMatchReveal({
     collapsedIntervals,
     containerRef,
     getVisibleIndexForActualLine,
+    getRowTop,
     normalizedCollapsedLines,
-    rowHeight,
   ]);
 }

@@ -44,16 +44,82 @@ async function openEditAndRequireFolding(cdp, label) {
             return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
           }).length;
           const firstButton = document.querySelector('.modal-editor-shell .edit-modal-fold-button');
-          const lineNumberRight = Math.max(
-            0,
-            ...Array.from(document.querySelectorAll('.modal-editor-shell .monaco-editor .line-numbers'))
-              .map((lineNumber) => lineNumber.getBoundingClientRect().right)
-          );
-          if (!firstButton || lineNumberRight <= 0) return false;
-          return nativeVisibleCount === 0 && firstButton.getBoundingClientRect().left >= lineNumberRight + 1;
+          const shell = document.querySelector('.modal-editor-shell');
+          const editor = window.__HANJSON_E2E_EDIT_MODAL__?.__editor;
+          if (!firstButton || !shell || !editor) return false;
+          const layout = editor.getLayoutInfo();
+          const expectedLeft = shell.getBoundingClientRect().left + layout.lineNumbersLeft + layout.lineNumbersWidth + 3;
+          return nativeVisibleCount === 0
+            && Math.abs(firstButton.getBoundingClientRect().left - expectedLeft) <= 1;
         })()`
       ),
     `${label} fold controls separated from line numbers`,
+    90000
+  );
+  const deepNestedLine = await evaluate(
+    cdp,
+    `(() => {
+      const editor = window.__HANJSON_E2E_EDIT_MODAL__?.__editor;
+      const model = editor?.getModel();
+      const lineCount = model?.getLineCount() ?? 0;
+      const firstCandidate = Math.max(100, lineCount - 2_000);
+      for (let lineNumber = firstCandidate; lineNumber <= lineCount; lineNumber += 1) {
+        if (model?.getLineContent(lineNumber).includes('"nested": {')) {
+          editor.revealLineInCenter(lineNumber);
+          return lineNumber;
+        }
+      }
+      return null;
+    })()`
+  );
+  if (typeof deepNestedLine !== 'number') {
+    throw new Error(`${label} could not find a deep nested object line`);
+  }
+  const deepLineLayout = await evaluate(
+    cdp,
+    `(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+      const buttons = Array.from(document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button'));
+      const firstButton = buttons.find((button) => Number(button.dataset.lineNumber) === ${JSON.stringify(deepNestedLine)});
+      const shell = document.querySelector('.modal-editor-shell');
+      const editor = window.__HANJSON_E2E_EDIT_MODAL__?.__editor;
+      const visibleRange = editor?.getVisibleRanges()?.[0];
+      if (!firstButton || !shell || !editor) {
+        return {
+          buttonLines: buttons.map((button) => button.dataset.lineNumber),
+          lineCount: editor?.getModel()?.getLineCount() ?? null,
+          visibleStartLine: visibleRange?.startLineNumber ?? null,
+        };
+      }
+      const layout = editor.getLayoutInfo();
+      const actualLeft = firstButton.getBoundingClientRect().left;
+      const expectedLeft = shell.getBoundingClientRect().left + layout.lineNumbersLeft + layout.lineNumbersWidth + 3;
+      return { actualLeft, expectedLeft, targetLine: ${JSON.stringify(deepNestedLine)}, visibleStartLine: visibleRange?.startLineNumber ?? null };
+    })()`
+  );
+  if (
+    typeof deepLineLayout?.actualLeft !== 'number' ||
+    typeof deepLineLayout?.expectedLeft !== 'number' ||
+    Math.abs(deepLineLayout.actualLeft - deepLineLayout.expectedLeft) > 1
+  ) {
+    throw new Error(`${label} deep nested fold control mismatch: ${JSON.stringify(deepLineLayout)}`);
+  }
+  await evaluate(cdp, `window.__HANJSON_E2E_EDIT_MODAL__?.__editor?.setScrollTop(0)`);
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const firstObjectVisible = Array.from(document.querySelectorAll('.modal-editor-shell .view-line'))
+            .slice(0, 25)
+            .some((line) => line.textContent?.replace(/\u00a0/g, ' ').includes('FxxkJson e2e sample 0'));
+          const buttons = Array.from(document.querySelectorAll('.modal-editor-shell .edit-modal-fold-button'));
+          return firstObjectVisible
+            && buttons.length >= 2
+            && buttons.every((button) => Number(button.dataset.lineNumber) < 30);
+        })()`
+      ),
+    `${label} restored to first object`,
     90000
   );
   await waitFor(

@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import {
   chooseEditFoldControl,
   dedupeEditFoldControlsByVisualPosition,
   type EditFoldControl,
+  findFirstEditFoldRegionIndex,
   findJsonFoldEndLine,
   type FoldingContribution,
   getEditFoldKey,
@@ -18,6 +19,9 @@ export function useJsonEditFolding(editorRef: RefObject<monaco.editor.IStandalon
   const [foldControls, setFoldControls] = useState<EditFoldControl[]>([]);
   const [foldOverlayLeft, setFoldOverlayLeft] = useState<number | null>(null);
   const collapsedFoldRangesRef = useRef<Map<string, monaco.Range>>(new Map());
+  const foldUpdateFrameRef = useRef<number | null>(null);
+  const foldUpdateSettleTimerRef = useRef<number | null>(null);
+  const foldUpdateSafetyTimerRef = useRef<number | null>(null);
 
   const updateFoldControls = useCallback(async () => {
     const editor = editorRef.current;
@@ -38,10 +42,11 @@ export function useJsonEditFolding(editorRef: RefObject<monaco.editor.IStandalon
     const lastVisibleLine = Math.min(model.getLineCount(), (visibleRanges.at(-1)?.endLineNumber ?? 1) + 2);
     const regions = foldingModel.regions;
     const controlsByLine = new Map<number, EditFoldControl>();
-    const nextOverlayLeft = getEditFoldOverlayLeft();
+    const nextOverlayLeft = getEditFoldOverlayLeft(editor);
     const collapsedFoldRanges = Array.from(collapsedFoldRangesRef.current.values());
 
-    for (let index = 0; index < regions.length && controlsByLine.size < 200; index += 1) {
+    const firstRegionIndex = findFirstEditFoldRegionIndex(regions, firstVisibleLine);
+    for (let index = firstRegionIndex; index < regions.length && controlsByLine.size < 200; index += 1) {
       const lineNumber = regions.getStartLineNumber(index);
       if (lineNumber < firstVisibleLine) {
         continue;
@@ -98,20 +103,46 @@ export function useJsonEditFolding(editorRef: RefObject<monaco.editor.IStandalon
     setFoldControls(dedupeEditFoldControlsByVisualPosition(Array.from(controlsByLine.values())));
   }, [editorRef]);
 
+  const cancelScheduledFoldControlsUpdate = useCallback(() => {
+    if (foldUpdateFrameRef.current !== null) {
+      window.cancelAnimationFrame(foldUpdateFrameRef.current);
+      foldUpdateFrameRef.current = null;
+    }
+    if (foldUpdateSettleTimerRef.current !== null) {
+      window.clearTimeout(foldUpdateSettleTimerRef.current);
+      foldUpdateSettleTimerRef.current = null;
+    }
+    if (foldUpdateSafetyTimerRef.current !== null) {
+      window.clearTimeout(foldUpdateSafetyTimerRef.current);
+      foldUpdateSafetyTimerRef.current = null;
+    }
+  }, []);
+
   const scheduleFoldControlsUpdate = useCallback(() => {
-    window.requestAnimationFrame(() => {
+    if (foldUpdateFrameRef.current === null) {
+      foldUpdateFrameRef.current = window.requestAnimationFrame(() => {
+        foldUpdateFrameRef.current = null;
+        void updateFoldControls();
+      });
+    }
+
+    if (foldUpdateSettleTimerRef.current !== null) {
+      window.clearTimeout(foldUpdateSettleTimerRef.current);
+    }
+    foldUpdateSettleTimerRef.current = window.setTimeout(() => {
+      foldUpdateSettleTimerRef.current = null;
       void updateFoldControls();
-    });
-    window.setTimeout(() => {
-      void updateFoldControls();
-    }, 50);
-    window.setTimeout(() => {
-      void updateFoldControls();
-    }, 250);
-    window.setTimeout(() => {
-      void updateFoldControls();
-    }, 750);
+    }, 120);
+
+    if (foldUpdateSafetyTimerRef.current === null) {
+      foldUpdateSafetyTimerRef.current = window.setTimeout(() => {
+        foldUpdateSafetyTimerRef.current = null;
+        void updateFoldControls();
+      }, 700);
+    }
   }, [updateFoldControls]);
+
+  useEffect(() => cancelScheduledFoldControlsUpdate, [cancelScheduledFoldControlsUpdate]);
 
   const resetEditFoldControls = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor | null) => {
@@ -125,7 +156,6 @@ export function useJsonEditFolding(editorRef: RefObject<monaco.editor.IStandalon
       void editor.getAction('editor.unfoldAll')?.run();
       setEditHiddenAreas(editor, []);
       editor.render(true);
-      editor.layout();
       refreshEditFoldingControls(editor);
       void updateFoldControls();
       scheduleFoldControlsUpdate();
@@ -173,9 +203,10 @@ export function useJsonEditFolding(editorRef: RefObject<monaco.editor.IStandalon
   );
 
   const clearEditFoldControls = useCallback(() => {
+    cancelScheduledFoldControlsUpdate();
     collapsedFoldRangesRef.current.clear();
     setFoldControls([]);
-  }, []);
+  }, [cancelScheduledFoldControlsUpdate]);
 
   return {
     clearEditFoldControls,

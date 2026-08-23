@@ -40,12 +40,15 @@ export function useRightEditorDiagnostics({
     const model = editor?.getModel();
     const rawText = rawTextByTabRef.current[tabId] ?? '';
     const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-    const rawMetrics = measureJsonDocument(rawText);
-    const formattedMetrics = measureJsonDocument(formattedText);
+    const rawBytes = typeof extra.rawBytes === 'number' ? extra.rawBytes : measureJsonDocument(rawText).textByteLength;
+    const formattedBytes =
+      typeof extra.formattedBytes === 'number'
+        ? extra.formattedBytes
+        : measureJsonDocument(formattedText).textByteLength;
     const payload = {
       tabId,
-      rawBytes: rawMetrics.textByteLength,
-      formattedBytes: formattedMetrics.textByteLength,
+      rawBytes,
+      formattedBytes,
       isActiveTab: activeTabIdRef.current === tabId,
       modelLanguageId: model?.getLanguageId() ?? null,
       modelLineCount: model?.getLineCount() ?? 0,
@@ -53,7 +56,7 @@ export function useRightEditorDiagnostics({
       largeMode: Boolean(largeModeRef.current[tabId]),
       locateEnabled: Boolean(largeFileLocateEnabledRef.current[tabId]),
       structureStatus: structureStatusRef.current[tabId] ?? null,
-      withinStructureThreshold: rawMetrics.textByteLength <= STRUCTURE_SYNC_THRESHOLD,
+      withinStructureThreshold: rawBytes <= STRUCTURE_SYNC_THRESHOLD,
       ...extra,
     };
 

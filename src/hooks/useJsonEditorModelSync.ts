@@ -11,7 +11,6 @@ import {
   recreateModel,
 } from '../utils/jsonToolModels';
 import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
-import { getMonacoOptions } from '../utils/jsonEditorInteractions';
 
 interface UseJsonEditorModelSyncArgs {
   largeModeRef: MutableRefObject<Record<string, boolean>>;
@@ -26,7 +25,6 @@ interface UseJsonEditorModelSyncArgs {
   rightEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   rightViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
   suppressLeftChangeRef: MutableRefObject<Record<string, boolean>>;
-  wrapLongLines: boolean;
 }
 
 export function useJsonEditorModelSync({
@@ -42,7 +40,6 @@ export function useJsonEditorModelSync({
   rightEditorRef,
   rightViewStateByTabRef,
   suppressLeftChangeRef,
-  wrapLongLines,
 }: UseJsonEditorModelSyncArgs) {
   const attachEditorModel = useCallback(
     (
@@ -53,7 +50,7 @@ export function useJsonEditorModelSync({
       details: Record<string, unknown>
     ) => {
       if (!editor) {
-        return;
+        return false;
       }
 
       const shouldSwitchModel = editor.getModel() !== model;
@@ -65,9 +62,10 @@ export function useJsonEditorModelSync({
         if (viewState) {
           editor.restoreViewState(viewState);
         }
+        editor.layout();
       }
 
-      editor.layout();
+      return shouldSwitchModel;
     },
     [logEvent]
   );
@@ -177,17 +175,10 @@ export function useJsonEditorModelSync({
             enableStructuralFolding,
           }
         );
-        rightEditorRef.current?.updateOptions(
-          getMonacoOptions({
-            largeMode: effectiveLargeMode,
-            wrapLongLines,
-            readOnly: true,
-            enableStructuralFolding,
-          })
-        );
-        rightEditorRef.current?.layout();
         logRightEditorState('right-editor-state', tabId, {
           context: forceValue ? 'sync-force' : 'sync',
+          formattedBytes: byteLength,
+          rawBytes: rawByteLength,
           language,
           enableStructuralFolding,
           effectiveLargeMode,
@@ -205,7 +196,6 @@ export function useJsonEditorModelSync({
       rawTextByTabRef,
       rightEditorRef,
       rightViewStateByTabRef,
-      wrapLongLines,
     ]
   );
 

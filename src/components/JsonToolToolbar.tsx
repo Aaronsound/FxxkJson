@@ -221,7 +221,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
           <section className="toolbar-section toolbar-section-view">
             <span className="toolbar-section-label">{t('toolbar.view')}</span>
             <div className="toolbar-section-body toolbar-view-row">
-              <label className="toolbar-checkbox">
+              <label className="toolbar-checkbox" title={t('toolbar.wrapHint')}>
                 <input
                   type="checkbox"
                   checked={wrapLongLines}

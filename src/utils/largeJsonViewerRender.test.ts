@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
-import { buildHighlightedJsonLineSegments, tokenizeJsonLine } from './largeJsonViewerRender';
+import {
+  buildHighlightedJsonLineSegments,
+  buildLargeJsonRowOffsets,
+  getLargeJsonVisibleIndexAtOffset,
+  tokenizeJsonLine,
+} from './largeJsonViewerRender';
 
 function createMatch(
   localStart: number,
@@ -47,5 +52,28 @@ describe('largeJsonViewerRender', () => {
     expect(segments.map((segment) => segment.text).join('')).toBe('"ok": true');
     expect(segments.some((segment) => segment.isSearchMatch)).toBe(true);
     expect(segments.some((segment) => segment.isActiveSearchMatch)).toBe(false);
+  });
+
+  it('only adds wrapped height to lines that exceed the viewport columns', () => {
+    const lines = ['{', `  "payload": "${'x'.repeat(90)}",`, '  "ok": true', '}'];
+    const text = lines.join('\n');
+    const lineStarts = Uint32Array.from(
+      lines.map((_, index) => lines.slice(0, index).reduce((offset, line) => offset + line.length + 1, 0))
+    );
+    const rowOffsets = buildLargeJsonRowOffsets({
+      lineHeight: 18,
+      lineStarts,
+      textLength: text.length,
+      visibleLineCount: lines.length,
+      visibleSegments: [{ actualStart: 1, actualEnd: 4, visibleStart: 0, visibleEnd: 3 }],
+      wrapColumnCount: 40,
+    });
+
+    expect(Array.from(rowOffsets)).toEqual([0, 18, 90, 108, 126]);
+    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 17)).toBe(0);
+    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 18)).toBe(1);
+    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 89)).toBe(1);
+    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 90)).toBe(2);
+    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 108)).toBe(3);
   });
 });

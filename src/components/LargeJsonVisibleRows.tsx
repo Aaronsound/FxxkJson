@@ -25,6 +25,8 @@ interface LargeJsonVisibleRowsProps {
     isCollapsed: boolean
   ) => LocalSelectionRange | null;
   getLineText: (lineNumber: number) => string;
+  getRowHeight: (visibleIndex: number) => number;
+  getRowTop: (visibleIndex: number) => number;
   isLineSelected: (lineNumber: number) => boolean;
   lineNumberWidth: string;
   onLocateOffset: (offset: number) => void;
@@ -35,7 +37,6 @@ interface LargeJsonVisibleRowsProps {
     selectedLineRange: LocalSelectionRange | null
   ) => React.ReactNode;
   resolveOffsetFromPoint: (event: ReactMouseEvent<HTMLElement>, lineNumber: number, lineText: string) => number;
-  rowHeight: number;
   setContextMenu: React.Dispatch<React.SetStateAction<LargeJsonContextMenuState | null>>;
   startVisibleIndex: number;
   toggleLine: (lineNumber: number) => void;
@@ -63,13 +64,14 @@ export function LargeJsonVisibleRows({
   getActualLineNumber,
   getLineSelectionRange,
   getLineText,
+  getRowHeight,
+  getRowTop,
   isLineSelected,
   lineNumberWidth,
   onLocateOffset,
   regionsByStartLine,
   renderLineText,
   resolveOffsetFromPoint,
-  rowHeight,
   setContextMenu,
   startVisibleIndex,
   toggleLine,
@@ -111,8 +113,8 @@ export function LargeJsonVisibleRows({
           onLocateOffset(offset);
         }}
         style={{
-          top: `${visibleIndex * rowHeight}px`,
-          height: `${rowHeight}px`,
+          top: `${getRowTop(visibleIndex)}px`,
+          height: `${getRowHeight(visibleIndex)}px`,
         }}
       >
         <span className="large-json-line-number" style={{ width: lineNumberWidth }}>

@@ -46,6 +46,65 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot) {
   ]);
 }
 
+async function assertLargeViewerAutoWrap(cdp) {
+  const hasLargeViewer = await evaluate(
+    cdp,
+    `Boolean(document.querySelector('.right-editor-pane .large-json-viewer'))`
+  );
+  if (!hasLargeViewer) {
+    return;
+  }
+
+  await evaluate(
+    cdp,
+    `(() => {
+      const label = Array.from(document.querySelectorAll('.toolbar-checkbox'))
+        .find((element) => element.textContent?.includes('自动换行'));
+      const input = label?.querySelector('input[type="checkbox"]');
+      if (!(input instanceof HTMLInputElement)) return false;
+      if (!input.checked) input.click();
+      return true;
+    })()`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const rows = Array.from(document.querySelectorAll('.right-editor-pane .large-json-row.wrap'));
+          const shortRows = rows.filter((row) => {
+            const length = row.querySelector('.large-json-line-text')?.textContent?.length ?? 0;
+            return length > 0 && length < 60;
+          });
+          const longRow = rows.find((row) => row.querySelector('.large-json-line-text')?.textContent?.includes('"message"'));
+          const rowRects = rows
+            .map((row) => row.getBoundingClientRect())
+            .sort((left, right) => left.top - right.top);
+          const rowsDoNotOverlap = rowRects.every((rect, index) => {
+            const next = rowRects[index + 1];
+            return !next || rect.bottom <= next.top + 0.5;
+          });
+          return shortRows.length >= 3
+            && shortRows.every((row) => Math.round(row.getBoundingClientRect().height) === 18)
+            && Boolean(longRow && longRow.getBoundingClientRect().height > 18)
+            && rowsDoNotOverlap;
+        })()`
+      ),
+    'large viewer wraps only long rows',
+    90000
+  );
+  await evaluate(
+    cdp,
+    `(() => {
+      const label = Array.from(document.querySelectorAll('.toolbar-checkbox'))
+        .find((element) => element.textContent?.includes('自动换行'));
+      const input = label?.querySelector('input[type="checkbox"]');
+      if (input instanceof HTMLInputElement && input.checked) input.click();
+      return true;
+    })()`
+  );
+}
+
 async function run() {
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.HANJSON_E2E_FORCE) {
     console.log('FxxkJson Electron E2E skipped: no DISPLAY is available on Linux');
@@ -84,6 +143,7 @@ async function run() {
       'imported and formatted JSON',
       90000
     );
+    await assertLargeViewerAutoWrap(cdp);
     const memorySnapshot = await readElectronMemorySnapshot(cdp);
     assertElectronMemoryBudget(memorySnapshot, sizeMb);
 

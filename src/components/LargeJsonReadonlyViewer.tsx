@@ -1,7 +1,14 @@
-import { forwardRef, type MouseEvent as ReactMouseEvent, useCallback, useImperativeHandle, useRef } from 'react';
+import {
+  forwardRef,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from 'react';
 import { DEFAULT_SEARCH_OPTIONS, type LargeJsonSearchMatch, type LargeJsonViewerData } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
-import { clamp } from '../utils/largeJsonViewerRender';
+import { buildLargeJsonRowOffsets, clamp, getLargeJsonWrapColumnCount } from '../utils/largeJsonViewerRender';
 import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import { LargeJsonLineText } from './LargeJsonLineText';
@@ -87,8 +94,8 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const { closeContextMenu, contextMenu, setContextMenu } = useLargeJsonContextMenu({ searchTerm });
-    const { queueScrollTopUpdate, scrollTop, viewportHeight } = useLargeJsonViewport({ containerRef });
-    const rowHeight = wrapLongLines ? LINE_HEIGHT * 4 : LINE_HEIGHT;
+    const { queueScrollTopUpdate, scrollTop, viewportHeight, viewportWidth } = useLargeJsonViewport({ containerRef });
+    const rowHeight = LINE_HEIGHT;
 
     const {
       collapsedIntervals,
@@ -105,6 +112,22 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       data,
       onCollapsedLinesChange,
     });
+    const lineNumberDigits = Math.max(3, String(data.lineCount).length);
+    const wrapColumnCount = getLargeJsonWrapColumnCount(viewportWidth, lineNumberDigits);
+    const rowOffsets = useMemo(
+      () =>
+        wrapLongLines
+          ? buildLargeJsonRowOffsets({
+              lineHeight: rowHeight,
+              lineStarts: data.lineStarts,
+              textLength: text.length,
+              visibleLineCount,
+              visibleSegments,
+              wrapColumnCount,
+            })
+          : null,
+      [data.lineStarts, text.length, visibleLineCount, visibleSegments, wrapColumnCount, wrapLongLines]
+    );
 
     const getLineText = useCallback(
       (lineNumber: number) => {
@@ -120,15 +143,22 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       [data.lineCount, data.lineStarts, text]
     );
 
-    const { endVisibleIndex, getActualLineNumber, getVisibleIndexForActualLine, startVisibleIndex } =
-      useLargeJsonVisibleWindow({
-        rowHeight,
-        scrollTop,
-        viewportHeight,
-        visibleLineCount,
-        visibleSegments,
-        overscan: OVERSCAN,
-      });
+    const {
+      endVisibleIndex,
+      getActualLineNumber,
+      getRowHeight,
+      getRowTop,
+      getVisibleIndexForActualLine,
+      startVisibleIndex,
+    } = useLargeJsonVisibleWindow({
+      rowHeight,
+      rowOffsets,
+      scrollTop,
+      viewportHeight,
+      visibleLineCount,
+      visibleSegments,
+      overscan: OVERSCAN,
+    });
 
     const resolveOffsetFromPoint = useCallback(
       (event: ReactMouseEvent<HTMLElement>, lineNumber: number, lineText: string) => {
@@ -211,7 +241,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
 
           const visibleIndex = getVisibleIndexForActualLine(lineNumber);
           if (visibleIndex !== null && containerRef.current) {
-            containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
+            containerRef.current.scrollTop = getRowTop(Math.max(0, visibleIndex - 3));
             containerRef.current.focus({ preventScroll: true });
           }
         },
@@ -220,10 +250,10 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         collapsedIntervals,
         data.lineStarts,
         foldAll,
+        getRowTop,
         getVisibleIndexForActualLine,
         normalizedCollapsedLines,
         onCollapsedLinesChange,
-        rowHeight,
         text.length,
         unfoldAll,
       ]
@@ -234,13 +264,14 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       collapsedIntervals,
       containerRef,
       getVisibleIndexForActualLine,
+      getRowTop,
       normalizedCollapsedLines,
       onCollapsedLinesChange,
       onLocateOffset,
-      rowHeight,
     });
 
-    const lineNumberWidth = `${Math.max(3, String(data.lineCount).length)}ch`;
+    const lineNumberWidth = `${lineNumberDigits}ch`;
+    const contentHeight = Math.max(rowHeight, rowOffsets?.[rowOffsets.length - 1] ?? visibleLineCount * rowHeight);
 
     const renderLineText = useCallback(
       (lineNumber: number, lineText: string, selectedLineRange: LargeJsonLocalSelectionRange | null) => {
@@ -270,7 +301,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         onScroll={(event) => queueScrollTopUpdate(event.currentTarget.scrollTop)}
         onCopy={handleCopy}
       >
-        <div className="large-json-spacer" style={{ height: `${Math.max(visibleLineCount, 1) * rowHeight}px` }}>
+        <div className="large-json-spacer" style={{ height: `${contentHeight}px` }}>
           <LargeJsonVisibleRows
             collapsedLineSet={collapsedLineSet}
             data={data}
@@ -278,13 +309,14 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
             getActualLineNumber={getActualLineNumber}
             getLineSelectionRange={getLineSelectionRange}
             getLineText={getLineText}
+            getRowHeight={getRowHeight}
+            getRowTop={getRowTop}
             isLineSelected={isLineSelected}
             lineNumberWidth={lineNumberWidth}
             onLocateOffset={onLocateOffset}
             regionsByStartLine={regionsByStartLine}
             renderLineText={renderLineText}
             resolveOffsetFromPoint={resolveOffsetFromPoint}
-            rowHeight={rowHeight}
             setContextMenu={setContextMenu}
             startVisibleIndex={startVisibleIndex}
             toggleLine={toggleLine}

@@ -1,4 +1,4 @@
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
 const EDIT_FOLD_CONTROL_VISUAL_DEDUPE_PX = 4;
 const EDIT_MODAL_HIDDEN_AREA_SOURCE = { id: 'fxxkjson-edit-modal-folding' };
@@ -23,6 +23,8 @@ type FoldingRegions = {
   isCollapsed: (index: number) => boolean;
   toRegion: (index: number) => FoldingRegion;
 };
+
+type OrderedFoldingRegions = Pick<FoldingRegions, 'getStartLineNumber' | 'length'>;
 
 export type FoldingModel = {
   regions: FoldingRegions;
@@ -53,7 +55,6 @@ export function refreshEditFoldingControls(editor: monaco.editor.IStandaloneCode
       return;
     }
 
-    editor.layout();
     editor.updateOptions({
       folding: true,
       showFoldingControls: 'always',
@@ -61,6 +62,7 @@ export function refreshEditFoldingControls(editor: monaco.editor.IStandaloneCode
       foldingMaximumRegions: 200000,
       largeFileOptimizations: false,
     });
+    editor.layout();
 
     const foldingContribution = editor.getContribution('editor.contrib.folding') as FoldingContribution | null;
     foldingContribution?.triggerFoldingModelChanged?.();
@@ -68,13 +70,7 @@ export function refreshEditFoldingControls(editor: monaco.editor.IStandaloneCode
   };
 
   refresh();
-  window.requestAnimationFrame(() => {
-    refresh();
-    window.requestAnimationFrame(refresh);
-  });
-  window.setTimeout(refresh, 50);
-  window.setTimeout(refresh, 250);
-  window.setTimeout(refresh, 750);
+  window.requestAnimationFrame(refresh);
 }
 
 export function enableLargeEditModelFolding(editor: monaco.editor.IStandaloneCodeEditor) {
@@ -120,7 +116,12 @@ export function getEditFoldKey(startLineNumber: number, endLineNumber: number) {
   return `${startLineNumber}:${endLineNumber}`;
 }
 
-export function getEditFoldOverlayLeft() {
+export function getEditFoldOverlayLeft(editor?: Pick<monaco.editor.IStandaloneCodeEditor, 'getLayoutInfo'>) {
+  const layoutInfo = editor?.getLayoutInfo();
+  if (layoutInfo) {
+    return Math.ceil(layoutInfo.lineNumbersLeft + layoutInfo.lineNumbersWidth + 3);
+  }
+
   const shellRect = document.querySelector('.modal-editor-shell')?.getBoundingClientRect();
   if (!shellRect) {
     return null;
@@ -146,11 +147,36 @@ export function isLineInsideCollapsedEditFold(lineNumber: number, ranges: Iterab
   return false;
 }
 
+function findJsonFoldStartColumn(line: string) {
+  let escaped = false;
+  let inString = false;
+
+  for (let column = 0; column < line.length; column += 1) {
+    const character = line[column];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === '\\' && inString) {
+      escaped = true;
+      continue;
+    }
+    if (character === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (!inString && (character === '{' || character === '[')) {
+      return column;
+    }
+  }
+
+  return -1;
+}
+
 export function findJsonFoldEndLine(model: monaco.editor.ITextModel, startLineNumber: number) {
   const startLine = model.getLineContent(startLineNumber);
-  const startColumn = startLine.search(/\S/);
-  const startCharacter = startColumn >= 0 ? startLine[startColumn] : '';
-  if (startCharacter !== '{' && startCharacter !== '[') {
+  const startColumn = findJsonFoldStartColumn(startLine);
+  if (startColumn < 0) {
     return null;
   }
 
@@ -208,6 +234,22 @@ export function chooseEditFoldControl(current: EditFoldControl | undefined, next
   }
 
   return current;
+}
+
+export function findFirstEditFoldRegionIndex(regions: OrderedFoldingRegions, firstVisibleLine: number) {
+  let low = 0;
+  let high = regions.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (regions.getStartLineNumber(middle) < firstVisibleLine) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
 }
 
 function expandNativeEditFolds(editor: monaco.editor.IStandaloneCodeEditor) {

@@ -115,6 +115,21 @@ describe('LargeJsonReadonlyViewer rendering', () => {
     expect(row?.style.height).toBe(`${JSON_EDITOR_LINE_HEIGHT}px`);
   });
 
+  it('keeps short lines compact while wrapping only a genuinely long line', () => {
+    const text = ['{', `  "payload": "${'x'.repeat(500)}",`, '  "ok": true', '}'].join('\n');
+    renderViewer({ text, wrapLongLines: true });
+
+    const firstRow = document.querySelector<HTMLElement>('.large-json-line-text[data-line-number="1"]')?.parentElement;
+    const longRow = document.querySelector<HTMLElement>('.large-json-line-text[data-line-number="2"]')?.parentElement;
+    const followingRow = document.querySelector<HTMLElement>(
+      '.large-json-line-text[data-line-number="3"]'
+    )?.parentElement;
+
+    expect(firstRow?.style.height).toBe(`${JSON_EDITOR_LINE_HEIGHT}px`);
+    expect(longRow?.style.height).toBe(`${JSON_EDITOR_LINE_HEIGHT * 4}px`);
+    expect(followingRow?.style.top).toBe(`${JSON_EDITOR_LINE_HEIGHT * 5}px`);
+  });
+
   it('preserves fold all and unfold all commands through the ref API', () => {
     const ref = createRef<LargeJsonReadonlyViewerHandle>();
     const onCollapsedLinesChange = vi.fn();

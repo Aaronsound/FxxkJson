@@ -250,6 +250,13 @@ class MockEditor {
     return 0;
   }
 
+  getLayoutInfo() {
+    return {
+      lineNumbersLeft: 8,
+      lineNumbersWidth: 36,
+    };
+  }
+
   onDidDispose(listener: () => void) {
     this.disposeListeners.push(listener);
     return { dispose: vi.fn() };
@@ -714,6 +721,7 @@ describe('JsonEditModal search position', () => {
     });
 
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
+    expect(container.querySelector<HTMLElement>('.edit-modal-fold-overlay')?.style.left).toBe('47px');
     fireEvent.click(container.querySelector('.edit-modal-fold-button') as HTMLButtonElement);
     expect(editor.setHiddenAreas).toHaveBeenCalledWith(
       [
@@ -772,6 +780,56 @@ describe('JsonEditModal search position', () => {
       ],
       expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
+  });
+
+  it('adds fallback fold buttons for nested object and array property lines', async () => {
+    const { container } = renderModal(
+      ['{', '  "nested": {', '    "tags": [', '      "json"', '    ]', '  }', '}'].join('\n')
+    );
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    editor.foldingRegions.length = 1;
+    editor.foldingRegions.getStartLineNumber.mockImplementation(() => 1);
+    editor.foldingRegions.getEndLineNumber.mockImplementation(() => 7);
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    const foldLines = Array.from(container.querySelectorAll<HTMLElement>('.edit-modal-fold-button')).map((button) =>
+      Number(button.dataset.lineNumber)
+    );
+    expect(foldLines).toEqual(expect.arrayContaining([1, 2, 3]));
+  });
+
+  it('coalesces repeated scroll folding refreshes into one frame and trailing checks', async () => {
+    renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    editor.foldingContribution.getFoldingModel.mockClear();
+
+    act(() => {
+      for (let index = 0; index < 25; index += 1) {
+        editor.scrollListeners.forEach((listener) => {
+          listener();
+        });
+      }
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(editor.foldingContribution.getFoldingModel.mock.calls.length).toBeGreaterThan(0);
+    expect(editor.foldingContribution.getFoldingModel.mock.calls.length).toBeLessThanOrEqual(3);
   });
 
   it('deduplicates repeated fallback fold buttons on the same line', async () => {
