@@ -7,6 +7,7 @@ import {
 
 export interface JsonDocumentMetrics {
   exceedsDedicatedViewerLineThreshold: boolean;
+  lineCount: number;
   textByteLength: number;
 }
 
@@ -43,6 +44,7 @@ export function measureJsonDocument(
 
   return {
     exceedsDedicatedViewerLineThreshold: lineThreshold <= 0 ? text.length > 0 : lineCount > lineThreshold,
+    lineCount,
     textByteLength: byteLength,
   };
 }

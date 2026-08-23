@@ -14,9 +14,10 @@ import {
 } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import {
-  buildLargeJsonRowOffsets,
+  buildLargeJsonWrapLayout,
   clamp,
   findCollapsedInterval,
+  getLargeJsonContentHeight,
   getLargeJsonWrapColumnCount,
 } from '../utils/largeJsonViewerRender';
 import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';
@@ -124,10 +125,10 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
     });
     const lineNumberDigits = Math.max(3, String(data.lineCount).length);
     const wrapColumnCount = getLargeJsonWrapColumnCount(viewportWidth, lineNumberDigits);
-    const rowOffsets = useMemo(
+    const wrapLayout = useMemo(
       () =>
         wrapLongLines
-          ? buildLargeJsonRowOffsets({
+          ? buildLargeJsonWrapLayout({
               lineHeight: rowHeight,
               lineStarts: data.lineStarts,
               textLength: text.length,
@@ -162,7 +163,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       startVisibleIndex,
     } = useLargeJsonVisibleWindow({
       rowHeight,
-      rowOffsets,
+      wrapLayout,
       scrollTop,
       viewportHeight,
       visibleLineCount,
@@ -275,7 +276,10 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
     });
 
     const lineNumberWidth = `${lineNumberDigits}ch`;
-    const contentHeight = Math.max(rowHeight, rowOffsets?.[rowOffsets.length - 1] ?? visibleLineCount * rowHeight);
+    const contentHeight = Math.max(
+      rowHeight,
+      wrapLayout ? getLargeJsonContentHeight(wrapLayout) : visibleLineCount * rowHeight
+    );
 
     const renderLineText = useCallback(
       (lineNumber: number, lineText: string, selectedLineRange: LargeJsonLocalSelectionRange | null) => {

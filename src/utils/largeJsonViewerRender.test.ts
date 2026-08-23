@@ -3,9 +3,13 @@ import { describe, expect, it } from 'vitest';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
 import {
   binarySearchActualSegment,
+  buildAllExceptCollapsedIntervals,
   buildHighlightedJsonLineSegments,
-  buildLargeJsonRowOffsets,
+  buildLargeJsonWrapLayout,
   findCollapsedInterval,
+  getLargeJsonContentHeight,
+  getLargeJsonRowHeight,
+  getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
   tokenizeJsonLine,
 } from './largeJsonViewerRender';
@@ -62,7 +66,7 @@ describe('largeJsonViewerRender', () => {
     const lineStarts = Uint32Array.from(
       lines.map((_, index) => lines.slice(0, index).reduce((offset, line) => offset + line.length + 1, 0))
     );
-    const rowOffsets = buildLargeJsonRowOffsets({
+    const wrapLayout = buildLargeJsonWrapLayout({
       lineHeight: 18,
       lineStarts,
       textLength: text.length,
@@ -71,12 +75,32 @@ describe('largeJsonViewerRender', () => {
       wrapColumnCount: 40,
     });
 
-    expect(Array.from(rowOffsets)).toEqual([0, 18, 90, 108, 126]);
-    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 17)).toBe(0);
-    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 18)).toBe(1);
-    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 89)).toBe(1);
-    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 90)).toBe(2);
-    expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 108)).toBe(3);
+    expect(Array.from(wrapLayout.longRowIndexes)).toEqual([1]);
+    expect(wrapLayout.longRowIndexes.byteLength).toBeLessThan((lines.length + 1) * Uint32Array.BYTES_PER_ELEMENT);
+    expect([0, 1, 2, 3].map((index) => getLargeJsonRowTop(wrapLayout, index))).toEqual([0, 18, 90, 108]);
+    expect(getLargeJsonContentHeight(wrapLayout)).toBe(126);
+    expect(getLargeJsonRowHeight(wrapLayout, 0)).toBe(18);
+    expect(getLargeJsonRowHeight(wrapLayout, 1)).toBe(72);
+    expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 17)).toBe(0);
+    expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 18)).toBe(1);
+    expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 89)).toBe(1);
+    expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 90)).toBe(2);
+    expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 108)).toBe(3);
+  });
+
+  it('skips hidden descendant regions while preserving same-line sibling boundaries', () => {
+    const regions = {
+      startLines: Uint32Array.from([1, 2, 3, 5]),
+      endLines: Uint32Array.from([10, 5, 4, 9]),
+      parentIndexes: Int32Array.from([-1, 0, 1, 0]),
+      kinds: Uint8Array.from([0, 1, 0, 0]),
+    };
+
+    expect(buildAllExceptCollapsedIntervals(regions, new Set())).toEqual([{ start: 2, end: 9, triggerLine: 1 }]);
+    expect(buildAllExceptCollapsedIntervals(regions, new Set([1]))).toEqual([
+      { start: 3, end: 4, triggerLine: 2 },
+      { start: 6, end: 8, triggerLine: 5 },
+    ]);
   });
 
   it('locates actual lines and collapsed intervals with boundary-safe binary searches', () => {

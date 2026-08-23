@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import type { LargeJsonFoldState, LargeJsonViewerData } from '../types/jsonTool';
 import { findFirstRegionIndexAtStartLine, getLargeJsonViewerRegionAtStartLine } from '../utils/largeJsonViewerData';
-import { buildVisibleSegments } from '../utils/largeJsonViewerRender';
+import { buildAllExceptCollapsedIntervals, buildVisibleSegments } from '../utils/largeJsonViewerRender';
 import type { CollapsedInterval } from '../utils/largeJsonViewerRender';
 
 interface UseLargeJsonFoldingArgs {
@@ -77,14 +77,7 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
       return intervals;
     }
 
-    for (let index = 0; index < data.regions.startLines.length; index += 1) {
-      const startLine = data.regions.startLines[index];
-      if (!stateLineSet.has(startLine)) {
-        appendInterval(startLine, data.regions.endLines[index]);
-      }
-    }
-
-    return intervals;
+    return buildAllExceptCollapsedIntervals(data.regions, stateLineSet);
   }, [data.regions, foldState.mode, normalizedStateLines, stateLineSet]);
 
   const visibleSegments = useMemo(

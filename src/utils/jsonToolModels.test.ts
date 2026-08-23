@@ -22,6 +22,7 @@ describe('jsonToolModels', () => {
   it('measures UTF-8 bytes and the dedicated-viewer line threshold in one pass', () => {
     expect(measureJsonDocument('汉字\n😀', 1)).toEqual({
       exceedsDedicatedViewerLineThreshold: true,
+      lineCount: 2,
       textByteLength: 11,
     });
   });

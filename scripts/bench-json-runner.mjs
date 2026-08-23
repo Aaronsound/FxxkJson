@@ -3,7 +3,10 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { parseTree } from 'jsonc-parser';
 import {
+  buildFoldAllStats,
   buildViewerDataStats,
+  buildWrapLayoutStats,
+  countTextLines,
   findLiteralSearchBatch,
   getRightSearchQuery,
   measure,
@@ -31,7 +34,12 @@ export async function benchFile(filePath) {
   const stringifyResult = measure('stringify', () => JSON.stringify(parseResult.value, null, 2));
   const formattedText = stringifyResult.value;
   const formattedBytes = Buffer.byteLength(formattedText, 'utf8');
-  const viewerResult = measure('viewer-index', () => buildViewerDataStats(formattedText));
+  const formattedLineCount = countTextLines(formattedText);
+  const viewerResult = measure('viewer-index', () => buildViewerDataStats(formattedText, formattedLineCount));
+  const foldAllResult = measure('fold-all-index', () => buildFoldAllStats(viewerResult.value.regions));
+  const wrapLayoutResult = measure('wrap-layout', () =>
+    buildWrapLayoutStats(formattedText, viewerResult.value.lineStarts, viewerResult.value.lineCount)
+  );
   const rawTreeResult = measure('rawTree', () => parseTree(rawText));
   const formattedTreeResult = measure('formattedTree', () => parseTree(formattedText));
   const rightSearchQuery = getRightSearchQuery(formattedText);
@@ -78,9 +86,16 @@ export async function benchFile(filePath) {
     totalFormatMs: parseResult.ms + stringifyResult.ms,
     viewerIndexMs: viewerResult.ms,
     viewerIndexBytes: viewerResult.value.indexBytes,
+    viewerIndexWorkingBytes: viewerResult.value.buildWorkingBytes,
     viewerLineCount: viewerResult.value.lineCount,
     viewerRegionCount: viewerResult.value.regionCount,
     viewerRegionIndexBytes: viewerResult.value.regionIndexBytes,
+    foldAllIntervalsMs: foldAllResult.ms,
+    foldAllIntervalCount: foldAllResult.value.intervalCount,
+    foldAllVisitedRegionCount: foldAllResult.value.visitedRegionCount,
+    wrapLayoutMs: wrapLayoutResult.ms,
+    wrapLayoutBytes: wrapLayoutResult.value.indexBytes,
+    wrapLongRowCount: wrapLayoutResult.value.longRowCount,
     rawTreeMs: rawTreeResult.ms,
     formattedTreeMs: formattedTreeResult.ms,
     rightSearchBatchMs: rightSearchBatchResult.ms,

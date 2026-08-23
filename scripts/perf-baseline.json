@@ -5,6 +5,8 @@
     "sample-5mb.json": {
       "totalFormatMs": 55,
       "viewerIndexMs": 55,
+      "foldAllIntervalsMs": 2,
+      "wrapLayoutMs": 10,
       "rawTreeMs": 180,
       "formattedTreeMs": 330,
       "rightSearchBatchMs": 80,
@@ -19,6 +21,8 @@
     "sample-20mb.json": {
       "totalFormatMs": 550,
       "viewerIndexMs": 330,
+      "foldAllIntervalsMs": 2,
+      "wrapLayoutMs": 20,
       "rawTreeMs": 1100,
       "formattedTreeMs": 1650,
       "rightSearchBatchMs": 220,

@@ -36,20 +36,44 @@ export function measure(label, fn) {
   };
 }
 
-export function buildViewerDataStats(text) {
-  const lineStarts = [0];
-  const regionStartLines = [];
-  const regionEndLines = [];
-  const regionParentIndexes = [];
-  const regionKinds = [];
-  const stackClose = [];
-  const stackRegionIndex = [];
+function growTypedBuffer(buffer, minimumCapacity) {
+  let capacity = Math.max(1, buffer.length);
+  while (capacity < minimumCapacity) {
+    capacity = Math.max(minimumCapacity, capacity * 2);
+  }
+
+  const next = new buffer.constructor(capacity);
+  next.set(buffer);
+  return next;
+}
+
+export function countTextLines(text) {
+  let lineCount = 1;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) === 10) {
+      lineCount += 1;
+    }
+  }
+  return lineCount;
+}
+
+export function buildViewerDataStats(text, expectedLineCount) {
+  let lineStarts = new Uint32Array(expectedLineCount > 0 ? expectedLineCount : 4096);
+  lineStarts[0] = 0;
+  let lineCount = 1;
+  let regionStartLines = new Uint32Array(1024);
+  let regionEndLines = new Uint32Array(1024);
+  let regionParentIndexes = new Int32Array(1024);
+  let regionKinds = new Uint8Array(1024);
+  let stackRegionIndexes = new Int32Array(1024);
+  let originalRegionCount = 0;
+  let stackDepth = 0;
   let line = 1;
   let inString = false;
   let escaping = false;
 
   for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
+    const charCode = text.charCodeAt(index);
 
     if (inString) {
       if (escaping) {
@@ -57,42 +81,63 @@ export function buildViewerDataStats(text) {
         continue;
       }
 
-      if (char === '\\') {
+      if (charCode === 92) {
         escaping = true;
         continue;
       }
 
-      if (char === '"') {
+      if (charCode === 34) {
         inString = false;
       }
       continue;
     }
 
-    if (char === '"') {
+    if (charCode === 34) {
       inString = true;
       continue;
     }
 
-    if (char === '\n') {
+    if (charCode === 10) {
       line += 1;
-      lineStarts.push(index + 1);
+      if (lineCount === lineStarts.length) {
+        lineStarts = growTypedBuffer(lineStarts, lineCount + 1);
+      }
+      lineStarts[lineCount] = index + 1;
+      lineCount += 1;
       continue;
     }
 
-    if (char === '{' || char === '[') {
-      stackClose.push(char === '{' ? '}' : ']');
-      stackRegionIndex.push(regionStartLines.length);
-      regionStartLines.push(line);
-      regionEndLines.push(line);
-      regionParentIndexes.push(stackRegionIndex.at(-2) ?? -1);
-      regionKinds.push(char === '[' ? 1 : 0);
+    if (charCode === 123 || charCode === 91) {
+      if (originalRegionCount === regionStartLines.length) {
+        const minimumCapacity = originalRegionCount + 1;
+        regionStartLines = growTypedBuffer(regionStartLines, minimumCapacity);
+        regionEndLines = growTypedBuffer(regionEndLines, minimumCapacity);
+        regionParentIndexes = growTypedBuffer(regionParentIndexes, minimumCapacity);
+        regionKinds = growTypedBuffer(regionKinds, minimumCapacity);
+      }
+      if (stackDepth === stackRegionIndexes.length) {
+        stackRegionIndexes = growTypedBuffer(stackRegionIndexes, stackDepth + 1);
+      }
+
+      regionStartLines[originalRegionCount] = line;
+      regionEndLines[originalRegionCount] = line;
+      regionParentIndexes[originalRegionCount] = stackDepth > 0 ? stackRegionIndexes[stackDepth - 1] : -1;
+      regionKinds[originalRegionCount] = charCode === 91 ? 1 : 0;
+      stackRegionIndexes[stackDepth] = originalRegionCount;
+      stackDepth += 1;
+      originalRegionCount += 1;
       continue;
     }
 
-    if (char === '}' || char === ']') {
-      const expectedClose = stackClose.pop();
-      const regionIndex = stackRegionIndex.pop();
-      if (expectedClose !== char || typeof regionIndex !== 'number') {
+    if (charCode === 125 || charCode === 93) {
+      if (stackDepth === 0) {
+        continue;
+      }
+
+      stackDepth -= 1;
+      const regionIndex = stackRegionIndexes[stackDepth];
+      const expectedKind = charCode === 93 ? 1 : 0;
+      if (regionKinds[regionIndex] !== expectedKind) {
         continue;
       }
 
@@ -100,40 +145,45 @@ export function buildViewerDataStats(text) {
     }
   }
 
-  const originalToCompactIndex = new Int32Array(regionStartLines.length);
+  const originalToCompactIndex = new Int32Array(originalRegionCount);
   originalToCompactIndex.fill(-1);
   let regionCount = 0;
-  for (let index = 0; index < regionStartLines.length; index += 1) {
+  for (let index = 0; index < originalRegionCount; index += 1) {
     if (regionStartLines[index] < regionEndLines[index]) {
       originalToCompactIndex[index] = regionCount;
       regionCount += 1;
     }
   }
 
-  const compactStartLines = new Uint32Array(regionCount);
-  const compactEndLines = new Uint32Array(regionCount);
-  const compactParentIndexes = new Int32Array(regionCount);
-  const compactKinds = new Uint8Array(regionCount);
+  for (let index = 0; index < originalRegionCount; index += 1) {
+    const parentIndex = regionParentIndexes[index];
+    regionParentIndexes[index] =
+      parentIndex < 0
+        ? -1
+        : originalToCompactIndex[parentIndex] >= 0
+          ? originalToCompactIndex[parentIndex]
+          : regionParentIndexes[parentIndex];
+  }
+
   let compactIndex = 0;
 
-  for (let index = 0; index < regionStartLines.length; index += 1) {
+  for (let index = 0; index < originalRegionCount; index += 1) {
     if (originalToCompactIndex[index] < 0) {
       continue;
     }
 
-    let parentIndex = regionParentIndexes[index];
-    while (parentIndex >= 0 && originalToCompactIndex[parentIndex] < 0) {
-      parentIndex = regionParentIndexes[parentIndex];
-    }
-
-    compactStartLines[compactIndex] = regionStartLines[index];
-    compactEndLines[compactIndex] = regionEndLines[index];
-    compactParentIndexes[compactIndex] = parentIndex >= 0 ? originalToCompactIndex[parentIndex] : -1;
-    compactKinds[compactIndex] = regionKinds[index];
+    regionStartLines[compactIndex] = regionStartLines[index];
+    regionEndLines[compactIndex] = regionEndLines[index];
+    regionParentIndexes[compactIndex] = regionParentIndexes[index];
+    regionKinds[compactIndex] = regionKinds[index];
     compactIndex += 1;
   }
 
-  const compactLineStarts = Uint32Array.from(lineStarts);
+  const compactLineStarts = lineStarts.length === lineCount ? lineStarts : lineStarts.slice(0, lineCount);
+  const compactStartLines = regionStartLines.slice(0, regionCount);
+  const compactEndLines = regionEndLines.slice(0, regionCount);
+  const compactParentIndexes = regionParentIndexes.slice(0, regionCount);
+  const compactKinds = regionKinds.slice(0, regionCount);
   const regionIndexBytes =
     compactStartLines.byteLength +
     compactEndLines.byteLength +
@@ -141,10 +191,83 @@ export function buildViewerDataStats(text) {
     compactKinds.byteLength;
 
   return {
+    buildWorkingBytes:
+      lineStarts.byteLength +
+      regionStartLines.byteLength +
+      regionEndLines.byteLength +
+      regionParentIndexes.byteLength +
+      regionKinds.byteLength +
+      stackRegionIndexes.byteLength +
+      originalToCompactIndex.byteLength,
     indexBytes: compactLineStarts.byteLength + regionIndexBytes,
     lineCount: compactLineStarts.length,
     regionCount,
     regionIndexBytes,
+    lineStarts: compactLineStarts,
+    regions: {
+      startLines: compactStartLines,
+      endLines: compactEndLines,
+    },
+  };
+}
+
+function findFirstValueAtOrAfter(values, target, fromIndex = 0) {
+  let low = Math.max(0, fromIndex);
+  let high = values.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (values[middle] < target) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+export function buildFoldAllStats(regions) {
+  let index = 0;
+  let intervalCount = 0;
+  let visitedRegionCount = 0;
+
+  while (index < regions.startLines.length) {
+    const startLine = regions.startLines[index];
+    const endLine = regions.endLines[index];
+    visitedRegionCount += 1;
+    if (startLine + 1 <= endLine - 1) {
+      intervalCount += 1;
+    }
+    index = findFirstValueAtOrAfter(regions.startLines, endLine, index + 1);
+  }
+
+  return { intervalCount, visitedRegionCount };
+}
+
+export function buildWrapLayoutStats(text, lineStarts, lineCount, wrapColumnCount = 80) {
+  let longRowIndexes = new Uint32Array(Math.min(Math.max(16, lineCount), 1024));
+  let longRowCount = 0;
+
+  for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+    const lineStart = lineStarts[lineIndex] ?? 0;
+    const nextLineStart = lineIndex + 1 < lineCount ? lineStarts[lineIndex + 1] : text.length;
+    const lineLength = Math.max(0, nextLineStart - lineStart - (lineIndex + 1 < lineCount ? 1 : 0));
+    if (lineLength <= wrapColumnCount) {
+      continue;
+    }
+
+    if (longRowCount === longRowIndexes.length) {
+      longRowIndexes = growTypedBuffer(longRowIndexes, longRowCount + 1);
+    }
+    longRowIndexes[longRowCount] = lineIndex;
+    longRowCount += 1;
+  }
+
+  const compactLongRowIndexes = longRowIndexes.slice(0, longRowCount);
+  return {
+    indexBytes: compactLongRowIndexes.byteLength,
+    longRowCount,
   };
 }
 

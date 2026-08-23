@@ -2,13 +2,15 @@ import { useCallback } from 'react';
 import {
   binarySearchActualSegment,
   binarySearchSegment,
+  getLargeJsonRowHeight,
+  getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
 } from '../utils/largeJsonViewerRender';
-import type { VisibleSegment } from '../utils/largeJsonViewerRender';
+import type { LargeJsonWrapLayout, VisibleSegment } from '../utils/largeJsonViewerRender';
 
 interface UseLargeJsonVisibleWindowArgs {
   rowHeight: number;
-  rowOffsets?: Uint32Array | null;
+  wrapLayout?: LargeJsonWrapLayout | null;
   scrollTop: number;
   viewportHeight: number;
   visibleLineCount: number;
@@ -18,7 +20,7 @@ interface UseLargeJsonVisibleWindowArgs {
 
 export function useLargeJsonVisibleWindow({
   rowHeight,
-  rowOffsets = null,
+  wrapLayout = null,
   scrollTop,
   viewportHeight,
   visibleLineCount,
@@ -51,31 +53,29 @@ export function useLargeJsonVisibleWindow({
 
   const getRowTop = useCallback(
     (visibleIndex: number) => {
-      if (rowOffsets) {
-        const index = Math.max(0, Math.min(visibleIndex, rowOffsets.length - 1));
-        return rowOffsets[index] ?? 0;
+      if (wrapLayout) {
+        return getLargeJsonRowTop(wrapLayout, visibleIndex);
       }
       return Math.max(0, visibleIndex) * rowHeight;
     },
-    [rowHeight, rowOffsets]
+    [rowHeight, wrapLayout]
   );
 
   const getRowHeight = useCallback(
     (visibleIndex: number) => {
-      if (rowOffsets) {
-        const index = Math.max(0, Math.min(visibleIndex, rowOffsets.length - 2));
-        return (rowOffsets[index + 1] ?? 0) - (rowOffsets[index] ?? 0);
+      if (wrapLayout) {
+        return getLargeJsonRowHeight(wrapLayout, visibleIndex);
       }
       return rowHeight;
     },
-    [rowHeight, rowOffsets]
+    [rowHeight, wrapLayout]
   );
 
-  const startIndex = rowOffsets
-    ? getLargeJsonVisibleIndexAtOffset(rowOffsets, scrollTop)
+  const startIndex = wrapLayout
+    ? getLargeJsonVisibleIndexAtOffset(wrapLayout, scrollTop)
     : Math.floor(scrollTop / rowHeight);
-  const endIndex = rowOffsets
-    ? getLargeJsonVisibleIndexAtOffset(rowOffsets, scrollTop + viewportHeight)
+  const endIndex = wrapLayout
+    ? getLargeJsonVisibleIndexAtOffset(wrapLayout, scrollTop + viewportHeight)
     : Math.ceil((scrollTop + viewportHeight) / rowHeight);
   const startVisibleIndex = Math.max(0, startIndex - overscan);
   const endVisibleIndex = Math.min(Math.max(0, visibleLineCount - 1), endIndex + overscan);

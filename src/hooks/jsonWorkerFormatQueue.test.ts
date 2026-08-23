@@ -175,6 +175,7 @@ describe('createJsonWorkerFormatQueue', () => {
 
     queue.queueFormat('tab-a', text, false, {
       exceedsDedicatedViewerLineThreshold: false,
+      lineCount: 1,
       textByteLength: LARGE_FILE_THRESHOLD,
     });
 

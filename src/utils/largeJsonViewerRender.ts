@@ -1,4 +1,4 @@
-import type { LargeJsonSearchMatch } from '../types/jsonTool';
+import type { LargeJsonSearchMatch, LargeJsonViewerRegions } from '../types/jsonTool';
 
 export interface VisibleSegment {
   actualStart: number;
@@ -11,6 +11,12 @@ export interface CollapsedInterval {
   start: number;
   end: number;
   triggerLine: number;
+}
+
+export interface LargeJsonWrapLayout {
+  lineHeight: number;
+  longRowIndexes: Uint32Array;
+  visibleLineCount: number;
 }
 
 export interface JsonSyntaxToken {
@@ -104,6 +110,73 @@ export function findCollapsedInterval(intervals: CollapsedInterval[], lineNumber
   return null;
 }
 
+function appendCollapsedInterval(intervals: CollapsedInterval[], startLine: number, endLine: number) {
+  const interval = {
+    start: startLine + 1,
+    end: endLine - 1,
+    triggerLine: startLine,
+  };
+
+  if (interval.start > interval.end) {
+    return;
+  }
+
+  const previous = intervals[intervals.length - 1];
+  if (!previous) {
+    intervals.push(interval);
+    return;
+  }
+
+  if (interval.start <= previous.end) {
+    previous.end = Math.max(previous.end, interval.end);
+    return;
+  }
+
+  intervals.push(interval);
+}
+
+function findFirstRegionStartingAtOrAfter(startLines: Uint32Array, lineNumber: number, fromIndex: number) {
+  let low = Math.max(0, fromIndex);
+  let high = startLines.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (startLines[middle] < lineNumber) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+export function buildAllExceptCollapsedIntervals(
+  regions: LargeJsonViewerRegions,
+  expandedStartLines: ReadonlySet<number>
+) {
+  const intervals: CollapsedInterval[] = [];
+  let index = 0;
+
+  while (index < regions.startLines.length) {
+    const startLine = regions.startLines[index];
+    if (expandedStartLines.has(startLine)) {
+      index += 1;
+      continue;
+    }
+
+    const endLine = regions.endLines[index];
+    appendCollapsedInterval(intervals, startLine, endLine);
+
+    // Fold regions are stored in document order. Once a parent is collapsed,
+    // every following region that starts before its closing line is hidden and
+    // cannot contribute another visible trigger or interval.
+    index = findFirstRegionStartingAtOrAfter(regions.startLines, endLine, index + 1);
+  }
+
+  return intervals;
+}
+
 export function buildVisibleSegments(lineCount: number, collapsedIntervals: CollapsedInterval[]): VisibleSegment[] {
   const segments: VisibleSegment[] = [];
   let actualLine = 1;
@@ -160,7 +233,7 @@ export function getLargeJsonWrapColumnCount(viewportWidth: number, lineNumberDig
   );
 }
 
-interface BuildLargeJsonRowOffsetsArgs {
+interface BuildLargeJsonWrapLayoutArgs {
   lineHeight: number;
   lineStarts: Uint32Array;
   textLength: number;
@@ -169,15 +242,43 @@ interface BuildLargeJsonRowOffsetsArgs {
   wrapColumnCount: number;
 }
 
-export function buildLargeJsonRowOffsets({
+function growLongRowIndexes(buffer: Uint32Array, minimumCapacity: number) {
+  let capacity = Math.max(16, buffer.length);
+  while (capacity < minimumCapacity) {
+    capacity *= 2;
+  }
+
+  const next = new Uint32Array(capacity);
+  next.set(buffer);
+  return next;
+}
+
+function findFirstLongRowAtOrAfter(longRowIndexes: Uint32Array, visibleIndex: number) {
+  let low = 0;
+  let high = longRowIndexes.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (longRowIndexes[middle] < visibleIndex) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+export function buildLargeJsonWrapLayout({
   lineHeight,
   lineStarts,
   textLength,
   visibleLineCount,
   visibleSegments,
   wrapColumnCount,
-}: BuildLargeJsonRowOffsetsArgs) {
-  const offsets = new Uint32Array(visibleLineCount + 1);
+}: BuildLargeJsonWrapLayoutArgs): LargeJsonWrapLayout {
+  let longRowIndexes = new Uint32Array(Math.min(Math.max(16, visibleLineCount), 1024));
+  let longRowCount = 0;
   const safeWrapColumnCount = Math.max(1, wrapColumnCount);
 
   for (const segment of visibleSegments) {
@@ -186,34 +287,61 @@ export function buildLargeJsonRowOffsets({
       const lineStart = lineStarts[lineNumber - 1] ?? 0;
       const nextLineStart = lineNumber < lineStarts.length ? lineStarts[lineNumber] : textLength;
       const lineLength = Math.max(0, nextLineStart - lineStart - (lineNumber < lineStarts.length ? 1 : 0));
-      const wrappedRows = lineLength > safeWrapColumnCount ? LARGE_JSON_MAX_WRAPPED_ROWS : 1;
-      offsets[visibleIndex + 1] = offsets[visibleIndex] + wrappedRows * lineHeight;
+      if (lineLength <= safeWrapColumnCount) {
+        continue;
+      }
+
+      if (longRowCount === longRowIndexes.length) {
+        longRowIndexes = growLongRowIndexes(longRowIndexes, longRowCount + 1);
+      }
+      longRowIndexes[longRowCount] = visibleIndex;
+      longRowCount += 1;
     }
   }
 
-  return offsets;
+  return {
+    lineHeight,
+    longRowIndexes: longRowIndexes.slice(0, longRowCount),
+    visibleLineCount,
+  };
 }
 
-export function getLargeJsonVisibleIndexAtOffset(rowOffsets: Uint32Array, offset: number) {
-  const rowCount = Math.max(0, rowOffsets.length - 1);
-  if (rowCount === 0) {
+export function getLargeJsonRowTop(layout: LargeJsonWrapLayout, visibleIndex: number) {
+  const safeVisibleIndex = Math.max(0, Math.min(visibleIndex, layout.visibleLineCount));
+  const longRowsBefore = findFirstLongRowAtOrAfter(layout.longRowIndexes, safeVisibleIndex);
+  return (safeVisibleIndex + longRowsBefore * (LARGE_JSON_MAX_WRAPPED_ROWS - 1)) * layout.lineHeight;
+}
+
+export function getLargeJsonRowHeight(layout: LargeJsonWrapLayout, visibleIndex: number) {
+  const safeVisibleIndex = Math.max(0, Math.min(visibleIndex, Math.max(0, layout.visibleLineCount - 1)));
+  const longRowIndex = findFirstLongRowAtOrAfter(layout.longRowIndexes, safeVisibleIndex);
+  const isLongRow = layout.longRowIndexes[longRowIndex] === safeVisibleIndex;
+  return layout.lineHeight * (isLongRow ? LARGE_JSON_MAX_WRAPPED_ROWS : 1);
+}
+
+export function getLargeJsonContentHeight(layout: LargeJsonWrapLayout) {
+  return getLargeJsonRowTop(layout, layout.visibleLineCount);
+}
+
+export function getLargeJsonVisibleIndexAtOffset(layout: LargeJsonWrapLayout, offset: number) {
+  if (layout.visibleLineCount === 0) {
     return 0;
   }
 
   const target = Math.max(0, offset);
   let low = 0;
-  let high = rowCount;
+  let high = layout.visibleLineCount - 1;
 
   while (low < high) {
     const middle = Math.floor((low + high + 1) / 2);
-    if (rowOffsets[middle] <= target) {
+    if (getLargeJsonRowTop(layout, middle) <= target) {
       low = middle;
     } else {
       high = middle - 1;
     }
   }
 
-  return Math.min(low, rowCount - 1);
+  return low;
 }
 
 function getJsonStringEnd(lineText: string, start: number) {

@@ -1,4 +1,4 @@
-import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { LargeJsonViewerData, WorkerRequestMessage } from '../types/jsonTool';
 import {
   type JsonDocumentMetrics,
@@ -116,7 +116,11 @@ export function createJsonWorkerFormatOperations({
         }
 
         const viewerIndexStartedAt = performance.now();
-        const viewerData = buildLargeViewerData(formatted);
+        const viewerData = buildLargeViewerData(
+          formatted,
+          DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
+          formattedMetrics.lineCount
+        );
         const viewerIndexMs = performance.now() - viewerIndexStartedAt;
         if (viewerData) {
           viewerCache.set(tabId, {
