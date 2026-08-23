@@ -1,4 +1,3 @@
-import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD } from '../types/jsonTool';
 import type {
   JsonSearchOptions,
   LargeJsonSearchMatch,
@@ -6,8 +5,9 @@ import type {
   LargeJsonViewerRegion,
   LargeJsonViewerRegions,
 } from '../types/jsonTool';
-import { findTextSearchBatch, findTextSearchMatches } from './searchText';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD } from '../types/jsonTool';
 import type { TextSearchBatch } from './searchText';
+import { findTextSearchBatch, findTextSearchMatches } from './searchText';
 
 const INITIAL_LINE_INDEX_CAPACITY = 4096;
 const INITIAL_REGION_INDEX_CAPACITY = 1024;
@@ -43,6 +43,31 @@ function growUint8Buffer(buffer: Uint8Array, minimumCapacity: number) {
   const next = new Uint8Array(capacity);
   next.set(buffer);
   return next;
+}
+
+function packViewerRegions(
+  startLines: Uint32Array,
+  endLines: Uint32Array,
+  parentIndexes: Int32Array,
+  kinds: Uint8Array,
+  regionCount: number
+): LargeJsonViewerRegions {
+  const uint32Bytes = regionCount * Uint32Array.BYTES_PER_ELEMENT;
+  const buffer = new ArrayBuffer(regionCount * 13);
+  const compactStartLines = new Uint32Array(buffer, 0, regionCount);
+  const compactEndLines = new Uint32Array(buffer, uint32Bytes, regionCount);
+  const compactParentIndexes = new Int32Array(buffer, uint32Bytes * 2, regionCount);
+  const compactKinds = new Uint8Array(buffer, uint32Bytes * 3, regionCount);
+  compactStartLines.set(startLines.subarray(0, regionCount));
+  compactEndLines.set(endLines.subarray(0, regionCount));
+  compactParentIndexes.set(parentIndexes.subarray(0, regionCount));
+  compactKinds.set(kinds.subarray(0, regionCount));
+  return {
+    startLines: compactStartLines,
+    endLines: compactEndLines,
+    parentIndexes: compactParentIndexes,
+    kinds: compactKinds,
+  };
 }
 
 export function buildLargeViewerData(
@@ -134,10 +159,15 @@ export function buildLargeViewerData(
       const regionIndex = stackRegionIndexes[stackDepth];
       const expectedKind = charCode === 93 ? 1 : 0;
       if (regionKinds[regionIndex] !== expectedKind) {
+        regionCount = Math.min(regionCount, regionIndex);
         continue;
       }
 
-      regionEndLines[regionIndex] = line;
+      if (regionStartLines[regionIndex] < line) {
+        regionEndLines[regionIndex] = line;
+      } else {
+        regionCount = Math.min(regionCount, regionIndex);
+      }
     }
   }
 
@@ -145,49 +175,11 @@ export function buildLargeViewerData(
     return null;
   }
 
-  const originalRegionCount = regionCount;
-  const originalToCompactIndex = new Int32Array(originalRegionCount);
-  originalToCompactIndex.fill(-1);
-  regionCount = 0;
-  for (let index = 0; index < originalRegionCount; index += 1) {
-    if (regionStartLines[index] < regionEndLines[index]) {
-      originalToCompactIndex[index] = regionCount;
-      regionCount += 1;
-    }
-  }
-
-  for (let index = 0; index < originalRegionCount; index += 1) {
-    const parentIndex = regionParentIndexes[index];
-    regionParentIndexes[index] =
-      parentIndex < 0
-        ? -1
-        : originalToCompactIndex[parentIndex] >= 0
-          ? originalToCompactIndex[parentIndex]
-          : regionParentIndexes[parentIndex];
-  }
-
-  let compactIndex = 0;
-
-  for (let index = 0; index < originalRegionCount; index += 1) {
-    if (originalToCompactIndex[index] < 0) {
-      continue;
-    }
-
-    regionStartLines[compactIndex] = regionStartLines[index];
-    regionEndLines[compactIndex] = regionEndLines[index];
-    regionParentIndexes[compactIndex] = regionParentIndexes[index];
-    regionKinds[compactIndex] = regionKinds[index];
-    compactIndex += 1;
-  }
+  const regions = packViewerRegions(regionStartLines, regionEndLines, regionParentIndexes, regionKinds, regionCount);
 
   return {
     lineStarts: lineStarts.length === lineCount ? lineStarts : lineStarts.slice(0, lineCount),
-    regions: {
-      startLines: regionStartLines.slice(0, regionCount),
-      endLines: regionEndLines.slice(0, regionCount),
-      parentIndexes: regionParentIndexes.slice(0, regionCount),
-      kinds: regionKinds.slice(0, regionCount),
-    },
+    regions,
     lineCount,
   };
 }

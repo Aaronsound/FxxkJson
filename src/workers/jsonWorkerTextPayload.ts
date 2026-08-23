@@ -1,5 +1,5 @@
-import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { LargeJsonLineIndex, LargeJsonViewerData, LargeRawViewerData, WorkerMessage } from '../types/jsonTool';
+import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
 type TextPayloadMessage = { text?: string; textBuffer?: ArrayBuffer };
@@ -77,13 +77,15 @@ export function getLargeViewerTransferables(viewerData: LargeJsonViewerData | nu
     return [];
   }
 
-  return [
+  const buffers = [
     viewerData.lineStarts.buffer,
     viewerData.regions.startLines.buffer,
     viewerData.regions.endLines.buffer,
     viewerData.regions.parentIndexes.buffer,
     viewerData.regions.kinds.buffer,
   ].filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
+
+  return Array.from(new Set(buffers));
 }
 
 export function copyLargeViewerLineIndex(viewerData: LargeJsonViewerData): LargeJsonLineIndex {

@@ -52,12 +52,35 @@ describe('largeJsonViewerData', () => {
     expect(Array.from(viewerData?.regions.endLines ?? [])).toEqual([7, 6, 5]);
     expect(Array.from(viewerData?.regions.parentIndexes ?? [])).toEqual([-1, 0, 1]);
     expect(Array.from(viewerData?.regions.kinds ?? [])).toEqual([0, 1, 0]);
+    expect(viewerData?.regions.startLines.buffer).toBe(viewerData?.regions.endLines.buffer);
+    expect(viewerData?.regions.startLines.buffer).toBe(viewerData?.regions.parentIndexes.buffer);
+    expect(viewerData?.regions.startLines.buffer).toBe(viewerData?.regions.kinds.buffer);
+    expect(viewerData?.regions.startLines.buffer.byteLength).toBe(3 * 13);
     expect(findFirstRegionIndexAtStartLine(viewerData!.regions, 2)).toBe(1);
     expect(getLargeJsonViewerRegionAtStartLine(viewerData!.regions, 2)).toEqual({
       startLine: 2,
       endLine: 6,
       kind: 'array',
     });
+  });
+
+  it('discards same-line regions during scanning without changing retained parent indexes', () => {
+    const text = [
+      '{',
+      '  "inline": {"empty": []},',
+      '  "multi": {',
+      '    "items": [',
+      '      1',
+      '    ]',
+      '  }',
+      '}',
+    ].join('\n');
+    const viewerData = buildLargeViewerData(text, 1);
+
+    expect(Array.from(viewerData?.regions.startLines ?? [])).toEqual([1, 3, 4]);
+    expect(Array.from(viewerData?.regions.endLines ?? [])).toEqual([8, 7, 6]);
+    expect(Array.from(viewerData?.regions.parentIndexes ?? [])).toEqual([-1, 0, 1]);
+    expect(Array.from(viewerData?.regions.kinds ?? [])).toEqual([0, 0, 1]);
   });
 
   it('builds stable search matches with line offsets', () => {

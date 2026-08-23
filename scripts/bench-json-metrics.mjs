@@ -108,7 +108,8 @@ export function buildViewerDataStats(text, expectedLineCount) {
   let regionParentIndexes = new Int32Array(1024);
   let regionKinds = new Uint8Array(1024);
   let stackRegionIndexes = new Int32Array(1024);
-  let originalRegionCount = 0;
+  let regionCount = 0;
+  let openedRegionCount = 0;
   let stackDepth = 0;
   let line = 1;
   let inString = false;
@@ -150,8 +151,8 @@ export function buildViewerDataStats(text, expectedLineCount) {
     }
 
     if (charCode === 123 || charCode === 91) {
-      if (originalRegionCount === regionStartLines.length) {
-        const minimumCapacity = originalRegionCount + 1;
+      if (regionCount === regionStartLines.length) {
+        const minimumCapacity = regionCount + 1;
         regionStartLines = growTypedBuffer(regionStartLines, minimumCapacity);
         regionEndLines = growTypedBuffer(regionEndLines, minimumCapacity);
         regionParentIndexes = growTypedBuffer(regionParentIndexes, minimumCapacity);
@@ -161,13 +162,14 @@ export function buildViewerDataStats(text, expectedLineCount) {
         stackRegionIndexes = growTypedBuffer(stackRegionIndexes, stackDepth + 1);
       }
 
-      regionStartLines[originalRegionCount] = line;
-      regionEndLines[originalRegionCount] = line;
-      regionParentIndexes[originalRegionCount] = stackDepth > 0 ? stackRegionIndexes[stackDepth - 1] : -1;
-      regionKinds[originalRegionCount] = charCode === 91 ? 1 : 0;
-      stackRegionIndexes[stackDepth] = originalRegionCount;
+      regionStartLines[regionCount] = line;
+      regionEndLines[regionCount] = line;
+      regionParentIndexes[regionCount] = stackDepth > 0 ? stackRegionIndexes[stackDepth - 1] : -1;
+      regionKinds[regionCount] = charCode === 91 ? 1 : 0;
+      stackRegionIndexes[stackDepth] = regionCount;
       stackDepth += 1;
-      originalRegionCount += 1;
+      regionCount += 1;
+      openedRegionCount += 1;
       continue;
     }
 
@@ -180,57 +182,30 @@ export function buildViewerDataStats(text, expectedLineCount) {
       const regionIndex = stackRegionIndexes[stackDepth];
       const expectedKind = charCode === 93 ? 1 : 0;
       if (regionKinds[regionIndex] !== expectedKind) {
+        regionCount = Math.min(regionCount, regionIndex);
         continue;
       }
 
-      regionEndLines[regionIndex] = line;
+      if (regionStartLines[regionIndex] < line) {
+        regionEndLines[regionIndex] = line;
+      } else {
+        regionCount = Math.min(regionCount, regionIndex);
+      }
     }
-  }
-
-  const originalToCompactIndex = new Int32Array(originalRegionCount);
-  originalToCompactIndex.fill(-1);
-  let regionCount = 0;
-  for (let index = 0; index < originalRegionCount; index += 1) {
-    if (regionStartLines[index] < regionEndLines[index]) {
-      originalToCompactIndex[index] = regionCount;
-      regionCount += 1;
-    }
-  }
-
-  for (let index = 0; index < originalRegionCount; index += 1) {
-    const parentIndex = regionParentIndexes[index];
-    regionParentIndexes[index] =
-      parentIndex < 0
-        ? -1
-        : originalToCompactIndex[parentIndex] >= 0
-          ? originalToCompactIndex[parentIndex]
-          : regionParentIndexes[parentIndex];
-  }
-
-  let compactIndex = 0;
-
-  for (let index = 0; index < originalRegionCount; index += 1) {
-    if (originalToCompactIndex[index] < 0) {
-      continue;
-    }
-
-    regionStartLines[compactIndex] = regionStartLines[index];
-    regionEndLines[compactIndex] = regionEndLines[index];
-    regionParentIndexes[compactIndex] = regionParentIndexes[index];
-    regionKinds[compactIndex] = regionKinds[index];
-    compactIndex += 1;
   }
 
   const compactLineStarts = lineStarts.length === lineCount ? lineStarts : lineStarts.slice(0, lineCount);
-  const compactStartLines = regionStartLines.slice(0, regionCount);
-  const compactEndLines = regionEndLines.slice(0, regionCount);
-  const compactParentIndexes = regionParentIndexes.slice(0, regionCount);
-  const compactKinds = regionKinds.slice(0, regionCount);
-  const regionIndexBytes =
-    compactStartLines.byteLength +
-    compactEndLines.byteLength +
-    compactParentIndexes.byteLength +
-    compactKinds.byteLength;
+  const regionBuffer = new ArrayBuffer(regionCount * 13);
+  const uint32Bytes = regionCount * Uint32Array.BYTES_PER_ELEMENT;
+  const compactStartLines = new Uint32Array(regionBuffer, 0, regionCount);
+  const compactEndLines = new Uint32Array(regionBuffer, uint32Bytes, regionCount);
+  const compactParentIndexes = new Int32Array(regionBuffer, uint32Bytes * 2, regionCount);
+  const compactKinds = new Uint8Array(regionBuffer, uint32Bytes * 3, regionCount);
+  compactStartLines.set(regionStartLines.subarray(0, regionCount));
+  compactEndLines.set(regionEndLines.subarray(0, regionCount));
+  compactParentIndexes.set(regionParentIndexes.subarray(0, regionCount));
+  compactKinds.set(regionKinds.subarray(0, regionCount));
+  const regionIndexBytes = regionBuffer.byteLength;
 
   return {
     buildWorkingBytes:
@@ -239,10 +214,11 @@ export function buildViewerDataStats(text, expectedLineCount) {
       regionEndLines.byteLength +
       regionParentIndexes.byteLength +
       regionKinds.byteLength +
-      stackRegionIndexes.byteLength +
-      originalToCompactIndex.byteLength,
+      stackRegionIndexes.byteLength,
     indexBytes: compactLineStarts.byteLength + regionIndexBytes,
+    legacyCompactionMapBytes: openedRegionCount * Int32Array.BYTES_PER_ELEMENT,
     lineCount: compactLineStarts.length,
+    prunedRegionCount: openedRegionCount - regionCount,
     regionCount,
     regionIndexBytes,
     lineStarts: compactLineStarts,

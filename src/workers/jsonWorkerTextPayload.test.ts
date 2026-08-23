@@ -86,28 +86,54 @@ describe('jsonWorkerTextPayload', () => {
   });
 
   it('keeps only a copied line index in the worker and transfers the complete viewer index', () => {
+    const regionBuffer = new ArrayBuffer(13);
     const viewerData = {
       lineCount: 3,
       lineStarts: Uint32Array.from([0, 5, 10]),
       regions: {
-        startLines: Uint32Array.from([1]),
-        endLines: Uint32Array.from([3]),
-        parentIndexes: Int32Array.from([-1]),
-        kinds: Uint8Array.from([1]),
+        startLines: new Uint32Array(regionBuffer, 0, 1),
+        endLines: new Uint32Array(regionBuffer, 4, 1),
+        parentIndexes: new Int32Array(regionBuffer, 8, 1),
+        kinds: new Uint8Array(regionBuffer, 12, 1),
       },
     };
+    viewerData.regions.startLines[0] = 1;
+    viewerData.regions.endLines[0] = 3;
+    viewerData.regions.parentIndexes[0] = -1;
+    viewerData.regions.kinds[0] = 1;
 
     const workerLineIndex = copyLargeViewerLineIndex(viewerData);
 
     expect(workerLineIndex).toEqual({ lineCount: 3, lineStarts: Uint32Array.from([0, 5, 10]) });
     expect(workerLineIndex.lineStarts.buffer).not.toBe(viewerData.lineStarts.buffer);
-    expect(getLargeViewerTransferables(viewerData)).toEqual([
-      viewerData.lineStarts.buffer,
-      viewerData.regions.startLines.buffer,
-      viewerData.regions.endLines.buffer,
-      viewerData.regions.parentIndexes.buffer,
-      viewerData.regions.kinds.buffer,
-    ]);
+    expect(getLargeViewerTransferables(viewerData)).toEqual([viewerData.lineStarts.buffer, regionBuffer]);
+  });
+
+  it('preserves every packed region view across a deduplicated transferable clone', () => {
+    const regionBuffer = new ArrayBuffer(26);
+    const viewerData = {
+      lineCount: 3,
+      lineStarts: Uint32Array.from([0, 5, 10]),
+      regions: {
+        startLines: new Uint32Array(regionBuffer, 0, 2),
+        endLines: new Uint32Array(regionBuffer, 8, 2),
+        parentIndexes: new Int32Array(regionBuffer, 16, 2),
+        kinds: new Uint8Array(regionBuffer, 24, 2),
+      },
+    };
+    viewerData.regions.startLines.set([1, 2]);
+    viewerData.regions.endLines.set([3, 3]);
+    viewerData.regions.parentIndexes.set([-1, 0]);
+    viewerData.regions.kinds.set([0, 1]);
+
+    const cloned = structuredClone(viewerData, { transfer: getLargeViewerTransferables(viewerData) });
+
+    expect(Array.from(cloned.lineStarts)).toEqual([0, 5, 10]);
+    expect(Array.from(cloned.regions.startLines)).toEqual([1, 2]);
+    expect(Array.from(cloned.regions.endLines)).toEqual([3, 3]);
+    expect(Array.from(cloned.regions.parentIndexes)).toEqual([-1, 0]);
+    expect(Array.from(cloned.regions.kinds)).toEqual([0, 1]);
+    expect(cloned.regions.startLines.buffer).toBe(cloned.regions.kinds.buffer);
   });
 
   it('posts large node-save texts and both viewer indexes as transferable buffers', () => {
@@ -118,14 +144,15 @@ describe('jsonWorkerTextPayload', () => {
       lengths: Uint16Array.from([2]),
       rowCount: 1,
     };
+    const regionBuffer = new ArrayBuffer(0);
     const viewerData = {
       lineCount: 1,
       lineStarts: Uint32Array.from([0]),
       regions: {
-        startLines: new Uint32Array(0),
-        endLines: new Uint32Array(0),
-        parentIndexes: new Int32Array(0),
-        kinds: new Uint8Array(0),
+        startLines: new Uint32Array(regionBuffer),
+        endLines: new Uint32Array(regionBuffer),
+        parentIndexes: new Int32Array(regionBuffer),
+        kinds: new Uint8Array(regionBuffer),
       },
     };
 
@@ -149,10 +176,7 @@ describe('jsonWorkerTextPayload', () => {
       rawViewerData.starts.buffer,
       rawViewerData.lengths.buffer,
       viewerData.lineStarts.buffer,
-      viewerData.regions.startLines.buffer,
-      viewerData.regions.endLines.buffer,
-      viewerData.regions.parentIndexes.buffer,
-      viewerData.regions.kinds.buffer,
+      regionBuffer,
     ]);
   });
 });
