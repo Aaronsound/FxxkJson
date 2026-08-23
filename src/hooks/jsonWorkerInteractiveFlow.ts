@@ -38,7 +38,6 @@ export interface JsonWorkerInteractiveCallbacks {
 
 interface JsonWorkerInteractiveFlowArgs {
   activeTabIdRef: MutableRefObject<string>;
-  formattedTextByTabRef: WorkerRecordRef<string>;
   getCallbacks: () => JsonWorkerInteractiveCallbacks;
   postWorkerRequest: (message: WorkerRequestMessage, transfer?: Transferable[]) => void;
   structureStatusRef: WorkerRecordRef<StructureStatus>;
@@ -52,7 +51,6 @@ function getSearchRequestKey(target: SearchTarget, tabId: string) {
 
 export function createJsonWorkerInteractiveFlow({
   activeTabIdRef,
-  formattedTextByTabRef,
   getCallbacks,
   postWorkerRequest,
   structureStatusRef,

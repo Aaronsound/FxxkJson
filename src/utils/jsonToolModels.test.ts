@@ -5,6 +5,7 @@ import {
   canUseStructureSync,
   getUtf8ByteLength,
   isLargeDocument,
+  measureJsonDocument,
   shouldBuildWorkerStructure,
   shouldUseDedicatedRightViewer,
   shouldUseLargeMode,
@@ -16,6 +17,13 @@ describe('jsonToolModels', () => {
     expect(getUtf8ByteLength('汉字')).toBe(6);
     expect(getUtf8ByteLength('😀')).toBe(4);
     expect(getUtf8ByteLength('\ud800')).toBe(3);
+  });
+
+  it('measures UTF-8 bytes and the dedicated-viewer line threshold in one pass', () => {
+    expect(measureJsonDocument('汉字\n😀', 1)).toEqual({
+      exceedsDedicatedViewerLineThreshold: true,
+      textByteLength: 11,
+    });
   });
 
   it('uses byte-based large document thresholds', () => {

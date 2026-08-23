@@ -18,7 +18,6 @@ interface UseJsonWorkerLifecycleArgs {
   clearPendingFormat: (tabId: string) => void;
   formatWatchdogTimersRef: MutableRefObject<Record<string, number>>;
   formatTimersRef: MutableRefObject<Record<string, number>>;
-  formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   interactiveFlow: ReturnType<typeof createJsonWorkerInteractiveFlow>;
   latestRequestRef: MutableRefObject<Record<string, number>>;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
@@ -79,7 +78,6 @@ export function useJsonWorkerLifecycle({
   clearPendingFormat,
   formatWatchdogTimersRef,
   formatTimersRef,
-  formattedTextByTabRef,
   interactiveFlow,
   latestRequestRef,
   performanceSessionsRef,
@@ -132,7 +130,6 @@ export function useJsonWorkerLifecycle({
       handleJsonFormattingWorkerResult(event.data, {
         callbacks: callbacksRef.current,
         clearFormatWatchdog,
-        formattedTextByTabRef,
         latestRequestRef,
         performanceSessionsRef,
         rawTextByTabRef,
@@ -156,7 +153,6 @@ export function useJsonWorkerLifecycle({
     clearFormatWatchdog,
     clearPendingFormat,
     formatWatchdogTimersRef,
-    formattedTextByTabRef,
     interactiveFlow,
     performanceSessionsRef,
   ]);

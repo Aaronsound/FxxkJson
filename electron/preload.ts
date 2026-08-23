@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readClipboardText: () => ipcRenderer.invoke('clipboard:readText'),
   writeClipboardText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
   getRuntimeInfo: () => ipcRenderer.invoke('app:runtimeInfo'),
+  getProcessMetrics: () => ipcRenderer.invoke('app:processMetrics'),
   openJsonFile,
   onFindShortcut: (callback: () => void) => {
     const listener = () => callback();

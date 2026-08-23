@@ -1,10 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
 import { getJsonValueClipboardText, useRightNodeActions } from './useRightNodeActions';
 
 function createArgs() {
   return {
-    applyRawUpdate: vi.fn(),
+    applyRawUpdate: vi.fn((_tabId: string, updated: string) => measureJsonDocument(updated)),
     getTabContent: vi.fn(() => '{"name":"old"}'),
     logEvent: vi.fn(),
     queueFormatAfterEditSave: vi.fn(),
@@ -109,7 +110,11 @@ describe('getJsonValueClipboardText', () => {
       expect.objectContaining({ operation: 'delete-node', originalText: '{"name":"old"}', path: ['name'] })
     );
     expect(args.applyRawUpdate).toHaveBeenCalledWith('tab-a', '{"nextName":"alpha"}');
-    expect(args.queueFormatAfterEditSave).toHaveBeenCalledWith('tab-a', '{"nextName":"alpha"}');
+    expect(args.queueFormatAfterEditSave).toHaveBeenCalledWith(
+      'tab-a',
+      '{"nextName":"alpha"}',
+      measureJsonDocument('{"nextName":"alpha"}')
+    );
 
     await act(async () => {
       await result.current.applyRightNodeMutationAtOffset('tab-a', 4, false, 'rename-node-key');

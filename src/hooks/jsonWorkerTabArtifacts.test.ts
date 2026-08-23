@@ -66,8 +66,8 @@ describe('jsonWorkerTabArtifacts', () => {
 
     expect(dependencies.clearPendingFormat).toHaveBeenCalledWith('tab-a');
     expect(dependencies.clearTabStructure).toHaveBeenCalledWith('tab-a', 'ready');
-    expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '', true);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true);
+    expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '', true, 0);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0, 0);
     expect(callbacks.setTabError).toHaveBeenCalledWith('tab-a', null);
   });
 

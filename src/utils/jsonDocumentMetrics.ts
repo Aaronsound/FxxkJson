@@ -5,23 +5,26 @@ import {
   STRUCTURE_SYNC_THRESHOLD,
 } from '../types/jsonTool';
 
-export function getUtf8ByteLength(text: string) {
+export interface JsonDocumentMetrics {
+  exceedsDedicatedViewerLineThreshold: boolean;
+  textByteLength: number;
+}
+
+export function measureJsonDocument(
+  text: string,
+  lineThreshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD
+): JsonDocumentMetrics {
   let byteLength = 0;
+  let lineCount = 1;
 
   for (let index = 0; index < text.length; index += 1) {
     const code = text.charCodeAt(index);
 
     if (code <= 0x7f) {
       byteLength += 1;
-      continue;
-    }
-
-    if (code <= 0x7ff) {
+    } else if (code <= 0x7ff) {
       byteLength += 2;
-      continue;
-    }
-
-    if (code >= 0xd800 && code <= 0xdbff) {
+    } else if (code >= 0xd800 && code <= 0xdbff) {
       const nextCode = text.charCodeAt(index + 1);
       if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
         byteLength += 4;
@@ -29,13 +32,23 @@ export function getUtf8ByteLength(text: string) {
       } else {
         byteLength += 3;
       }
-      continue;
+    } else {
+      byteLength += 3;
     }
 
-    byteLength += 3;
+    if (code === 0x0a) {
+      lineCount += 1;
+    }
   }
 
-  return byteLength;
+  return {
+    exceedsDedicatedViewerLineThreshold: lineThreshold <= 0 ? text.length > 0 : lineCount > lineThreshold,
+    textByteLength: byteLength,
+  };
+}
+
+export function getUtf8ByteLength(text: string) {
+  return measureJsonDocument(text).textByteLength;
 }
 
 export function isLargeDocument(text: string) {
@@ -43,33 +56,32 @@ export function isLargeDocument(text: string) {
 }
 
 export function exceedsLineCountThreshold(text: string, threshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD) {
-  if (threshold <= 0) {
-    return text.length > 0;
-  }
+  return measureJsonDocument(text, threshold).exceedsDedicatedViewerLineThreshold;
+}
 
-  let lineCount = 1;
-  for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === '\n') {
-      lineCount += 1;
-      if (lineCount > threshold) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+export function shouldUseLargeModeForMetrics(metrics: JsonDocumentMetrics) {
+  return metrics.textByteLength >= LARGE_FILE_THRESHOLD || metrics.exceedsDedicatedViewerLineThreshold;
 }
 
 export function shouldUseDedicatedRightViewer(rawText: string, formattedText = '') {
+  return shouldUseDedicatedRightViewerForMetrics(measureJsonDocument(rawText), measureJsonDocument(formattedText));
+}
+
+export function shouldUseDedicatedRightViewerForMetrics(
+  rawMetrics: JsonDocumentMetrics,
+  formattedMetrics: JsonDocumentMetrics
+) {
   return (
-    getUtf8ByteLength(rawText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
-    getUtf8ByteLength(formattedText) >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
-    exceedsLineCountThreshold(formattedText)
+    rawMetrics.textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
+    formattedMetrics.textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
+    formattedMetrics.exceedsDedicatedViewerLineThreshold
   );
 }
 
 export function shouldUseLargeMode(rawText: string, formattedText = '') {
-  return isLargeDocument(rawText) || isLargeDocument(formattedText) || exceedsLineCountThreshold(formattedText);
+  const rawMetrics = measureJsonDocument(rawText);
+  const formattedMetrics = measureJsonDocument(formattedText);
+  return shouldUseLargeModeForMetrics(rawMetrics) || shouldUseLargeModeForMetrics(formattedMetrics);
 }
 
 export function canUseStructureSync(text: string) {

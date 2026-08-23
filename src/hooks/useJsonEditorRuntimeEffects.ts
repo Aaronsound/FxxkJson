@@ -23,8 +23,14 @@ interface UseJsonEditorRuntimeEffectsArgs {
   shouldEnableRightPaneFolding: boolean;
   shouldUseDedicatedLeftViewer: boolean;
   shouldUseDedicatedRightViewer: boolean;
-  syncLeftModel: (tabId: string, content: string, forceValue?: boolean) => void;
-  syncRightModel: (tabId: string, content: string, forceValue?: boolean) => void;
+  syncLeftModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
+  syncRightModel: (
+    tabId: string,
+    content: string,
+    forceValue?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
   wrapLongLines: boolean;
 }
 
@@ -60,8 +66,14 @@ export function useJsonEditorRuntimeEffects({
 
     const currentRaw = getTabContent(activeTab.id);
     const currentFormatted = formattedTextByTabRef.current[activeTab.id] ?? '';
-    syncLeftModel(activeTab.id, currentRaw);
-    syncRightModel(activeTab.id, currentFormatted);
+    syncLeftModel(activeTab.id, currentRaw, false, activeDocumentMeta.rawLength);
+    syncRightModel(
+      activeTab.id,
+      currentFormatted,
+      false,
+      activeDocumentMeta.formattedLength,
+      activeDocumentMeta.rawLength
+    );
   }, [
     activeDocumentMeta.formattedLength,
     activeDocumentMeta.rawLength,

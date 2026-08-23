@@ -74,6 +74,18 @@ export function registerMainProcessIpc({ getMainWindow }: MainProcessIpcOptions)
     platform: process.platform,
   }));
 
+  handleTrustedIpc('app:processMetrics', async () =>
+    app.getAppMetrics().map((metric) => ({
+      memory: {
+        peakWorkingSetSize: metric.memory.peakWorkingSetSize,
+        workingSetSize: metric.memory.workingSetSize,
+      },
+      name: metric.name ?? null,
+      pid: metric.pid,
+      type: metric.type,
+    }))
+  );
+
   ipcMain.on('file:openJsonStream', (event) => {
     const port = event.ports[0];
     if (!port) {
@@ -102,17 +114,13 @@ async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: Me
 
   try {
     port.start();
-    const result = mainWindow
-      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
-      : await dialog.showOpenDialog(dialogOptions);
-
-    if (result.canceled || result.filePaths.length === 0) {
+    const filePath = await selectJsonFilePath(mainWindow, dialogOptions);
+    if (!filePath) {
       port.postMessage({ type: 'cancelled' });
       port.close();
       return;
     }
 
-    const filePath = result.filePaths[0];
     const stats = await fs.stat(filePath);
     const fileName = path.basename(filePath);
     port.postMessage({ type: 'selected', path: filePath, name: fileName, size: stats.size });
@@ -141,6 +149,21 @@ async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: Me
     port.close();
     logRuntimeEvent('native-file-open-failed', { message });
   }
+}
+
+async function selectJsonFilePath(mainWindow: BrowserWindow | null, dialogOptions: OpenDialogOptions) {
+  const e2eFilePath =
+    !app.isPackaged && process.env.HANJSON_E2E_NATIVE_IMPORT === '1'
+      ? process.env.HANJSON_E2E_NATIVE_IMPORT_PATH
+      : undefined;
+  if (e2eFilePath) {
+    return path.resolve(e2eFilePath);
+  }
+
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+  return result.canceled ? null : (result.filePaths[0] ?? null);
 }
 
 function waitForJsonChunkAcknowledgement(port: MessagePortMain) {

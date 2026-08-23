@@ -7,11 +7,7 @@ import type {
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
-import {
-  exceedsLineCountThreshold,
-  getUtf8ByteLength,
-  shouldUseDedicatedRightViewer,
-} from '../utils/jsonDocumentMetrics';
+import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
 import { getFormatWorkerResult, getRepairWorkerResult } from '../utils/jsonWorkerResponse';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
@@ -29,14 +25,23 @@ interface JsonFormattingWorkerResultCallbacks {
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   syncPerformanceSnapshot: (tabId: string, shouldLog?: boolean) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+  updateFormattedContent: (
+    tabId: string,
+    content: string,
+    syncModel?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
 function getDocumentSizeState(rawText: string, formattedText: string) {
-  const rawBytes = getUtf8ByteLength(rawText);
-  const formattedBytes = getUtf8ByteLength(formattedText);
-  const hasHighFormattedLineCount = formattedBytes < LARGE_FILE_THRESHOLD && exceedsLineCountThreshold(formattedText);
+  const rawMetrics = measureJsonDocument(rawText);
+  const formattedMetrics = measureJsonDocument(formattedText);
+  const rawBytes = rawMetrics.textByteLength;
+  const formattedBytes = formattedMetrics.textByteLength;
+  const hasHighFormattedLineCount =
+    formattedBytes < LARGE_FILE_THRESHOLD && formattedMetrics.exceedsDedicatedViewerLineThreshold;
 
   return {
     formattedBytes,
@@ -52,7 +57,6 @@ function getDocumentSizeState(rawText: string, formattedText: string) {
 interface JsonFormattingWorkerResultContext {
   callbacks: JsonFormattingWorkerResultCallbacks;
   clearFormatWatchdog: (tabId: string) => void;
-  formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   latestRequestRef: MutableRefObject<Record<string, number>>;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
@@ -87,7 +91,6 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
   const {
     callbacks,
     clearFormatWatchdog,
-    formattedTextByTabRef,
     latestRequestRef,
     performanceSessionsRef,
     rawTextByTabRef,
@@ -113,7 +116,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
 
     if (result.isSuccessful && data) {
       const rawText = rawTextByTabRef.current[tabId] ?? '';
-      const { formattedBytes, largeMode, shouldBuildLargeViewer } = getDocumentSizeState(rawText, data);
+      const { formattedBytes, largeMode, rawBytes, shouldBuildLargeViewer } = getDocumentSizeState(rawText, data);
       callbacks.logEvent('format-success', {
         tabId,
         requestId,
@@ -130,7 +133,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
         performanceSession.formattedBytes = formattedBytes;
         performanceSession.largeMode = largeMode;
       }
-      callbacks.updateFormattedContent(tabId, data, true, formattedBytes);
+      callbacks.updateFormattedContent(tabId, data, true, formattedBytes, rawBytes);
       if (performanceSession?.requestId === requestId) {
         performanceSession.rightModelCompletedAt = performance.now();
         performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
@@ -160,7 +163,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
       requestId,
       error: result.error ?? 'JSON parse failed',
     });
-    callbacks.updateFormattedContent(tabId, '', true);
+    callbacks.updateFormattedContent(tabId, '', true, 0, performanceSession?.rawBytes);
     callbacks.setTabError(tabId, result.error ?? 'JSON 解析失败');
     callbacks.setStructureStatus(tabId, 'disabled');
     return true;
@@ -198,7 +201,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
       }
       callbacks.updateTabContent(tabId, repairedText, true, rawBytes);
       callbacks.setLargeRawViewerData(tabId, result.rawViewerData);
-      callbacks.updateFormattedContent(tabId, formattedText, true, formattedBytes);
+      callbacks.updateFormattedContent(tabId, formattedText, true, formattedBytes, rawBytes);
       callbacks.resetSearchState();
       if (performanceSession?.requestId === requestId) {
         performanceSession.rightModelCompletedAt = performance.now();
@@ -268,9 +271,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
     true
   );
   callbacks.setStructureStatus(tabId, message.ready ? 'ready' : 'disabled');
-  const rawText = rawTextByTabRef.current[tabId] ?? '';
-  const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-  const shouldWaitForViewer = shouldUseDedicatedRightViewer(rawText, formattedText);
+  const shouldWaitForViewer = Boolean(performanceSession?.largeMode);
   if (!shouldWaitForViewer || performanceSession?.viewerReadyAt) {
     callbacks.setProcessingStage(tabId, 'idle');
   }

@@ -3,15 +3,16 @@ import type { EditJsonWorkerRequest, JsonEditPath } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
 import { writeTextToClipboard } from '../utils/clipboard';
 import { getJsonLiteralDetails, type EditableNodePayload } from '../utils/jsonEditNodePayload';
+import type { JsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
 
 type CopyNodeDetailMode = 'path' | 'key' | 'compact-json' | 'formatted-json';
 type RightNodeMutationOperation = 'delete-node' | 'rename-node-key';
 
 interface UseRightNodeActionsArgs {
-  applyRawUpdate: (tabId: string, updated: string) => void;
+  applyRawUpdate: (tabId: string, updated: string) => JsonDocumentMetrics;
   getTabContent: (tabId: string) => string;
   logEvent: (event: string, payload?: Record<string, unknown>) => void;
-  queueFormatAfterEditSave: (tabId: string, text: string) => void;
+  queueFormatAfterEditSave: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   readEditableNodeAtOffset: (
     tabId: string,
     offset: number,
@@ -174,9 +175,9 @@ export function useRightNodeActions({
           path: parsed.path,
         });
 
-        applyRawUpdate(tabId, updated);
+        const metrics = applyRawUpdate(tabId, updated);
         resetSearchState();
-        queueFormatAfterEditSave(tabId, updated);
+        queueFormatAfterEditSave(tabId, updated, metrics);
         setTabError(tabId, null);
         logEvent('right-node-mutation-success', {
           tabId,

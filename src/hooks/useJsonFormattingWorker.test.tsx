@@ -267,7 +267,13 @@ describe('useJsonFormattingWorker', () => {
     });
 
     expect(args.updateTabContent).toHaveBeenCalledWith('tab-a', largeJson, true, largeJson.length);
-    expect(args.updateFormattedContent).toHaveBeenLastCalledWith('tab-a', formattedJson, true, formattedJson.length);
+    expect(args.updateFormattedContent).toHaveBeenLastCalledWith(
+      'tab-a',
+      formattedJson,
+      true,
+      formattedJson.length,
+      largeJson.length
+    );
     expect(args.setLargeViewerStatus).toHaveBeenLastCalledWith('tab-a', 'ready');
     expect(args.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'idle');
     expect(args.setTabError).toHaveBeenLastCalledWith('tab-a', null);

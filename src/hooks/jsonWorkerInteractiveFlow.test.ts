@@ -23,7 +23,6 @@ function createCallbacks(): JsonWorkerInteractiveCallbacks {
 
 interface FlowTestOptions {
   activeTabId?: string;
-  formattedText?: string;
   structureStatus?: StructureStatus;
   structureEnabled?: boolean;
   worker?: Worker;
@@ -31,7 +30,6 @@ interface FlowTestOptions {
 
 function createFlow({
   activeTabId = 'tab-a',
-  formattedText = '{\n  "name": "demo"\n}',
   structureStatus = 'ready',
   structureEnabled = false,
   worker = { postMessage: vi.fn() } as unknown as Worker,
@@ -40,7 +38,6 @@ function createFlow({
   const requests: WorkerRequestMessage[] = [];
   const flow = createJsonWorkerInteractiveFlow({
     activeTabIdRef: { current: activeTabId },
-    formattedTextByTabRef: recordRef({ 'tab-a': formattedText }),
     getCallbacks: () => callbacks,
     postWorkerRequest: (message) => {
       requests.push(message);
@@ -114,7 +111,7 @@ describe('createJsonWorkerInteractiveFlow', () => {
   });
 
   it('resolves edit-json requests from worker results', async () => {
-    const { flow, requests } = createFlow({ formattedText: '' });
+    const { flow, requests } = createFlow();
 
     const edit = flow.requestEditJson({ tabId: 'tab-a', operation: 'escape-json', text: '{"ok":true}' });
     const editRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;

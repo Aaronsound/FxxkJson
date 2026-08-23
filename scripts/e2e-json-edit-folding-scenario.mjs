@@ -56,6 +56,27 @@ async function openEditAndRequireFolding(cdp, label) {
     `${label} fold controls separated from line numbers`,
     90000
   );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const saveButton = Array.from(document.querySelectorAll('.modal-actions button'))
+            .find((button) => button.textContent?.includes('更新为原始 JSON'));
+          if (!saveButton) return false;
+          const rect = saveButton.getBoundingClientRect();
+          const inset = Math.min(4, rect.width / 4);
+          const y = rect.top + rect.height / 2;
+          return [rect.left + inset, rect.left + rect.width / 2, rect.right - inset]
+            .every((x) => {
+              const hitTarget = document.elementFromPoint(x, y);
+              return hitTarget === saveButton || saveButton.contains(hitTarget);
+            });
+        })()`
+      ),
+    `${label} save button hit target isolated from fold controls`,
+    90000
+  );
 }
 
 async function closeEditModal(cdp, label) {

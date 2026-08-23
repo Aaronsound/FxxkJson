@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { evaluate } from './e2e-cdp-helpers.mjs';
+import { clickButtonByText, evaluate } from './e2e-cdp-helpers.mjs';
 
 const DEFAULT_SIZE_MB = 2;
 const IMPORT_CHUNK_BYTES = 256 * 1024;
@@ -70,4 +70,8 @@ export async function importSampleByE2eBridge(cdp, samplePath) {
     return true;
   })()`
   );
+}
+
+export async function importSampleThroughNativeFileFlow(cdp) {
+  await clickButtonByText(cdp, '导入 JSON');
 }

@@ -44,7 +44,13 @@ interface UseJsonToolStateSettersArgs {
   setTabLargeModeState: (tabId: string, enabled: boolean) => void;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
   syncLeftModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
-  syncRightModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
+  syncRightModel: (
+    tabId: string,
+    content: string,
+    forceValue?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
 }
 
 export function useJsonToolStateSetters({
@@ -175,7 +181,13 @@ export function useJsonToolStateSetters({
     }
   };
 
-  const updateFormattedContent = (tabId: string, content: string, syncModel = false, knownByteLength?: number) => {
+  const updateFormattedContent = (
+    tabId: string,
+    content: string,
+    syncModel = false,
+    knownByteLength?: number,
+    knownRawByteLength?: number
+  ) => {
     const byteLength = knownByteLength ?? getUtf8ByteLength(content);
     formattedTextByTabRef.current[tabId] = content;
     setRightNodeSelection(tabId, null);
@@ -186,7 +198,7 @@ export function useJsonToolStateSetters({
     }));
 
     if (syncModel) {
-      syncRightModel(tabId, content, true, byteLength);
+      syncRightModel(tabId, content, true, byteLength, knownRawByteLength);
     }
   };
 

@@ -1,11 +1,15 @@
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { LargeJsonViewerData, WorkerRequestMessage } from '../types/jsonTool';
-import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
+import {
+  type JsonDocumentMetrics,
+  measureJsonDocument,
+  shouldUseDedicatedRightViewerForMetrics,
+} from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
-import { getTextByteLength, postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
 
 type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
 
@@ -48,9 +52,11 @@ interface BuildFormatArtifactsArgs {
   enableDirectLocate: boolean;
   enableStructure: boolean;
   formatted: string;
+  formattedMetrics: JsonDocumentMetrics;
   normalizedNestedString: boolean;
   requestId: number;
   sourceText: string;
+  sourceMetrics: JsonDocumentMetrics;
   structureWarmupDelayMs?: number;
   tabId: string;
 }
@@ -91,7 +97,9 @@ export function createJsonWorkerFormatOperations({
     requestId,
     tabId,
     sourceText,
+    sourceMetrics,
     formatted,
+    formattedMetrics,
     normalizedNestedString,
     enableStructure,
     enableDirectLocate,
@@ -99,7 +107,7 @@ export function createJsonWorkerFormatOperations({
     buildViewer,
     structureWarmupDelayMs,
   }: BuildFormatArtifactsArgs) {
-    const shouldBuildViewer = buildViewer || shouldUseDedicatedRightViewer(sourceText, formatted);
+    const shouldBuildViewer = buildViewer || shouldUseDedicatedRightViewerForMetrics(sourceMetrics, formattedMetrics);
 
     if (shouldBuildViewer) {
       setTimeout(() => {
@@ -254,8 +262,10 @@ export function createJsonWorkerFormatOperations({
     const text = readMessageText(message);
     prepareFormatRequest(tabId, requestId, text);
     try {
-      const rawViewerData = getTextByteLength(text) >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
+      const sourceMetrics = measureJsonDocument(text);
+      const rawViewerData = sourceMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
       const { formatted, normalizedNestedString } = formatJsonText(text);
+      const formattedMetrics = measureJsonDocument(formatted);
       postTextResult(
         {
           type: 'format-result',
@@ -264,14 +274,17 @@ export function createJsonWorkerFormatOperations({
           success: true,
           rawViewerData,
         },
-        formatted
+        formatted,
+        formattedMetrics.textByteLength
       );
 
       buildFormatArtifacts({
         requestId,
         tabId,
         sourceText: text,
+        sourceMetrics,
         formatted,
+        formattedMetrics,
         normalizedNestedString,
         enableStructure,
         enableDirectLocate,
@@ -297,8 +310,10 @@ export function createJsonWorkerFormatOperations({
     prepareFormatRequest(tabId, requestId, text);
     try {
       const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
+      const sourceMetrics = measureJsonDocument(repaired);
+      const formattedMetrics = measureJsonDocument(formatted);
       const rawViewerData =
-        getTextByteLength(repaired) >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
+        sourceMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
 
       postRepairResult(
         {
@@ -309,14 +324,18 @@ export function createJsonWorkerFormatOperations({
           rawViewerData,
         },
         formatted,
-        repaired
+        repaired,
+        formattedMetrics.textByteLength,
+        sourceMetrics.textByteLength
       );
 
       buildFormatArtifacts({
         requestId,
         tabId,
         sourceText: repaired,
+        sourceMetrics,
         formatted,
+        formattedMetrics,
         normalizedNestedString,
         enableStructure,
         enableDirectLocate,

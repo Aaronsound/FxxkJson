@@ -89,7 +89,7 @@ describe('createJsonWorkerImportFlow', () => {
     expect(callbacks.logEvent).toHaveBeenCalledWith('import-read-complete', expect.objectContaining({ rawLength: 11 }));
     expect(callbacks.renameTab).toHaveBeenCalledWith('tab-a', 'sample.json');
     expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '{"ok":true}', true, 11);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0, 11);
     expect(callbacks.setTabFormatting).toHaveBeenLastCalledWith('tab-a', true);
     expect(callbacks.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'formatting');
     expect(queueFormatAfterImport).toHaveBeenCalledWith(

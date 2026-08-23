@@ -2,7 +2,7 @@ import type { MutableRefObject } from 'react';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { ProcessingStage, StructureStatus } from '../types/jsonTool';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
-import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
+import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
 import { getFileName } from '../utils/jsonToolModels';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 
@@ -35,7 +35,13 @@ interface JsonWorkerImportCallbacks {
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabImporting: (tabId: string, fileName: string | null) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+  updateFormattedContent: (
+    tabId: string,
+    content: string,
+    syncModel?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
@@ -95,7 +101,8 @@ export function createJsonWorkerImportFlow({
         session.readStartedAt = performance.now();
       });
       const content = await source.readText();
-      const rawBytes = getUtf8ByteLength(content);
+      const metrics = measureJsonDocument(content);
+      const rawBytes = metrics.textByteLength;
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.readCompletedAt = performance.now();
         session.rawBytes = rawBytes;
@@ -105,7 +112,7 @@ export function createJsonWorkerImportFlow({
         fileName: source.name,
         rawLength: rawBytes,
       });
-      const plan = buildJsonWorkerProcessingPlan(content, Boolean(largeFileLocateEnabledRef.current[tabId]), rawBytes);
+      const plan = buildJsonWorkerProcessingPlan(content, Boolean(largeFileLocateEnabledRef.current[tabId]), metrics);
 
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.leftModelStartedAt = performance.now();
@@ -114,7 +121,7 @@ export function createJsonWorkerImportFlow({
       });
       callbacks.setProcessingStage(tabId, 'syncing-left');
       callbacks.updateTabContent(tabId, content, true, rawBytes);
-      callbacks.updateFormattedContent(tabId, '', true, 0);
+      callbacks.updateFormattedContent(tabId, '', true, 0, rawBytes);
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.leftModelCompletedAt = performance.now();
       });

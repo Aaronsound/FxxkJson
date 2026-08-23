@@ -120,11 +120,11 @@ export function useJsonEditorModelSync({
   );
 
   const syncRightModel = useCallback(
-    (tabId: string, content: string, forceValue = false, knownByteLength?: number) => {
+    (tabId: string, content: string, forceValue = false, knownByteLength?: number, knownRawByteLength?: number) => {
       const path = getRightModelPath(tabId);
       const byteLength = knownByteLength ?? getUtf8ByteLength(content);
       const rawText = rawTextByTabRef.current[tabId] ?? '';
-      const rawByteLength = getUtf8ByteLength(rawText);
+      const rawByteLength = knownRawByteLength ?? getUtf8ByteLength(rawText);
       const shouldPreferDedicatedViewer =
         Boolean(largeViewerDataByTab[tabId]) || largeViewerStatusByTab[tabId] === 'building';
 

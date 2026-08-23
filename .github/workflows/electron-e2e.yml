@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      HANJSON_E2E_SIZE_MB: ${{ github.event_name == 'workflow_dispatch' && inputs.size_mb || '2' }}
+      HANJSON_E2E_SIZE_MB: ${{ github.event_name == 'schedule' && '20' || github.event_name == 'workflow_dispatch' && inputs.size_mb || '2' }}
       HANJSON_E2E_ARTIFACT_DIR: electron-e2e-artifacts
 
     steps:

@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS } from '../types/jsonTool';
+import { FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { WorkerRequestMessage } from '../types/jsonTool';
 import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
 import { FORMAT_WORKER_RESULT_TIMEOUT_MS } from './jsonWorkerFormatWatchdog';
@@ -127,7 +127,7 @@ describe('createJsonWorkerFormatQueue', () => {
       error: null,
     });
     expect(callbacks.setTabFormatting).toHaveBeenCalledWith('tab-a', false);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0, 3);
   });
 
   it('debounces normal format requests and records performance state', async () => {
@@ -167,6 +167,22 @@ describe('createJsonWorkerFormatQueue', () => {
 
     await vi.advanceTimersByTimeAsync(LARGE_FILE_FORMAT_DEBOUNCE_MS - FORMAT_DEBOUNCE_MS);
     expect(requests[0]).toMatchObject({ type: 'format', text: largeText });
+  });
+
+  it('reuses precomputed document metrics when choosing the format plan', async () => {
+    const { queue, requests } = createQueue();
+    const text = '{"small":true}';
+
+    queue.queueFormat('tab-a', text, false, {
+      exceedsDedicatedViewerLineThreshold: false,
+      textByteLength: LARGE_FILE_THRESHOLD,
+    });
+
+    await vi.advanceTimersByTimeAsync(FORMAT_DEBOUNCE_MS);
+    expect(requests).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(LARGE_FILE_FORMAT_DEBOUNCE_MS - FORMAT_DEBOUNCE_MS);
+    expect(requests[0]).toMatchObject({ type: 'format', text });
   });
 
   it('posts repair requests immediately and marks repair stage', () => {

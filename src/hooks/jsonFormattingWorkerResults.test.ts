@@ -119,7 +119,7 @@ describe('handleJsonFormattingWorkerResult', () => {
     expect(callbacks.logEvent).toHaveBeenCalledWith('format-success', expect.objectContaining({ requestId: 1 }));
     expect(callbacks.setTabFormatting).toHaveBeenCalledWith('tab-a', false);
     expect(callbacks.setLargeRawViewerData).toHaveBeenCalledWith('tab-a', rawViewerData);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 16);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 16, 11);
     expect(callbacks.syncPerformanceSnapshot).toHaveBeenCalledWith('tab-a', true);
     expect(session).toMatchObject({ error: null, formattedBytes: 16, status: 'ready' });
   });
@@ -133,7 +133,7 @@ describe('handleJsonFormattingWorkerResult', () => {
     );
 
     expect(callbacks.setLargeViewerData).toHaveBeenCalledWith('tab-a', null);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0, 0);
     expect(callbacks.setStructureStatus).toHaveBeenCalledWith('tab-a', 'disabled');
     expect(callbacks.setTabError).toHaveBeenCalledWith('tab-a', 'bad json');
     expect(callbacks.mutatePerformanceSession).toHaveBeenCalledWith('tab-a', expect.any(Function), true);
@@ -166,7 +166,7 @@ describe('handleJsonFormattingWorkerResult', () => {
     expect(context.clearFormatWatchdog).toHaveBeenCalledWith('tab-a');
     expect(callbacks.logEvent).toHaveBeenCalledWith('repair-success', expect.objectContaining({ requestId: 1 }));
     expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '{"ok":true}', true, 11);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 16);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 16, 11);
     expect(callbacks.setLargeRawViewerData).toHaveBeenCalledWith('tab-a', rawViewerData);
     expect(callbacks.resetSearchState).toHaveBeenCalled();
     expect(session).toMatchObject({ error: null, formattedBytes: 16, rawBytes: 11, status: 'ready' });

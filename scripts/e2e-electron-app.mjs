@@ -21,7 +21,7 @@ export async function getAvailablePort() {
   return port;
 }
 
-export async function startElectronApp({ appMain, cwd, electronCli, port }) {
+export async function startElectronApp({ appMain, cwd, electronCli, extraEnvironment = {}, port }) {
   let stderr = '';
   const shouldDisableSandbox = process.platform === 'linux' && (process.env.CI === 'true' || process.env.CI === '1');
   const electronArgs = [
@@ -37,6 +37,7 @@ export async function startElectronApp({ appMain, cwd, electronCli, port }) {
       ...(shouldDisableSandbox ? { ELECTRON_DISABLE_SANDBOX: '1' } : {}),
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       ELECTRON_OPEN_DEVTOOLS: '0',
+      ...extraEnvironment,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -55,6 +56,58 @@ export async function startElectronApp({ appMain, cwd, electronCli, port }) {
     child,
     getStderr: () => stderr,
   };
+}
+
+export async function readElectronMemorySnapshot(cdp) {
+  const processes = await evaluate(
+    cdp,
+    `window.electronAPI?.getProcessMetrics ? window.electronAPI.getProcessMetrics() : Promise.resolve([])`
+  );
+  const rendererHeapBytes = await evaluate(
+    cdp,
+    `typeof performance.memory?.usedJSHeapSize === 'number' ? performance.memory.usedJSHeapSize : 0`
+  );
+  const metrics = Array.isArray(processes) ? processes : [];
+  const totalWorkingSetMb = metrics.reduce((total, metric) => total + (metric.memory?.workingSetSize ?? 0), 0) / 1024;
+  const totalPeakWorkingSetMb =
+    metrics.reduce((total, metric) => total + (metric.memory?.peakWorkingSetSize ?? 0), 0) / 1024;
+
+  return {
+    processCount: metrics.length,
+    rendererHeapMb: rendererHeapBytes / (1024 * 1024),
+    totalPeakWorkingSetMb,
+    totalWorkingSetMb,
+  };
+}
+
+export function assertElectronMemoryBudget(snapshot, sizeMb) {
+  const totalWorkingSetBudgetMb = 700 + sizeMb * 20;
+  const totalPeakWorkingSetBudgetMb = 950 + sizeMb * 24;
+  const rendererHeapBudgetMb = 96 + sizeMb * 8;
+  const failures = [];
+
+  if (snapshot.processCount < 2) {
+    failures.push(`process metrics unavailable (${snapshot.processCount} process records)`);
+  }
+  if (snapshot.totalWorkingSetMb > totalWorkingSetBudgetMb) {
+    failures.push(
+      `working set ${snapshot.totalWorkingSetMb.toFixed(1)} MB exceeds ${totalWorkingSetBudgetMb.toFixed(1)} MB`
+    );
+  }
+  if (snapshot.totalPeakWorkingSetMb > totalPeakWorkingSetBudgetMb) {
+    failures.push(
+      `peak working set ${snapshot.totalPeakWorkingSetMb.toFixed(1)} MB exceeds ${totalPeakWorkingSetBudgetMb.toFixed(1)} MB`
+    );
+  }
+  if (snapshot.rendererHeapMb > rendererHeapBudgetMb) {
+    failures.push(
+      `renderer heap ${snapshot.rendererHeapMb.toFixed(1)} MB exceeds ${rendererHeapBudgetMb.toFixed(1)} MB`
+    );
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`Electron memory budget exceeded: ${failures.join('; ')}`);
+  }
 }
 
 export async function connectAndPrepareElectronPage(port) {

@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { LARGE_FILE_THRESHOLD, STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
 import { buildJsonWorkerProcessingPlan, getDeferredStructureWarmupDelayMs } from './jsonWorkerPlan';
+import { measureJsonDocument } from './jsonDocumentMetrics';
 
 describe('jsonWorkerPlan', () => {
   it('keeps small documents out of large viewer and skips locate index until requested', () => {
@@ -38,7 +39,10 @@ describe('jsonWorkerPlan', () => {
   });
 
   it('reuses a byte length measured by the import pipeline', () => {
-    const plan = buildJsonWorkerProcessingPlan('small string placeholder', true, LARGE_FILE_THRESHOLD);
+    const plan = buildJsonWorkerProcessingPlan('small string placeholder', true, {
+      ...measureJsonDocument('small string placeholder'),
+      textByteLength: LARGE_FILE_THRESHOLD,
+    });
 
     expect(plan.textByteLength).toBe(LARGE_FILE_THRESHOLD);
     expect(plan.largeMode).toBe(true);

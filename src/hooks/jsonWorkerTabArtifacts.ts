@@ -52,8 +52,8 @@ export function createJsonWorkerTabArtifactActions({
     callbacksRef.current.setLargeRawViewerData(tabId, null);
     clearTabStructure(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
-    callbacksRef.current.updateTabContent(tabId, '', true);
-    callbacksRef.current.updateFormattedContent(tabId, '', true);
+    callbacksRef.current.updateTabContent(tabId, '', true, 0);
+    callbacksRef.current.updateFormattedContent(tabId, '', true, 0, 0);
     callbacksRef.current.setTabError(tabId, null);
   };
 

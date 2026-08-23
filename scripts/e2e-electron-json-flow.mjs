@@ -5,12 +5,14 @@ import path from 'node:path';
 import process from 'node:process';
 import { evaluate, waitFor } from './e2e-cdp-helpers.mjs';
 import {
+  assertElectronMemoryBudget,
   collectFailureArtifacts,
   connectAndPrepareElectronPage,
   getAvailablePort,
+  readElectronMemorySnapshot,
   startElectronApp,
 } from './e2e-electron-app.mjs';
-import { importSampleByE2eBridge, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
+import { importSampleThroughNativeFileFlow, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
 import { runRepeatedEditFoldingScenario } from './e2e-json-edit-folding-scenario.mjs';
 import { runEditTransformScenario } from './e2e-json-edit-transform-scenario.mjs';
 import {
@@ -21,11 +23,15 @@ import {
 
 const require = createRequire(import.meta.url);
 
-function printSuccessSummary(sizeMb, samplePath) {
+function printSuccessSummary(sizeMb, samplePath, memorySnapshot) {
   console.log('FxxkJson Electron E2E passed');
   console.table([
     { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
-    { step: 'import', detail: 'E2E bridge imported JSON through app import flow' },
+    { step: 'import', detail: 'native MessagePort stream imported JSON through the desktop file flow' },
+    {
+      step: 'memory',
+      detail: `${memorySnapshot.totalWorkingSetMb.toFixed(1)} MB working set, ${memorySnapshot.totalPeakWorkingSetMb.toFixed(1)} MB peak, ${memorySnapshot.rendererHeapMb.toFixed(1)} MB renderer heap`,
+    },
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
     { step: 'search', detail: 'right pane traceId search returned results' },
     { step: 'locate', detail: 'right node click highlighted left raw JSON' },
@@ -61,6 +67,10 @@ async function run() {
       appMain,
       cwd,
       electronCli,
+      extraEnvironment: {
+        HANJSON_E2E_NATIVE_IMPORT: '1',
+        HANJSON_E2E_NATIVE_IMPORT_PATH: samplePath,
+      },
       port,
     });
     child = electronApp.child;
@@ -68,18 +78,20 @@ async function run() {
 
     cdp = await connectAndPrepareElectronPage(port);
     await runEditTransformScenario(cdp);
-    await importSampleByE2eBridge(cdp, samplePath);
+    await importSampleThroughNativeFileFlow(cdp);
     await waitFor(
       () => evaluate(cdp, `document.body.innerText.includes('req-e2e-000000')`),
       'imported and formatted JSON',
       90000
     );
+    const memorySnapshot = await readElectronMemorySnapshot(cdp);
+    assertElectronMemoryBudget(memorySnapshot, sizeMb);
 
     await runRepeatedEditFoldingScenario(cdp);
     await runSearchReplaceScenario(cdp);
     await runRightNodeScenario(cdp);
     await runClipboardAndCompareScenario(cdp);
-    printSuccessSummary(sizeMb, samplePath);
+    printSuccessSummary(sizeMb, samplePath, memorySnapshot);
   } catch (error) {
     const stderr = getStderr();
     await collectFailureArtifacts({ cdp, stderr });

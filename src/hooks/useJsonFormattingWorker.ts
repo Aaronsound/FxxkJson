@@ -70,7 +70,13 @@ export interface UseJsonFormattingWorkerArgs {
     append?: boolean
   ) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+  updateFormattedContent: (
+    tabId: string,
+    content: string,
+    syncModel?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
   resetSearchState: () => void;
   revealLeftRange: (startOffset: number, endOffset: number) => void;
   clearLeftHighlights: () => void;
@@ -154,7 +160,6 @@ export function useJsonFormattingWorker({
   const interactiveFlowRef = useRef<ReturnType<typeof createJsonWorkerInteractiveFlow> | null>(null);
   interactiveFlowRef.current ??= createJsonWorkerInteractiveFlow({
     activeTabIdRef,
-    formattedTextByTabRef,
     getCallbacks: () => callbacksRef.current,
     postWorkerRequest,
     structureStatusRef,
@@ -256,7 +261,6 @@ export function useJsonFormattingWorker({
     clearPendingFormat,
     formatWatchdogTimersRef,
     formatTimersRef,
-    formattedTextByTabRef,
     interactiveFlow,
     latestRequestRef,
     performanceSessionsRef,
