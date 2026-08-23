@@ -25,6 +25,8 @@ export interface JsonSyntaxToken {
   className?: string;
 }
 
+type JsonSyntaxTokenVisitor = (start: number, end: number, className?: string) => void;
+
 export interface HighlightedJsonLineSegment {
   className?: string;
   isActiveSearchMatch: boolean;
@@ -465,13 +467,12 @@ function isJsonPunctuationCode(charCode: number) {
   );
 }
 
-export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
-  const tokens: JsonSyntaxToken[] = [];
+export function visitJsonLineTokens(lineText: string, visit: JsonSyntaxTokenVisitor) {
   let index = 0;
 
   const pushToken = (start: number, end: number, className?: string) => {
     if (end > start) {
-      tokens.push({ start, end, className });
+      visit(start, end, className);
     }
   };
 
@@ -526,7 +527,13 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
     pushToken(index, index + 1);
     index += 1;
   }
+}
 
+export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
+  const tokens: JsonSyntaxToken[] = [];
+  visitJsonLineTokens(lineText, (start, end, className) => {
+    tokens.push({ start, end, className });
+  });
   return tokens;
 }
 
@@ -535,15 +542,6 @@ export function buildHighlightedJsonLineSegments(
   lineMatches: Array<LargeJsonSearchMatch & { matchIndex: number }>,
   activeMatchIndex: number
 ): HighlightedJsonLineSegment[] {
-  const normalizedMatches = lineMatches
-    .map((match) => ({
-      ...match,
-      localStart: clamp(match.localStart, 0, lineText.length),
-      localEnd: clamp(match.localEnd, 0, lineText.length),
-    }))
-    .filter((match) => match.localEnd > match.localStart)
-    .sort((left, right) => left.localStart - right.localStart);
-  const syntaxTokens = tokenizeJsonLine(lineText);
   const segments: HighlightedJsonLineSegment[] = [];
   let matchCursor = 0;
 
@@ -566,29 +564,36 @@ export function buildHighlightedJsonLineSegments(
     });
   };
 
-  syntaxTokens.forEach((token) => {
-    let cursor = token.start;
+  // Search matches arrive in ascending document-offset order and grouping by line
+  // preserves that order, so they can be consumed without per-line copies or sorting.
+  visitJsonLineTokens(lineText, (tokenStart, tokenEnd, className) => {
+    let cursor = tokenStart;
 
-    while (cursor < token.end) {
-      while (matchCursor < normalizedMatches.length && normalizedMatches[matchCursor].localEnd <= cursor) {
+    while (cursor < tokenEnd) {
+      let match = lineMatches[matchCursor];
+      let matchStart = match ? clamp(match.localStart, 0, lineText.length) : 0;
+      let matchEnd = match ? clamp(match.localEnd, 0, lineText.length) : 0;
+      while (match && (matchEnd <= matchStart || matchEnd <= cursor)) {
         matchCursor += 1;
+        match = lineMatches[matchCursor];
+        matchStart = match ? clamp(match.localStart, 0, lineText.length) : 0;
+        matchEnd = match ? clamp(match.localEnd, 0, lineText.length) : 0;
       }
 
-      const match = normalizedMatches[matchCursor];
-      if (!match || match.localStart >= token.end) {
-        pushSegment(cursor, token.end, token.className);
+      if (!match || matchStart >= tokenEnd) {
+        pushSegment(cursor, tokenEnd, className);
         break;
       }
 
-      if (cursor < match.localStart) {
-        const segmentEnd = Math.min(match.localStart, token.end);
-        pushSegment(cursor, segmentEnd, token.className);
+      if (cursor < matchStart) {
+        const segmentEnd = Math.min(matchStart, tokenEnd);
+        pushSegment(cursor, segmentEnd, className);
         cursor = segmentEnd;
         continue;
       }
 
-      const segmentEnd = Math.min(match.localEnd, token.end);
-      pushSegment(cursor, segmentEnd, token.className, match);
+      const segmentEnd = Math.min(matchEnd, tokenEnd);
+      pushSegment(cursor, segmentEnd, className, match);
       cursor = segmentEnd;
     }
   });

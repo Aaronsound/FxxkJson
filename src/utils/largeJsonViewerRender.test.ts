@@ -12,6 +12,7 @@ import {
   getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
   tokenizeJsonLine,
+  visitJsonLineTokens,
 } from './largeJsonViewerRender';
 
 function createMatch(
@@ -74,6 +75,15 @@ describe('largeJsonViewerRender', () => {
     expect(punctuationText).toBe('{:,:,:,:}');
   });
 
+  it('visits syntax tokens without changing public tokenizer boundaries', () => {
+    const line = '  "value": -12.5e+2';
+    const visited: Array<{ start: number; end: number; className?: string }> = [];
+
+    visitJsonLineTokens(line, (start, end, className) => visited.push({ start, end, className }));
+
+    expect(visited).toEqual(tokenizeJsonLine(line));
+  });
+
   it('splits syntax-highlighted segments around search matches', () => {
     const line = '  "name": "FxxkJson"';
     const segments = buildHighlightedJsonLineSegments(line, [createMatch(3, 7, 4)], 4);
@@ -92,6 +102,22 @@ describe('largeJsonViewerRender', () => {
     expect(segments.map((segment) => segment.text).join('')).toBe('"ok": true');
     expect(segments.some((segment) => segment.isSearchMatch)).toBe(true);
     expect(segments.some((segment) => segment.isActiveSearchMatch)).toBe(false);
+  });
+
+  it('streams ordered line matches while skipping empty clamped ranges', () => {
+    const line = '"alpha beta"';
+    const segments = buildHighlightedJsonLineSegments(
+      line,
+      [createMatch(-4, -1, 0), createMatch(1, 6, 1), createMatch(7, 11, 2)],
+      2
+    );
+
+    expect(segments.map((segment) => segment.text).join('')).toBe(line);
+    expect(segments.filter((segment) => segment.isSearchMatch).map((segment) => segment.text)).toEqual([
+      'alpha',
+      'beta',
+    ]);
+    expect(segments.find((segment) => segment.isActiveSearchMatch)?.text).toBe('beta');
   });
 
   it('only adds wrapped height to lines that exceed the viewport columns', () => {

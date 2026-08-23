@@ -1,6 +1,6 @@
 import React from 'react';
-import type { LargeJsonSearchMatch } from '../types/jsonTool';
 import type { LargeJsonLocalSelectionRange } from '../hooks/useLargeJsonSelection';
+import type { LargeJsonSearchMatch } from '../types/jsonTool';
 import { buildHighlightedJsonLineSegments } from '../utils/largeJsonViewerRender';
 
 type LargeJsonLineMatch = LargeJsonSearchMatch & { matchIndex: number };
@@ -13,7 +13,30 @@ interface LargeJsonLineTextProps {
   selectedLineRange: LargeJsonLocalSelectionRange | null;
 }
 
-export function LargeJsonLineText({
+function equalSelectionRange(left: LargeJsonLocalSelectionRange | null, right: LargeJsonLocalSelectionRange | null) {
+  return left === right || Boolean(left && right && left.start === right.start && left.end === right.end);
+}
+
+export function areLargeJsonLineTextPropsEqual(previous: LargeJsonLineTextProps, next: LargeJsonLineTextProps) {
+  if (
+    previous.lineNumber !== next.lineNumber ||
+    previous.lineText !== next.lineText ||
+    previous.matches !== next.matches ||
+    !equalSelectionRange(previous.selectedLineRange, next.selectedLineRange)
+  ) {
+    return false;
+  }
+
+  if (previous.activeMatchIndex === next.activeMatchIndex) {
+    return true;
+  }
+
+  return !previous.matches.some(
+    (match) => match.matchIndex === previous.activeMatchIndex || match.matchIndex === next.activeMatchIndex
+  );
+}
+
+function LargeJsonLineTextView({
   activeMatchIndex,
   lineNumber,
   lineText,
@@ -94,3 +117,6 @@ export function LargeJsonLineText({
     </>
   );
 }
+
+export const LargeJsonLineText = React.memo(LargeJsonLineTextView, areLargeJsonLineTextPropsEqual);
+LargeJsonLineText.displayName = 'LargeJsonLineText';
