@@ -39,21 +39,21 @@ interface LargeJsonVisibleRowsProps {
 }
 
 interface LargeJsonVisibleRowProps {
-  baseLineText: string;
   data: LargeJsonViewerData;
-  hasRegion: boolean;
-  isCollapsed: boolean;
-  isSelected: boolean;
+  getLineSelectionRange: LargeJsonVisibleRowsProps['getLineSelectionRange'];
+  getLineText: LargeJsonVisibleRowsProps['getLineText'];
+  getRegionEndLineByStartLine: LargeJsonVisibleRowsProps['getRegionEndLineByStartLine'];
+  getRowStyle: LargeJsonVisibleRowsProps['getRowStyle'];
+  isRegionCollapsed: LargeJsonVisibleRowsProps['isRegionCollapsed'];
+  isLineSelected: LargeJsonVisibleRowsProps['isLineSelected'];
   lineNumber: number;
   lineNumberWidth: string;
-  lineText: string;
   onLocateOffset: (offset: number) => void;
   renderLineText: (lineNumber: number, lineText: string, selectedLineRange: LocalSelectionRange | null) => ReactNode;
   resolveOffsetFromPoint: (event: ReactMouseEvent<HTMLElement>, lineNumber: number, lineText: string) => number;
-  rowStyle: { height: number; top: number };
-  selectedLineRange: LocalSelectionRange | null;
   setContextMenu: Dispatch<SetStateAction<LargeJsonContextMenuState | null>>;
   toggleLine: (lineNumber: number) => void;
+  visibleIndex: number;
   wrapLongLines: boolean;
 }
 
@@ -71,50 +71,33 @@ function hasTextSelectionInside(element: HTMLElement) {
   );
 }
 
-function equalSelectionRange(left: LocalSelectionRange | null, right: LocalSelectionRange | null) {
-  return left === right || Boolean(left && right && left.start === right.start && left.end === right.end);
-}
-
-export function areLargeJsonVisibleRowPropsEqual(previous: LargeJsonVisibleRowProps, next: LargeJsonVisibleRowProps) {
-  return (
-    previous.baseLineText === next.baseLineText &&
-    previous.data === next.data &&
-    previous.hasRegion === next.hasRegion &&
-    previous.isCollapsed === next.isCollapsed &&
-    previous.isSelected === next.isSelected &&
-    previous.lineNumber === next.lineNumber &&
-    previous.lineNumberWidth === next.lineNumberWidth &&
-    previous.lineText === next.lineText &&
-    previous.onLocateOffset === next.onLocateOffset &&
-    previous.renderLineText === next.renderLineText &&
-    previous.resolveOffsetFromPoint === next.resolveOffsetFromPoint &&
-    previous.rowStyle.height === next.rowStyle.height &&
-    previous.rowStyle.top === next.rowStyle.top &&
-    equalSelectionRange(previous.selectedLineRange, next.selectedLineRange) &&
-    previous.setContextMenu === next.setContextMenu &&
-    previous.toggleLine === next.toggleLine &&
-    previous.wrapLongLines === next.wrapLongLines
-  );
-}
-
 function LargeJsonVisibleRowView({
-  baseLineText,
   data,
-  hasRegion,
-  isCollapsed,
-  isSelected,
+  getLineSelectionRange,
+  getLineText,
+  getRegionEndLineByStartLine,
+  getRowStyle,
+  isRegionCollapsed,
+  isLineSelected,
   lineNumber,
   lineNumberWidth,
-  lineText,
   onLocateOffset,
   renderLineText,
   resolveOffsetFromPoint,
-  rowStyle,
-  selectedLineRange,
   setContextMenu,
   toggleLine,
+  visibleIndex,
   wrapLongLines,
 }: LargeJsonVisibleRowProps) {
+  const regionEndLine = getRegionEndLineByStartLine(lineNumber);
+  const hasRegion = regionEndLine !== null;
+  const isCollapsed = hasRegion && isRegionCollapsed(lineNumber);
+  const baseLineText = getLineText(lineNumber);
+  const lineText = isCollapsed ? getCollapsedPreview(baseLineText) : baseLineText;
+  const isSelected = isLineSelected(lineNumber);
+  const selectedLineRange = getLineSelectionRange(lineNumber, baseLineText, lineText, regionEndLine, isCollapsed);
+  const rowStyle = getRowStyle(visibleIndex);
+
   return (
     <div
       className={`large-json-row ${wrapLongLines ? 'wrap' : ''} ${isSelected ? 'selected' : ''}`}
@@ -191,7 +174,7 @@ function LargeJsonVisibleRowView({
   );
 }
 
-const LargeJsonVisibleRow = memo(LargeJsonVisibleRowView, areLargeJsonVisibleRowPropsEqual);
+const LargeJsonVisibleRow = memo(LargeJsonVisibleRowView);
 LargeJsonVisibleRow.displayName = 'LargeJsonVisibleRow';
 
 export function LargeJsonVisibleRows({
@@ -221,33 +204,24 @@ export function LargeJsonVisibleRows({
       continue;
     }
 
-    const regionEndLine = getRegionEndLineByStartLine(lineNumber);
-    const hasRegion = regionEndLine !== null;
-    const isCollapsed = hasRegion && isRegionCollapsed(lineNumber);
-    const baseLineText = getLineText(lineNumber);
-    const lineText = isCollapsed ? getCollapsedPreview(baseLineText) : baseLineText;
-    const isSelected = isLineSelected(lineNumber);
-    const selectedLineRange = getLineSelectionRange(lineNumber, baseLineText, lineText, regionEndLine, isCollapsed);
-    const rowStyle = getRowStyle(visibleIndex);
-
     renderedRows.push(
       <LargeJsonVisibleRow
         key={lineNumber}
-        baseLineText={baseLineText}
         data={data}
-        hasRegion={hasRegion}
-        isCollapsed={isCollapsed}
-        isSelected={isSelected}
+        getLineSelectionRange={getLineSelectionRange}
+        getLineText={getLineText}
+        getRegionEndLineByStartLine={getRegionEndLineByStartLine}
+        getRowStyle={getRowStyle}
+        isRegionCollapsed={isRegionCollapsed}
+        isLineSelected={isLineSelected}
         lineNumber={lineNumber}
         lineNumberWidth={lineNumberWidth}
-        lineText={lineText}
         onLocateOffset={onLocateOffset}
         renderLineText={renderLineText}
         resolveOffsetFromPoint={resolveOffsetFromPoint}
-        rowStyle={rowStyle}
-        selectedLineRange={selectedLineRange}
         setContextMenu={setContextMenu}
         toggleLine={toggleLine}
+        visibleIndex={visibleIndex}
         wrapLongLines={wrapLongLines}
       />
     );

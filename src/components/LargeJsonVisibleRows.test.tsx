@@ -49,16 +49,21 @@ describe('LargeJsonVisibleRows', () => {
       throw new Error('Expected large viewer data');
     }
     const renderLineText = vi.fn((_lineNumber: number, lineText: string) => lineText);
+    const getLineSelectionRange = vi.fn(() => null);
+    const getLineText = vi.fn((lineNumber: number) => lines[lineNumber - 1] ?? '');
+    const getRegionEndLineByStartLine = vi.fn((lineNumber: number) => (lineNumber === 1 ? data.lineCount : null));
+    const getRowStyle = vi.fn((visibleIndex: number) => ({ height: 18, top: visibleIndex * 18 }));
+    const isLineSelected = vi.fn(() => false);
     const baseProps: ComponentProps<typeof LargeJsonVisibleRows> = {
       data,
       endVisibleIndex: 4,
       getActualLineNumber: (visibleIndex) => visibleIndex + 1,
-      getLineSelectionRange: () => null,
-      getLineText: (lineNumber) => lines[lineNumber - 1] ?? '',
-      getRegionEndLineByStartLine: (lineNumber) => (lineNumber === 1 ? data.lineCount : null),
-      getRowStyle: (visibleIndex) => ({ height: 18, top: visibleIndex * 18 }),
+      getLineSelectionRange,
+      getLineText,
+      getRegionEndLineByStartLine,
+      getRowStyle,
       isRegionCollapsed: () => false,
-      isLineSelected: () => false,
+      isLineSelected,
       lineNumberWidth: '3ch',
       onLocateOffset: vi.fn(),
       renderLineText,
@@ -71,7 +76,17 @@ describe('LargeJsonVisibleRows', () => {
     const { rerender } = render(<LargeJsonVisibleRows {...baseProps} />);
 
     expect(renderLineText).toHaveBeenCalledTimes(5);
+    expect(getLineText).toHaveBeenCalledTimes(5);
+    expect(getRowStyle).toHaveBeenCalledTimes(5);
+    expect(getRegionEndLineByStartLine).toHaveBeenCalledTimes(5);
+    expect(isLineSelected).toHaveBeenCalledTimes(5);
+    expect(getLineSelectionRange).toHaveBeenCalledTimes(5);
     rerender(<LargeJsonVisibleRows {...baseProps} startVisibleIndex={1} endVisibleIndex={5} />);
     expect(renderLineText).toHaveBeenCalledTimes(6);
+    expect(getLineText).toHaveBeenCalledTimes(6);
+    expect(getRowStyle).toHaveBeenCalledTimes(6);
+    expect(getRegionEndLineByStartLine).toHaveBeenCalledTimes(6);
+    expect(isLineSelected).toHaveBeenCalledTimes(6);
+    expect(getLineSelectionRange).toHaveBeenCalledTimes(6);
   });
 });
