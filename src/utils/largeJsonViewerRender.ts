@@ -368,11 +368,101 @@ function getJsonStringEnd(lineText: string, start: number) {
 function getNextNonWhitespaceIndex(lineText: string, start: number) {
   let index = start;
 
-  while (index < lineText.length && /\s/.test(lineText[index])) {
+  while (index < lineText.length && isWhitespaceCode(lineText.charCodeAt(index))) {
     index += 1;
   }
 
   return index;
+}
+
+function isWhitespaceCode(charCode: number) {
+  return (
+    (charCode >= 9 && charCode <= 13) ||
+    charCode === 32 ||
+    charCode === 160 ||
+    charCode === 5760 ||
+    (charCode >= 8192 && charCode <= 8202) ||
+    charCode === 8232 ||
+    charCode === 8233 ||
+    charCode === 8239 ||
+    charCode === 8287 ||
+    charCode === 12288 ||
+    charCode === 65279
+  );
+}
+
+function isDigitCode(charCode: number) {
+  return charCode >= 48 && charCode <= 57;
+}
+
+function getJsonNumberEnd(lineText: string, start: number) {
+  let index = start;
+  if (lineText.charCodeAt(index) === 45) {
+    index += 1;
+  }
+
+  const firstDigit = lineText.charCodeAt(index);
+  if (firstDigit === 48) {
+    index += 1;
+  } else if (firstDigit >= 49 && firstDigit <= 57) {
+    index += 1;
+    while (isDigitCode(lineText.charCodeAt(index))) {
+      index += 1;
+    }
+  } else {
+    return start;
+  }
+
+  if (lineText.charCodeAt(index) === 46 && isDigitCode(lineText.charCodeAt(index + 1))) {
+    index += 2;
+    while (isDigitCode(lineText.charCodeAt(index))) {
+      index += 1;
+    }
+  }
+
+  const exponentCode = lineText.charCodeAt(index);
+  if (exponentCode === 69 || exponentCode === 101) {
+    let exponentEnd = index + 1;
+    const signCode = lineText.charCodeAt(exponentEnd);
+    if (signCode === 43 || signCode === 45) {
+      exponentEnd += 1;
+    }
+    if (isDigitCode(lineText.charCodeAt(exponentEnd))) {
+      exponentEnd += 1;
+      while (isDigitCode(lineText.charCodeAt(exponentEnd))) {
+        exponentEnd += 1;
+      }
+      index = exponentEnd;
+    }
+  }
+
+  return index;
+}
+
+function getJsonLiteralEnd(lineText: string, start: number) {
+  const charCode = lineText.charCodeAt(start);
+  if (charCode === 116 && lineText.startsWith('true', start)) {
+    return start + 4;
+  }
+  if (charCode === 102 && lineText.startsWith('false', start)) {
+    return start + 5;
+  }
+  if (charCode === 110 && lineText.startsWith('null', start)) {
+    return start + 4;
+  }
+  return start;
+}
+
+function isJsonPunctuationCode(charCode: number) {
+  return (
+    charCode === 44 ||
+    charCode === 46 ||
+    charCode === 58 ||
+    charCode === 91 ||
+    charCode === 93 ||
+    charCode === 123 ||
+    charCode === 125
+  );
 }
 
 export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
@@ -387,10 +477,11 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
 
   while (index < lineText.length) {
     const char = lineText[index];
+    const charCode = lineText.charCodeAt(index);
 
-    if (/\s/.test(char)) {
+    if (isWhitespaceCode(charCode)) {
       const start = index;
-      while (index < lineText.length && /\s/.test(lineText[index])) {
+      while (index < lineText.length && isWhitespaceCode(lineText.charCodeAt(index))) {
         index += 1;
       }
       pushToken(start, index);
@@ -410,23 +501,23 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
       continue;
     }
 
-    if (char === '-' || /\d/.test(char)) {
-      const match = lineText.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
-      if (match) {
-        pushToken(index, index + match[0].length, 'large-json-token large-json-token-value large-json-token-number');
-        index += match[0].length;
+    if (charCode === 45 || isDigitCode(charCode)) {
+      const end = getJsonNumberEnd(lineText, index);
+      if (end > index) {
+        pushToken(index, end, 'large-json-token large-json-token-value large-json-token-number');
+        index = end;
         continue;
       }
     }
 
-    const literal = ['true', 'false', 'null'].find((candidate) => lineText.startsWith(candidate, index));
-    if (literal) {
-      pushToken(index, index + literal.length, 'large-json-token large-json-token-value large-json-token-literal');
-      index += literal.length;
+    const literalEnd = getJsonLiteralEnd(lineText, index);
+    if (literalEnd > index) {
+      pushToken(index, literalEnd, 'large-json-token large-json-token-value large-json-token-literal');
+      index = literalEnd;
       continue;
     }
 
-    if ('{}[]:,.'.includes(char)) {
+    if (isJsonPunctuationCode(charCode)) {
       pushToken(index, index + 1, 'large-json-token large-json-token-punctuation');
       index += 1;
       continue;

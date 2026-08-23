@@ -5,6 +5,7 @@ import { parseTree } from 'jsonc-parser';
 import {
   buildFoldAllStats,
   buildRawViewerDataStats,
+  buildTokenizerSampleLines,
   buildViewerDataStats,
   buildWrapLayoutStats,
   countTextLines,
@@ -20,6 +21,8 @@ import {
   readFirstRequestValueStreaming,
   replaceLiteralMatches,
   replaceRegexMatches,
+  tokenizeLegacySampleLines,
+  tokenizeOptimizedSampleLines,
 } from './bench-json-metrics.mjs';
 
 export const DEFAULT_SAMPLE_FILES = [
@@ -52,6 +55,19 @@ export async function benchFile(filePath) {
   const wrapLayoutResult = measure('wrap-layout', () =>
     buildWrapLayoutStats(formattedText, viewerResult.value.lineStarts, viewerResult.value.lineCount)
   );
+  const tokenizerSampleLines = buildTokenizerSampleLines(formattedText, viewerResult.value.lineStarts);
+  const optimizedTokenizerResult = measureRepeated('optimizedTokenizer', 10, () =>
+    tokenizeOptimizedSampleLines(tokenizerSampleLines)
+  );
+  const legacyTokenizerResult = measureRepeated('legacyTokenizer', 10, () =>
+    tokenizeLegacySampleLines(tokenizerSampleLines)
+  );
+  if (
+    optimizedTokenizerResult.value.count !== legacyTokenizerResult.value.count ||
+    optimizedTokenizerResult.value.checksum !== legacyTokenizerResult.value.checksum
+  ) {
+    throw new Error(`Tokenizer benchmark implementations diverged for ${absolutePath}`);
+  }
   const rawTreeResult = measure('rawTree', () => parseTree(rawText));
   const formattedTreeResult = measure('formattedTree', () => parseTree(formattedText));
   const rightSearchQuery = getRightSearchQuery(formattedText);
@@ -134,6 +150,9 @@ export async function benchFile(filePath) {
     wrapLayoutMs: wrapLayoutResult.ms,
     wrapLayoutBytes: wrapLayoutResult.value.indexBytes,
     wrapLongRowCount: wrapLayoutResult.value.longRowCount,
+    optimizedTokenizerMs: optimizedTokenizerResult.ms,
+    legacyTokenizerMs: legacyTokenizerResult.ms,
+    tokenizerSampleLineCount: tokenizerSampleLines.length,
     rawTreeMs: rawTreeResult.ms,
     formattedTreeMs: formattedTreeResult.ms,
     structureTreeWarmupAvoidedMs: rawTreeResult.ms + formattedTreeResult.ms,

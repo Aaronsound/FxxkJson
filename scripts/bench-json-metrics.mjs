@@ -313,6 +313,196 @@ export function buildWrapLayoutStats(text, lineStarts, lineCount, wrapColumnCoun
   };
 }
 
+export function buildTokenizerSampleLines(text, lineStarts, maxLines = 5000) {
+  const sampleCount = Math.min(maxLines, lineStarts.length);
+  const stride = lineStarts.length / Math.max(1, sampleCount);
+  const lines = new Array(sampleCount);
+  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+    const lineIndex = Math.floor(sampleIndex * stride);
+    const start = lineStarts[lineIndex] ?? 0;
+    const nextStart = lineStarts[lineIndex + 1] ?? text.length;
+    const end = lineIndex + 1 < lineStarts.length ? Math.max(start, nextStart - 1) : nextStart;
+    lines[sampleIndex] = text.slice(start, end);
+  }
+  return lines;
+}
+
+function appendTokenizerStat(stats, start, end, kind) {
+  stats.count += 1;
+  stats.checksum = (stats.checksum + end * 17 + (end - start) * (kind + 1)) >>> 0;
+}
+
+function getTokenizerStringEnd(line, start) {
+  let index = start + 1;
+  let escaped = false;
+  while (index < line.length) {
+    const char = line[index];
+    if (escaped) {
+      escaped = false;
+    } else if (char === '\\') {
+      escaped = true;
+    } else if (char === '"') {
+      return index + 1;
+    }
+    index += 1;
+  }
+  return line.length;
+}
+
+export function tokenizeLegacySampleLines(lines) {
+  const stats = { count: 0, checksum: 0 };
+  for (const line of lines) {
+    let index = 0;
+    while (index < line.length) {
+      const char = line[index];
+      if (/\s/.test(char)) {
+        const start = index;
+        while (index < line.length && /\s/.test(line[index])) index += 1;
+        appendTokenizerStat(stats, start, index, 0);
+        continue;
+      }
+      if (char === '"') {
+        const end = getTokenizerStringEnd(line, index);
+        let next = end;
+        while (next < line.length && /\s/.test(line[next])) next += 1;
+        appendTokenizerStat(stats, index, end, line[next] === ':' ? 1 : 2);
+        index = end;
+        continue;
+      }
+      if (char === '-' || /\d/.test(char)) {
+        const match = line.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
+        if (match) {
+          const end = index + match[0].length;
+          appendTokenizerStat(stats, index, end, 3);
+          index = end;
+          continue;
+        }
+      }
+      const literal = ['true', 'false', 'null'].find((candidate) => line.startsWith(candidate, index));
+      if (literal) {
+        const end = index + literal.length;
+        appendTokenizerStat(stats, index, end, 4);
+        index = end;
+        continue;
+      }
+      appendTokenizerStat(stats, index, index + 1, '{}[]:,.'.includes(char) ? 5 : 6);
+      index += 1;
+    }
+  }
+  return stats;
+}
+
+function isTokenizerWhitespaceCode(charCode) {
+  return (
+    (charCode >= 9 && charCode <= 13) ||
+    charCode === 32 ||
+    charCode === 160 ||
+    charCode === 5760 ||
+    (charCode >= 8192 && charCode <= 8202) ||
+    charCode === 8232 ||
+    charCode === 8233 ||
+    charCode === 8239 ||
+    charCode === 8287 ||
+    charCode === 12288 ||
+    charCode === 65279
+  );
+}
+
+function isTokenizerDigitCode(charCode) {
+  return charCode >= 48 && charCode <= 57;
+}
+
+function getTokenizerNumberEnd(line, start) {
+  let index = start;
+  if (line.charCodeAt(index) === 45) index += 1;
+  const firstDigit = line.charCodeAt(index);
+  if (firstDigit === 48) {
+    index += 1;
+  } else if (firstDigit >= 49 && firstDigit <= 57) {
+    index += 1;
+    while (isTokenizerDigitCode(line.charCodeAt(index))) index += 1;
+  } else {
+    return start;
+  }
+  if (line.charCodeAt(index) === 46 && isTokenizerDigitCode(line.charCodeAt(index + 1))) {
+    index += 2;
+    while (isTokenizerDigitCode(line.charCodeAt(index))) index += 1;
+  }
+  const exponentCode = line.charCodeAt(index);
+  if (exponentCode === 69 || exponentCode === 101) {
+    let exponentEnd = index + 1;
+    const signCode = line.charCodeAt(exponentEnd);
+    if (signCode === 43 || signCode === 45) exponentEnd += 1;
+    if (isTokenizerDigitCode(line.charCodeAt(exponentEnd))) {
+      exponentEnd += 1;
+      while (isTokenizerDigitCode(line.charCodeAt(exponentEnd))) exponentEnd += 1;
+      index = exponentEnd;
+    }
+  }
+  return index;
+}
+
+function getTokenizerLiteralEnd(line, start) {
+  const charCode = line.charCodeAt(start);
+  if (charCode === 116 && line.startsWith('true', start)) return start + 4;
+  if (charCode === 102 && line.startsWith('false', start)) return start + 5;
+  if (charCode === 110 && line.startsWith('null', start)) return start + 4;
+  return start;
+}
+
+function isTokenizerPunctuationCode(charCode) {
+  return (
+    charCode === 44 ||
+    charCode === 46 ||
+    charCode === 58 ||
+    charCode === 91 ||
+    charCode === 93 ||
+    charCode === 123 ||
+    charCode === 125
+  );
+}
+
+export function tokenizeOptimizedSampleLines(lines) {
+  const stats = { count: 0, checksum: 0 };
+  for (const line of lines) {
+    let index = 0;
+    while (index < line.length) {
+      const charCode = line.charCodeAt(index);
+      if (isTokenizerWhitespaceCode(charCode)) {
+        const start = index;
+        while (index < line.length && isTokenizerWhitespaceCode(line.charCodeAt(index))) index += 1;
+        appendTokenizerStat(stats, start, index, 0);
+        continue;
+      }
+      if (charCode === 34) {
+        const end = getTokenizerStringEnd(line, index);
+        let next = end;
+        while (next < line.length && isTokenizerWhitespaceCode(line.charCodeAt(next))) next += 1;
+        appendTokenizerStat(stats, index, end, line.charCodeAt(next) === 58 ? 1 : 2);
+        index = end;
+        continue;
+      }
+      if (charCode === 45 || isTokenizerDigitCode(charCode)) {
+        const end = getTokenizerNumberEnd(line, index);
+        if (end > index) {
+          appendTokenizerStat(stats, index, end, 3);
+          index = end;
+          continue;
+        }
+      }
+      const literalEnd = getTokenizerLiteralEnd(line, index);
+      if (literalEnd > index) {
+        appendTokenizerStat(stats, index, literalEnd, 4);
+        index = literalEnd;
+        continue;
+      }
+      appendTokenizerStat(stats, index, index + 1, isTokenizerPunctuationCode(charCode) ? 5 : 6);
+      index += 1;
+    }
+  }
+  return stats;
+}
+
 export function buildRawViewerDataStats(text, chunkSize = 2000) {
   let starts = new Uint32Array(1024);
   let lengths = new Uint16Array(1024);

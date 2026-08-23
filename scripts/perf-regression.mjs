@@ -179,6 +179,7 @@ function printResults(results, failures, baselinePath) {
       foldAllVisited: `${result.foldAllVisitedRegionCount}/${result.viewerRegionCount}`,
       wrapLayout: formatDuration(result.wrapLayoutMs),
       wrapIndex: formatBytes(result.wrapLayoutBytes),
+      lineTokenize: `${formatDuration(result.optimizedTokenizerMs)} / ${formatDuration(result.legacyTokenizerMs)}`,
       rawViewerIndex: formatDuration(result.rawViewerIndexMs),
       rawViewerMemory: `${formatBytes(result.rawViewerIndexBytes)} / ${formatBytes(result.rawViewerLegacyIndexBytes)}`,
       caseInsensitiveSearch: formatDuration(result.caseInsensitiveSearchBatchMs),

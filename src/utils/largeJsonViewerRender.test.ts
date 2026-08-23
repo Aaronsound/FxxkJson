@@ -40,6 +40,40 @@ describe('largeJsonViewerRender', () => {
     expect(tokens.some((token) => token.className?.includes('large-json-token-punctuation'))).toBe(true);
   });
 
+  it('keeps JSON number grammar boundaries without slicing the remaining line', () => {
+    const line = '[-0,0,12,-12.34e+5,1.,01,1e]';
+    const numberTexts = tokenizeJsonLine(line)
+      .filter((token) => token.className?.includes('large-json-token-number'))
+      .map((token) => line.slice(token.start, token.end));
+
+    expect(numberTexts).toEqual(['-0', '0', '12', '-12.34e+5', '1', '0', '1', '1']);
+  });
+
+  it('preserves JavaScript whitespace handling for key detection', () => {
+    const line = '\t"name"\u00a0:\t1\u3000';
+    const tokens = tokenizeJsonLine(line);
+    const key = tokens.find((token) => line.slice(token.start, token.end) === '"name"');
+
+    expect(key?.className).toContain('large-json-token-key');
+    expect(line.slice(tokens[0].start, tokens[0].end)).toBe('\t');
+    expect(tokens.at(-1)).toMatchObject({ start: line.length - 1, end: line.length });
+  });
+
+  it('recognizes literals and punctuation without per-character candidate arrays', () => {
+    const line = '{"a":true,"b":false,"c":null,"prefix":trueValue}';
+    const tokens = tokenizeJsonLine(line);
+    const literalTexts = tokens
+      .filter((token) => token.className?.includes('large-json-token-literal'))
+      .map((token) => line.slice(token.start, token.end));
+    const punctuationText = tokens
+      .filter((token) => token.className?.includes('large-json-token-punctuation'))
+      .map((token) => line.slice(token.start, token.end))
+      .join('');
+
+    expect(literalTexts).toEqual(['true', 'false', 'null', 'true']);
+    expect(punctuationText).toBe('{:,:,:,:}');
+  });
+
   it('splits syntax-highlighted segments around search matches', () => {
     const line = '  "name": "FxxkJson"';
     const segments = buildHighlightedJsonLineSegments(line, [createMatch(3, 7, 4)], 4);
