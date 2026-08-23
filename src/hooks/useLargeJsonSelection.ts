@@ -69,7 +69,7 @@ export function useLargeJsonSelection({
       lineNumber: number,
       baseLineText: string,
       renderedLineText: string,
-      region: LargeJsonViewerRegion | undefined,
+      regionEndLine: number | null,
       isCollapsed: boolean
     ): LargeJsonLocalSelectionRange | null => {
       if (!normalizedSelectedRange) {
@@ -79,8 +79,8 @@ export function useLargeJsonSelection({
       const lineStart = data.lineStarts[lineNumber - 1] ?? 0;
       const lineEnd = lineStart + baseLineText.length;
 
-      if (region && isCollapsed) {
-        const regionEnd = getLineDocumentEnd(region.endLine);
+      if (regionEndLine !== null && isCollapsed) {
+        const regionEnd = getLineDocumentEnd(regionEndLine);
         const selectionIntersectsCollapsedRegion =
           normalizedSelectedRange.end > lineStart && normalizedSelectedRange.start < Math.max(regionEnd, lineStart + 1);
 

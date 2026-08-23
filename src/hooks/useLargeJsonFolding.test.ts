@@ -20,6 +20,8 @@ describe('useLargeJsonFolding', () => {
     );
 
     expect(result.current.normalizedStateLines).toEqual([2]);
+    expect(result.current.getRegionEndLineByStartLine(2)).toBe(4);
+    expect(result.current.getRegionEndLineByStartLine(99)).toBeNull();
     expect(result.current.isLineCollapsed(2)).toBe(true);
     expect(result.current.isRegionCollapsed(2)).toBe(true);
     expect(result.current.isLineCollapsed(99)).toBe(false);

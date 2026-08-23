@@ -185,6 +185,7 @@ export async function benchFile(filePath) {
     viewerIndexWorkingBytes: viewerResult.value.buildWorkingBytes,
     viewerLineCount: viewerResult.value.lineCount,
     viewerRegionCount: viewerResult.value.regionCount,
+    regionObjectsAvoidedPerFullScroll: uniqueRegionStartLineCount,
     foldStateBinaryLookupsAvoided: viewerResult.value.lineCount - uniqueRegionStartLineCount,
     foldStateLookupAvoidedPercent:
       viewerResult.value.lineCount > 0
@@ -211,6 +212,8 @@ export async function benchFile(filePath) {
     tokenizerSampleLineCount: tokenizerSampleLines.length,
     highlightTokenObjectsAvoided: optimizedTokenizerResult.value.count,
     formattedSearchlessScrollRowsMemoized: Math.min(40, Math.max(0, viewerResult.value.lineCount - 1)),
+    formattedFullRowsMemoizedPerScroll: Math.min(40, Math.max(0, viewerResult.value.lineCount - 1)),
+    formattedRowKeyStringsAvoidedPerViewport: Math.min(40, viewerResult.value.lineCount),
     rawTreeMs: rawTreeResult.ms,
     formattedTreeMs: formattedTreeResult.ms,
     structureTreeWarmupAvoidedMs: rawTreeResult.ms + formattedTreeResult.ms,

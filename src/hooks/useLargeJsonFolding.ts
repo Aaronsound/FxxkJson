@@ -16,6 +16,14 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
     [data.regions]
   );
 
+  const getRegionEndLineByStartLine = useCallback(
+    (lineNumber: number) => {
+      const regionIndex = findFirstRegionIndexAtStartLine(data.regions, lineNumber);
+      return regionIndex >= 0 ? data.regions.endLines[regionIndex] : null;
+    },
+    [data.regions]
+  );
+
   const normalizedStateLines = useMemo(() => {
     const uniqueLines = new Set<number>();
     foldState.lines.forEach((line) => {
@@ -145,6 +153,7 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
     collapsedIntervals,
     expandLine,
     foldAll,
+    getRegionEndLineByStartLine,
     getRegionByStartLine,
     isLineCollapsed,
     isRegionCollapsed,

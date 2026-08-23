@@ -113,6 +113,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       collapsedIntervals,
       expandLine,
       foldAll,
+      getRegionEndLineByStartLine,
       getRegionByStartLine,
       isLineCollapsed,
       isRegionCollapsed,
@@ -330,7 +331,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
             getActualLineNumber={getActualLineNumber}
             getLineSelectionRange={getLineSelectionRange}
             getLineText={getLineText}
-            getRegionByStartLine={getRegionByStartLine}
+            getRegionEndLineByStartLine={getRegionEndLineByStartLine}
             getRowStyle={getRowStyle}
             isRegionCollapsed={isRegionCollapsed}
             isLineSelected={isLineSelected}
