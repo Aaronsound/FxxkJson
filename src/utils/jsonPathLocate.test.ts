@@ -16,4 +16,15 @@ describe('getJsonPathLocateRange', () => {
     expect(getJsonPathLocateRange('', ['missing'])).toBeNull();
     expect(getJsonPathLocateRange('{"ok":true}', ['missing'])).toBeNull();
   });
+
+  it('returns complete object, array, and root container ranges without a syntax tree', () => {
+    const raw = '{"items":[{"id":1},{"id":2}],"ok":true}';
+    const objectRange = getJsonPathLocateRange(raw, ['items', 1]);
+    const arrayRange = getJsonPathLocateRange(raw, ['items']);
+    const rootRange = getJsonPathLocateRange(raw, []);
+
+    expect(raw.slice(objectRange?.startOffset, objectRange?.endOffset)).toBe('{"id":2}');
+    expect(raw.slice(arrayRange?.startOffset, arrayRange?.endOffset)).toBe('[{"id":1},{"id":2}]');
+    expect(raw.slice(rootRange?.startOffset, rootRange?.endOffset)).toBe(raw);
+  });
 });

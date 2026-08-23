@@ -6,6 +6,7 @@ import type { JsonValue } from '../utils/preserveJsonFormat';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import { replaceTextSearchMatches } from '../utils/searchText';
 import type { SaveNodeEditResult } from './jsonNodeEditOperations';
+import { getRawViewerTransferables } from './jsonWorkerTextPayload';
 
 interface EditJsonCacheEntry {
   originalText: string;
@@ -39,7 +40,15 @@ type EditJsonWorkerRequestMessage = EditJsonWorkerRequest & {
   type?: 'edit-json';
 };
 
-function postWorkerMessage(message: WorkerMessage) {
+function postWorkerMessage(message: WorkerMessage, transfer: Transferable[] = []) {
+  if (transfer.length > 0) {
+    (self as unknown as { postMessage(message: unknown, transfer: Transferable[]): void }).postMessage(
+      message,
+      transfer
+    );
+    return;
+  }
+
   postMessage(message);
 }
 
@@ -124,7 +133,7 @@ export function createJsonWorkerEditJsonOperations({
           const formattedPatch =
             typeof result.formattedText === 'string' ? { formattedText: result.formattedText } : {};
 
-          postWorkerMessage({
+          const resultMessage: WorkerMessage = {
             type: 'edit-json-result',
             requestId,
             tabId,
@@ -136,7 +145,8 @@ export function createJsonWorkerEditJsonOperations({
             rawViewerData: result.rawViewerData,
             viewerData: result.viewerData,
             viewerIndexMs: result.viewerIndexMs,
-          });
+          };
+          postWorkerMessage(resultMessage, getRawViewerTransferables(result.rawViewerData));
           return null;
         }
 

@@ -13,6 +13,7 @@ import {
   getRightSearchQuery,
   measure,
   readFirstRequestValue,
+  readFirstRequestValueStreaming,
   replaceLiteralMatches,
   replaceRegexMatches,
 } from './bench-json-metrics.mjs';
@@ -73,6 +74,9 @@ export async function benchFile(filePath) {
   const nodeValueReadResult = measure('nodeValueRead', () =>
     readFirstRequestValue(formattedText, formattedTreeResult.value)
   );
+  const streamingNodeReadResult = measure('streamingNodeRead', () =>
+    readFirstRequestValueStreaming(rawText, formattedText)
+  );
   const nodeEditPatchResult = measure('nodeEditPatch', () => {
     const node = nodeValueReadResult.value;
     if (!node) {
@@ -82,6 +86,11 @@ export async function benchFile(filePath) {
     const nextLiteral = JSON.stringify('req-benchmark-updated');
     return `${formattedText.slice(0, node.start)}${nextLiteral}${formattedText.slice(node.end)}`;
   });
+  const nodeEditViewerResult = measure('nodeEditViewerIndex', () =>
+    nodeEditPatchResult.value
+      ? buildViewerDataStats(nodeEditPatchResult.value, viewerResult.value.lineCount)
+      : { buildWorkingBytes: 0 }
+  );
 
   return {
     filePath: absolutePath,
@@ -115,7 +124,10 @@ export async function benchFile(filePath) {
     leftReplaceAllMs: leftReplaceAllResult.ms,
     leftRegexReplaceAllMs: leftRegexReplaceAllResult.ms,
     nodeValueReadMs: nodeValueReadResult.ms,
+    streamingNodeReadMs: streamingNodeReadResult.ms,
     nodeEditPatchMs: nodeEditPatchResult.ms,
+    nodeEditViewerIndexMs: nodeEditViewerResult.ms,
+    nodeEditViewerWorkingBytes: nodeEditViewerResult.value.buildWorkingBytes,
     rawBytes,
     rawViewerIndexMs: rawViewerResult.ms,
     rawViewerIndexBytes: rawViewerResult.value.indexBytes,

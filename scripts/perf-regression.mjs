@@ -22,7 +22,9 @@ const COMPARED_METRICS = [
   'leftReplaceAllMs',
   'leftRegexReplaceAllMs',
   'nodeValueReadMs',
+  'streamingNodeReadMs',
   'nodeEditPatchMs',
+  'nodeEditViewerIndexMs',
 ];
 
 function parseArgs(args) {
@@ -187,7 +189,10 @@ function printResults(results, failures, baselinePath) {
       leftReplaceAll: formatDuration(result.leftReplaceAllMs),
       leftRegexReplaceAll: formatDuration(result.leftRegexReplaceAllMs),
       nodeRead: formatDuration(result.nodeValueReadMs),
+      streamingNodeRead: formatDuration(result.streamingNodeReadMs),
       nodePatch: formatDuration(result.nodeEditPatchMs),
+      nodeReindex: formatDuration(result.nodeEditViewerIndexMs),
+      nodeReindexMemory: formatBytes(result.nodeEditViewerWorkingBytes),
     }))
   );
 

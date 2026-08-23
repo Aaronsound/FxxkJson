@@ -22,7 +22,6 @@ const {
   clearDeferredStructureWarmup,
   clearDirectValueWarmup,
   ensureStructureTrees,
-  getDirectValueTree,
   getStructureWarmupDelayForTexts,
   scheduleDeferredStructureWarmup,
   scheduleDirectValueTreeWarmup,
@@ -59,7 +58,6 @@ const jsonWorkerSearchOperations = createJsonWorkerSearchOperations({
 });
 const jsonWorkerLocateOperations = createJsonWorkerLocateOperations({
   ensureStructureTrees,
-  getDirectValueTree,
   latestLocateRequestByTab,
   structureCache,
   viewerCache,

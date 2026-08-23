@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks';
-import { findNodeAtLocation, getLocation } from 'jsonc-parser';
+import { findNodeAtLocation, getLocation, visit } from 'jsonc-parser';
 
 export const RIGHT_SEARCH_BATCH_SIZE = 2000;
 
@@ -405,4 +405,56 @@ export function readFirstRequestValue(formattedText, formattedTree) {
     path: location.path,
     start: node.offset,
   };
+}
+
+function findStreamingJsonPathRange(text, targetPath) {
+  let range = null;
+  let targetContainer = null;
+  const pathsEqual = (left, right) =>
+    left.length === right.length && left.every((segment, index) => segment === right[index]);
+  const isPrefix = (prefix, path) =>
+    prefix.length <= path.length && prefix.every((segment, index) => segment === path[index]);
+  const beginContainer = (kind, offset, pathSupplier) => {
+    if (range) {
+      return false;
+    }
+    const currentPath = pathSupplier();
+    if (pathsEqual(currentPath, targetPath)) {
+      targetContainer = { kind, startOffset: offset };
+      return false;
+    }
+    return isPrefix(currentPath, targetPath);
+  };
+  const endContainer = (kind, offset, length) => {
+    if (!range && targetContainer?.kind === kind) {
+      range = { startOffset: targetContainer.startOffset, endOffset: offset + length };
+      targetContainer = null;
+    }
+  };
+
+  visit(text, {
+    onArrayBegin: (offset, _length, _line, _character, pathSupplier) => beginContainer('array', offset, pathSupplier),
+    onArrayEnd: (offset, length) => endContainer('array', offset, length),
+    onLiteralValue: (_value, offset, length, _line, _character, pathSupplier) => {
+      if (!range && pathsEqual(pathSupplier(), targetPath)) {
+        range = { startOffset: offset, endOffset: offset + length };
+      }
+    },
+    onObjectBegin: (offset, _length, _line, _character, pathSupplier) => beginContainer('object', offset, pathSupplier),
+    onObjectEnd: (offset, length) => endContainer('object', offset, length),
+  });
+
+  return range;
+}
+
+export function readFirstRequestValueStreaming(rawText, formattedText) {
+  const offset = formattedText.indexOf('"req-');
+  if (offset === -1) {
+    return null;
+  }
+
+  const path = getLocation(formattedText, offset).path;
+  const rawRange = findStreamingJsonPathRange(rawText, path);
+  const formattedRange = findStreamingJsonPathRange(formattedText, path);
+  return rawRange && formattedRange ? { formattedRange, path, rawRange } : null;
 }

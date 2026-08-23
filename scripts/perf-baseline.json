@@ -18,7 +18,9 @@
       "leftReplaceAllMs": 80,
       "leftRegexReplaceAllMs": 80,
       "nodeValueReadMs": 25,
-      "nodeEditPatchMs": 25
+      "streamingNodeReadMs": 150,
+      "nodeEditPatchMs": 25,
+      "nodeEditViewerIndexMs": 70
     },
     "sample-20mb.json": {
       "totalFormatMs": 550,
@@ -36,7 +38,9 @@
       "leftReplaceAllMs": 220,
       "leftRegexReplaceAllMs": 220,
       "nodeValueReadMs": 50,
-      "nodeEditPatchMs": 50
+      "streamingNodeReadMs": 600,
+      "nodeEditPatchMs": 50,
+      "nodeEditViewerIndexMs": 400
     }
   }
 }

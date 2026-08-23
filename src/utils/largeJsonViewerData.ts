@@ -48,11 +48,11 @@ function growUint8Buffer(buffer: Uint8Array, minimumCapacity: number) {
 export function buildLargeViewerData(
   text: string,
   lineThreshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
-  expectedLineCount?: number
+  lineCapacityHint?: number
 ): LargeJsonViewerData | null {
   const initialLineCapacity =
-    typeof expectedLineCount === 'number' && Number.isSafeInteger(expectedLineCount) && expectedLineCount > 0
-      ? expectedLineCount
+    typeof lineCapacityHint === 'number' && Number.isSafeInteger(lineCapacityHint) && lineCapacityHint > 0
+      ? lineCapacityHint
       : INITIAL_LINE_INDEX_CAPACITY;
   let lineStarts = new Uint32Array(initialLineCapacity);
   lineStarts[0] = 0;

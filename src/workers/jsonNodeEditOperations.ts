@@ -1,6 +1,6 @@
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
-import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { JsonEditPath, LargeJsonViewerData, LargeRawViewerData } from '../types/jsonTool';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
@@ -179,8 +179,12 @@ export function createJsonNodeEditOperations({
     const nextFormattedText = saveJsonNodePreservingOriginalFormat(formattedText, path, text, {
       range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText),
     });
+    const previousViewerData = viewerCache.get(tabId)?.viewerData ?? structureCache.get(tabId)?.viewerData;
+    const lineCapacityHint = previousViewerData
+      ? Math.min(previousViewerData.lineCount, nextFormattedText.length + 1)
+      : undefined;
     const viewerIndexStartedAt = performance.now();
-    const viewerData = buildLargeViewerData(nextFormattedText);
+    const viewerData = buildLargeViewerData(nextFormattedText, DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, lineCapacityHint);
     const viewerIndexMs = performance.now() - viewerIndexStartedAt;
     const requestId = latestFormatRequestByTab.get(tabId) ?? 0;
     let structureWarming = false;

@@ -1,5 +1,5 @@
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
-import type { WorkerMessage } from '../types/jsonTool';
+import type { LargeRawViewerData, WorkerMessage } from '../types/jsonTool';
 import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
 type TextPayloadMessage = { text?: string; textBuffer?: ArrayBuffer };
@@ -62,10 +62,21 @@ export function appendTextPayload(
   message[stringKey] = text;
 }
 
+export function getRawViewerTransferables(rawViewerData: LargeRawViewerData | null | undefined) {
+  if (!rawViewerData) {
+    return [];
+  }
+
+  return [rawViewerData.starts.buffer, rawViewerData.lengths.buffer].filter(
+    (buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer
+  );
+}
+
 export function postTextResult(payload: Partial<WorkerMessage>, text: string, byteLength?: number) {
   const message = { ...payload };
   const transfer: Transferable[] = [];
   appendTextPayload(message, transfer, 'data', 'dataBuffer', text, byteLength);
+  transfer.push(...getRawViewerTransferables(payload.rawViewerData));
   (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
 }
 
@@ -80,5 +91,6 @@ export function postRepairResult(
   const transfer: Transferable[] = [];
   appendTextPayload(message, transfer, 'data', 'dataBuffer', formattedText, formattedByteLength);
   appendTextPayload(message, transfer, 'repairedText', 'repairedTextBuffer', repairedText, repairedByteLength);
+  transfer.push(...getRawViewerTransferables(payload.rawViewerData));
   (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
 }

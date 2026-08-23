@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import {
   appendTextPayload,
+  getRawViewerTransferables,
   getTextByteLength,
   postRepairResult,
   postTextResult,
@@ -58,5 +59,26 @@ describe('jsonWorkerTextPayload', () => {
       expect.objectContaining({ data: '{}', repairedText: '{"ok":true}', requestId: 2 }),
       []
     );
+  });
+
+  it('transfers compact raw viewer buffers with worker results', () => {
+    const postMessageSpy = vi.fn();
+    vi.stubGlobal('postMessage', postMessageSpy);
+    const rawViewerData = {
+      starts: Uint32Array.from([0, 20]),
+      lengths: Uint16Array.from([20, 4]),
+      rowCount: 2,
+    };
+
+    postTextResult({ requestId: 3, rawViewerData, tabId: 'tab-a', type: 'format-result' }, '{}');
+
+    expect(getRawViewerTransferables(rawViewerData)).toEqual([
+      rawViewerData.starts.buffer,
+      rawViewerData.lengths.buffer,
+    ]);
+    expect(postMessageSpy).toHaveBeenCalledWith(expect.objectContaining({ rawViewerData, requestId: 3 }), [
+      rawViewerData.starts.buffer,
+      rawViewerData.lengths.buffer,
+    ]);
   });
 });
