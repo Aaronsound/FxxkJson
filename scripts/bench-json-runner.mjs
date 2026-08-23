@@ -47,10 +47,17 @@ export async function benchFile(filePath) {
   const stringifyResult = measure('stringify', () => JSON.stringify(parseResult.value, null, 2));
   const formattedText = stringifyResult.value;
   const formattedBytes = Buffer.byteLength(formattedText, 'utf8');
-  const uiMetricRescanResult = measure('legacyUiMetricRescan', () => ({
-    raw: measureDocumentMetrics(rawText),
-    formatted: measureDocumentMetrics(formattedText),
-  }));
+  const uiMetricRescanResult = measure('legacyUiMetricRescan', () => {
+    const raw = measure('rawMetricRescan', () => measureDocumentMetrics(rawText));
+    const formatted = measure('formattedMetricRescan', () => measureDocumentMetrics(formattedText));
+    return { formatted: formatted.value, formattedMs: formatted.ms, raw: raw.value, rawMs: raw.ms };
+  });
+  const formattedIdentityCopy = Buffer.from(formattedText).toString('utf8');
+  const identityComparisonResult = measureRepeated(
+    'identityComparison',
+    5,
+    () => formattedText === formattedIdentityCopy
+  );
   const rawViewerResult = measure('raw-viewer-index', () => buildRawViewerDataStats(rawText));
   const formattedLineCount = countTextLines(formattedText);
   const viewerResult = measure('viewer-index', () => buildViewerDataStats(formattedText, formattedLineCount));
@@ -217,6 +224,8 @@ export async function benchFile(filePath) {
     nodeEditViewerIndexMs: nodeEditViewerResult.ms,
     nodeEditViewerWorkingBytes: nodeEditViewerResult.value.buildWorkingBytes,
     nodeSaveTransferBytes: rawBytes + formattedBytes,
+    nodeWarmupMetricRescanAvoidedMs: uiMetricRescanResult.value.rawMs + uiMetricRescanResult.value.formattedMs,
+    identityComparisonAvoidedMs: identityComparisonResult.ms,
     uiMetricRescanAvoidedMs: uiMetricRescanResult.ms,
     rawBytes,
     rawViewerIndexMs: rawViewerResult.ms,

@@ -1,7 +1,6 @@
 import { parseTree } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
 import { getDeferredStructureWarmupDelayMs } from '../utils/jsonWorkerPlan';
-import { getTextByteLength } from './jsonWorkerTextPayload';
 
 interface StructureCacheEntry {
   directLocate?: boolean;
@@ -23,15 +22,8 @@ export function createJsonWorkerStructureOperations({
   latestFormatRequestByTab,
   structureCache,
 }: JsonWorkerStructureOperationsArgs) {
-  function getStructureWarmupDelayForTexts(
-    rawText: string | null | undefined,
-    formattedText: string | null | undefined,
-    baseDelayMs: number
-  ) {
-    return getDeferredStructureWarmupDelayMs(
-      Math.max(getTextByteLength(rawText ?? ''), getTextByteLength(formattedText ?? '')),
-      baseDelayMs
-    );
+  function getStructureWarmupDelayForByteLength(textByteLength: number, baseDelayMs: number) {
+    return getDeferredStructureWarmupDelayMs(textByteLength, baseDelayMs);
   }
 
   function ensureStructureTrees(tabId: string, cached: StructureCacheEntry | null | undefined) {
@@ -105,7 +97,7 @@ export function createJsonWorkerStructureOperations({
   return {
     clearDeferredStructureWarmup,
     ensureStructureTrees,
-    getStructureWarmupDelayForTexts,
+    getStructureWarmupDelayForByteLength,
     scheduleDeferredStructureWarmup,
   };
 }

@@ -212,6 +212,8 @@ function printResults(results, failures, baselinePath) {
       nodeReindex: formatDuration(result.nodeEditViewerIndexMs),
       nodeReindexMemory: formatBytes(result.nodeEditViewerWorkingBytes),
       nodeSaveTransfer: formatBytes(result.nodeSaveTransferBytes),
+      nodeWarmupRescanAvoided: formatDuration(result.nodeWarmupMetricRescanAvoidedMs),
+      identityComparisonAvoided: formatDuration(result.identityComparisonAvoidedMs),
       uiMetricRescanAvoided: formatDuration(result.uiMetricRescanAvoidedMs),
     }))
   );

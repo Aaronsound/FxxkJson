@@ -11,10 +11,11 @@ function createHarness() {
   const latestFormatRequestByTab = new Map<string, number>();
   const nodeEditCache = new Map();
   const scheduleDeferredStructureWarmup = vi.fn();
+  const getStructureWarmupDelayForByteLength = vi.fn(() => 25);
   const operations = createJsonNodeEditOperations({
     clearDeferredStructureWarmup: vi.fn(),
     getLocateCandidateOffsets,
-    getStructureWarmupDelayForTexts: vi.fn(() => 25),
+    getStructureWarmupDelayForByteLength,
     latestFormatRequestByTab,
     nodeEditCache,
     scheduleDeferredStructureWarmup,
@@ -23,6 +24,7 @@ function createHarness() {
   });
 
   return {
+    getStructureWarmupDelayForByteLength,
     latestFormatRequestByTab,
     nodeEditCache,
     operations,
@@ -91,8 +93,14 @@ describe('jsonNodeEditOperations', () => {
   });
 
   it('saves a node and refreshes raw, formatted, viewer, and structure caches', () => {
-    const { latestFormatRequestByTab, operations, scheduleDeferredStructureWarmup, structureCache, viewerCache } =
-      createHarness();
+    const {
+      getStructureWarmupDelayForByteLength,
+      latestFormatRequestByTab,
+      operations,
+      scheduleDeferredStructureWarmup,
+      structureCache,
+      viewerCache,
+    } = createHarness();
     const rawText = '{"name":"old","count":1}';
     const formattedText = '{\n  "name": "old",\n  "count": 1\n}';
     latestFormatRequestByTab.set('tab-a', 9);
@@ -122,6 +130,7 @@ describe('jsonNodeEditOperations', () => {
       formattedTree: undefined,
     });
     expect(scheduleDeferredStructureWarmup).toHaveBeenCalledWith('tab-a', 9, 25);
+    expect(getStructureWarmupDelayForByteLength).toHaveBeenCalledWith(33, 150);
   });
 
   it('deletes nodes and renames object keys through preserve-format helpers', () => {

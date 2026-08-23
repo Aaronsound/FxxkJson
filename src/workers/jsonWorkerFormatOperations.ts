@@ -129,6 +129,12 @@ export function createJsonWorkerFormatOperations({
         );
         const viewerIndexMs = performance.now() - viewerIndexStartedAt;
         const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
+        const isIdentityFormat =
+          Boolean(viewerData) &&
+          !enableStructure &&
+          enableDirectLocate &&
+          !normalizedNestedString &&
+          sourceText === formatted;
         if (viewerData) {
           viewerCache.set(tabId, {
             requestId,
@@ -144,8 +150,8 @@ export function createJsonWorkerFormatOperations({
             structureCache.set(tabId, {
               requestId,
               directLocate: true,
-              directLocateMode: sourceText === formatted ? 'identity' : 'token-search',
-              rawText: sourceText === formatted ? undefined : sourceText,
+              directLocateMode: isIdentityFormat ? 'identity' : 'token-search',
+              rawText: isIdentityFormat ? undefined : sourceText,
               formattedText: formatted,
               viewerData: workerViewerData!,
               tokenLocateCache: { tokenOffsetsByToken: new Map() },

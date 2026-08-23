@@ -34,6 +34,12 @@ describe('jsonWorkerStructureOperations', () => {
     postMessage.mockReset();
   });
 
+  it('selects warmup delay directly from an already measured byte length', () => {
+    const { operations } = createStructureHarness();
+
+    expect(operations.getStructureWarmupDelayForByteLength(16 * 1024 * 1024, 150)).toBe(1600);
+  });
+
   it('parses and caches raw/formatted structure trees on demand', () => {
     const { operations, structureCache } = createStructureHarness();
     const cached: StructureCacheEntry = {

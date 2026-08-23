@@ -19,7 +19,7 @@ const latestLocateRequestByTab = new Map();
 const {
   clearDeferredStructureWarmup,
   ensureStructureTrees,
-  getStructureWarmupDelayForTexts,
+  getStructureWarmupDelayForByteLength,
   scheduleDeferredStructureWarmup,
 } = createJsonWorkerStructureOperations({
   deferredStructureWarmupTimers,
@@ -30,7 +30,7 @@ const {
 const jsonNodeEditOperations = createJsonNodeEditOperations({
   clearDeferredStructureWarmup,
   getLocateCandidateOffsets,
-  getStructureWarmupDelayForTexts,
+  getStructureWarmupDelayForByteLength,
   latestFormatRequestByTab,
   nodeEditCache,
   scheduleDeferredStructureWarmup,

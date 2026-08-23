@@ -61,11 +61,7 @@ interface PatchCachedFormattedNodeResult {
 interface JsonNodeEditOperationsArgs {
   clearDeferredStructureWarmup: (tabId: string) => void;
   getLocateCandidateOffsets: (text: string, offset: number) => number[];
-  getStructureWarmupDelayForTexts: (
-    rawText: string | null | undefined,
-    formattedText: string | null | undefined,
-    baseDelayMs: number
-  ) => number;
+  getStructureWarmupDelayForByteLength: (textByteLength: number, baseDelayMs: number) => number;
   latestFormatRequestByTab: Map<string, number>;
   nodeEditCache: Parameters<typeof getCachedNodeRange>[0];
   scheduleDeferredStructureWarmup: (tabId: string, requestId: number, delayMs?: number) => void;
@@ -94,7 +90,7 @@ function getCachedFormattedText(
 export function createJsonNodeEditOperations({
   clearDeferredStructureWarmup,
   getLocateCandidateOffsets,
-  getStructureWarmupDelayForTexts,
+  getStructureWarmupDelayForByteLength,
   latestFormatRequestByTab,
   nodeEditCache,
   scheduleDeferredStructureWarmup,
@@ -167,7 +163,8 @@ export function createJsonNodeEditOperations({
     tabId: string,
     text: string,
     path: JsonEditPath,
-    rawText: string
+    rawText: string,
+    rawMetrics: JsonDocumentMetrics
   ): PatchCachedFormattedNodeResult {
     const formattedText =
       getCachedFormattedText(tabId, structureCache, viewerCache) ?? nodeEditCache.get(tabId)?.formattedText;
@@ -213,11 +210,12 @@ export function createJsonNodeEditOperations({
     if (cachedStructure) {
       if (cachedStructure.directLocate) {
         if (viewerData) {
+          const isIdentityFormat = rawText === nextFormattedText;
           structureCache.set(tabId, {
             requestId,
             directLocate: true,
-            directLocateMode: rawText === nextFormattedText ? 'identity' : 'token-search',
-            rawText: rawText === nextFormattedText ? undefined : rawText,
+            directLocateMode: isIdentityFormat ? 'identity' : 'token-search',
+            rawText: isIdentityFormat ? undefined : rawText,
             formattedText: nextFormattedText,
             viewerData: workerViewerData!,
             tokenLocateCache: { tokenOffsetsByToken: new Map() },
@@ -236,7 +234,10 @@ export function createJsonNodeEditOperations({
         scheduleDeferredStructureWarmup(
           tabId,
           requestId,
-          getStructureWarmupDelayForTexts(rawText, nextFormattedText, 150)
+          getStructureWarmupDelayForByteLength(
+            Math.max(rawMetrics.textByteLength, formattedMetrics.textByteLength),
+            150
+          )
         );
         structureWarming = true;
       }
@@ -266,7 +267,7 @@ export function createJsonNodeEditOperations({
     });
     const rawMetrics = measureJsonDocument(rawText);
     const rawViewerData = rawMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
-    const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText);
+    const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText, rawMetrics);
 
     nodeEditCache.delete(tabId);
 
