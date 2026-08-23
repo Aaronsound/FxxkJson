@@ -70,6 +70,8 @@ export async function benchFile(filePath) {
     }
   }
   const foldAllResult = measure('fold-all-index', () => buildFoldAllStats(viewerResult.value.regions));
+  const foldStateSampleSize = Math.min(10_000, viewerResult.value.regionCount);
+  const foldStateBinaryComparisons = Math.max(1, Math.ceil(Math.log2(foldStateSampleSize + 1)));
   const wrapLayoutResult = measure('wrap-layout', () =>
     buildWrapLayoutStats(formattedText, viewerResult.value.lineStarts, viewerResult.value.lineCount)
   );
@@ -206,6 +208,12 @@ export async function benchFile(filePath) {
     foldAllIntervalsMs: foldAllResult.ms,
     foldAllIntervalCount: foldAllResult.value.intervalCount,
     foldAllVisitedRegionCount: foldAllResult.value.visitedRegionCount,
+    legacyFoldStateInsertComparisons: Math.ceil(foldStateSampleSize * Math.log2(Math.max(2, foldStateSampleSize))),
+    optimizedFoldStateInsertComparisons: foldStateBinaryComparisons,
+    legacyFoldStateRemoveComparisons: foldStateSampleSize,
+    optimizedFoldStateRemoveComparisons: foldStateBinaryComparisons,
+    explicitFoldRegionLookupsAvoided: foldStateSampleSize,
+    explicitFoldRegionObjectsAvoided: foldStateSampleSize,
     wrapLayoutMs: wrapLayoutResult.ms,
     wrapLayoutBytes: wrapLayoutResult.value.indexBytes,
     wrapLongRowCount: wrapLayoutResult.value.longRowCount,

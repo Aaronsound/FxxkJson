@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
-import { useLargeJsonFolding } from './useLargeJsonFolding';
+import { insertSortedFoldLine, removeSortedFoldLine, useLargeJsonFolding } from './useLargeJsonFolding';
 
 const data = buildLargeViewerData(['{', '  "items": [', '    1', '  ]', '}'].join('\n'), 1);
 if (!data) {
@@ -9,6 +9,15 @@ if (!data) {
 }
 
 describe('useLargeJsonFolding', () => {
+  it('inserts and removes fold lines without sorting or filtering the full state', () => {
+    const lines = [1, 4, 9];
+
+    expect(insertSortedFoldLine(lines, 6)).toEqual([1, 4, 6, 9]);
+    expect(insertSortedFoldLine(lines, 4)).toBe(lines);
+    expect(removeSortedFoldLine(lines, 4)).toEqual([1, 9]);
+    expect(removeSortedFoldLine(lines, 5)).toBe(lines);
+  });
+
   it('normalizes explicit collapsed lines and builds visible segments', () => {
     const onFoldStateChange = vi.fn();
     const { result } = renderHook(() =>

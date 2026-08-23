@@ -10,6 +10,40 @@ interface UseLargeJsonFoldingArgs {
   onFoldStateChange: (state: LargeJsonFoldState) => void;
 }
 
+function findSortedNumberIndex(lines: number[], lineNumber: number) {
+  let low = 0;
+  let high = lines.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lines[middle] < lineNumber) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+export function insertSortedFoldLine(lines: number[], lineNumber: number) {
+  const index = findSortedNumberIndex(lines, lineNumber);
+  if (lines[index] === lineNumber) {
+    return lines;
+  }
+
+  return [...lines.slice(0, index), lineNumber, ...lines.slice(index)];
+}
+
+export function removeSortedFoldLine(lines: number[], lineNumber: number) {
+  const index = findSortedNumberIndex(lines, lineNumber);
+  if (lines[index] !== lineNumber) {
+    return lines;
+  }
+
+  return [...lines.slice(0, index), ...lines.slice(index + 1)];
+}
+
 export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseLargeJsonFoldingArgs) {
   const getRegionByStartLine = useCallback(
     (lineNumber: number) => getLargeJsonViewerRegionAtStartLine(data.regions, lineNumber) ?? undefined,
@@ -24,16 +58,22 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
     [data.regions]
   );
 
-  const normalizedStateLines = useMemo(() => {
-    const uniqueLines = new Set<number>();
-    foldState.lines.forEach((line) => {
-      if (findFirstRegionIndexAtStartLine(data.regions, line) >= 0) {
-        uniqueLines.add(line);
+  const normalizedState = useMemo(() => {
+    const candidateLines = Array.from(new Set(foldState.lines)).sort((left, right) => left - right);
+    const lines: number[] = [];
+    const regionIndexes: number[] = [];
+
+    candidateLines.forEach((line) => {
+      const regionIndex = findFirstRegionIndexAtStartLine(data.regions, line);
+      if (regionIndex >= 0) {
+        lines.push(line);
+        regionIndexes.push(regionIndex);
       }
     });
 
-    return Array.from(uniqueLines).sort((left, right) => left - right);
+    return { lines, regionIndexes };
   }, [data.regions, foldState.lines]);
+  const normalizedStateLines = normalizedState.lines;
 
   const stateLineSet = useMemo(() => new Set(normalizedStateLines), [normalizedStateLines]);
 
@@ -82,17 +122,14 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
     };
 
     if (foldState.mode === 'explicit') {
-      normalizedStateLines.forEach((startLine) => {
-        const region = getLargeJsonViewerRegionAtStartLine(data.regions, startLine);
-        if (region) {
-          appendInterval(startLine, region.endLine);
-        }
+      normalizedStateLines.forEach((startLine, stateIndex) => {
+        appendInterval(startLine, data.regions.endLines[normalizedState.regionIndexes[stateIndex]]);
       });
       return intervals;
     }
 
     return buildAllExceptCollapsedIntervals(data.regions, stateLineSet);
-  }, [data.regions, foldState.mode, normalizedStateLines, stateLineSet]);
+  }, [data.regions, foldState.mode, normalizedState, normalizedStateLines, stateLineSet]);
 
   const visibleSegments = useMemo(
     () => buildVisibleSegments(data.lineCount, collapsedIntervals),
@@ -111,11 +148,11 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
       }
 
       if (foldState.mode === 'all-except') {
-        onFoldStateChange({ mode: 'all-except', lines: [...normalizedStateLines, lineNumber].sort((a, b) => a - b) });
+        onFoldStateChange({ mode: 'all-except', lines: insertSortedFoldLine(normalizedStateLines, lineNumber) });
         return;
       }
 
-      onFoldStateChange({ mode: 'explicit', lines: normalizedStateLines.filter((line) => line !== lineNumber) });
+      onFoldStateChange({ mode: 'explicit', lines: removeSortedFoldLine(normalizedStateLines, lineNumber) });
     },
     [foldState.mode, isLineCollapsed, normalizedStateLines, onFoldStateChange]
   );
@@ -132,11 +169,11 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
       }
 
       if (foldState.mode === 'all-except') {
-        onFoldStateChange({ mode: 'all-except', lines: normalizedStateLines.filter((line) => line !== lineNumber) });
+        onFoldStateChange({ mode: 'all-except', lines: removeSortedFoldLine(normalizedStateLines, lineNumber) });
         return;
       }
 
-      onFoldStateChange({ mode: 'explicit', lines: [...normalizedStateLines, lineNumber].sort((a, b) => a - b) });
+      onFoldStateChange({ mode: 'explicit', lines: insertSortedFoldLine(normalizedStateLines, lineNumber) });
     },
     [data.regions, expandLine, foldState.mode, isLineCollapsed, normalizedStateLines, onFoldStateChange]
   );
