@@ -8,7 +8,7 @@ import type JsonToolTabBar from '../components/JsonToolTabBar';
 import type JsonToolToolbar from '../components/JsonToolToolbar';
 import type JsonPerformancePanel from '../components/JsonPerformancePanel';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
-import type { Tab } from '../types/jsonTool';
+import type { LargeJsonFoldState, Tab } from '../types/jsonTool';
 import { createJsonToolContextMenusProps, createJsonToolPanesProps } from './jsonToolPaneMenuProps';
 import { createJsonToolOverlayProps, createJsonToolToolbarProps } from './jsonToolOverlayToolbarProps';
 
@@ -111,7 +111,7 @@ type JsonToolToolbarInput = {
 type JsonToolPanesInput = {
   activeDocumentMeta: { rawLength: number };
   activeLargeRawViewerData: LeftPaneProps['activeLargeRawViewerData'];
-  activeLargeViewerCollapsedLines: RightPaneProps['activeLargeViewerCollapsedLines'];
+  activeLargeViewerFoldState: RightPaneProps['activeLargeViewerFoldState'];
   activeLargeViewerData: RightPaneProps['activeLargeViewerData'];
   activeLeftMatchCount: LeftPaneProps['activeLeftMatchCount'];
   activeRawText: LeftPaneProps['activeRawText'];
@@ -180,7 +180,7 @@ type JsonToolPanesInput = {
   rightSearchTerm: RightPaneProps['rightSearchTerm'];
   selectRightPinnedPath: RightPaneProps['onSelectRightPinnedPath'];
   setIsRightFindOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setLargeViewerCollapsedLinesByTab: React.Dispatch<React.SetStateAction<Record<string, number[]>>>;
+  setLargeViewerFoldStateByTab: React.Dispatch<React.SetStateAction<Record<string, LargeJsonFoldState>>>;
   setLargeViewerMatchCount: RightPaneProps['onRightMatchCountChange'];
   setLeftReplaceText: LeftPaneProps['onLeftReplaceValueChange'];
   setRightMatchIndex: React.Dispatch<React.SetStateAction<number>>;

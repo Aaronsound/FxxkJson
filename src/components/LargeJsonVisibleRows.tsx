@@ -13,7 +13,6 @@ interface LocalSelectionRange {
 }
 
 interface LargeJsonVisibleRowsProps {
-  collapsedLineSet: Set<number>;
   data: LargeJsonViewerData;
   endVisibleIndex: number;
   getActualLineNumber: (visibleIndex: number) => number | null;
@@ -25,12 +24,13 @@ interface LargeJsonVisibleRowsProps {
     isCollapsed: boolean
   ) => LocalSelectionRange | null;
   getLineText: (lineNumber: number) => string;
+  getRegionByStartLine: (lineNumber: number) => LargeJsonViewerRegion | undefined;
   getRowHeight: (visibleIndex: number) => number;
   getRowTop: (visibleIndex: number) => number;
+  isLineCollapsed: (lineNumber: number) => boolean;
   isLineSelected: (lineNumber: number) => boolean;
   lineNumberWidth: string;
   onLocateOffset: (offset: number) => void;
-  regionsByStartLine: Map<number, LargeJsonViewerRegion>;
   renderLineText: (
     lineNumber: number,
     lineText: string,
@@ -58,18 +58,18 @@ function hasTextSelectionInside(element: HTMLElement) {
 }
 
 export function LargeJsonVisibleRows({
-  collapsedLineSet,
   data,
   endVisibleIndex,
   getActualLineNumber,
   getLineSelectionRange,
   getLineText,
+  getRegionByStartLine,
   getRowHeight,
   getRowTop,
+  isLineCollapsed,
   isLineSelected,
   lineNumberWidth,
   onLocateOffset,
-  regionsByStartLine,
   renderLineText,
   resolveOffsetFromPoint,
   setContextMenu,
@@ -85,8 +85,8 @@ export function LargeJsonVisibleRows({
       continue;
     }
 
-    const region = regionsByStartLine.get(lineNumber);
-    const isCollapsed = collapsedLineSet.has(lineNumber);
+    const region = getRegionByStartLine(lineNumber);
+    const isCollapsed = isLineCollapsed(lineNumber);
     const baseLineText = getLineText(lineNumber);
     const lineText = region && isCollapsed ? getCollapsedPreview(baseLineText) : baseLineText;
     const isSelected = isLineSelected(lineNumber);

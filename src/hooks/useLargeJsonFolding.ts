@@ -1,48 +1,51 @@
 import { useCallback, useMemo } from 'react';
-import type { LargeJsonViewerData, LargeJsonViewerRegion } from '../types/jsonTool';
+import type { LargeJsonFoldState, LargeJsonViewerData } from '../types/jsonTool';
+import { findFirstRegionIndexAtStartLine, getLargeJsonViewerRegionAtStartLine } from '../utils/largeJsonViewerData';
 import { buildVisibleSegments } from '../utils/largeJsonViewerRender';
 import type { CollapsedInterval } from '../utils/largeJsonViewerRender';
 
 interface UseLargeJsonFoldingArgs {
-  collapsedLines: number[];
+  foldState: LargeJsonFoldState;
   data: LargeJsonViewerData;
-  onCollapsedLinesChange: (lines: number[]) => void;
+  onFoldStateChange: (state: LargeJsonFoldState) => void;
 }
 
-export function useLargeJsonFolding({ collapsedLines, data, onCollapsedLinesChange }: UseLargeJsonFoldingArgs) {
-  const regionsByStartLine = useMemo(() => {
-    const map = new Map<number, LargeJsonViewerRegion>();
-    data.regions.forEach((region) => {
-      if (!map.has(region.startLine)) {
-        map.set(region.startLine, region);
-      }
-    });
-    return map;
-  }, [data.regions]);
+export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseLargeJsonFoldingArgs) {
+  const getRegionByStartLine = useCallback(
+    (lineNumber: number) => getLargeJsonViewerRegionAtStartLine(data.regions, lineNumber) ?? undefined,
+    [data.regions]
+  );
 
-  const normalizedCollapsedLines = useMemo(() => {
+  const normalizedStateLines = useMemo(() => {
     const uniqueLines = new Set<number>();
-    collapsedLines.forEach((line) => {
-      if (regionsByStartLine.has(line)) {
+    foldState.lines.forEach((line) => {
+      if (findFirstRegionIndexAtStartLine(data.regions, line) >= 0) {
         uniqueLines.add(line);
       }
     });
 
     return Array.from(uniqueLines).sort((left, right) => left - right);
-  }, [collapsedLines, regionsByStartLine]);
+  }, [data.regions, foldState.lines]);
+
+  const stateLineSet = useMemo(() => new Set(normalizedStateLines), [normalizedStateLines]);
+
+  const isLineCollapsed = useCallback(
+    (lineNumber: number) => {
+      if (findFirstRegionIndexAtStartLine(data.regions, lineNumber) < 0) {
+        return false;
+      }
+      return foldState.mode === 'all-except' ? !stateLineSet.has(lineNumber) : stateLineSet.has(lineNumber);
+    },
+    [data.regions, foldState.mode, stateLineSet]
+  );
 
   const collapsedIntervals = useMemo<CollapsedInterval[]>(() => {
     const intervals: CollapsedInterval[] = [];
 
-    normalizedCollapsedLines.forEach((startLine) => {
-      const region = regionsByStartLine.get(startLine);
-      if (!region) {
-        return;
-      }
-
+    const appendInterval = (startLine: number, endLine: number) => {
       const interval = {
         start: startLine + 1,
-        end: region.endLine - 1,
+        end: endLine - 1,
         triggerLine: startLine,
       };
 
@@ -62,10 +65,27 @@ export function useLargeJsonFolding({ collapsedLines, data, onCollapsedLinesChan
       }
 
       intervals.push(interval);
-    });
+    };
+
+    if (foldState.mode === 'explicit') {
+      normalizedStateLines.forEach((startLine) => {
+        const region = getLargeJsonViewerRegionAtStartLine(data.regions, startLine);
+        if (region) {
+          appendInterval(startLine, region.endLine);
+        }
+      });
+      return intervals;
+    }
+
+    for (let index = 0; index < data.regions.startLines.length; index += 1) {
+      const startLine = data.regions.startLines[index];
+      if (!stateLineSet.has(startLine)) {
+        appendInterval(startLine, data.regions.endLines[index]);
+      }
+    }
 
     return intervals;
-  }, [normalizedCollapsedLines, regionsByStartLine]);
+  }, [data.regions, foldState.mode, normalizedStateLines, stateLineSet]);
 
   const visibleSegments = useMemo(
     () => buildVisibleSegments(data.lineCount, collapsedIntervals),
@@ -77,40 +97,58 @@ export function useLargeJsonFolding({ collapsedLines, data, onCollapsedLinesChan
     [visibleSegments]
   );
 
-  const collapsedLineSet = useMemo(() => new Set(normalizedCollapsedLines), [normalizedCollapsedLines]);
-
-  const toggleLine = useCallback(
+  const expandLine = useCallback(
     (lineNumber: number) => {
-      if (!regionsByStartLine.has(lineNumber)) {
+      if (!isLineCollapsed(lineNumber)) {
         return;
       }
 
-      const next = new Set(collapsedLineSet);
-      if (next.has(lineNumber)) {
-        next.delete(lineNumber);
-      } else {
-        next.add(lineNumber);
+      if (foldState.mode === 'all-except') {
+        onFoldStateChange({ mode: 'all-except', lines: [...normalizedStateLines, lineNumber].sort((a, b) => a - b) });
+        return;
       }
 
-      onCollapsedLinesChange(Array.from(next).sort((left, right) => left - right));
+      onFoldStateChange({ mode: 'explicit', lines: normalizedStateLines.filter((line) => line !== lineNumber) });
     },
-    [collapsedLineSet, onCollapsedLinesChange, regionsByStartLine]
+    [foldState.mode, isLineCollapsed, normalizedStateLines, onFoldStateChange]
+  );
+
+  const toggleLine = useCallback(
+    (lineNumber: number) => {
+      if (findFirstRegionIndexAtStartLine(data.regions, lineNumber) < 0) {
+        return;
+      }
+
+      if (isLineCollapsed(lineNumber)) {
+        expandLine(lineNumber);
+        return;
+      }
+
+      if (foldState.mode === 'all-except') {
+        onFoldStateChange({ mode: 'all-except', lines: normalizedStateLines.filter((line) => line !== lineNumber) });
+        return;
+      }
+
+      onFoldStateChange({ mode: 'explicit', lines: [...normalizedStateLines, lineNumber].sort((a, b) => a - b) });
+    },
+    [data.regions, expandLine, foldState.mode, isLineCollapsed, normalizedStateLines, onFoldStateChange]
   );
 
   const foldAll = useCallback(() => {
-    onCollapsedLinesChange(data.regions.map((region) => region.startLine));
-  }, [data.regions, onCollapsedLinesChange]);
+    onFoldStateChange({ mode: 'all-except', lines: [] });
+  }, [onFoldStateChange]);
 
   const unfoldAll = useCallback(() => {
-    onCollapsedLinesChange([]);
-  }, [onCollapsedLinesChange]);
+    onFoldStateChange({ mode: 'explicit', lines: [] });
+  }, [onFoldStateChange]);
 
   return {
     collapsedIntervals,
-    collapsedLineSet,
+    expandLine,
     foldAll,
-    normalizedCollapsedLines,
-    regionsByStartLine,
+    getRegionByStartLine,
+    isLineCollapsed,
+    normalizedStateLines,
     toggleLine,
     unfoldAll,
     visibleLineCount,

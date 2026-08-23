@@ -1,5 +1,9 @@
 import { useCallback } from 'react';
-import { binarySearchSegment, getLargeJsonVisibleIndexAtOffset } from '../utils/largeJsonViewerRender';
+import {
+  binarySearchActualSegment,
+  binarySearchSegment,
+  getLargeJsonVisibleIndexAtOffset,
+} from '../utils/largeJsonViewerRender';
 import type { VisibleSegment } from '../utils/largeJsonViewerRender';
 
 interface UseLargeJsonVisibleWindowArgs {
@@ -35,14 +39,9 @@ export function useLargeJsonVisibleWindow({
 
   const getVisibleIndexForActualLine = useCallback(
     (lineNumber: number) => {
-      for (const segment of visibleSegments) {
-        if (lineNumber < segment.actualStart) {
-          break;
-        }
-
-        if (lineNumber <= segment.actualEnd) {
-          return segment.visibleStart + (lineNumber - segment.actualStart);
-        }
+      const segment = binarySearchActualSegment(visibleSegments, lineNumber);
+      if (segment) {
+        return segment.visibleStart + (lineNumber - segment.actualStart);
       }
 
       return null;

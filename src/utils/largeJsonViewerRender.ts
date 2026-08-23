@@ -56,6 +56,54 @@ export function binarySearchSegment(segments: VisibleSegment[], visibleIndex: nu
   return null;
 }
 
+export function binarySearchActualSegment(segments: VisibleSegment[], lineNumber: number) {
+  let low = 0;
+  let high = segments.length - 1;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const current = segments[mid];
+
+    if (lineNumber < current.actualStart) {
+      high = mid - 1;
+      continue;
+    }
+
+    if (lineNumber > current.actualEnd) {
+      low = mid + 1;
+      continue;
+    }
+
+    return current;
+  }
+
+  return null;
+}
+
+export function findCollapsedInterval(intervals: CollapsedInterval[], lineNumber: number) {
+  let low = 0;
+  let high = intervals.length - 1;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const interval = intervals[middle];
+
+    if (lineNumber < interval.start) {
+      high = middle - 1;
+      continue;
+    }
+
+    if (lineNumber > interval.end) {
+      low = middle + 1;
+      continue;
+    }
+
+    return interval;
+  }
+
+  return null;
+}
+
 export function buildVisibleSegments(lineCount: number, collapsedIntervals: CollapsedInterval[]): VisibleSegment[] {
   const segments: VisibleSegment[] = [];
   let actualLine = 1;

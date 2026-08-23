@@ -1,5 +1,6 @@
 import { parseTree } from 'jsonc-parser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EMPTY_LARGE_JSON_VIEWER_REGIONS } from '../types/jsonTool';
 import { buildLineStarts } from '../utils/searchText';
 import {
   createJsonWorkerLocateOperations,
@@ -88,7 +89,7 @@ describe('jsonWorkerLocateOperations', () => {
     const viewerData = {
       lineCount: 3,
       lineStarts: buildLineStarts(formattedText),
-      regions: [],
+      regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
     };
     const cached = {
       directLocate: true,
@@ -203,7 +204,7 @@ describe('jsonWorkerLocateOperations', () => {
             viewerData: {
               lineCount: 3,
               lineStarts: buildLineStarts(formattedText),
-              regions: [],
+              regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
             },
           },
         ],

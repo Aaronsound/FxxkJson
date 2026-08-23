@@ -1,6 +1,7 @@
 import type { MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { LargeJsonViewerData, LargeRawViewerData, StructureStatus, WorkerMessage } from '../types/jsonTool';
+import { EMPTY_LARGE_JSON_VIEWER_REGIONS } from '../types/jsonTool';
 import { handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
@@ -190,7 +191,11 @@ describe('handleJsonFormattingWorkerResult', () => {
   });
 
   it('updates dedicated viewer state from viewer-ready messages', () => {
-    const viewerData = { lineCount: 1, lineStarts: new Uint32Array([0]), regions: [] } satisfies LargeJsonViewerData;
+    const viewerData = {
+      lineCount: 1,
+      lineStarts: new Uint32Array([0]),
+      regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
+    } satisfies LargeJsonViewerData;
     const { callbacks, context, session } = createContext({
       performanceSessionsRef: ref({ 'tab-a': createSession({ structureEnabled: true }) }),
     });

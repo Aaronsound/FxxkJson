@@ -23,23 +23,23 @@ export interface LargeJsonLocalSelectionRange {
 }
 
 interface UseLargeJsonSelectionParams {
-  collapsedLineSet: Set<number>;
   containerRef: RefObject<HTMLDivElement | null>;
   data: LargeJsonViewerData;
   getLineText: (lineNumber: number) => string;
+  getRegionByStartLine: (lineNumber: number) => LargeJsonViewerRegion | undefined;
+  isLineCollapsed: (lineNumber: number) => boolean;
   onOpenFind: () => void;
-  regionsByStartLine: Map<number, LargeJsonViewerRegion>;
   selectedRange: { start: number; end: number } | null;
   text: string;
 }
 
 export function useLargeJsonSelection({
-  collapsedLineSet,
   containerRef,
   data,
   getLineText,
+  getRegionByStartLine,
+  isLineCollapsed,
   onOpenFind,
-  regionsByStartLine,
   selectedRange,
   text,
 }: UseLargeJsonSelectionParams) {
@@ -136,16 +136,16 @@ export function useLargeJsonSelection({
   const getCopyTextForCollapsedSelection = useCallback(
     (startLine: number, endLine: number, startOffset: number, endOffset: number) => {
       return getCollapsedCopyText({
-        collapsedLineSet,
         endLine,
         endOffset,
         getLineText,
-        regionsByStartLine,
+        getRegionByStartLine,
+        isLineCollapsed,
         startLine,
         startOffset,
       });
     },
-    [collapsedLineSet, getLineText, regionsByStartLine]
+    [getLineText, getRegionByStartLine, isLineCollapsed]
   );
 
   const handleSelectAll = useCallback(

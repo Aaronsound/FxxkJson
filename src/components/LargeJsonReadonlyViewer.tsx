@@ -6,9 +6,19 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { DEFAULT_SEARCH_OPTIONS, type LargeJsonSearchMatch, type LargeJsonViewerData } from '../types/jsonTool';
+import {
+  DEFAULT_SEARCH_OPTIONS,
+  type LargeJsonFoldState,
+  type LargeJsonSearchMatch,
+  type LargeJsonViewerData,
+} from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
-import { buildLargeJsonRowOffsets, clamp, getLargeJsonWrapColumnCount } from '../utils/largeJsonViewerRender';
+import {
+  buildLargeJsonRowOffsets,
+  clamp,
+  findCollapsedInterval,
+  getLargeJsonWrapColumnCount,
+} from '../utils/largeJsonViewerRender';
 import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import { LargeJsonLineText } from './LargeJsonLineText';
@@ -31,13 +41,13 @@ interface LargeJsonReadonlyViewerProps {
   data: LargeJsonViewerData;
   isDarkMode: boolean;
   wrapLongLines: boolean;
-  collapsedLines: number[];
+  foldState: LargeJsonFoldState;
   searchTerm: string;
   searchOptions?: JsonSearchOptions;
   searchMatches?: LargeJsonSearchMatch[];
   activeMatchIndex: number;
   selectedRange?: { start: number; end: number } | null;
-  onCollapsedLinesChange: (lines: number[]) => void;
+  onFoldStateChange: (state: LargeJsonFoldState) => void;
   onMatchCountChange: (count: number) => void;
   onLocateOffset: (offset: number) => void;
   onCopyPath: (offset: number) => void | Promise<void>;
@@ -69,13 +79,13 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       data,
       isDarkMode,
       wrapLongLines,
-      collapsedLines,
+      foldState,
       searchTerm,
       searchOptions = DEFAULT_SEARCH_OPTIONS,
       searchMatches: searchMatchesFromWorker,
       activeMatchIndex,
       selectedRange = null,
-      onCollapsedLinesChange,
+      onFoldStateChange,
       onMatchCountChange,
       onLocateOffset,
       onCopyPath,
@@ -99,18 +109,18 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
 
     const {
       collapsedIntervals,
-      collapsedLineSet,
+      expandLine,
       foldAll,
-      normalizedCollapsedLines,
-      regionsByStartLine,
+      getRegionByStartLine,
+      isLineCollapsed,
       toggleLine,
       unfoldAll,
       visibleLineCount,
       visibleSegments,
     } = useLargeJsonFolding({
-      collapsedLines,
+      foldState,
       data,
-      onCollapsedLinesChange,
+      onFoldStateChange,
     });
     const lineNumberDigits = Math.max(3, String(data.lineCount).length);
     const wrapColumnCount = getLargeJsonWrapColumnCount(viewportWidth, lineNumberDigits);
@@ -198,12 +208,12 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
 
     const { getLineSelectionRange, handleCopy, handleKeyDown, isLineSelected, resetFullDocumentSelection } =
       useLargeJsonSelection({
-        collapsedLineSet,
         containerRef,
         data,
         getLineText,
+        getRegionByStartLine,
+        isLineCollapsed,
         onOpenFind,
-        regionsByStartLine,
         selectedRange,
         text,
       });
@@ -228,14 +238,10 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         },
         revealOffset(offset: number) {
           const lineNumber = getLineNumberForOffset(data.lineStarts, clamp(Math.floor(offset), 0, text.length));
-          const containingCollapsedRegion = collapsedIntervals.find(
-            (interval) => lineNumber >= interval.start && lineNumber <= interval.end
-          );
+          const containingCollapsedRegion = findCollapsedInterval(collapsedIntervals, lineNumber);
 
           if (containingCollapsedRegion) {
-            onCollapsedLinesChange(
-              normalizedCollapsedLines.filter((line) => line !== containingCollapsedRegion.triggerLine)
-            );
+            expandLine(containingCollapsedRegion.triggerLine);
             return;
           }
 
@@ -249,11 +255,10 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       [
         collapsedIntervals,
         data.lineStarts,
+        expandLine,
         foldAll,
         getRowTop,
         getVisibleIndexForActualLine,
-        normalizedCollapsedLines,
-        onCollapsedLinesChange,
         text.length,
         unfoldAll,
       ]
@@ -265,8 +270,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       containerRef,
       getVisibleIndexForActualLine,
       getRowTop,
-      normalizedCollapsedLines,
-      onCollapsedLinesChange,
+      onExpandCollapsedLine: expandLine,
       onLocateOffset,
     });
 
@@ -303,18 +307,18 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       >
         <div className="large-json-spacer" style={{ height: `${contentHeight}px` }}>
           <LargeJsonVisibleRows
-            collapsedLineSet={collapsedLineSet}
             data={data}
             endVisibleIndex={endVisibleIndex}
             getActualLineNumber={getActualLineNumber}
             getLineSelectionRange={getLineSelectionRange}
             getLineText={getLineText}
+            getRegionByStartLine={getRegionByStartLine}
             getRowHeight={getRowHeight}
             getRowTop={getRowTop}
+            isLineCollapsed={isLineCollapsed}
             isLineSelected={isLineSelected}
             lineNumberWidth={lineNumberWidth}
             onLocateOffset={onLocateOffset}
-            regionsByStartLine={regionsByStartLine}
             renderLineText={renderLineText}
             resolveOffsetFromPoint={resolveOffsetFromPoint}
             setContextMenu={setContextMenu}
@@ -326,8 +330,8 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         {contextMenu && (
           <LargeJsonContextMenu
             contextMenu={contextMenu}
-            isCollapsed={contextMenu.foldLine !== null && collapsedLineSet.has(contextMenu.foldLine)}
-            isParentCollapsed={contextMenu.parentFoldLine !== null && collapsedLineSet.has(contextMenu.parentFoldLine)}
+            isCollapsed={contextMenu.foldLine !== null && isLineCollapsed(contextMenu.foldLine)}
+            isParentCollapsed={contextMenu.parentFoldLine !== null && isLineCollapsed(contextMenu.parentFoldLine)}
             isDarkMode={isDarkMode}
             onClose={closeContextMenu}
             onToggleFold={toggleLine}

@@ -2,8 +2,10 @@
 import { describe, expect, it } from 'vitest';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
 import {
+  binarySearchActualSegment,
   buildHighlightedJsonLineSegments,
   buildLargeJsonRowOffsets,
+  findCollapsedInterval,
   getLargeJsonVisibleIndexAtOffset,
   tokenizeJsonLine,
 } from './largeJsonViewerRender';
@@ -75,5 +77,23 @@ describe('largeJsonViewerRender', () => {
     expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 89)).toBe(1);
     expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 90)).toBe(2);
     expect(getLargeJsonVisibleIndexAtOffset(rowOffsets, 108)).toBe(3);
+  });
+
+  it('locates actual lines and collapsed intervals with boundary-safe binary searches', () => {
+    const segments = [
+      { actualStart: 1, actualEnd: 10, visibleStart: 0, visibleEnd: 9 },
+      { actualStart: 21, actualEnd: 30, visibleStart: 10, visibleEnd: 19 },
+      { actualStart: 41, actualEnd: 50, visibleStart: 20, visibleEnd: 29 },
+    ];
+    const intervals = [
+      { start: 11, end: 20, triggerLine: 10 },
+      { start: 31, end: 40, triggerLine: 30 },
+    ];
+
+    expect(binarySearchActualSegment(segments, 21)).toBe(segments[1]);
+    expect(binarySearchActualSegment(segments, 20)).toBeNull();
+    expect(findCollapsedInterval(intervals, 11)).toBe(intervals[0]);
+    expect(findCollapsedInterval(intervals, 40)).toBe(intervals[1]);
+    expect(findCollapsedInterval(intervals, 41)).toBeNull();
   });
 });

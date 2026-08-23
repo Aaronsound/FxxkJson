@@ -38,7 +38,10 @@ export function measure(label, fn) {
 
 export function buildViewerDataStats(text) {
   const lineStarts = [0];
-  const regions = [];
+  const regionStartLines = [];
+  const regionEndLines = [];
+  const regionParentIndexes = [];
+  const regionKinds = [];
   const stackClose = [];
   const stackRegionIndex = [];
   let line = 1;
@@ -78,28 +81,70 @@ export function buildViewerDataStats(text) {
 
     if (char === '{' || char === '[') {
       stackClose.push(char === '{' ? '}' : ']');
-      stackRegionIndex.push(regions.length);
-      regions.push({
-        startLine: line,
-        endLine: line,
-      });
+      stackRegionIndex.push(regionStartLines.length);
+      regionStartLines.push(line);
+      regionEndLines.push(line);
+      regionParentIndexes.push(stackRegionIndex.at(-2) ?? -1);
+      regionKinds.push(char === '[' ? 1 : 0);
       continue;
     }
 
     if (char === '}' || char === ']') {
       const expectedClose = stackClose.pop();
       const regionIndex = stackRegionIndex.pop();
-      if (expectedClose !== char || typeof regionIndex !== 'number' || !regions[regionIndex]) {
+      if (expectedClose !== char || typeof regionIndex !== 'number') {
         continue;
       }
 
-      regions[regionIndex].endLine = line;
+      regionEndLines[regionIndex] = line;
     }
   }
 
+  const originalToCompactIndex = new Int32Array(regionStartLines.length);
+  originalToCompactIndex.fill(-1);
+  let regionCount = 0;
+  for (let index = 0; index < regionStartLines.length; index += 1) {
+    if (regionStartLines[index] < regionEndLines[index]) {
+      originalToCompactIndex[index] = regionCount;
+      regionCount += 1;
+    }
+  }
+
+  const compactStartLines = new Uint32Array(regionCount);
+  const compactEndLines = new Uint32Array(regionCount);
+  const compactParentIndexes = new Int32Array(regionCount);
+  const compactKinds = new Uint8Array(regionCount);
+  let compactIndex = 0;
+
+  for (let index = 0; index < regionStartLines.length; index += 1) {
+    if (originalToCompactIndex[index] < 0) {
+      continue;
+    }
+
+    let parentIndex = regionParentIndexes[index];
+    while (parentIndex >= 0 && originalToCompactIndex[parentIndex] < 0) {
+      parentIndex = regionParentIndexes[parentIndex];
+    }
+
+    compactStartLines[compactIndex] = regionStartLines[index];
+    compactEndLines[compactIndex] = regionEndLines[index];
+    compactParentIndexes[compactIndex] = parentIndex >= 0 ? originalToCompactIndex[parentIndex] : -1;
+    compactKinds[compactIndex] = regionKinds[index];
+    compactIndex += 1;
+  }
+
+  const compactLineStarts = Uint32Array.from(lineStarts);
+  const regionIndexBytes =
+    compactStartLines.byteLength +
+    compactEndLines.byteLength +
+    compactParentIndexes.byteLength +
+    compactKinds.byteLength;
+
   return {
-    lineCount: lineStarts.length,
-    regionCount: regions.filter((region) => region.startLine < region.endLine).length,
+    indexBytes: compactLineStarts.byteLength + regionIndexBytes,
+    lineCount: compactLineStarts.length,
+    regionCount,
+    regionIndexBytes,
   };
 }
 

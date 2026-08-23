@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { evaluate, waitFor } from './e2e-cdp-helpers.mjs';
+import { clickButtonByText, evaluate, waitFor } from './e2e-cdp-helpers.mjs';
 import {
   assertElectronMemoryBudget,
   collectFailureArtifacts,
@@ -33,6 +33,7 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot) {
       detail: `${memorySnapshot.totalWorkingSetMb.toFixed(1)} MB working set, ${memorySnapshot.totalPeakWorkingSetMb.toFixed(1)} MB peak, ${memorySnapshot.rendererHeapMb.toFixed(1)} MB renderer heap`,
     },
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
+    { step: 'large folding', detail: 'fold-all stays compact while root and nested nodes preserve expand semantics' },
     { step: 'search', detail: 'right pane traceId search returned results' },
     { step: 'locate', detail: 'right node click highlighted left raw JSON' },
     { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
@@ -105,6 +106,60 @@ async function assertLargeViewerAutoWrap(cdp) {
   );
 }
 
+async function assertLargeViewerFoldAllSemantics(cdp) {
+  const hasLargeViewer = await evaluate(
+    cdp,
+    `Boolean(document.querySelector('.right-editor-pane .large-json-viewer'))`
+  );
+  if (!hasLargeViewer) {
+    return;
+  }
+
+  await clickButtonByText(cdp, '折叠全部');
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Boolean(document.querySelector(
+          '.right-editor-pane .large-json-line-text[data-line-number="1"][data-collapsed="true"]'
+        ))`
+      ),
+    'large viewer fold all',
+    90000
+  );
+
+  await evaluate(
+    cdp,
+    `document.querySelector(
+      '.right-editor-pane .large-json-line-text[data-line-number="1"]'
+    )?.parentElement?.querySelector('.large-json-fold-button')?.click()`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Boolean(document.querySelector(
+          '.right-editor-pane .large-json-line-text[data-line-number="2"][data-collapsed="true"]'
+        ))`
+      ),
+    'large viewer expands root while nested folds remain collapsed',
+    90000
+  );
+
+  await clickButtonByText(cdp, '展开全部');
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Boolean(document.querySelector(
+          '.right-editor-pane .large-json-line-text[data-line-number="2"]:not([data-collapsed="true"])'
+        ))`
+      ),
+    'large viewer unfold all',
+    90000
+  );
+}
+
 async function run() {
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.HANJSON_E2E_FORCE) {
     console.log('FxxkJson Electron E2E skipped: no DISPLAY is available on Linux');
@@ -144,6 +199,7 @@ async function run() {
       90000
     );
     await assertLargeViewerAutoWrap(cdp);
+    await assertLargeViewerFoldAllSemantics(cdp);
     const memorySnapshot = await readElectronMemorySnapshot(cdp);
     assertElectronMemoryBudget(memorySnapshot, sizeMb);
 

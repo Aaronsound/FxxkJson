@@ -7,6 +7,7 @@ import type {
   ProcessingStage,
   RightNodeSelection,
 } from '../types/jsonTool';
+import { EMPTY_LARGE_JSON_FOLD_STATE } from '../types/jsonTool';
 
 function removeRecordEntry<T>(record: Record<string, T>, tabId: string) {
   const next = { ...record };
@@ -24,8 +25,8 @@ export function useJsonTabArtifacts(initialTabId: string) {
   const [largeViewerStatusByTab, setLargeViewerStatusByTab] = useState<Record<string, LargeViewerStatus>>({
     [initialTabId]: 'idle',
   });
-  const [largeViewerCollapsedLinesByTab, setLargeViewerCollapsedLinesByTab] = useState<Record<string, number[]>>({
-    [initialTabId]: [],
+  const [largeViewerFoldStateByTab, setLargeViewerFoldStateByTab] = useState({
+    [initialTabId]: EMPTY_LARGE_JSON_FOLD_STATE,
   });
   const [processingStageByTab, setProcessingStageByTab] = useState<Record<string, ProcessingStage>>({
     [initialTabId]: 'idle',
@@ -41,7 +42,7 @@ export function useJsonTabArtifacts(initialTabId: string) {
     setLargeViewerDataByTab((current) => ({ ...current, [tabId]: null }));
     setLargeRawViewerDataByTab((current) => ({ ...current, [tabId]: null }));
     setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: 'idle' }));
-    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [tabId]: [] }));
+    setLargeViewerFoldStateByTab((current) => ({ ...current, [tabId]: EMPTY_LARGE_JSON_FOLD_STATE }));
     setProcessingStageByTab((current) => ({ ...current, [tabId]: 'idle' }));
     setLocateFeedbackByTab((current) => ({ ...current, [tabId]: null }));
     setRightNodeSelectionByTab((current) => ({ ...current, [tabId]: null }));
@@ -51,7 +52,7 @@ export function useJsonTabArtifacts(initialTabId: string) {
     setLargeViewerDataByTab((current) => removeRecordEntry(current, tabId));
     setLargeRawViewerDataByTab((current) => removeRecordEntry(current, tabId));
     setLargeViewerStatusByTab((current) => removeRecordEntry(current, tabId));
-    setLargeViewerCollapsedLinesByTab((current) => removeRecordEntry(current, tabId));
+    setLargeViewerFoldStateByTab((current) => removeRecordEntry(current, tabId));
     setProcessingStageByTab((current) => removeRecordEntry(current, tabId));
     setLocateFeedbackByTab((current) => removeRecordEntry(current, tabId));
     setRightNodeSelectionByTab((current) => removeRecordEntry(current, tabId));
@@ -60,7 +61,7 @@ export function useJsonTabArtifacts(initialTabId: string) {
   return {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
-    largeViewerCollapsedLinesByTab,
+    largeViewerFoldStateByTab,
     largeViewerDataByTab,
     largeViewerStatusByTab,
     locateFeedbackByTab,
@@ -68,7 +69,7 @@ export function useJsonTabArtifacts(initialTabId: string) {
     removeTabArtifactsState,
     rightNodeSelectionByTab,
     setLargeRawViewerDataByTab,
-    setLargeViewerCollapsedLinesByTab,
+    setLargeViewerFoldStateByTab,
     setLargeViewerDataByTab,
     setLargeViewerStatusByTab,
     setLocateFeedbackByTab,

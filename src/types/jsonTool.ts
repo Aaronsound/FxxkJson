@@ -155,11 +155,29 @@ export interface LargeJsonViewerRegion {
   kind: 'object' | 'array';
 }
 
+export interface LargeJsonViewerRegions {
+  startLines: Uint32Array;
+  endLines: Uint32Array;
+  parentIndexes: Int32Array;
+  kinds: Uint8Array;
+}
+
+export const EMPTY_LARGE_JSON_VIEWER_REGIONS: LargeJsonViewerRegions = {
+  startLines: new Uint32Array(0),
+  endLines: new Uint32Array(0),
+  parentIndexes: new Int32Array(0),
+  kinds: new Uint8Array(0),
+};
+
 export interface LargeJsonViewerData {
   lineStarts: Uint32Array;
-  regions: LargeJsonViewerRegion[];
+  regions: LargeJsonViewerRegions;
   lineCount: number;
 }
+
+export type LargeJsonFoldState = { mode: 'explicit'; lines: number[] } | { mode: 'all-except'; lines: number[] };
+
+export const EMPTY_LARGE_JSON_FOLD_STATE: LargeJsonFoldState = { mode: 'explicit', lines: [] };
 
 export interface LargeRawViewerData {
   starts: Uint32Array;

@@ -258,7 +258,12 @@ describe('useJsonFormattingWorker', () => {
             viewerData: {
               lineCount: 3,
               lineStarts: new Uint32Array([0, 2, formattedJson.length - 2]),
-              regions: [],
+              regions: {
+                startLines: new Uint32Array(0),
+                endLines: new Uint32Array(0),
+                parentIndexes: new Int32Array(0),
+                kinds: new Uint8Array(0),
+              },
             },
             viewerIndexMs: 12,
           },

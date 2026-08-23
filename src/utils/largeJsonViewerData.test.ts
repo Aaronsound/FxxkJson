@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import {
   buildLargeViewerData,
+  findFirstRegionIndexAtStartLine,
   findSearchMatchesBatchInLargeJson,
   findSearchMatchesInLargeJson,
+  getLargeJsonViewerRegionAtStartLine,
 } from './largeJsonViewerData';
 
 function buildLineRichFormattedSample(lineCount: number) {
@@ -36,6 +38,26 @@ describe('largeJsonViewerData', () => {
 
     expect(buildLargeViewerData(formatted, 10)).toBeNull();
     expect(buildLargeViewerData(formatted, 9)?.lineCount).toBe(10);
+  });
+
+  it('stores fold regions in compact typed arrays with parent indexes', () => {
+    const text = ['{', '  "items": [', '    {', '      "id": 1', '    }', '  ]', '}'].join('\n');
+    const viewerData = buildLargeViewerData(text, 1);
+
+    expect(viewerData?.regions.startLines).toBeInstanceOf(Uint32Array);
+    expect(viewerData?.regions.endLines).toBeInstanceOf(Uint32Array);
+    expect(viewerData?.regions.parentIndexes).toBeInstanceOf(Int32Array);
+    expect(viewerData?.regions.kinds).toBeInstanceOf(Uint8Array);
+    expect(Array.from(viewerData?.regions.startLines ?? [])).toEqual([1, 2, 3]);
+    expect(Array.from(viewerData?.regions.endLines ?? [])).toEqual([7, 6, 5]);
+    expect(Array.from(viewerData?.regions.parentIndexes ?? [])).toEqual([-1, 0, 1]);
+    expect(Array.from(viewerData?.regions.kinds ?? [])).toEqual([0, 1, 0]);
+    expect(findFirstRegionIndexAtStartLine(viewerData!.regions, 2)).toBe(1);
+    expect(getLargeJsonViewerRegionAtStartLine(viewerData!.regions, 2)).toEqual({
+      startLine: 2,
+      endLine: 6,
+      kind: 'array',
+    });
   });
 
   it('builds stable search matches with line offsets', () => {

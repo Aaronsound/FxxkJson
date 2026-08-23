@@ -146,7 +146,7 @@ const App: React.FC = () => {
   const {
     initializeTabArtifacts,
     largeRawViewerDataByTab,
-    largeViewerCollapsedLinesByTab,
+    largeViewerFoldStateByTab,
     largeViewerDataByTab,
     largeViewerStatusByTab,
     locateFeedbackByTab,
@@ -154,7 +154,7 @@ const App: React.FC = () => {
     removeTabArtifactsState,
     rightNodeSelectionByTab,
     setLargeRawViewerDataByTab,
-    setLargeViewerCollapsedLinesByTab,
+    setLargeViewerFoldStateByTab,
     setLargeViewerDataByTab,
     setLargeViewerStatusByTab,
     setLocateFeedbackByTab,
@@ -222,7 +222,7 @@ const App: React.FC = () => {
   const {
     activeDocumentMeta,
     activeLargeRawViewerData,
-    activeLargeViewerCollapsedLines,
+    activeLargeViewerFoldState,
     activeLargeViewerData,
     activeLargeViewerStatus,
     activeLocateFeedback,
@@ -252,7 +252,7 @@ const App: React.FC = () => {
     ...{ activeTabId, documentMetaByTab, errorsByTab },
     formattedTextByTab: formattedTextByTabRef.current,
     ...{ importingByTab, isFormattingByTab, largeFileLocateEnabledByTab, largeModeByTab },
-    ...{ largeRawViewerDataByTab, largeViewerCollapsedLinesByTab, largeViewerDataByTab, largeViewerStatusByTab },
+    ...{ largeRawViewerDataByTab, largeViewerFoldStateByTab, largeViewerDataByTab, largeViewerStatusByTab },
     ...{ locateFeedbackByTab, performanceByTab, processingStageByTab },
     rawTextByTab: rawTextByTabRef.current,
     ...{ rightNodeSelectionByTab, structureStatusByTab, tabs },
@@ -340,7 +340,7 @@ const App: React.FC = () => {
     ...{ formattedTextByTabRef, largeFileLocateEnabledRef, largeModeRef, largeViewerMatches, rawTextByTabRef },
     ...{ resetLeftSearchState, resetRightSearchPaging, resetRightSearchState },
     ...{ setDocumentMeta, setIsRightSearchLoadingMore, setLargeFileLocateEnabledState },
-    ...{ setLargeRawViewerDataByTab, setLargeRawViewerMatches, setLargeViewerCollapsedLinesByTab },
+    ...{ setLargeRawViewerDataByTab, setLargeRawViewerMatches, setLargeViewerFoldStateByTab },
     ...{ setLargeViewerDataByTab, setLargeViewerMatchCount, setLargeViewerMatches, setLargeViewerStatusByTab },
     ...{ setLeftReplaceText, setLocateFeedbackByTab, setProcessingStageByTab, setRightNodeSelectionByTab },
     ...{ setRightSearchHasMore, setRightSearchNextOffset, setStructureStatusState, setTabLargeModeState },
@@ -591,7 +591,7 @@ const App: React.FC = () => {
   }
 
   const workspaceProps = createJsonToolWorkspaceProps({
-    ...{ activeDocumentMeta, activeLargeRawViewerData, activeLargeViewerCollapsedLines, activeLargeViewerData },
+    ...{ activeDocumentMeta, activeLargeRawViewerData, activeLargeViewerFoldState, activeLargeViewerData },
     ...{ activeLeftMatchCount, activePerformanceSnapshot, activeRawText, activeRightMatchCount },
     ...{ activeRightPinnedPathItems, activeRightSelectedRange },
     activeTab,
@@ -631,7 +631,7 @@ const App: React.FC = () => {
     ...{ rightRecentSearches, rightSearchHasMore, rightSearchOptions, rightSearchTerm, runtimeInfo },
     ...{ selectAllLeftEditorText, selectRightPinnedPath },
     ...{ setActiveTabId, setIsAboutOpen, setIsArchitectureWarningDismissed, setIsCompareOpen },
-    ...{ setIsDiagnosticsLogOpen, setIsRightFindOpen, setLanguage, setLargeViewerCollapsedLinesByTab },
+    ...{ setIsDiagnosticsLogOpen, setIsRightFindOpen, setLanguage, setLargeViewerFoldStateByTab },
     ...{ setLargeViewerMatchCount, setLeftEditorContextMenu, setLeftReplaceText, setRightEditorContextMenu },
     ...{ setRightMatchIndex, setRightSearchTerm, setShowPerformancePanel, setWrapLongLines },
     ...{ shouldEnableRightPaneFolding, shouldUseDedicatedLeftViewer, shouldUseDedicatedRightViewer },

@@ -30,6 +30,8 @@ export function printResult(result) {
   ]);
   console.log(`Viewer lines: ${result.viewerLineCount.toLocaleString()}`);
   console.log(`Viewer regions: ${result.viewerRegionCount.toLocaleString()}`);
+  console.log(`Viewer compact index: ${formatBytes(result.viewerIndexBytes)}`);
+  console.log(`Viewer compact region index: ${formatBytes(result.viewerRegionIndexBytes)}`);
 }
 
 export function printSummary(results) {
@@ -48,6 +50,7 @@ export function printSummary(results) {
       rawTree: formatDuration(result.rawTreeMs),
       formattedTree: formatDuration(result.formattedTreeMs),
       viewerIndex: formatDuration(result.viewerIndexMs),
+      viewerIndexSize: formatBytes(result.viewerIndexBytes),
       rightSearch: formatDuration(result.rightSearchBatchMs),
       rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
       leftSearch: formatDuration(result.leftSearchBatchMs),

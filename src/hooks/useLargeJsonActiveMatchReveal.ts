@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
+import { findCollapsedInterval } from '../utils/largeJsonViewerRender';
 
 interface CollapsedInterval {
   start: number;
@@ -13,8 +14,7 @@ interface UseLargeJsonActiveMatchRevealArgs {
   containerRef: RefObject<HTMLDivElement | null>;
   getVisibleIndexForActualLine: (lineNumber: number) => number | null;
   getRowTop: (visibleIndex: number) => number;
-  normalizedCollapsedLines: number[];
-  onCollapsedLinesChange: (lines: number[]) => void;
+  onExpandCollapsedLine: (lineNumber: number) => void;
   onLocateOffset: (offset: number) => void;
 }
 
@@ -24,30 +24,26 @@ export function useLargeJsonActiveMatchReveal({
   containerRef,
   getVisibleIndexForActualLine,
   getRowTop,
-  normalizedCollapsedLines,
-  onCollapsedLinesChange,
+  onExpandCollapsedLine,
   onLocateOffset,
 }: UseLargeJsonActiveMatchRevealArgs) {
-  const onCollapsedLinesChangeRef = useRef(onCollapsedLinesChange);
+  const onExpandCollapsedLineRef = useRef(onExpandCollapsedLine);
   const onLocateOffsetRef = useRef(onLocateOffset);
 
   useEffect(() => {
-    onCollapsedLinesChangeRef.current = onCollapsedLinesChange;
+    onExpandCollapsedLineRef.current = onExpandCollapsedLine;
     onLocateOffsetRef.current = onLocateOffset;
-  }, [onCollapsedLinesChange, onLocateOffset]);
+  }, [onExpandCollapsedLine, onLocateOffset]);
 
   useEffect(() => {
     if (!activeMatch) {
       return;
     }
 
-    const containingCollapsedRegion = collapsedIntervals.find(
-      (interval) => activeMatch.lineNumber >= interval.start && activeMatch.lineNumber <= interval.end
-    );
+    const containingCollapsedRegion = findCollapsedInterval(collapsedIntervals, activeMatch.lineNumber);
 
     if (containingCollapsedRegion) {
-      const next = normalizedCollapsedLines.filter((line) => line !== containingCollapsedRegion.triggerLine);
-      onCollapsedLinesChangeRef.current(next);
+      onExpandCollapsedLineRef.current(containingCollapsedRegion.triggerLine);
       return;
     }
 
@@ -57,12 +53,5 @@ export function useLargeJsonActiveMatchReveal({
     }
 
     onLocateOffsetRef.current(activeMatch.start);
-  }, [
-    activeMatch,
-    collapsedIntervals,
-    containerRef,
-    getVisibleIndexForActualLine,
-    getRowTop,
-    normalizedCollapsedLines,
-  ]);
+  }, [activeMatch, collapsedIntervals, containerRef, getVisibleIndexForActualLine, getRowTop]);
 }

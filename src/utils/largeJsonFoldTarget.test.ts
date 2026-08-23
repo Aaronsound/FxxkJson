@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { findNearestRegionStartLine, getRegionFoldTargets } from './largeJsonFoldTarget';
 
 describe('findNearestRegionStartLine', () => {
-  const regions = [
-    { startLine: 1, endLine: 10, kind: 'object' as const },
-    { startLine: 2, endLine: 9, kind: 'object' as const },
-    { startLine: 5, endLine: 8, kind: 'array' as const },
-  ];
+  const regions = {
+    startLines: new Uint32Array([1, 2, 5]),
+    endLines: new Uint32Array([10, 9, 8]),
+    parentIndexes: new Int32Array([-1, 0, 1]),
+    kinds: new Uint8Array([0, 0, 1]),
+  };
 
   it('uses the current region when right-clicking a foldable opener', () => {
     expect(findNearestRegionStartLine(regions, 5)).toBe(5);
