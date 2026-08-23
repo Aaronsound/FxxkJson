@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import {
-  binarySearchActualSegment,
-  binarySearchSegment,
+  getActualLineNumberFromVisibleSegments,
   getLargeJsonRowLayout,
   getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
+  getVisibleIndexFromVisibleSegments,
 } from '../utils/largeJsonViewerRender';
 import type { LargeJsonWrapLayout, VisibleSegment } from '../utils/largeJsonViewerRender';
 
@@ -28,26 +28,12 @@ export function useLargeJsonVisibleWindow({
   overscan,
 }: UseLargeJsonVisibleWindowArgs) {
   const getActualLineNumber = useCallback(
-    (visibleIndex: number) => {
-      const segment = binarySearchSegment(visibleSegments, visibleIndex);
-      if (!segment) {
-        return null;
-      }
-
-      return segment.actualStart + (visibleIndex - segment.visibleStart);
-    },
+    (visibleIndex: number) => getActualLineNumberFromVisibleSegments(visibleSegments, visibleIndex),
     [visibleSegments]
   );
 
   const getVisibleIndexForActualLine = useCallback(
-    (lineNumber: number) => {
-      const segment = binarySearchActualSegment(visibleSegments, lineNumber);
-      if (segment) {
-        return segment.visibleStart + (lineNumber - segment.actualStart);
-      }
-
-      return null;
-    },
+    (lineNumber: number) => getVisibleIndexFromVisibleSegments(visibleSegments, lineNumber),
     [visibleSegments]
   );
 

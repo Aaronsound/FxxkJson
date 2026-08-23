@@ -88,6 +88,34 @@ export function binarySearchActualSegment(segments: VisibleSegment[], lineNumber
   return null;
 }
 
+export function getActualLineNumberFromVisibleSegments(segments: VisibleSegment[], visibleIndex: number) {
+  const onlySegment = segments.length === 1 ? segments[0] : null;
+  if (onlySegment) {
+    if (visibleIndex < onlySegment.visibleStart || visibleIndex > onlySegment.visibleEnd) {
+      return null;
+    }
+
+    return onlySegment.actualStart + (visibleIndex - onlySegment.visibleStart);
+  }
+
+  const segment = binarySearchSegment(segments, visibleIndex);
+  return segment ? segment.actualStart + (visibleIndex - segment.visibleStart) : null;
+}
+
+export function getVisibleIndexFromVisibleSegments(segments: VisibleSegment[], lineNumber: number) {
+  const onlySegment = segments.length === 1 ? segments[0] : null;
+  if (onlySegment) {
+    if (lineNumber < onlySegment.actualStart || lineNumber > onlySegment.actualEnd) {
+      return null;
+    }
+
+    return onlySegment.visibleStart + (lineNumber - onlySegment.actualStart);
+  }
+
+  const segment = binarySearchActualSegment(segments, lineNumber);
+  return segment ? segment.visibleStart + (lineNumber - segment.actualStart) : null;
+}
+
 export function findCollapsedInterval(intervals: CollapsedInterval[], lineNumber: number) {
   let low = 0;
   let high = intervals.length - 1;
@@ -408,20 +436,37 @@ export function getLargeJsonVisibleIndexAtOffset(layout: LargeJsonWrapLayout, of
     return 0;
   }
 
-  const target = Math.max(0, offset);
+  const targetRowOffset = Math.max(0, offset) / layout.lineHeight;
+  const extraRowsPerLongLine = LARGE_JSON_MAX_WRAPPED_ROWS - 1;
+  const { longRowIndexes } = layout;
   let low = 0;
-  let high = layout.visibleLineCount - 1;
+  let high = longRowIndexes.length;
 
   while (low < high) {
-    const middle = Math.floor((low + high + 1) / 2);
-    if (getLargeJsonRowTop(layout, middle) <= target) {
-      low = middle;
+    const middle = Math.floor((low + high) / 2);
+    const expandedStart = longRowIndexes[middle] + middle * extraRowsPerLongLine;
+    if (expandedStart <= targetRowOffset) {
+      low = middle + 1;
     } else {
-      high = middle - 1;
+      high = middle;
     }
   }
 
-  return low;
+  const precedingLongRowIndex = low - 1;
+  let visibleIndex: number;
+
+  if (precedingLongRowIndex < 0) {
+    visibleIndex = Math.floor(targetRowOffset);
+  } else {
+    const longRowVisibleIndex = longRowIndexes[precedingLongRowIndex];
+    const expandedStart = longRowVisibleIndex + precedingLongRowIndex * extraRowsPerLongLine;
+    visibleIndex =
+      targetRowOffset < expandedStart + LARGE_JSON_MAX_WRAPPED_ROWS
+        ? longRowVisibleIndex
+        : Math.floor(targetRowOffset - (precedingLongRowIndex + 1) * extraRowsPerLongLine);
+  }
+
+  return Math.max(0, Math.min(visibleIndex, layout.visibleLineCount - 1));
 }
 
 function getJsonStringEnd(lineText: string, start: number) {

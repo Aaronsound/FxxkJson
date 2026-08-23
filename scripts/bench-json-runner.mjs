@@ -73,6 +73,11 @@ export async function benchFile(filePath) {
   const wrapLayoutResult = measure('wrap-layout', () =>
     buildWrapLayoutStats(formattedText, viewerResult.value.lineStarts, viewerResult.value.lineCount)
   );
+  const wrapVisibleSearchComparisons = Math.max(1, Math.ceil(Math.log2(Math.max(1, viewerResult.value.lineCount))));
+  const wrapLongRowSearchComparisons = Math.max(
+    1,
+    Math.ceil(Math.log2(Math.max(1, wrapLayoutResult.value.longRowCount + 1)))
+  );
   const hiddenWrapStartLine = Math.min(10_000, Math.max(1, viewerResult.value.lineCount - 20));
   const hiddenWrapEndLine = Math.min(viewerResult.value.lineCount, hiddenWrapStartLine + 19);
   const legacyWrapFoldUpdateResult = measureRepeated('legacyWrapFoldUpdate', 3, () =>
@@ -205,6 +210,10 @@ export async function benchFile(filePath) {
     wrapLayoutBytes: wrapLayoutResult.value.indexBytes,
     wrapLongRowCount: wrapLayoutResult.value.longRowCount,
     wrapRowLookupsAvoidedPerViewport: Math.min(40, viewerResult.value.lineCount),
+    visibleSegmentRowBinaryLookupsAvoidedPerViewport: Math.min(40, viewerResult.value.lineCount),
+    visibleSegmentRevealBinaryLookupsAvoided: viewerResult.value.lineCount > 0 ? 1 : 0,
+    legacyWrapOffsetComparisons: wrapVisibleSearchComparisons * wrapLongRowSearchComparisons,
+    optimizedWrapOffsetComparisons: wrapLongRowSearchComparisons,
     optimizedWrapFoldUpdateMs: optimizedWrapFoldUpdateResult.ms,
     legacyWrapFoldUpdateMs: legacyWrapFoldUpdateResult.ms,
     optimizedTokenizerMs: optimizedTokenizerResult.ms,

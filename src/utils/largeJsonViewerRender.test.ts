@@ -8,11 +8,13 @@ import {
   buildLargeJsonLongRowIndexes,
   buildLargeJsonWrapLayout,
   findCollapsedInterval,
+  getActualLineNumberFromVisibleSegments,
   getLargeJsonContentHeight,
   getLargeJsonRowHeight,
   getLargeJsonRowLayout,
   getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
+  getVisibleIndexFromVisibleSegments,
   projectLargeJsonLongRowIndexes,
   tokenizeJsonLine,
   visitJsonLineTokens,
@@ -153,6 +155,21 @@ describe('largeJsonViewerRender', () => {
     expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 108)).toBe(3);
   });
 
+  it('locates offsets with one binary search across multiple wrapped rows', () => {
+    const wrapLayout = {
+      lineHeight: 10,
+      longRowIndexes: Uint32Array.from([1, 3, 8]),
+      visibleLineCount: 10,
+    };
+
+    const expectedIndexes = [0, 1, 1, 1, 1, 2, 3, 3, 3, 3, 4, 5, 6, 7, 8, 8, 8, 8, 9];
+    expect(expectedIndexes.map((_, rowOffset) => getLargeJsonVisibleIndexAtOffset(wrapLayout, rowOffset * 10))).toEqual(
+      expectedIndexes
+    );
+    expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, -100)).toBe(0);
+    expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 10_000)).toBe(9);
+  });
+
   it('reuses document long-row indexes and projects them around collapsed lines', () => {
     const lines = ['short', 'x'.repeat(20), 'short', 'y'.repeat(20), 'short', 'z'.repeat(20)];
     const text = lines.join('\n');
@@ -208,5 +225,21 @@ describe('largeJsonViewerRender', () => {
     expect(findCollapsedInterval(intervals, 11)).toBe(intervals[0]);
     expect(findCollapsedInterval(intervals, 40)).toBe(intervals[1]);
     expect(findCollapsedInterval(intervals, 41)).toBeNull();
+  });
+
+  it('maps a single visible segment directly while preserving multi-segment gaps', () => {
+    const singleSegment = [{ actualStart: 5, actualEnd: 9, visibleStart: 2, visibleEnd: 6 }];
+    const multipleSegments = [
+      { actualStart: 1, actualEnd: 3, visibleStart: 0, visibleEnd: 2 },
+      { actualStart: 8, actualEnd: 10, visibleStart: 3, visibleEnd: 5 },
+    ];
+
+    expect(getActualLineNumberFromVisibleSegments(singleSegment, 4)).toBe(7);
+    expect(getActualLineNumberFromVisibleSegments(singleSegment, 1)).toBeNull();
+    expect(getVisibleIndexFromVisibleSegments(singleSegment, 7)).toBe(4);
+    expect(getVisibleIndexFromVisibleSegments(singleSegment, 10)).toBeNull();
+    expect(getActualLineNumberFromVisibleSegments(multipleSegments, 4)).toBe(9);
+    expect(getVisibleIndexFromVisibleSegments(multipleSegments, 9)).toBe(4);
+    expect(getVisibleIndexFromVisibleSegments(multipleSegments, 5)).toBeNull();
   });
 });
