@@ -19,9 +19,11 @@ import {
   measureRepeated,
   readFirstRequestValue,
   readFirstRequestValueStreaming,
+  rebuildFoldedWrapLayoutStats,
   replaceLegacyExactMatches,
   replaceLiteralMatches,
   replaceRegexMatches,
+  projectFoldedWrapLayoutStats,
   tokenizeLegacySampleLines,
   tokenizeOptimizedSampleLines,
 } from './bench-json-metrics.mjs';
@@ -56,6 +58,26 @@ export async function benchFile(filePath) {
   const wrapLayoutResult = measure('wrap-layout', () =>
     buildWrapLayoutStats(formattedText, viewerResult.value.lineStarts, viewerResult.value.lineCount)
   );
+  const hiddenWrapStartLine = Math.min(10_000, Math.max(1, viewerResult.value.lineCount - 20));
+  const hiddenWrapEndLine = Math.min(viewerResult.value.lineCount, hiddenWrapStartLine + 19);
+  const legacyWrapFoldUpdateResult = measureRepeated('legacyWrapFoldUpdate', 3, () =>
+    rebuildFoldedWrapLayoutStats(
+      formattedText,
+      viewerResult.value.lineStarts,
+      viewerResult.value.lineCount,
+      hiddenWrapStartLine,
+      hiddenWrapEndLine
+    )
+  );
+  const optimizedWrapFoldUpdateResult = measureRepeated('optimizedWrapFoldUpdate', 20, () =>
+    projectFoldedWrapLayoutStats(wrapLayoutResult.value.longRowIndexes, hiddenWrapStartLine, hiddenWrapEndLine)
+  );
+  if (
+    legacyWrapFoldUpdateResult.value.longRowCount !== optimizedWrapFoldUpdateResult.value.longRowCount ||
+    legacyWrapFoldUpdateResult.value.checksum !== optimizedWrapFoldUpdateResult.value.checksum
+  ) {
+    throw new Error(`Wrap fold benchmark implementations diverged for ${absolutePath}`);
+  }
   const tokenizerSampleLines = buildTokenizerSampleLines(formattedText, viewerResult.value.lineStarts);
   const optimizedTokenizerResult = measureRepeated('optimizedTokenizer', 10, () =>
     tokenizeOptimizedSampleLines(tokenizerSampleLines)
@@ -161,6 +183,8 @@ export async function benchFile(filePath) {
     wrapLayoutMs: wrapLayoutResult.ms,
     wrapLayoutBytes: wrapLayoutResult.value.indexBytes,
     wrapLongRowCount: wrapLayoutResult.value.longRowCount,
+    optimizedWrapFoldUpdateMs: optimizedWrapFoldUpdateResult.ms,
+    legacyWrapFoldUpdateMs: legacyWrapFoldUpdateResult.ms,
     optimizedTokenizerMs: optimizedTokenizerResult.ms,
     legacyTokenizerMs: legacyTokenizerResult.ms,
     tokenizerSampleLineCount: tokenizerSampleLines.length,
@@ -198,6 +222,8 @@ export async function benchFile(filePath) {
     rawViewerIndexMs: rawViewerResult.ms,
     rawViewerIndexBytes: rawViewerResult.value.indexBytes,
     rawViewerLegacyIndexBytes: rawViewerResult.value.legacyIndexBytes,
+    rawScrollRowsAvoided: rawViewerResult.value.memoizedScrollRowsAvoided,
+    rawScrollSliceCharsAvoided: rawViewerResult.value.memoizedScrollSliceCharsAvoided,
     rawViewerRowCount: rawViewerResult.value.rowCount,
     rawViewerWorkingBytes: rawViewerResult.value.workingBytes,
     caseInsensitiveSearchBatchMs: caseInsensitiveSearchBatchResult.ms,

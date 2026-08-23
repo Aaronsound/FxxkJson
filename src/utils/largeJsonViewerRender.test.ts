@@ -5,12 +5,14 @@ import {
   binarySearchActualSegment,
   buildAllExceptCollapsedIntervals,
   buildHighlightedJsonLineSegments,
+  buildLargeJsonLongRowIndexes,
   buildLargeJsonWrapLayout,
   findCollapsedInterval,
   getLargeJsonContentHeight,
   getLargeJsonRowHeight,
   getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
+  projectLargeJsonLongRowIndexes,
   tokenizeJsonLine,
   visitJsonLineTokens,
 } from './largeJsonViewerRender';
@@ -146,6 +148,30 @@ describe('largeJsonViewerRender', () => {
     expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 89)).toBe(1);
     expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 90)).toBe(2);
     expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 108)).toBe(3);
+  });
+
+  it('reuses document long-row indexes and projects them around collapsed lines', () => {
+    const lines = ['short', 'x'.repeat(20), 'short', 'y'.repeat(20), 'short', 'z'.repeat(20)];
+    const text = lines.join('\n');
+    const lineStarts = Uint32Array.from([0, 6, 27, 33, 54, 60]);
+    const actualLongRowIndexes = buildLargeJsonLongRowIndexes({
+      lineStarts,
+      textLength: text.length,
+      wrapColumnCount: 10,
+    });
+
+    expect(Array.from(actualLongRowIndexes)).toEqual([1, 3, 5]);
+    expect(
+      projectLargeJsonLongRowIndexes(actualLongRowIndexes, lines.length, 4, [
+        { actualStart: 1, actualEnd: 2, visibleStart: 0, visibleEnd: 1 },
+        { actualStart: 5, actualEnd: 6, visibleStart: 2, visibleEnd: 3 },
+      ])
+    ).toEqual(Uint32Array.from([1, 3]));
+    expect(
+      projectLargeJsonLongRowIndexes(actualLongRowIndexes, lines.length, lines.length, [
+        { actualStart: 1, actualEnd: 6, visibleStart: 0, visibleEnd: 5 },
+      ])
+    ).toBe(actualLongRowIndexes);
   });
 
   it('skips hidden descendant regions while preserving same-line sibling boundaries', () => {

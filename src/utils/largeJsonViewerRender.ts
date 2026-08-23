@@ -236,11 +236,18 @@ export function getLargeJsonWrapColumnCount(viewportWidth: number, lineNumberDig
 }
 
 interface BuildLargeJsonWrapLayoutArgs {
+  actualLongRowIndexes?: Uint32Array;
   lineHeight: number;
   lineStarts: Uint32Array;
   textLength: number;
   visibleLineCount: number;
   visibleSegments: VisibleSegment[];
+  wrapColumnCount: number;
+}
+
+interface BuildLargeJsonLongRowIndexesArgs {
+  lineStarts: Uint32Array;
+  textLength: number;
   wrapColumnCount: number;
 }
 
@@ -271,7 +278,82 @@ function findFirstLongRowAtOrAfter(longRowIndexes: Uint32Array, visibleIndex: nu
   return low;
 }
 
+export function buildLargeJsonLongRowIndexes({
+  lineStarts,
+  textLength,
+  wrapColumnCount,
+}: BuildLargeJsonLongRowIndexesArgs) {
+  let longRowIndexes = new Uint32Array(Math.min(Math.max(16, lineStarts.length), 1024));
+  let longRowCount = 0;
+  const safeWrapColumnCount = Math.max(1, wrapColumnCount);
+
+  for (let lineIndex = 0; lineIndex < lineStarts.length; lineIndex += 1) {
+    const lineStart = lineStarts[lineIndex] ?? 0;
+    const nextLineStart = lineIndex + 1 < lineStarts.length ? lineStarts[lineIndex + 1] : textLength;
+    const lineLength = Math.max(0, nextLineStart - lineStart - (lineIndex + 1 < lineStarts.length ? 1 : 0));
+    if (lineLength <= safeWrapColumnCount) {
+      continue;
+    }
+
+    if (longRowCount === longRowIndexes.length) {
+      longRowIndexes = growLongRowIndexes(longRowIndexes, longRowCount + 1);
+    }
+    longRowIndexes[longRowCount] = lineIndex;
+    longRowCount += 1;
+  }
+
+  return longRowIndexes.length === longRowCount ? longRowIndexes : longRowIndexes.slice(0, longRowCount);
+}
+
+export function projectLargeJsonLongRowIndexes(
+  actualLongRowIndexes: Uint32Array,
+  lineCount: number,
+  visibleLineCount: number,
+  visibleSegments: VisibleSegment[]
+) {
+  const onlySegment = visibleSegments.length === 1 ? visibleSegments[0] : null;
+  if (
+    onlySegment?.actualStart === 1 &&
+    onlySegment.actualEnd === lineCount &&
+    onlySegment.visibleStart === 0 &&
+    onlySegment.visibleEnd === visibleLineCount - 1
+  ) {
+    return actualLongRowIndexes;
+  }
+
+  if (actualLongRowIndexes.length === 0 || visibleLineCount === 0) {
+    return new Uint32Array(0);
+  }
+
+  let projectedIndexes = new Uint32Array(Math.min(Math.max(16, actualLongRowIndexes.length), 1024));
+  let projectedCount = 0;
+  let sourceIndex = 0;
+
+  for (const segment of visibleSegments) {
+    const actualStartIndex = segment.actualStart - 1;
+    const actualEndIndex = segment.actualEnd - 1;
+    sourceIndex = findFirstLongRowAtOrAfter(actualLongRowIndexes, actualStartIndex);
+
+    while (sourceIndex < actualLongRowIndexes.length) {
+      const actualLineIndex = actualLongRowIndexes[sourceIndex];
+      if (actualLineIndex > actualEndIndex) {
+        break;
+      }
+
+      if (projectedCount === projectedIndexes.length) {
+        projectedIndexes = growLongRowIndexes(projectedIndexes, projectedCount + 1);
+      }
+      projectedIndexes[projectedCount] = segment.visibleStart + (actualLineIndex - actualStartIndex);
+      projectedCount += 1;
+      sourceIndex += 1;
+    }
+  }
+
+  return projectedIndexes.slice(0, projectedCount);
+}
+
 export function buildLargeJsonWrapLayout({
+  actualLongRowIndexes,
   lineHeight,
   lineStarts,
   textLength,
@@ -279,31 +361,17 @@ export function buildLargeJsonWrapLayout({
   visibleSegments,
   wrapColumnCount,
 }: BuildLargeJsonWrapLayoutArgs): LargeJsonWrapLayout {
-  let longRowIndexes = new Uint32Array(Math.min(Math.max(16, visibleLineCount), 1024));
-  let longRowCount = 0;
-  const safeWrapColumnCount = Math.max(1, wrapColumnCount);
-
-  for (const segment of visibleSegments) {
-    for (let lineNumber = segment.actualStart; lineNumber <= segment.actualEnd; lineNumber += 1) {
-      const visibleIndex = segment.visibleStart + (lineNumber - segment.actualStart);
-      const lineStart = lineStarts[lineNumber - 1] ?? 0;
-      const nextLineStart = lineNumber < lineStarts.length ? lineStarts[lineNumber] : textLength;
-      const lineLength = Math.max(0, nextLineStart - lineStart - (lineNumber < lineStarts.length ? 1 : 0));
-      if (lineLength <= safeWrapColumnCount) {
-        continue;
-      }
-
-      if (longRowCount === longRowIndexes.length) {
-        longRowIndexes = growLongRowIndexes(longRowIndexes, longRowCount + 1);
-      }
-      longRowIndexes[longRowCount] = visibleIndex;
-      longRowCount += 1;
-    }
-  }
+  const documentLongRowIndexes =
+    actualLongRowIndexes ?? buildLargeJsonLongRowIndexes({ lineStarts, textLength, wrapColumnCount });
 
   return {
     lineHeight,
-    longRowIndexes: longRowIndexes.slice(0, longRowCount),
+    longRowIndexes: projectLargeJsonLongRowIndexes(
+      documentLongRowIndexes,
+      lineStarts.length,
+      visibleLineCount,
+      visibleSegments
+    ),
     visibleLineCount,
   };
 }

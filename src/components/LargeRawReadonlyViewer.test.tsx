@@ -1,7 +1,11 @@
 import { createRef } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import LargeRawReadonlyViewer, { type LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
+import LargeRawReadonlyViewer, {
+  areLargeRawReadonlyRowPropsEqual,
+  type LargeRawReadonlyRowProps,
+  type LargeRawReadonlyViewerHandle,
+} from './LargeRawReadonlyViewer';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 describe('LargeRawReadonlyViewer', () => {
@@ -18,6 +22,26 @@ describe('LargeRawReadonlyViewer', () => {
       toJSON: () => ({}),
     } as DOMRect;
   }
+
+  it('reuses unchanged virtual rows across scrolling and unrelated highlight changes', () => {
+    const base: LargeRawReadonlyRowProps = {
+      chunkEnd: 2000,
+      chunkStart: 0,
+      highlightRange: null,
+      rowIndex: 0,
+      text: 'x'.repeat(4000),
+    };
+
+    expect(areLargeRawReadonlyRowPropsEqual(base, { ...base, highlightRange: { start: 3000, end: 3010 } })).toBe(true);
+    expect(areLargeRawReadonlyRowPropsEqual(base, { ...base, highlightRange: { start: 100, end: 110 } })).toBe(false);
+    expect(
+      areLargeRawReadonlyRowPropsEqual(
+        { ...base, highlightRange: { start: 100, end: 110 } },
+        { ...base, highlightRange: { start: 100, end: 110 } }
+      )
+    ).toBe(true);
+    expect(areLargeRawReadonlyRowPropsEqual(base, { ...base, text: `${base.text}y` })).toBe(false);
+  });
 
   it('reveals and highlights raw offsets without rendering one giant row', async () => {
     const ref = createRef<LargeRawReadonlyViewerHandle>();

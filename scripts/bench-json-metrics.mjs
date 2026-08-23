@@ -285,7 +285,61 @@ export function buildWrapLayoutStats(text, lineStarts, lineCount, wrapColumnCoun
   const compactLongRowIndexes = longRowIndexes.slice(0, longRowCount);
   return {
     indexBytes: compactLongRowIndexes.byteLength,
+    longRowIndexes: compactLongRowIndexes,
     longRowCount,
+  };
+}
+
+export function rebuildFoldedWrapLayoutStats(
+  text,
+  lineStarts,
+  lineCount,
+  hiddenStartLine,
+  hiddenEndLine,
+  wrapColumnCount = 80
+) {
+  const hiddenLineCount = Math.max(0, hiddenEndLine - hiddenStartLine + 1);
+  let checksum = 0;
+  let longRowCount = 0;
+
+  for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+    const lineNumber = lineIndex + 1;
+    if (lineNumber >= hiddenStartLine && lineNumber <= hiddenEndLine) {
+      continue;
+    }
+
+    const lineStart = lineStarts[lineIndex] ?? 0;
+    const nextLineStart = lineIndex + 1 < lineCount ? lineStarts[lineIndex + 1] : text.length;
+    const lineLength = Math.max(0, nextLineStart - lineStart - (lineIndex + 1 < lineCount ? 1 : 0));
+    if (lineLength <= wrapColumnCount) {
+      continue;
+    }
+
+    const visibleIndex = lineNumber < hiddenStartLine ? lineIndex : lineIndex - hiddenLineCount;
+    checksum = (checksum + visibleIndex) >>> 0;
+    longRowCount += 1;
+  }
+
+  return { checksum, longRowCount };
+}
+
+export function projectFoldedWrapLayoutStats(longRowIndexes, hiddenStartLine, hiddenEndLine) {
+  const hiddenLineCount = Math.max(0, hiddenEndLine - hiddenStartLine + 1);
+  const hiddenStartIndex = Math.max(0, hiddenStartLine - 1);
+  const firstHiddenLongRow = findFirstValueAtOrAfter(longRowIndexes, hiddenStartIndex, 0);
+  const firstLongRowAfterHidden = findFirstValueAtOrAfter(longRowIndexes, hiddenEndLine, firstHiddenLongRow);
+  let checksum = 0;
+
+  for (let index = 0; index < firstHiddenLongRow; index += 1) {
+    checksum = (checksum + longRowIndexes[index]) >>> 0;
+  }
+  for (let index = firstLongRowAfterHidden; index < longRowIndexes.length; index += 1) {
+    checksum = (checksum + longRowIndexes[index] - hiddenLineCount) >>> 0;
+  }
+
+  return {
+    checksum,
+    longRowCount: firstHiddenLongRow + longRowIndexes.length - firstLongRowAfterHidden,
   };
 }
 
@@ -520,9 +574,17 @@ export function buildRawViewerDataStats(text, chunkSize = 2000) {
     }
   }
 
+  const reusedScrollRowCount = Math.min(40, Math.max(0, rowCount - 1));
+  let memoizedScrollSliceCharsAvoided = 0;
+  for (let rowIndex = 0; rowIndex < reusedScrollRowCount; rowIndex += 1) {
+    memoizedScrollSliceCharsAvoided += lengths[rowIndex];
+  }
+
   return {
     indexBytes: rowCount * (Uint32Array.BYTES_PER_ELEMENT + Uint16Array.BYTES_PER_ELEMENT),
     legacyIndexBytes: rowCount * Uint32Array.BYTES_PER_ELEMENT * 2,
+    memoizedScrollRowsAvoided: reusedScrollRowCount,
+    memoizedScrollSliceCharsAvoided,
     rowCount,
     workingBytes: starts.byteLength + lengths.byteLength,
   };

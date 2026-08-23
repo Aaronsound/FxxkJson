@@ -15,6 +15,7 @@ import {
 import type { JsonSearchOptions } from '../types/jsonTool';
 import {
   buildLargeJsonWrapLayout,
+  buildLargeJsonLongRowIndexes,
   clamp,
   findCollapsedInterval,
   getLargeJsonContentHeight,
@@ -125,10 +126,22 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
     });
     const lineNumberDigits = Math.max(3, String(data.lineCount).length);
     const wrapColumnCount = getLargeJsonWrapColumnCount(viewportWidth, lineNumberDigits);
-    const wrapLayout = useMemo(
+    const actualLongRowIndexes = useMemo(
       () =>
         wrapLongLines
+          ? buildLargeJsonLongRowIndexes({
+              lineStarts: data.lineStarts,
+              textLength: text.length,
+              wrapColumnCount,
+            })
+          : null,
+      [data.lineStarts, text.length, wrapColumnCount, wrapLongLines]
+    );
+    const wrapLayout = useMemo(
+      () =>
+        actualLongRowIndexes
           ? buildLargeJsonWrapLayout({
+              actualLongRowIndexes,
               lineHeight: rowHeight,
               lineStarts: data.lineStarts,
               textLength: text.length,
@@ -137,7 +150,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
               wrapColumnCount,
             })
           : null,
-      [data.lineStarts, text.length, visibleLineCount, visibleSegments, wrapColumnCount, wrapLongLines]
+      [actualLongRowIndexes, data.lineStarts, text.length, visibleLineCount, visibleSegments, wrapColumnCount]
     );
 
     const getLineText = useCallback(
