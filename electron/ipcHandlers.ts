@@ -1,7 +1,8 @@
 import { app, clipboard, dialog, ipcMain, shell } from 'electron';
-import type { BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions } from 'electron';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, MessagePortMain, OpenDialogOptions } from 'electron';
+import { createReadStream } from 'node:fs';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { isRunningUnderRosetta } from './rosetta';
 import {
   appendRuntimeLog,
@@ -13,13 +14,14 @@ import {
 } from './runtimeLog';
 
 const MAX_LOG_APPEND_LENGTH = 64 * 1024;
+const JSON_FILE_STREAM_CHUNK_SIZE = 1024 * 1024;
 
 interface MainProcessIpcOptions {
   getMainWindow: () => BrowserWindow | null;
 }
 
 export function registerMainProcessIpc({ getMainWindow }: MainProcessIpcOptions) {
-  const isTrustedMainWindowSender = (event: IpcMainInvokeEvent) => {
+  const isTrustedMainWindowSender = (event: IpcMainEvent | IpcMainInvokeEvent) => {
     const mainWindow = getMainWindow();
     return Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
   };
@@ -72,38 +74,96 @@ export function registerMainProcessIpc({ getMainWindow }: MainProcessIpcOptions)
     platform: process.platform,
   }));
 
-  handleTrustedIpc('file:openJson', async () => {
-    const dialogOptions: OpenDialogOptions = {
-      properties: ['openFile'],
-      filters: [
-        { name: 'JSON / Text', extensions: ['json', 'txt'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    };
-    const mainWindow = getMainWindow();
+  ipcMain.on('file:openJsonStream', (event) => {
+    const port = event.ports[0];
+    if (!port) {
+      logRuntimeEvent('missing-json-file-stream-port');
+      return;
+    }
+
+    if (!isTrustedMainWindowSender(event)) {
+      logRuntimeEvent('blocked-ipc-sender', { channel: 'file:openJsonStream' });
+      port.close();
+      return;
+    }
+
+    void streamSelectedJsonFile(getMainWindow(), port);
+  });
+}
+
+async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: MessagePortMain) {
+  const dialogOptions: OpenDialogOptions = {
+    properties: ['openFile'],
+    filters: [
+      { name: 'JSON / Text', extensions: ['json', 'txt'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  };
+
+  try {
+    port.start();
     const result = mainWindow
       ? await dialog.showOpenDialog(mainWindow, dialogOptions)
       : await dialog.showOpenDialog(dialogOptions);
 
     if (result.canceled || result.filePaths.length === 0) {
-      return null;
+      port.postMessage({ type: 'cancelled' });
+      port.close();
+      return;
     }
 
     const filePath = result.filePaths[0];
     const stats = await fs.stat(filePath);
-    const content = await fs.readFile(filePath, 'utf8');
+    const fileName = path.basename(filePath);
+    port.postMessage({ type: 'selected', path: filePath, name: fileName, size: stats.size });
+
+    const stream = createReadStream(filePath, { highWaterMark: JSON_FILE_STREAM_CHUNK_SIZE });
+    const closeStream = () => stream.destroy();
+    port.once('close', closeStream);
+
+    for await (const chunk of stream) {
+      const chunkAcknowledged = waitForJsonChunkAcknowledgement(port);
+      port.postMessage({ type: 'chunk', chunk });
+      await chunkAcknowledged;
+    }
+
+    port.removeListener('close', closeStream);
+    port.postMessage({ type: 'complete' });
+    port.close();
 
     logRuntimeEvent('native-file-opened', {
-      fileName: path.basename(filePath),
+      fileName,
       fileSize: stats.size,
     });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    port.postMessage({ type: 'error', message });
+    port.close();
+    logRuntimeEvent('native-file-open-failed', { message });
+  }
+}
 
-    return {
-      path: filePath,
-      name: path.basename(filePath),
-      size: stats.size,
-      content,
+function waitForJsonChunkAcknowledgement(port: MessagePortMain) {
+  return new Promise<void>((resolve, reject) => {
+    const handleMessage = (event: Electron.MessageEvent) => {
+      if ((event.data as { type?: unknown } | null)?.type !== 'chunk-ack') {
+        return;
+      }
+
+      cleanup();
+      resolve();
     };
+    const handleClose = () => {
+      cleanup();
+      reject(new Error('JSON file stream was closed before the chunk was acknowledged'));
+    };
+    const cleanup = () => {
+      port.removeListener('message', handleMessage);
+      port.removeListener('close', handleClose);
+    };
+
+    port.on('message', handleMessage);
+    port.once('close', handleClose);
   });
 }
 

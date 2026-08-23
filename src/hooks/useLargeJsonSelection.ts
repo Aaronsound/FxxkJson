@@ -1,7 +1,7 @@
 import {
-  ClipboardEvent as ReactClipboardEvent,
-  KeyboardEvent as ReactKeyboardEvent,
-  RefObject,
+  type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
   useCallback,
   useMemo,
   useRef,

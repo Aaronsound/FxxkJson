@@ -1,4 +1,4 @@
-import { MutableRefObject } from 'react';
+import type { MutableRefObject } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { editor } from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';

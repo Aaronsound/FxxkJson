@@ -1,5 +1,6 @@
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { WorkerMessage } from '../types/jsonTool';
+import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
 type TextPayloadMessage = { text?: string; textBuffer?: ArrayBuffer };
 type MutableWorkerTextMessage = Record<string, unknown>;
@@ -27,7 +28,7 @@ export function getTextEncoder() {
 }
 
 export function getTextByteLength(text: string) {
-  return getTextEncoder().encode(text).length;
+  return getUtf8ByteLength(text);
 }
 
 export function readMessageText(message: TextPayloadMessage) {
@@ -49,7 +50,7 @@ export function appendTextPayload(
   bufferKey: string,
   text: string
 ) {
-  if (text.length >= LARGE_FILE_THRESHOLD) {
+  if (getTextByteLength(text) >= LARGE_FILE_THRESHOLD) {
     const bytes = getTextEncoder().encode(text);
     const buffer = bytes.buffer;
     message[bufferKey] = buffer;

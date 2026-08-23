@@ -1,4 +1,4 @@
-import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 
 interface UseLargeJsonViewportParams {
   containerRef: RefObject<HTMLDivElement | null>;

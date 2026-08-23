@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import Split from 'react-split';
 import LeftJsonEditorPane from './LeftJsonEditorPane';
 import RightJsonEditorPane from './RightJsonEditorPane';

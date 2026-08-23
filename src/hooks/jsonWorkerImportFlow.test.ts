@@ -88,11 +88,15 @@ describe('createJsonWorkerImportFlow', () => {
     );
     expect(callbacks.logEvent).toHaveBeenCalledWith('import-read-complete', expect.objectContaining({ rawLength: 11 }));
     expect(callbacks.renameTab).toHaveBeenCalledWith('tab-a', 'sample.json');
-    expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '{"ok":true}', true);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true);
+    expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '{"ok":true}', true, 11);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0);
     expect(callbacks.setTabFormatting).toHaveBeenLastCalledWith('tab-a', true);
     expect(callbacks.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'formatting');
-    expect(queueFormatAfterImport).toHaveBeenCalledWith('tab-a', '{"ok":true}');
+    expect(queueFormatAfterImport).toHaveBeenCalledWith(
+      'tab-a',
+      '{"ok":true}',
+      expect.objectContaining({ textByteLength: 11 })
+    );
     expect(workerStructureEnabledRef.current['tab-a']).toBe(true);
     expect(session).toMatchObject({ rawBytes: 11, structureEnabled: true });
   });

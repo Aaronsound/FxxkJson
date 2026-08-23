@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { WorkerRequestMessage } from '../types/jsonTool';
 import { disposeModel, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
 import type { JsonWorkerCallbacks } from './useJsonWorkerCallbacksRef';

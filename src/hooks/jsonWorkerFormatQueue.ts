@@ -1,4 +1,4 @@
-import { MutableRefObject } from 'react';
+import type { MutableRefObject } from 'react';
 import { EDIT_SAVE_FORMAT_DELAY_MS, FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS } from '../types/jsonTool';
 import type { StructureStatus, WorkerRequestMessage, WorkerRequestTextPayload } from '../types/jsonTool';
 import { getUtf8ByteLength, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
@@ -18,7 +18,7 @@ interface JsonWorkerFormatQueueCallbacks {
   setTabError: (tabId: string, message: string | null) => void;
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
 interface CreateJsonWorkerFormatQueueArgs {
@@ -60,9 +60,14 @@ export function createJsonWorkerFormatQueue({
   requestCounterRef,
   workerStructureEnabledRef,
 }: CreateJsonWorkerFormatQueueArgs) {
-  const prepareFormatRun = (tabId: string, text: string, stage: 'formatting' | 'repairing') => {
+  const prepareFormatRun = (
+    tabId: string,
+    text: string,
+    stage: 'formatting' | 'repairing',
+    preparedPlan?: ReturnType<typeof buildJsonWorkerProcessingPlan>
+  ) => {
     const locateRequested = Boolean(largeFileLocateEnabledRef.current[tabId]);
-    const plan = buildJsonWorkerProcessingPlan(text, locateRequested);
+    const plan = preparedPlan ?? buildJsonWorkerProcessingPlan(text, locateRequested);
     const requestId = ++requestCounterRef.current;
 
     clearFormatWatchdog(tabId);
@@ -86,7 +91,12 @@ export function createJsonWorkerFormatQueue({
     return { plan, requestId };
   };
 
-  const queueFormat = (tabId: string, text: string, immediate = false) => {
+  const queueFormat = (
+    tabId: string,
+    text: string,
+    immediate = false,
+    preparedPlan?: ReturnType<typeof buildJsonWorkerProcessingPlan>
+  ) => {
     clearPendingFormat(tabId);
     callbacksRef.current.setTabError(tabId, null);
     cancelInteractiveRequests(tabId);
@@ -118,7 +128,7 @@ export function createJsonWorkerFormatQueue({
       return;
     }
 
-    const { plan, requestId } = prepareFormatRun(tabId, text, 'formatting');
+    const { plan, requestId } = prepareFormatRun(tabId, text, 'formatting', preparedPlan);
     callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
       if (!session.pendingFormat) {
         return;
@@ -273,11 +283,16 @@ export function createJsonWorkerFormatQueue({
     });
   };
 
-  const queueFormatAfterUiUpdate = (tabId: string, text: string, delayMs = 0) => {
+  const queueFormatAfterUiUpdate = (
+    tabId: string,
+    text: string,
+    delayMs = 0,
+    preparedPlan?: ReturnType<typeof buildJsonWorkerProcessingPlan>
+  ) => {
     clearPendingFormat(tabId);
     formatTimersRef.current[tabId] = window.setTimeout(() => {
       delete formatTimersRef.current[tabId];
-      queueFormat(tabId, text, true);
+      queueFormat(tabId, text, true, preparedPlan);
     }, delayMs);
   };
 
@@ -286,8 +301,12 @@ export function createJsonWorkerFormatQueue({
     queueFormatAfterEditSave(tabId: string, text: string) {
       queueFormatAfterUiUpdate(tabId, text, shouldUseLargeMode(text) ? EDIT_SAVE_FORMAT_DELAY_MS : 0);
     },
-    queueFormatAfterImport(tabId: string, text: string) {
-      queueFormatAfterUiUpdate(tabId, text);
+    queueFormatAfterImport(
+      tabId: string,
+      text: string,
+      preparedPlan?: ReturnType<typeof buildJsonWorkerProcessingPlan>
+    ) {
+      queueFormatAfterUiUpdate(tabId, text, 0, preparedPlan);
     },
     queueRepair,
   };

@@ -1,7 +1,8 @@
-import React, { createRef } from 'react';
+import type React from 'react';
+import { createRef } from 'react';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
+import LargeJsonReadonlyViewer, { type LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
 import { fixtureText, renderViewer } from './LargeJsonReadonlyViewer.testUtils';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';

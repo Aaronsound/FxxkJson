@@ -73,9 +73,9 @@ export function useJsonEditorModelSync({
   );
 
   const syncLeftModel = useCallback(
-    (tabId: string, content: string, forceValue = false) => {
+    (tabId: string, content: string, forceValue = false, knownByteLength?: number) => {
       const path = getLeftModelPath(tabId);
-      const byteLength = getUtf8ByteLength(content);
+      const byteLength = knownByteLength ?? getUtf8ByteLength(content);
 
       if (byteLength >= LARGE_FILE_THRESHOLD) {
         if (activeTabIdRef.current === tabId) {
@@ -120,9 +120,9 @@ export function useJsonEditorModelSync({
   );
 
   const syncRightModel = useCallback(
-    (tabId: string, content: string, forceValue = false) => {
+    (tabId: string, content: string, forceValue = false, knownByteLength?: number) => {
       const path = getRightModelPath(tabId);
-      const byteLength = getUtf8ByteLength(content);
+      const byteLength = knownByteLength ?? getUtf8ByteLength(content);
       const rawText = rawTextByTabRef.current[tabId] ?? '';
       const rawByteLength = getUtf8ByteLength(rawText);
       const shouldPreferDedicatedViewer =

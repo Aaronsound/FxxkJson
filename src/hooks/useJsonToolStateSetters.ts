@@ -43,8 +43,8 @@ interface UseJsonToolStateSettersArgs {
   setStructureStatusState: (tabId: string, status: StructureStatus) => void;
   setTabLargeModeState: (tabId: string, enabled: boolean) => void;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
-  syncLeftModel: (tabId: string, content: string, forceValue?: boolean) => void;
-  syncRightModel: (tabId: string, content: string, forceValue?: boolean) => void;
+  syncLeftModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
+  syncRightModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
 }
 
 export function useJsonToolStateSetters({
@@ -159,8 +159,8 @@ export function useJsonToolStateSetters({
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
 
-  const updateTabContent = (tabId: string, content: string, syncModel = false) => {
-    const byteLength = getUtf8ByteLength(content);
+  const updateTabContent = (tabId: string, content: string, syncModel = false, knownByteLength?: number) => {
+    const byteLength = knownByteLength ?? getUtf8ByteLength(content);
     rawTextByTabRef.current[tabId] = content;
     setLargeRawViewerData(tabId, null);
     setRightNodeSelection(tabId, null);
@@ -171,12 +171,12 @@ export function useJsonToolStateSetters({
     }));
 
     if (syncModel) {
-      syncLeftModel(tabId, content, true);
+      syncLeftModel(tabId, content, true, byteLength);
     }
   };
 
-  const updateFormattedContent = (tabId: string, content: string, syncModel = false) => {
-    const byteLength = getUtf8ByteLength(content);
+  const updateFormattedContent = (tabId: string, content: string, syncModel = false, knownByteLength?: number) => {
+    const byteLength = knownByteLength ?? getUtf8ByteLength(content);
     formattedTextByTabRef.current[tabId] = content;
     setRightNodeSelection(tabId, null);
     setDocumentMeta(tabId, (current) => ({
@@ -186,7 +186,7 @@ export function useJsonToolStateSetters({
     }));
 
     if (syncModel) {
-      syncRightModel(tabId, content, true);
+      syncRightModel(tabId, content, true, byteLength);
     }
   };
 

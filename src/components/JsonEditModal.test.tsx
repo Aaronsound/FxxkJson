@@ -157,7 +157,9 @@ class MockEditor {
   setSelection = vi.fn((selection: InstanceType<typeof mockEditorState.MockSelection>) => {
     this.selection = selection;
     this.position = selection.getEndPosition();
-    this.cursorSelectionListeners.forEach((listener) => listener());
+    this.cursorSelectionListeners.forEach((listener) => {
+      listener();
+    });
   });
 
   setHiddenAreas = vi.fn();
@@ -316,7 +318,9 @@ class MockEditor {
         Math.max(startOffset, endOffset)
       )}`
     );
-    this.contentListeners.forEach((listener) => listener());
+    this.contentListeners.forEach((listener) => {
+      listener();
+    });
   }
 }
 
@@ -358,7 +362,9 @@ vi.mock('@monaco-editor/react', async () => {
             const nextValue = event.target.value;
             setValue(nextValue);
             editorRef.current?.model.setValue(nextValue);
-            editorRef.current?.contentListeners.forEach((listener) => listener());
+            editorRef.current?.contentListeners.forEach((listener) => {
+              listener();
+            });
             onChange?.(nextValue);
           }}
         />
@@ -427,6 +433,12 @@ describe('JsonEditModal search position', () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+
+  it('shows feedback after copying a JSON string literal', () => {
+    renderModal('{"ok":true}', { hasCopiedLiteral: true });
+
+    expect(screen.getByText('已复制 JSON 字符串字面量')).toBeInTheDocument();
   });
 
   it('keeps a late search match active after editing its value', async () => {
@@ -815,7 +827,9 @@ describe('JsonEditModal search position', () => {
     renderModal('{"name":"first"}');
     const editor = mockEditorState.editor;
 
-    editor?.disposeListeners.forEach((listener) => listener());
+    editor?.disposeListeners.forEach((listener) => {
+      listener();
+    });
 
     expect(editor?.model.dispose).toHaveBeenCalled();
   });

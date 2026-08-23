@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import JsonToolAppView from './components/JsonToolAppView';
 import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';

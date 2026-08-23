@@ -1,6 +1,6 @@
-import { MutableRefObject, useEffect } from 'react';
+import { type MutableRefObject, useEffect } from 'react';
 import type { StructureStatus, WorkerMessage } from '../types/jsonTool';
-import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
+import type { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
 import { handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 

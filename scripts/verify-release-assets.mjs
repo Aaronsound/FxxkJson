@@ -88,7 +88,9 @@ async function verifyRelease(jsonPath, targets) {
   const assets = await readReleaseAssets(jsonPath);
   const selectedTargets = targets.length > 0 ? targets : Object.keys(EXPECTED_ASSETS_BY_TARGET);
 
-  selectedTargets.forEach((target) => assertTargetAssets(target, assets));
+  selectedTargets.forEach((target) => {
+    assertTargetAssets(target, assets);
+  });
   console.log(`Release asset check passed for ${selectedTargets.join(', ')}`);
   console.table(assets);
 }

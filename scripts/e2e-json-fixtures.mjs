@@ -7,7 +7,7 @@ const DEFAULT_SIZE_MB = 2;
 const IMPORT_CHUNK_BYTES = 256 * 1024;
 
 export function parseSizeMb() {
-  const argIndex = process.argv.findIndex((arg) => arg === '--size-mb');
+  const argIndex = process.argv.indexOf('--size-mb');
   const rawValue = argIndex >= 0 ? process.argv[argIndex + 1] : process.env.HANJSON_E2E_SIZE_MB;
   const value = Number(rawValue ?? DEFAULT_SIZE_MB);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_SIZE_MB;

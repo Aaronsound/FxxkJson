@@ -1,6 +1,6 @@
 {
   "name": "fxxkjson",
-  "version": "1.0.26",
+  "version": "1.0.31",
   "private": true,
   "description": "A desktop JSON formatting, repair, search, compare, and large-file inspection tool.",
   "author": "Alosan",
@@ -13,6 +13,10 @@
   "bugs": {
     "url": "https://github.com/Aaronsound/FxxkJson/issues"
   },
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "packageManager": "npm@10.9.4",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -28,6 +32,7 @@
     "test:watch": "vitest",
     "bench": "node ./scripts/bench-json.mjs",
     "bundle:size": "node ./scripts/report-bundle-size.mjs",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
     "check:text": "node ./scripts/check-text-encoding.mjs",
     "perf:ci": "node ./scripts/perf-ci.mjs",
     "perf:regression": "node ./scripts/perf-regression.mjs",

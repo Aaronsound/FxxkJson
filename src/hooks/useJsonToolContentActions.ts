@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { EditJsonWorkerOperation, EditJsonWorkerRequest, StructureStatus, Tab } from '../types/jsonTool';
 import { DEFAULT_TAB_TITLE } from '../types/jsonTool';
 import { getContentAfterSelectionReplace } from '../utils/jsonEditorMountActions';

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import {
   appendTextPayload,
   getTextByteLength,
@@ -30,6 +31,19 @@ describe('jsonWorkerTextPayload', () => {
     expect(message.data).toBe('{}');
     expect(message.dataBuffer).toBeUndefined();
     expect(transfer).toHaveLength(0);
+  });
+
+  it('uses UTF-8 bytes to transfer large non-ASCII payloads', () => {
+    const message: Record<string, unknown> = {};
+    const transfer: Transferable[] = [];
+    const text = '汉'.repeat(Math.ceil(LARGE_FILE_THRESHOLD / 3));
+
+    appendTextPayload(message, transfer, 'data', 'dataBuffer', text);
+
+    expect(message.data).toBeUndefined();
+    expect(Object.prototype.toString.call(message.dataBuffer)).toBe('[object ArrayBuffer]');
+    expect((message.dataBuffer as ArrayBuffer).byteLength).toBeGreaterThanOrEqual(LARGE_FILE_THRESHOLD);
+    expect(transfer).toEqual([message.dataBuffer]);
   });
 
   it('posts text and repair results with transferable payloads when needed', () => {

@@ -1,5 +1,5 @@
-import { forwardRef, MouseEvent as ReactMouseEvent, useCallback, useImperativeHandle, useRef } from 'react';
-import { DEFAULT_SEARCH_OPTIONS, LargeJsonSearchMatch, LargeJsonViewerData } from '../types/jsonTool';
+import { forwardRef, type MouseEvent as ReactMouseEvent, useCallback, useImperativeHandle, useRef } from 'react';
+import { DEFAULT_SEARCH_OPTIONS, type LargeJsonSearchMatch, type LargeJsonViewerData } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import { clamp } from '../utils/largeJsonViewerRender';
 import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';

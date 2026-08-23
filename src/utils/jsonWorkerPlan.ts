@@ -33,8 +33,12 @@ export function getDeferredStructureWarmupDelayMs(
   return baseDelayMs;
 }
 
-export function buildJsonWorkerProcessingPlan(text: string, locateRequested: boolean): JsonWorkerProcessingPlan {
-  const textByteLength = getUtf8ByteLength(text);
+export function buildJsonWorkerProcessingPlan(
+  text: string,
+  locateRequested: boolean,
+  knownTextByteLength?: number
+): JsonWorkerProcessingPlan {
+  const textByteLength = knownTextByteLength ?? getUtf8ByteLength(text);
   const largeMode = textByteLength >= LARGE_FILE_THRESHOLD || exceedsLineCountThreshold(text);
   const shouldBuildStructureIndex = textByteLength > 0 && textByteLength <= STRUCTURE_SYNC_THRESHOLD && locateRequested;
   const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;

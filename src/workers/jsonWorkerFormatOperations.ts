@@ -5,7 +5,7 @@ import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
-import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import { getTextByteLength, postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
 
 type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
 
@@ -254,7 +254,7 @@ export function createJsonWorkerFormatOperations({
     const text = readMessageText(message);
     prepareFormatRequest(tabId, requestId, text);
     try {
-      const rawViewerData = text.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
+      const rawViewerData = getTextByteLength(text) >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
       const { formatted, normalizedNestedString } = formatJsonText(text);
       postTextResult(
         {
@@ -297,7 +297,8 @@ export function createJsonWorkerFormatOperations({
     prepareFormatRequest(tabId, requestId, text);
     try {
       const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
-      const rawViewerData = repaired.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
+      const rawViewerData =
+        getTextByteLength(repaired) >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
 
       postRepairResult(
         {

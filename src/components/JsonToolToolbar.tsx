@@ -1,5 +1,5 @@
-import React from 'react';
-import { StructureStatus } from '../types/jsonTool';
+import type React from 'react';
+import type { StructureStatus } from '../types/jsonTool';
 import { createTranslator, type AppLanguage, type I18nKey } from '../utils/i18n';
 
 interface JsonToolToolbarProps {

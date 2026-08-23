@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { LargeJsonViewerData, LargeJsonViewerRegion } from '../types/jsonTool';
 import { getFirstMeaningfulOffset, getLargeJsonLineTitle } from '../utils/largeJsonViewerDom';

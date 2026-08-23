@@ -2,10 +2,10 @@ import { useState } from 'react';
 import {
   DEFAULT_TAB_TITLE,
   EMPTY_DOCUMENT_META,
-  RenamingTabState,
-  StructureStatus,
-  Tab,
-  TabDocumentMeta,
+  type RenamingTabState,
+  type StructureStatus,
+  type Tab,
+  type TabDocumentMeta,
 } from '../types/jsonTool';
 import { createTab } from '../utils/jsonToolModels';
 

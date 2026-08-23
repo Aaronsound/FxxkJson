@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import type React from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import './PaneFindWidget.css';
 

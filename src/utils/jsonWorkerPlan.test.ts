@@ -37,6 +37,14 @@ describe('jsonWorkerPlan', () => {
     expect(plan.deferredStructureWarmupDelayMs).toBe(350);
   });
 
+  it('reuses a byte length measured by the import pipeline', () => {
+    const plan = buildJsonWorkerProcessingPlan('small string placeholder', true, LARGE_FILE_THRESHOLD);
+
+    expect(plan.textByteLength).toBe(LARGE_FILE_THRESHOLD);
+    expect(plan.largeMode).toBe(true);
+    expect(plan.shouldBuildLargeViewer).toBe(true);
+  });
+
   it('uses direct lightweight locate above the full structure sync threshold', () => {
     const text = 'a'.repeat(STRUCTURE_SYNC_THRESHOLD + 1);
     const plan = buildJsonWorkerProcessingPlan(text, true);

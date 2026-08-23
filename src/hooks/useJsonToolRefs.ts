@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from '../components/LargeRawReadonlyViewer';
 import type { StructureStatus } from '../types/jsonTool';

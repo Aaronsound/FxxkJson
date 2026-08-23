@@ -117,14 +117,11 @@ jobs:
           console.log(`Package version set to ${version}`);
           '@ | node
 
-      - name: Run tests
-        run: npm test
+      - name: Run project checks
+        run: npm run check
 
-      - name: Run smoke flow
-        run: npm run smoke
-
-      - name: Build renderer and electron bundles
-        run: npm run build
+      - name: Audit production dependencies
+        run: npm run audit:prod
 
       - name: Build desktop package
         # Avoid inherited Electron mirror config rewriting electron-builder helper downloads.

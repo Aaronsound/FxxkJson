@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { PerformanceSnapshot } from '../types/jsonTool';
+import type React from 'react';
+import { useMemo, useState } from 'react';
+import type { PerformanceSnapshot } from '../types/jsonTool';
 import { useFloatingPanelPosition } from '../hooks/useFloatingPanelPosition';
 import { writeTextToClipboard } from '../utils/clipboard';
 import {

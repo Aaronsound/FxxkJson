@@ -1,7 +1,7 @@
 import { createRef } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
+import LargeRawReadonlyViewer, { type LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 describe('LargeRawReadonlyViewer', () => {

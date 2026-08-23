@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import JsonEditorPanes from './JsonEditorPanes';
 import JsonPerformancePanel from './JsonPerformancePanel';
 import JsonToolContextMenus from './JsonToolContextMenus';

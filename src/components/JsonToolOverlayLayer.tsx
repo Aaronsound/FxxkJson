@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import AboutDialog from './AboutDialog';
 import ArchitectureWarningDialog from './ArchitectureWarningDialog';
 import DiagnosticsLogPanel from './DiagnosticsLogPanel';

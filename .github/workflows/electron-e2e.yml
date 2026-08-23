@@ -9,10 +9,13 @@ on:
       - '.github/workflows/electron-e2e.yml'
       - 'electron/**'
       - 'scripts/e2e-*.mjs'
+      - 'src/**'
+      - 'index.html'
       - 'src/types/electron.d.ts'
       - 'package.json'
       - 'package-lock.json'
       - 'vite.config.mts'
+      - 'vitest.config.mts'
   workflow_dispatch:
     inputs:
       size_mb:

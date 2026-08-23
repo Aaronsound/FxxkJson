@@ -38,3 +38,6 @@ jobs:
 
       - name: Run project checks and coverage
         run: npm run check
+
+      - name: Audit production dependencies
+        run: npm run audit:prod

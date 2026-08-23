@@ -12,6 +12,7 @@ import {
 } from '../utils/preserveJsonFormat';
 import { createNodeEditCacheEntry, getCachedNodeRange } from './jsonNodeEditCache';
 import type { DirectValueTreeCacheEntry } from './jsonWorkerStructureOperations';
+import { getTextByteLength } from './jsonWorkerTextPayload';
 
 interface NodeEditStructureCacheEntry {
   directLocate?: boolean;
@@ -252,7 +253,7 @@ export function createJsonNodeEditOperations({
     const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text, {
       range: getCachedNodeRange(nodeEditCache, tabId, path, 'raw', originalText),
     });
-    const rawViewerData = rawText.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
+    const rawViewerData = getTextByteLength(rawText) >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
     const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText);
 
     nodeEditCache.delete(tabId);

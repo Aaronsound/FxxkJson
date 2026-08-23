@@ -1,5 +1,5 @@
-import { MutableRefObject, useCallback, useRef } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { type MutableRefObject, useCallback, useRef } from 'react';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -10,7 +10,7 @@ import type {
   RightNodeSelection,
   StructureStatus,
 } from '../types/jsonTool';
-import { PerformanceSession } from './useJsonPerformanceTracking';
+import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
 import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
 import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
@@ -69,8 +69,8 @@ export interface UseJsonFormattingWorkerArgs {
     nextStartOffset?: number,
     append?: boolean
   ) => void;
-  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
   resetSearchState: () => void;
   revealLeftRange: (startOffset: number, endOffset: number) => void;
   clearLeftHighlights: () => void;

@@ -35,8 +35,8 @@ interface JsonWorkerImportCallbacks {
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabImporting: (tabId: string, fileName: string | null) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
-  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
 interface JsonWorkerImportFlowArgs {
@@ -44,7 +44,11 @@ interface JsonWorkerImportFlowArgs {
   getCallbacks: () => JsonWorkerImportCallbacks;
   largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
   postClearStructure: (tabId: string) => void;
-  queueFormatAfterImport: (tabId: string, text: string) => void;
+  queueFormatAfterImport: (
+    tabId: string,
+    text: string,
+    plan?: ReturnType<typeof buildJsonWorkerProcessingPlan>
+  ) => void;
   workerStructureEnabledRef: MutableRefObject<Record<string, boolean>>;
 }
 
@@ -101,7 +105,7 @@ export function createJsonWorkerImportFlow({
         fileName: source.name,
         rawLength: rawBytes,
       });
-      const plan = buildJsonWorkerProcessingPlan(content, Boolean(largeFileLocateEnabledRef.current[tabId]));
+      const plan = buildJsonWorkerProcessingPlan(content, Boolean(largeFileLocateEnabledRef.current[tabId]), rawBytes);
 
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.leftModelStartedAt = performance.now();
@@ -109,8 +113,8 @@ export function createJsonWorkerImportFlow({
         session.structureEnabled = plan.workerLocateEnabled;
       });
       callbacks.setProcessingStage(tabId, 'syncing-left');
-      callbacks.updateTabContent(tabId, content, true);
-      callbacks.updateFormattedContent(tabId, '', true);
+      callbacks.updateTabContent(tabId, content, true, rawBytes);
+      callbacks.updateFormattedContent(tabId, '', true, 0);
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.leftModelCompletedAt = performance.now();
       });
@@ -123,7 +127,7 @@ export function createJsonWorkerImportFlow({
         tabId,
         plan.workerLocateEnabled ? 'building' : plan.largeMode ? 'disabled' : 'ready'
       );
-      queueFormatAfterImport(tabId, content);
+      queueFormatAfterImport(tabId, content, plan);
     } catch (error) {
       callbacks.mutatePerformanceSession(
         tabId,

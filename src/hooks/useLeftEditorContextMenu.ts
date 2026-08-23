@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LeftEditorContextMenuState } from '../components/LeftEditorContextMenu';
 import type { Tab } from '../types/jsonTool';
 import { readTextFromClipboard, writeTextToClipboard } from '../utils/clipboard';
