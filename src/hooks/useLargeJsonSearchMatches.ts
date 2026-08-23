@@ -13,6 +13,22 @@ interface UseLargeJsonSearchMatchesArgs {
   text: string;
 }
 
+type IndexedLargeJsonSearchMatch = LargeJsonSearchMatch & { matchIndex: number };
+
+export function groupSearchMatchesByLine(searchMatches: LargeJsonSearchMatch[]) {
+  const map = new Map<number, IndexedLargeJsonSearchMatch[]>();
+
+  searchMatches.forEach((match, index) => {
+    const indexedMatch = match as IndexedLargeJsonSearchMatch;
+    indexedMatch.matchIndex = index;
+    const lineMatches = map.get(match.lineNumber) ?? [];
+    lineMatches.push(indexedMatch);
+    map.set(match.lineNumber, lineMatches);
+  });
+
+  return map;
+}
+
 export function useLargeJsonSearchMatches({
   activeMatchIndex,
   data,
@@ -30,18 +46,7 @@ export function useLargeJsonSearchMatches({
   );
 
   const matchesByLine = useMemo(() => {
-    const map = new Map<number, Array<LargeJsonSearchMatch & { matchIndex: number }>>();
-
-    searchMatches.forEach((match, index) => {
-      const lineMatches = map.get(match.lineNumber) ?? [];
-      lineMatches.push({
-        ...match,
-        matchIndex: index,
-      });
-      map.set(match.lineNumber, lineMatches);
-    });
-
-    return map;
+    return groupSearchMatchesByLine(searchMatches);
   }, [searchMatches]);
 
   const effectiveMatchIndex =

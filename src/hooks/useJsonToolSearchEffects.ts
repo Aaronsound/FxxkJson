@@ -1,12 +1,12 @@
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import {
-  useCallback,
-  useEffect,
   type Dispatch,
   type MutableRefObject,
   type RefObject,
   type SetStateAction,
+  useCallback,
+  useEffect,
 } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from '../components/LargeRawReadonlyViewer';
 import type {
@@ -174,12 +174,13 @@ export function useJsonToolSearchEffects({
       searchOptions: leftSearchOptions,
       target: 'left',
       text: shouldSendRawText ? getTabContent(activeTab.id) : undefined,
+      textByteLength: shouldSendRawText ? activeDocumentMeta.rawLength : undefined,
       rawRevision,
     });
     if (shouldSendRawText) {
       leftSearchWorkerRevisionRef.current[activeTab.id] = rawRevision;
     }
-  }, [activeDocumentMeta.rawRevision, activeTab, leftSearchOptions, leftSearchTerm]);
+  }, [activeDocumentMeta.rawLength, activeDocumentMeta.rawRevision, activeTab, leftSearchOptions, leftSearchTerm]);
 
   useEffect(() => {
     const editor = rightEditorRef.current;

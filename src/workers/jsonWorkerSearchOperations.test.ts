@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import type { WorkerMessage } from '../types/jsonTool';
+import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import { unpackSearchMatches } from '../utils/searchMatchPayload';
 import { buildLineStarts } from '../utils/searchText';
-import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
 import type { RawSearchCacheEntry, ViewerSearchCacheEntry } from './jsonWorkerSearchOperations';
+import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
 
 function createOperations() {
   const latestSearchRequestByKey = new Map();
@@ -19,7 +20,11 @@ function createOperations() {
 }
 
 function getPostedSearchResult(index = 0) {
-  return vi.mocked(postMessage).mock.calls[index][0] as WorkerMessage;
+  const message = vi.mocked(postMessage).mock.calls[index][0] as WorkerMessage;
+  return {
+    ...message,
+    matches: unpackSearchMatches(message.matchData) ?? message.matches,
+  };
 }
 
 async function flushSearchTimer() {
@@ -57,17 +62,17 @@ describe('jsonWorkerSearchOperations', () => {
     });
     await flushSearchTimer();
 
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        append: false,
-        hasMore: false,
-        query: 'alpha',
-        requestId: 1,
-        tabId: 'tab-a',
-        target: 'left',
-      })
-    );
-    expect(getPostedSearchResult().matches).toHaveLength(2);
+    const result = getPostedSearchResult();
+    expect(result).toMatchObject({
+      append: false,
+      hasMore: false,
+      query: 'alpha',
+      requestId: 1,
+      tabId: 'tab-a',
+      target: 'left',
+    });
+    expect(result.matches).toHaveLength(2);
+    expect(postMessage).toHaveBeenCalledWith(expect.any(Object), [expect.any(ArrayBuffer)]);
     const cachedRaw = rawSearchCache.get('tab-a');
     expect(cachedRaw).toMatchObject({
       rawRevision: 2,
@@ -126,17 +131,17 @@ describe('jsonWorkerSearchOperations', () => {
     });
     await flushSearchTimer();
 
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        append: true,
-        hasMore: false,
-        query: 'alpha',
-        requestId: 1,
-        tabId: 'tab-a',
-        target: 'right',
-      })
-    );
-    expect(getPostedSearchResult().matches).toHaveLength(2);
+    const result = getPostedSearchResult();
+    expect(result).toMatchObject({
+      append: true,
+      hasMore: false,
+      query: 'alpha',
+      requestId: 1,
+      tabId: 'tab-a',
+      target: 'right',
+    });
+    expect(result.matches).toHaveLength(2);
+    expect(postMessage).toHaveBeenCalledWith(expect.any(Object), [expect.any(ArrayBuffer)]);
     expect(viewerCache.get('tab-a')).not.toHaveProperty('lowerFormattedText');
   });
 

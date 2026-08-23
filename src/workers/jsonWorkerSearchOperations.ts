@@ -1,17 +1,14 @@
+import type { LargeJsonLineIndex, SearchTarget, WorkerMessage, WorkerSearchRequest } from '../types/jsonTool';
 import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
-import type {
-  JsonSearchOptions,
-  LargeJsonLineIndex,
-  SearchTarget,
-  WorkerMessage,
-  WorkerSearchRequest,
-} from '../types/jsonTool';
+import { packSearchMatches } from '../utils/searchMatchPayload';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
+import { readMessageText } from './jsonWorkerTextPayload';
 
 type SearchRequestMessage = WorkerSearchRequest & {
   append?: boolean;
   requestId: number;
   startOffset?: number;
+  textBuffer?: ArrayBuffer;
   type?: 'search';
 };
 
@@ -50,6 +47,15 @@ export function createJsonWorkerSearchOperations({
       return;
     }
 
+    if (payload.matches && payload.matches.length > 0) {
+      const matchData = packSearchMatches(payload.matches);
+      const message = { ...payload, matches: undefined, matchData };
+      (self as unknown as { postMessage(message: unknown, transfer: Transferable[]): void }).postMessage(message, [
+        matchData.buffer,
+      ]);
+      return;
+    }
+
     postMessage(payload);
   }
 
@@ -76,9 +82,9 @@ export function createJsonWorkerSearchOperations({
     }
 
     if (target === 'left') {
-      if (typeof message.text === 'string') {
+      if (typeof message.text === 'string' || message.textBuffer instanceof ArrayBuffer) {
         rawSearchCache.set(tabId, {
-          rawText: message.text,
+          rawText: readMessageText(message),
           rawRevision: message.rawRevision ?? null,
           lineStarts: null,
         });

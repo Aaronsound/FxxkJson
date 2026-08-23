@@ -1,5 +1,5 @@
-import { type MutableRefObject, useCallback, useRef } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { type MutableRefObject, useCallback, useRef } from 'react';
 import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -10,14 +10,14 @@ import type {
   RightNodeSelection,
   StructureStatus,
 } from '../types/jsonTool';
-import type { PerformanceSession } from './useJsonPerformanceTracking';
-import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
-import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
-import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
 import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
+import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
+import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
+import { createJsonWorkerTabArtifactActions } from './jsonWorkerTabArtifacts';
+import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { useJsonWorkerCallbacksRef } from './useJsonWorkerCallbacksRef';
 import { useJsonWorkerInternalRefs } from './useJsonWorkerInternalRefs';
-import { createJsonWorkerTabArtifactActions } from './jsonWorkerTabArtifacts';
+import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
 
 export interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
@@ -160,6 +160,7 @@ export function useJsonFormattingWorker({
   const interactiveFlowRef = useRef<ReturnType<typeof createJsonWorkerInteractiveFlow> | null>(null);
   interactiveFlowRef.current ??= createJsonWorkerInteractiveFlow({
     activeTabIdRef,
+    createWorkerTextPayload,
     getCallbacks: () => callbacksRef.current,
     postWorkerRequest,
     readWorkerTextField,

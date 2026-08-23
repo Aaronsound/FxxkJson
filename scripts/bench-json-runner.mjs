@@ -65,6 +65,7 @@ export async function benchFile(filePath) {
   );
   const leftSearchQuery = getRightSearchQuery(rawText);
   const leftSearchBatchResult = measure('leftSearchBatch', () => findLiteralSearchBatch(rawText, leftSearchQuery));
+  const searchTransferMatchCount = Math.max(rightSearchBatchResult.value.count, leftSearchBatchResult.value.count);
   const leftSearchLoadMoreResult = measure('leftSearchLoadMore', () =>
     leftSearchBatchResult.value.hasMore
       ? findLiteralSearchBatch(rawText, leftSearchQuery, leftSearchBatchResult.value.nextStartOffset)
@@ -127,6 +128,10 @@ export async function benchFile(filePath) {
     rightSearchLoadMoreCount: rightSearchLoadMoreResult.value.count,
     leftSearchBatchMs: leftSearchBatchResult.ms,
     leftSearchBatchCount: leftSearchBatchResult.value.count,
+    leftSearchSourceTransferBytes: rawBytes,
+    searchResultPackedBytes: searchTransferMatchCount * 6 * Uint32Array.BYTES_PER_ELEMENT,
+    searchResultLegacyNumericBytes: searchTransferMatchCount * 6 * Float64Array.BYTES_PER_ELEMENT,
+    searchResultObjectAllocationsAvoided: searchTransferMatchCount,
     leftSearchLoadMoreMs: leftSearchLoadMoreResult.ms,
     leftSearchLoadMoreCount: leftSearchLoadMoreResult.value.count,
     leftReplaceAllMs: leftReplaceAllResult.ms,

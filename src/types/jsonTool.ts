@@ -39,6 +39,7 @@ export interface WorkerSearchRequest {
   append?: boolean;
   target?: SearchTarget;
   text?: string;
+  textByteLength?: number;
   rawRevision?: number;
 }
 
@@ -66,6 +67,8 @@ export type WorkerRequestMessage =
       startOffset: number;
       append: boolean;
       text?: WorkerSearchRequest['text'];
+      textBuffer?: ArrayBuffer;
+      textByteLength?: WorkerSearchRequest['textByteLength'];
       rawRevision?: WorkerSearchRequest['rawRevision'];
     })
   | (WorkerRequestBase & { type: 'locate'; offset: number })
@@ -121,6 +124,7 @@ export interface WorkerMessage {
   viewerIndexMs?: number | null;
   query?: string;
   matches?: LargeJsonSearchMatch[];
+  matchData?: Uint32Array;
   hasMore?: boolean;
   nextStartOffset?: number;
   append?: boolean;
@@ -204,6 +208,7 @@ export interface LargeJsonSearchMatch {
   lineStartOffset: number;
   localStart: number;
   localEnd: number;
+  matchIndex?: number;
 }
 
 export interface JsonSearchOptions {

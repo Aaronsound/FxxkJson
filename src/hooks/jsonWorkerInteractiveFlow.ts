@@ -8,8 +8,10 @@ import type {
   StructureStatus,
   WorkerMessage,
   WorkerRequestMessage,
+  WorkerRequestTextPayload,
   WorkerSearchRequest,
 } from '../types/jsonTool';
+import { unpackSearchMatches } from '../utils/searchMatchPayload';
 
 type WorkerRef = MutableRefObject<Worker | null>;
 type WorkerRecordRef<T> = MutableRefObject<Record<string, T>>;
@@ -38,6 +40,10 @@ export interface JsonWorkerInteractiveCallbacks {
 
 interface JsonWorkerInteractiveFlowArgs {
   activeTabIdRef: MutableRefObject<string>;
+  createWorkerTextPayload: (
+    text: string,
+    byteLength?: number
+  ) => { message: WorkerRequestTextPayload; transfer: Transferable[] };
   getCallbacks: () => JsonWorkerInteractiveCallbacks;
   postWorkerRequest: (message: WorkerRequestMessage, transfer?: Transferable[]) => void;
   readWorkerTextField: (
@@ -56,6 +62,7 @@ function getSearchRequestKey(target: SearchTarget, tabId: string) {
 
 export function createJsonWorkerInteractiveFlow({
   activeTabIdRef,
+  createWorkerTextPayload,
   getCallbacks,
   postWorkerRequest,
   readWorkerTextField,
@@ -119,6 +126,7 @@ export function createJsonWorkerInteractiveFlow({
     append = false,
     target = 'right',
     text,
+    textByteLength,
     rawRevision,
   }: WorkerSearchRequest) => {
     const callbacks = getCallbacks();
@@ -133,18 +141,23 @@ export function createJsonWorkerInteractiveFlow({
 
     const requestId = ++searchRequestCounter;
     latestSearchRequests[getSearchRequestKey(target, tabId)] = requestId;
-    postWorkerRequest({
-      type: 'search',
-      requestId,
-      tabId,
-      target,
-      query,
-      searchOptions,
-      startOffset,
-      append,
-      text,
-      rawRevision,
-    });
+    const textPayload = typeof text === 'string' ? createWorkerTextPayload(text, textByteLength) : null;
+    postWorkerRequest(
+      {
+        type: 'search',
+        requestId,
+        tabId,
+        target,
+        query,
+        searchOptions,
+        startOffset,
+        append,
+        ...textPayload?.message,
+        textByteLength,
+        rawRevision,
+      },
+      textPayload?.transfer
+    );
   };
 
   const requestEditJsonResult = ({
@@ -199,9 +212,10 @@ export function createJsonWorkerInteractiveFlow({
 
     const callbacks = getCallbacks();
     const applyResults = target === 'left' ? callbacks.setLeftSearchResults : callbacks.setLargeViewerSearchResults;
+    const matches = unpackSearchMatches(message.matchData) ?? message.matches ?? [];
     applyResults(
       message.tabId,
-      message.matches ?? [],
+      matches,
       Boolean(message.hasMore),
       message.nextStartOffset ?? 0,
       Boolean(message.append)
