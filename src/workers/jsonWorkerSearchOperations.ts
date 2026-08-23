@@ -1,7 +1,7 @@
 import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import type {
   JsonSearchOptions,
-  LargeJsonViewerData,
+  LargeJsonLineIndex,
   SearchTarget,
   WorkerMessage,
   WorkerSearchRequest,
@@ -23,7 +23,7 @@ interface RawSearchCacheEntry {
 
 interface ViewerSearchCacheEntry {
   formattedText: string;
-  viewerData: LargeJsonViewerData;
+  viewerData: LargeJsonLineIndex;
 }
 
 interface JsonWorkerSearchOperationsArgs {

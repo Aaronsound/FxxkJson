@@ -6,7 +6,7 @@ import type { JsonValue } from '../utils/preserveJsonFormat';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import { replaceTextSearchMatches } from '../utils/searchText';
 import type { SaveNodeEditResult } from './jsonNodeEditOperations';
-import { getRawViewerTransferables } from './jsonWorkerTextPayload';
+import { postNodeSaveResult } from './jsonWorkerTextPayload';
 
 interface EditJsonCacheEntry {
   originalText: string;
@@ -130,8 +130,6 @@ export function createJsonWorkerEditJsonOperations({
 
         if (operation === 'save-node') {
           const result = jsonNodeEditOperations.saveJsonNodeForEdit(tabId, text, originalText, path);
-          const formattedPatch =
-            typeof result.formattedText === 'string' ? { formattedText: result.formattedText } : {};
 
           const resultMessage: WorkerMessage = {
             type: 'edit-json-result',
@@ -139,14 +137,20 @@ export function createJsonWorkerEditJsonOperations({
             tabId,
             operation,
             success: true,
-            data: result.rawText,
-            ...formattedPatch,
             structureWarming: result.structureWarming,
             rawViewerData: result.rawViewerData,
             viewerData: result.viewerData,
             viewerIndexMs: result.viewerIndexMs,
+            rawMetrics: result.rawMetrics,
+            formattedMetrics: result.formattedMetrics ?? undefined,
           };
-          postWorkerMessage(resultMessage, getRawViewerTransferables(result.rawViewerData));
+          postNodeSaveResult(
+            resultMessage,
+            result.rawText,
+            result.formattedText,
+            result.rawMetrics.textByteLength,
+            result.formattedMetrics?.textByteLength
+          );
           return null;
         }
 

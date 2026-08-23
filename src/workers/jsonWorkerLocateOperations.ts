@@ -1,6 +1,6 @@
 import { findNodeAtLocation, getLocation } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
-import type { LargeJsonViewerData, WorkerMessage } from '../types/jsonTool';
+import type { LargeJsonLineIndex, WorkerMessage } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import { getLocateCandidateOffsets } from './jsonWorkerLocateCandidates';
@@ -24,13 +24,13 @@ interface LocateStructureCacheEntry {
   rawTree?: Node;
   requestId?: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 interface LocateViewerCacheEntry {
   formattedText?: string;
   requestId?: number;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 type LocateRequestMessage = { offset: number; requestId: number; tabId: string };

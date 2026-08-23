@@ -42,6 +42,13 @@ function createFlow({
     postWorkerRequest: (message) => {
       requests.push(message);
     },
+    readWorkerTextField: (message, stringKey, bufferKey) => {
+      if (typeof message[stringKey] === 'string') {
+        return message[stringKey] ?? null;
+      }
+      const buffer = message[bufferKey];
+      return buffer ? new TextDecoder().decode(buffer) : null;
+    },
     structureStatusRef: recordRef<StructureStatus>({ 'tab-a': structureStatus }),
     workerRef: { current: worker },
     workerStructureEnabledRef: recordRef({ 'tab-a': structureEnabled }),
@@ -125,5 +132,28 @@ describe('createJsonWorkerInteractiveFlow', () => {
       })
     );
     await expect(edit).resolves.toBe('"{\\"ok\\":true}"');
+  });
+
+  it('decodes transferable raw and formatted node-save text results', async () => {
+    const { flow, requests } = createFlow();
+    const encoder = new TextEncoder();
+    const edit = flow.requestEditJsonResult({ tabId: 'tab-a', operation: 'save-node', text: 'true' });
+    const editRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
+
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: editRequestId,
+        tabId: 'tab-a',
+        success: true,
+        dataBuffer: encoder.encode('{"ok":true}').buffer,
+        formattedTextBuffer: encoder.encode('{\n  "ok": true\n}').buffer,
+      })
+    );
+
+    await expect(edit).resolves.toMatchObject({
+      data: '{"ok":true}',
+      formattedText: '{\n  "ok": true\n}',
+    });
   });
 });

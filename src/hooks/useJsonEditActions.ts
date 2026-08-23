@@ -12,7 +12,7 @@ import type {
 import { writeTextToClipboard } from '../utils/clipboard';
 import {
   type JsonDocumentMetrics,
-  measureJsonDocument,
+  resolveJsonDocumentMetrics,
   shouldUseLargeModeForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import type { EditJsonSession } from './useJsonEditSession';
@@ -96,7 +96,7 @@ export function useJsonEditActions({
       return false;
     }
 
-    const formattedMetrics = measureJsonDocument(saveResult.formattedText);
+    const formattedMetrics = resolveJsonDocumentMetrics(saveResult.formattedText, saveResult.formattedMetrics);
     const rightModelStartedAt = performance.now();
     updateFormattedContent(tabId, saveResult.formattedText, true, formattedMetrics.textByteLength, rawByteLength);
     const rightModelCompletedAt = performance.now();
@@ -161,7 +161,7 @@ export function useJsonEditActions({
         throw new Error('JSON worker returned an empty result');
       }
 
-      const metrics = measureJsonDocument(updated);
+      const metrics = resolveJsonDocumentMetrics(updated, saveResult.rawMetrics);
       const largeMode = shouldUseLargeModeForMetrics(metrics);
       beginPerformanceSession(currentTabId, 'edit-save', currentTabTitle, null, metrics.textByteLength, largeMode);
 

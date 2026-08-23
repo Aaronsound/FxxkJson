@@ -1,5 +1,5 @@
 import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
-import type { LargeJsonViewerData, WorkerRequestMessage } from '../types/jsonTool';
+import type { LargeJsonLineIndex, WorkerRequestMessage } from '../types/jsonTool';
 import {
   type JsonDocumentMetrics,
   measureJsonDocument,
@@ -9,7 +9,13 @@ import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
-import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import {
+  copyLargeViewerLineIndex,
+  getLargeViewerTransferables,
+  postRepairResult,
+  postTextResult,
+  readMessageText,
+} from './jsonWorkerTextPayload';
 
 type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
 
@@ -22,13 +28,13 @@ interface StructureCacheEntry {
   rawTree?: unknown;
   requestId: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData | null;
+  viewerData?: LargeJsonLineIndex | null;
 }
 
 interface ViewerCacheEntry {
   formattedText: string;
   requestId: number;
-  viewerData: LargeJsonViewerData;
+  viewerData: LargeJsonLineIndex;
 }
 
 interface JsonWorkerFormatOperationsArgs {
@@ -61,7 +67,15 @@ interface BuildFormatArtifactsArgs {
   tabId: string;
 }
 
-function postWorkerMessage(message: Record<string, unknown>) {
+function postWorkerMessage(message: Record<string, unknown>, transfer: Transferable[] = []) {
+  if (transfer.length > 0) {
+    (self as unknown as { postMessage(message: unknown, transfer: Transferable[]): void }).postMessage(
+      message,
+      transfer
+    );
+    return;
+  }
+
   postMessage(message);
 }
 
@@ -122,11 +136,12 @@ export function createJsonWorkerFormatOperations({
           formattedMetrics.lineCount
         );
         const viewerIndexMs = performance.now() - viewerIndexStartedAt;
+        const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
         if (viewerData) {
           viewerCache.set(tabId, {
             requestId,
             formattedText: formatted,
-            viewerData,
+            viewerData: workerViewerData!,
           });
         } else {
           viewerCache.delete(tabId);
@@ -140,7 +155,7 @@ export function createJsonWorkerFormatOperations({
               directLocateMode: sourceText === formatted ? 'identity' : 'token-search',
               rawText: sourceText === formatted ? undefined : sourceText,
               formattedText: formatted,
-              viewerData,
+              viewerData: workerViewerData!,
               tokenLocateCache: { tokenOffsetsByToken: new Map() },
             });
             postWorkerMessage({
@@ -160,13 +175,16 @@ export function createJsonWorkerFormatOperations({
           }
         }
 
-        postWorkerMessage({
-          type: 'viewer-ready',
-          requestId,
-          tabId,
-          viewerData,
-          viewerIndexMs,
-        });
+        postWorkerMessage(
+          {
+            type: 'viewer-ready',
+            requestId,
+            tabId,
+            viewerData,
+            viewerIndexMs,
+          },
+          getLargeViewerTransferables(viewerData)
+        );
 
         if (viewerData && !deferStructure) {
           scheduleDirectValueTreeWarmup(tabId, requestId, formatted);
@@ -277,6 +295,8 @@ export function createJsonWorkerFormatOperations({
           tabId,
           success: true,
           rawViewerData,
+          rawMetrics: sourceMetrics,
+          formattedMetrics,
         },
         formatted,
         formattedMetrics.textByteLength
@@ -326,6 +346,8 @@ export function createJsonWorkerFormatOperations({
           tabId,
           success: true,
           rawViewerData,
+          rawMetrics: sourceMetrics,
+          formattedMetrics,
         },
         formatted,
         repaired,

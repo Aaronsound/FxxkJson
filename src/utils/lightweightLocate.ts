@@ -1,4 +1,4 @@
-import type { LargeJsonViewerData } from '../types/jsonTool';
+import type { LargeJsonLineIndex } from '../types/jsonTool';
 import { binarySearchLineStarts } from './largeJsonViewerData';
 
 const JSON_TOKEN_SOURCE = String.raw`"(?:\\.|[^"\\])*"|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|\b(?:true|false|null)\b`;
@@ -40,7 +40,7 @@ function getDistanceToRange(offset: number, start: number, end: number) {
   return 0;
 }
 
-function getLineRange(textLength: number, viewerData: LargeJsonViewerData, offset: number) {
+function getLineRange(textLength: number, viewerData: LargeJsonLineIndex, offset: number) {
   const safeOffset = Math.max(0, Math.min(offset, textLength));
   const lineStarts = viewerData.lineStarts;
   const lineIndex = binarySearchLineStarts(lineStarts, safeOffset);
@@ -219,7 +219,7 @@ function getTokenCandidates(
 
 export function getIdentityLocateRange(
   textLength: number,
-  viewerData: LargeJsonViewerData,
+  viewerData: LargeJsonLineIndex,
   offset: number
 ): LocateRange {
   const { lineStartOffset, lineEndOffset } = getLineRange(textLength, viewerData, offset);
@@ -233,7 +233,7 @@ export function getIdentityLocateRange(
 export function getLightweightTokenLocateRange(
   rawText: string,
   formattedText: string,
-  viewerData: LargeJsonViewerData,
+  viewerData: LargeJsonLineIndex,
   offset: number,
   cache?: LightweightLocateCache
 ): LocateRange | null {

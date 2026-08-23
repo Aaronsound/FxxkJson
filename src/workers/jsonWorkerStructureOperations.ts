@@ -1,6 +1,6 @@
 import { parseTree } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
-import type { LargeJsonViewerData } from '../types/jsonTool';
+import type { LargeJsonLineIndex } from '../types/jsonTool';
 import { getDeferredStructureWarmupDelayMs } from '../utils/jsonWorkerPlan';
 import { getTextByteLength } from './jsonWorkerTextPayload';
 
@@ -18,7 +18,7 @@ interface StructureCacheEntry {
 interface ViewerCacheEntry {
   formattedText?: string;
   requestId?: number;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 interface DirectValueTreeCacheEntry {

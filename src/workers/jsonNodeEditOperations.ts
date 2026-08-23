@@ -1,9 +1,16 @@
 import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
 import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
-import type { JsonEditPath, LargeJsonViewerData, LargeRawViewerData } from '../types/jsonTool';
+import type {
+  JsonDocumentMetrics,
+  JsonEditPath,
+  LargeJsonLineIndex,
+  LargeJsonViewerData,
+  LargeRawViewerData,
+} from '../types/jsonTool';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
+import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import {
   deleteJsonNodePreservingOriginalFormat,
@@ -12,7 +19,7 @@ import {
 } from '../utils/preserveJsonFormat';
 import { createNodeEditCacheEntry, getCachedNodeRange } from './jsonNodeEditCache';
 import type { DirectValueTreeCacheEntry } from './jsonWorkerStructureOperations';
-import { getTextByteLength } from './jsonWorkerTextPayload';
+import { copyLargeViewerLineIndex } from './jsonWorkerTextPayload';
 
 interface NodeEditStructureCacheEntry {
   directLocate?: boolean;
@@ -23,18 +30,20 @@ interface NodeEditStructureCacheEntry {
   rawTree?: Node;
   requestId: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData | null;
+  viewerData?: LargeJsonLineIndex | null;
 }
 
 interface NodeEditViewerCacheEntry {
   formattedText: string;
   requestId: number;
-  viewerData: LargeJsonViewerData;
+  viewerData: LargeJsonLineIndex;
 }
 
 interface SaveNodeEditResult {
   formattedText: string | null;
+  formattedMetrics: JsonDocumentMetrics | null;
   rawText: string;
+  rawMetrics: JsonDocumentMetrics;
   rawViewerData: LargeRawViewerData | null;
   structureWarming: boolean;
   viewerData: LargeJsonViewerData | null;
@@ -43,6 +52,7 @@ interface SaveNodeEditResult {
 
 interface PatchCachedFormattedNodeResult {
   formattedText: string | null;
+  formattedMetrics: JsonDocumentMetrics | null;
   structureWarming: boolean;
   viewerData: LargeJsonViewerData | null;
   viewerIndexMs: number | null;
@@ -170,6 +180,7 @@ export function createJsonNodeEditOperations({
     if (typeof formattedText !== 'string') {
       return {
         formattedText: null,
+        formattedMetrics: null,
         structureWarming: false,
         viewerData: null,
         viewerIndexMs: null,
@@ -179,6 +190,7 @@ export function createJsonNodeEditOperations({
     const nextFormattedText = saveJsonNodePreservingOriginalFormat(formattedText, path, text, {
       range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText),
     });
+    const formattedMetrics = measureJsonDocument(nextFormattedText);
     const previousViewerData = viewerCache.get(tabId)?.viewerData ?? structureCache.get(tabId)?.viewerData;
     const lineCapacityHint = previousViewerData
       ? Math.min(previousViewerData.lineCount, nextFormattedText.length + 1)
@@ -186,6 +198,7 @@ export function createJsonNodeEditOperations({
     const viewerIndexStartedAt = performance.now();
     const viewerData = buildLargeViewerData(nextFormattedText, DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, lineCapacityHint);
     const viewerIndexMs = performance.now() - viewerIndexStartedAt;
+    const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
     const requestId = latestFormatRequestByTab.get(tabId) ?? 0;
     let structureWarming = false;
 
@@ -193,7 +206,7 @@ export function createJsonNodeEditOperations({
       viewerCache.set(tabId, {
         requestId,
         formattedText: nextFormattedText,
-        viewerData,
+        viewerData: workerViewerData!,
       });
     } else {
       viewerCache.delete(tabId);
@@ -213,7 +226,7 @@ export function createJsonNodeEditOperations({
             directLocateMode: rawText === nextFormattedText ? 'identity' : 'token-search',
             rawText: rawText === nextFormattedText ? undefined : rawText,
             formattedText: nextFormattedText,
-            viewerData,
+            viewerData: workerViewerData!,
             tokenLocateCache: { tokenOffsetsByToken: new Map() },
           });
         } else {
@@ -238,6 +251,7 @@ export function createJsonNodeEditOperations({
 
     return {
       formattedText: nextFormattedText,
+      formattedMetrics,
       structureWarming,
       viewerData,
       viewerIndexMs,
@@ -257,13 +271,15 @@ export function createJsonNodeEditOperations({
     const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text, {
       range: getCachedNodeRange(nodeEditCache, tabId, path, 'raw', originalText),
     });
-    const rawViewerData = getTextByteLength(rawText) >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
+    const rawMetrics = measureJsonDocument(rawText);
+    const rawViewerData = rawMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
     const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText);
 
     nodeEditCache.delete(tabId);
 
     return {
       rawText,
+      rawMetrics,
       rawViewerData,
       ...formattedPatch,
     };

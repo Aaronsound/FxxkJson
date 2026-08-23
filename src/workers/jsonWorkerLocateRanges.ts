@@ -1,5 +1,5 @@
 import { getLocation } from 'jsonc-parser';
-import type { JsonEditPath, LargeJsonViewerData, WorkerMessage } from '../types/jsonTool';
+import type { JsonEditPath, LargeJsonLineIndex, WorkerMessage } from '../types/jsonTool';
 import type { LightweightLocateCache, LocateRange } from '../utils/lightweightLocate';
 import { getIdentityLocateRange, getLightweightTokenLocateRange } from '../utils/lightweightLocate';
 import { getJsonPathLocateRange } from '../utils/jsonPathLocate';
@@ -12,13 +12,13 @@ interface DirectLocateCacheEntry {
   rawText?: string;
   requestId?: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 interface RightLocateViewerEntry {
   formattedText?: string;
   requestId?: number;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 interface PathCalibratedDirectLocateRange {

@@ -40,6 +40,11 @@ interface JsonWorkerInteractiveFlowArgs {
   activeTabIdRef: MutableRefObject<string>;
   getCallbacks: () => JsonWorkerInteractiveCallbacks;
   postWorkerRequest: (message: WorkerRequestMessage, transfer?: Transferable[]) => void;
+  readWorkerTextField: (
+    message: WorkerMessage,
+    stringKey: 'data' | 'formattedText',
+    bufferKey: 'dataBuffer' | 'formattedTextBuffer'
+  ) => string | null;
   structureStatusRef: WorkerRecordRef<StructureStatus>;
   workerRef: WorkerRef;
   workerStructureEnabledRef: WorkerRecordRef<boolean>;
@@ -53,6 +58,7 @@ export function createJsonWorkerInteractiveFlow({
   activeTabIdRef,
   getCallbacks,
   postWorkerRequest,
+  readWorkerTextField,
   structureStatusRef,
   workerRef,
   workerStructureEnabledRef,
@@ -280,8 +286,14 @@ export function createJsonWorkerInteractiveFlow({
       const pending = pendingEditJsonRequests[message.requestId];
       if (pending) {
         delete pendingEditJsonRequests[message.requestId];
-        if (message.success && typeof message.data === 'string') {
-          pending.resolve(message);
+        const data = readWorkerTextField(message, 'data', 'dataBuffer');
+        const formattedText = readWorkerTextField(message, 'formattedText', 'formattedTextBuffer');
+        if (message.success && typeof data === 'string') {
+          pending.resolve({
+            ...message,
+            data,
+            formattedText: formattedText ?? message.formattedText,
+          });
         } else {
           pending.reject(new Error(message.error ?? 'JSON 处理失败'));
         }

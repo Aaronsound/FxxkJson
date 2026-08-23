@@ -7,7 +7,7 @@ import type {
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
-import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
+import { resolveJsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
 import { getFormatWorkerResult, getRepairWorkerResult } from '../utils/jsonWorkerResponse';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
@@ -35,9 +35,14 @@ interface JsonFormattingWorkerResultCallbacks {
   updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
-function getDocumentSizeState(rawText: string, formattedText: string) {
-  const rawMetrics = measureJsonDocument(rawText);
-  const formattedMetrics = measureJsonDocument(formattedText);
+function getDocumentSizeState(
+  rawText: string,
+  formattedText: string,
+  knownRawMetrics?: WorkerMessage['rawMetrics'],
+  knownFormattedMetrics?: WorkerMessage['formattedMetrics']
+) {
+  const rawMetrics = resolveJsonDocumentMetrics(rawText, knownRawMetrics);
+  const formattedMetrics = resolveJsonDocumentMetrics(formattedText, knownFormattedMetrics);
   const rawBytes = rawMetrics.textByteLength;
   const formattedBytes = formattedMetrics.textByteLength;
   const hasHighFormattedLineCount =
@@ -63,8 +68,8 @@ interface JsonFormattingWorkerResultContext {
   readWorkerText: (message: WorkerMessage) => string | null;
   readWorkerTextField: (
     message: WorkerMessage,
-    stringKey: 'data' | 'repairedText',
-    bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+    stringKey: 'data' | 'repairedText' | 'formattedText',
+    bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
   ) => string | null;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
 }
@@ -116,7 +121,12 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
 
     if (result.isSuccessful && data) {
       const rawText = rawTextByTabRef.current[tabId] ?? '';
-      const { formattedBytes, largeMode, rawBytes, shouldBuildLargeViewer } = getDocumentSizeState(rawText, data);
+      const { formattedBytes, largeMode, rawBytes, shouldBuildLargeViewer } = getDocumentSizeState(
+        rawText,
+        data,
+        message.rawMetrics,
+        message.formattedMetrics
+      );
       callbacks.logEvent('format-success', {
         tabId,
         requestId,
@@ -177,7 +187,9 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
     if (result.isSuccessful && typeof formattedText === 'string' && typeof repairedText === 'string') {
       const { formattedBytes, largeMode, rawBytes, shouldBuildLargeViewer } = getDocumentSizeState(
         repairedText,
-        formattedText
+        formattedText,
+        message.rawMetrics,
+        message.formattedMetrics
       );
       const now = performance.now();
       callbacks.logEvent('repair-success', {

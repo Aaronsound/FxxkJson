@@ -57,6 +57,36 @@ export function countTextLines(text) {
   return lineCount;
 }
 
+export function measureDocumentMetrics(text) {
+  let textByteLength = 0;
+  let lineCount = 1;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code <= 0x7f) {
+      textByteLength += 1;
+    } else if (code <= 0x7ff) {
+      textByteLength += 2;
+    } else if (code >= 0xd800 && code <= 0xdbff) {
+      const nextCode = text.charCodeAt(index + 1);
+      if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+        textByteLength += 4;
+        index += 1;
+      } else {
+        textByteLength += 3;
+      }
+    } else {
+      textByteLength += 3;
+    }
+
+    if (code === 0x0a) {
+      lineCount += 1;
+    }
+  }
+
+  return { lineCount, textByteLength };
+}
+
 export function buildViewerDataStats(text, expectedLineCount) {
   let lineStarts = new Uint32Array(expectedLineCount > 0 ? expectedLineCount : 4096);
   lineStarts[0] = 0;

@@ -12,6 +12,7 @@ import {
   findLiteralSearchBatch,
   getRightSearchQuery,
   measure,
+  measureDocumentMetrics,
   readFirstRequestValue,
   readFirstRequestValueStreaming,
   replaceLiteralMatches,
@@ -37,6 +38,10 @@ export async function benchFile(filePath) {
   const stringifyResult = measure('stringify', () => JSON.stringify(parseResult.value, null, 2));
   const formattedText = stringifyResult.value;
   const formattedBytes = Buffer.byteLength(formattedText, 'utf8');
+  const uiMetricRescanResult = measure('legacyUiMetricRescan', () => ({
+    raw: measureDocumentMetrics(rawText),
+    formatted: measureDocumentMetrics(formattedText),
+  }));
   const rawViewerResult = measure('raw-viewer-index', () => buildRawViewerDataStats(rawText));
   const formattedLineCount = countTextLines(formattedText);
   const viewerResult = measure('viewer-index', () => buildViewerDataStats(formattedText, formattedLineCount));
@@ -105,6 +110,8 @@ export async function benchFile(filePath) {
     viewerLineCount: viewerResult.value.lineCount,
     viewerRegionCount: viewerResult.value.regionCount,
     viewerRegionIndexBytes: viewerResult.value.regionIndexBytes,
+    viewerWorkerRetainedBytes: viewerResult.value.lineStarts.byteLength,
+    viewerWorkerBytesAvoided: viewerResult.value.regionIndexBytes,
     foldAllIntervalsMs: foldAllResult.ms,
     foldAllIntervalCount: foldAllResult.value.intervalCount,
     foldAllVisitedRegionCount: foldAllResult.value.visitedRegionCount,
@@ -128,6 +135,8 @@ export async function benchFile(filePath) {
     nodeEditPatchMs: nodeEditPatchResult.ms,
     nodeEditViewerIndexMs: nodeEditViewerResult.ms,
     nodeEditViewerWorkingBytes: nodeEditViewerResult.value.buildWorkingBytes,
+    nodeSaveTransferBytes: rawBytes + formattedBytes,
+    uiMetricRescanAvoidedMs: uiMetricRescanResult.ms,
     rawBytes,
     rawViewerIndexMs: rawViewerResult.ms,
     rawViewerIndexBytes: rawViewerResult.value.indexBytes,

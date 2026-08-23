@@ -162,6 +162,7 @@ export function useJsonFormattingWorker({
     activeTabIdRef,
     getCallbacks: () => callbacksRef.current,
     postWorkerRequest,
+    readWorkerTextField,
     structureStatusRef,
     workerRef,
     workerStructureEnabledRef,

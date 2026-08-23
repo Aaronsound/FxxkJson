@@ -25,8 +25,8 @@ interface UseJsonWorkerLifecycleArgs {
   readWorkerText: (message: WorkerMessage) => string | null;
   readWorkerTextField: (
     message: WorkerMessage,
-    textKey: 'data' | 'repairedText',
-    bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+    textKey: 'data' | 'repairedText' | 'formattedText',
+    bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
   ) => string | null;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
   workerRef: MutableRefObject<Worker | null>;

@@ -103,6 +103,9 @@ export interface WorkerMessage {
   repairedText?: string;
   repairedTextBuffer?: ArrayBuffer;
   formattedText?: string;
+  formattedTextBuffer?: ArrayBuffer;
+  rawMetrics?: JsonDocumentMetrics;
+  formattedMetrics?: JsonDocumentMetrics;
   structureWarming?: boolean;
   value?: string | null;
   error?: string;
@@ -162,6 +165,11 @@ export interface LargeJsonViewerRegions {
   kinds: Uint8Array;
 }
 
+export interface LargeJsonLineIndex {
+  lineStarts: Uint32Array;
+  lineCount: number;
+}
+
 export const EMPTY_LARGE_JSON_VIEWER_REGIONS: LargeJsonViewerRegions = {
   startLines: new Uint32Array(0),
   endLines: new Uint32Array(0),
@@ -169,10 +177,14 @@ export const EMPTY_LARGE_JSON_VIEWER_REGIONS: LargeJsonViewerRegions = {
   kinds: new Uint8Array(0),
 };
 
-export interface LargeJsonViewerData {
-  lineStarts: Uint32Array;
+export interface LargeJsonViewerData extends LargeJsonLineIndex {
   regions: LargeJsonViewerRegions;
+}
+
+export interface JsonDocumentMetrics {
+  exceedsDedicatedViewerLineThreshold: boolean;
   lineCount: number;
+  textByteLength: number;
 }
 
 export type LargeJsonFoldState = { mode: 'explicit'; lines: number[] } | { mode: 'all-except'; lines: number[] };

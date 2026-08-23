@@ -173,6 +173,8 @@ function printResults(results, failures, baselinePath) {
       formatTotal: formatDuration(result.totalFormatMs),
       viewerIndex: formatDuration(result.viewerIndexMs),
       viewerWorkingMemory: formatBytes(result.viewerIndexWorkingBytes),
+      workerViewerRetained: formatBytes(result.viewerWorkerRetainedBytes),
+      workerViewerAvoided: formatBytes(result.viewerWorkerBytesAvoided),
       foldAllIntervals: formatDuration(result.foldAllIntervalsMs),
       foldAllVisited: `${result.foldAllVisitedRegionCount}/${result.viewerRegionCount}`,
       wrapLayout: formatDuration(result.wrapLayoutMs),
@@ -193,6 +195,8 @@ function printResults(results, failures, baselinePath) {
       nodePatch: formatDuration(result.nodeEditPatchMs),
       nodeReindex: formatDuration(result.nodeEditViewerIndexMs),
       nodeReindexMemory: formatBytes(result.nodeEditViewerWorkingBytes),
+      nodeSaveTransfer: formatBytes(result.nodeSaveTransferBytes),
+      uiMetricRescanAvoided: formatDuration(result.uiMetricRescanAvoidedMs),
     }))
   );
 

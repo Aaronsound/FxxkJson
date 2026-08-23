@@ -83,6 +83,8 @@ describe('jsonNodeEditOperations', () => {
 
     expect(result.rawText).toBe('{"name":"new","count":1}');
     expect(result.formattedText).toBe('{\n  "name": "new",\n  "count": 1\n}');
+    expect(result.rawMetrics).toMatchObject({ lineCount: 1, textByteLength: 24 });
+    expect(result.formattedMetrics).toMatchObject({ lineCount: 4, textByteLength: 33 });
     expect(result.viewerData).toBeNull();
     expect(result.structureWarming).toBe(true);
     expect(viewerCache.has('tab-a')).toBe(false);

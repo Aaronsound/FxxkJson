@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_SEARCH_OPTIONS, EMPTY_LARGE_JSON_VIEWER_REGIONS } from '../types/jsonTool';
+import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import type { WorkerMessage } from '../types/jsonTool';
 import { buildLineStarts } from '../utils/searchText';
 import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
@@ -112,7 +112,6 @@ describe('jsonWorkerSearchOperations', () => {
       viewerData: {
         lineCount: 4,
         lineStarts: buildLineStarts('{\n  "name": "alpha",\n  "other": "Alpha"\n}'),
-        regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
       },
     });
 
@@ -148,7 +147,6 @@ describe('jsonWorkerSearchOperations', () => {
       viewerData: {
         lineCount: 1,
         lineStarts: buildLineStarts('{"name":"alpha"}'),
-        regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
       },
     });
 

@@ -61,8 +61,8 @@ function createContext(overrides: Partial<Parameters<typeof handleJsonFormatting
     readWorkerText: (message: WorkerMessage) => message.data ?? null,
     readWorkerTextField: (
       message: WorkerMessage,
-      stringKey: 'data' | 'repairedText',
-      bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+      stringKey: 'data' | 'repairedText' | 'formattedText',
+      bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
     ) => {
       if (typeof message[stringKey] === 'string') {
         return message[stringKey] ?? null;
@@ -123,6 +123,35 @@ describe('handleJsonFormattingWorkerResult', () => {
     expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 16, 11);
     expect(callbacks.syncPerformanceSnapshot).toHaveBeenCalledWith('tab-a', true);
     expect(session).toMatchObject({ error: null, formattedBytes: 16, status: 'ready' });
+  });
+
+  it('uses worker document metrics instead of rescanning result strings on the UI thread', () => {
+    const { callbacks, context } = createContext();
+
+    handleJsonFormattingWorkerResult(
+      {
+        data: '{\n  "ok": true\n}',
+        rawMetrics: {
+          exceedsDedicatedViewerLineThreshold: false,
+          lineCount: 1,
+          textByteLength: 11,
+        },
+        formattedMetrics: {
+          exceedsDedicatedViewerLineThreshold: true,
+          lineCount: 50_001,
+          textByteLength: 4_000,
+        },
+        requestId: 1,
+        success: true,
+        tabId: 'tab-a',
+        type: 'format-result',
+      },
+      context
+    );
+
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 4_000, 11);
+    expect(callbacks.setTabLargeMode).toHaveBeenCalledWith('tab-a', true);
+    expect(callbacks.setLargeViewerStatus).toHaveBeenCalledWith('tab-a', 'building');
   });
 
   it('surfaces a failed format result', () => {

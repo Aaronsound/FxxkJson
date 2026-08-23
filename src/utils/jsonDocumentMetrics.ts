@@ -4,11 +4,27 @@ import {
   LARGE_FILE_THRESHOLD,
   STRUCTURE_SYNC_THRESHOLD,
 } from '../types/jsonTool';
+import type { JsonDocumentMetrics } from '../types/jsonTool';
 
-export interface JsonDocumentMetrics {
-  exceedsDedicatedViewerLineThreshold: boolean;
-  lineCount: number;
-  textByteLength: number;
+export type { JsonDocumentMetrics } from '../types/jsonTool';
+
+export function isJsonDocumentMetrics(value: unknown): value is JsonDocumentMetrics {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const metrics = value as Partial<JsonDocumentMetrics>;
+  return (
+    typeof metrics.exceedsDedicatedViewerLineThreshold === 'boolean' &&
+    Number.isSafeInteger(metrics.textByteLength) &&
+    (metrics.textByteLength ?? -1) >= 0 &&
+    Number.isSafeInteger(metrics.lineCount) &&
+    (metrics.lineCount ?? 0) >= 1
+  );
+}
+
+export function resolveJsonDocumentMetrics(text: string, knownMetrics: unknown) {
+  return isJsonDocumentMetrics(knownMetrics) ? knownMetrics : measureJsonDocument(text);
 }
 
 export function measureJsonDocument(
