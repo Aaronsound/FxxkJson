@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import {
   binarySearchActualSegment,
   binarySearchSegment,
-  getLargeJsonRowHeight,
+  getLargeJsonRowLayout,
   getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
 } from '../utils/largeJsonViewerRender';
@@ -61,12 +61,15 @@ export function useLargeJsonVisibleWindow({
     [rowHeight, wrapLayout]
   );
 
-  const getRowHeight = useCallback(
+  const getRowStyle = useCallback(
     (visibleIndex: number) => {
       if (wrapLayout) {
-        return getLargeJsonRowHeight(wrapLayout, visibleIndex);
+        return getLargeJsonRowLayout(wrapLayout, visibleIndex);
       }
-      return rowHeight;
+      return {
+        height: rowHeight,
+        top: Math.max(0, visibleIndex) * rowHeight,
+      };
     },
     [rowHeight, wrapLayout]
   );
@@ -83,7 +86,7 @@ export function useLargeJsonVisibleWindow({
   return {
     endVisibleIndex,
     getActualLineNumber,
-    getRowHeight,
+    getRowStyle,
     getRowTop,
     getVisibleIndexForActualLine,
     startVisibleIndex,

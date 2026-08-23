@@ -10,6 +10,7 @@ import {
   findCollapsedInterval,
   getLargeJsonContentHeight,
   getLargeJsonRowHeight,
+  getLargeJsonRowLayout,
   getLargeJsonRowTop,
   getLargeJsonVisibleIndexAtOffset,
   projectLargeJsonLongRowIndexes,
@@ -143,6 +144,8 @@ describe('largeJsonViewerRender', () => {
     expect(getLargeJsonContentHeight(wrapLayout)).toBe(126);
     expect(getLargeJsonRowHeight(wrapLayout, 0)).toBe(18);
     expect(getLargeJsonRowHeight(wrapLayout, 1)).toBe(72);
+    expect(getLargeJsonRowLayout(wrapLayout, 0)).toEqual({ height: 18, top: 0 });
+    expect(getLargeJsonRowLayout(wrapLayout, 1)).toEqual({ height: 72, top: 18 });
     expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 17)).toBe(0);
     expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 18)).toBe(1);
     expect(getLargeJsonVisibleIndexAtOffset(wrapLayout, 89)).toBe(1);

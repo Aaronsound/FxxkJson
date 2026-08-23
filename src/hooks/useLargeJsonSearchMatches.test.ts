@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
-import { groupSearchMatchesByLine } from './useLargeJsonSearchMatches';
+import { getSearchMatchesForLine, groupSearchMatchesByLine } from './useLargeJsonSearchMatches';
 
 describe('groupSearchMatchesByLine', () => {
   it('groups matches while reusing decoded match objects', () => {
@@ -28,5 +28,11 @@ describe('groupSearchMatchesByLine', () => {
     expect(grouped.get(2)?.[0]).toBe(second);
     expect(first.matchIndex).toBe(0);
     expect(second.matchIndex).toBe(1);
+  });
+
+  it('reuses one empty match list for searchless lines so memoized rows stay stable', () => {
+    const grouped = groupSearchMatchesByLine([]);
+
+    expect(getSearchMatchesForLine(grouped, 1)).toBe(getSearchMatchesForLine(grouped, 2));
   });
 });

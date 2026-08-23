@@ -31,7 +31,7 @@ import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
 import { useLargeJsonSelection, type LargeJsonLocalSelectionRange } from '../hooks/useLargeJsonSelection';
 import { useLargeJsonContextMenu } from '../hooks/useLargeJsonContextMenu';
 import { useLargeJsonViewport } from '../hooks/useLargeJsonViewport';
-import { useLargeJsonSearchMatches } from '../hooks/useLargeJsonSearchMatches';
+import { getSearchMatchesForLine, useLargeJsonSearchMatches } from '../hooks/useLargeJsonSearchMatches';
 import { useLargeJsonActiveMatchReveal } from '../hooks/useLargeJsonActiveMatchReveal';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
@@ -115,6 +115,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       foldAll,
       getRegionByStartLine,
       isLineCollapsed,
+      isRegionCollapsed,
       toggleLine,
       unfoldAll,
       visibleLineCount,
@@ -170,7 +171,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
     const {
       endVisibleIndex,
       getActualLineNumber,
-      getRowHeight,
+      getRowStyle,
       getRowTop,
       getVisibleIndexForActualLine,
       startVisibleIndex,
@@ -301,7 +302,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
             activeMatchIndex={effectiveMatchIndex}
             lineNumber={lineNumber}
             lineText={lineText}
-            matches={matchesByLine.get(lineNumber) ?? []}
+            matches={getSearchMatchesForLine(matchesByLine, lineNumber)}
             selectedLineRange={selectedLineRange}
           />
         );
@@ -330,9 +331,8 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
             getLineSelectionRange={getLineSelectionRange}
             getLineText={getLineText}
             getRegionByStartLine={getRegionByStartLine}
-            getRowHeight={getRowHeight}
-            getRowTop={getRowTop}
-            isLineCollapsed={isLineCollapsed}
+            getRowStyle={getRowStyle}
+            isRegionCollapsed={isRegionCollapsed}
             isLineSelected={isLineSelected}
             lineNumberWidth={lineNumberWidth}
             onLocateOffset={onLocateOffset}

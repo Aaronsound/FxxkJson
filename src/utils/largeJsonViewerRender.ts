@@ -382,6 +382,16 @@ export function getLargeJsonRowTop(layout: LargeJsonWrapLayout, visibleIndex: nu
   return (safeVisibleIndex + longRowsBefore * (LARGE_JSON_MAX_WRAPPED_ROWS - 1)) * layout.lineHeight;
 }
 
+export function getLargeJsonRowLayout(layout: LargeJsonWrapLayout, visibleIndex: number) {
+  const safeVisibleIndex = Math.max(0, Math.min(visibleIndex, Math.max(0, layout.visibleLineCount - 1)));
+  const longRowIndex = findFirstLongRowAtOrAfter(layout.longRowIndexes, safeVisibleIndex);
+  return {
+    height:
+      layout.lineHeight * (layout.longRowIndexes[longRowIndex] === safeVisibleIndex ? LARGE_JSON_MAX_WRAPPED_ROWS : 1),
+    top: (safeVisibleIndex + longRowIndex * (LARGE_JSON_MAX_WRAPPED_ROWS - 1)) * layout.lineHeight,
+  };
+}
+
 export function getLargeJsonRowHeight(layout: LargeJsonWrapLayout, visibleIndex: number) {
   const safeVisibleIndex = Math.max(0, Math.min(visibleIndex, Math.max(0, layout.visibleLineCount - 1)));
   const longRowIndex = findFirstLongRowAtOrAfter(layout.longRowIndexes, safeVisibleIndex);

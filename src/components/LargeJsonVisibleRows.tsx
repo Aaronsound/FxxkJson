@@ -25,9 +25,8 @@ interface LargeJsonVisibleRowsProps {
   ) => LocalSelectionRange | null;
   getLineText: (lineNumber: number) => string;
   getRegionByStartLine: (lineNumber: number) => LargeJsonViewerRegion | undefined;
-  getRowHeight: (visibleIndex: number) => number;
-  getRowTop: (visibleIndex: number) => number;
-  isLineCollapsed: (lineNumber: number) => boolean;
+  getRowStyle: (visibleIndex: number) => { height: number; top: number };
+  isRegionCollapsed: (lineNumber: number) => boolean;
   isLineSelected: (lineNumber: number) => boolean;
   lineNumberWidth: string;
   onLocateOffset: (offset: number) => void;
@@ -64,9 +63,8 @@ export function LargeJsonVisibleRows({
   getLineSelectionRange,
   getLineText,
   getRegionByStartLine,
-  getRowHeight,
-  getRowTop,
-  isLineCollapsed,
+  getRowStyle,
+  isRegionCollapsed,
   isLineSelected,
   lineNumberWidth,
   onLocateOffset,
@@ -86,11 +84,12 @@ export function LargeJsonVisibleRows({
     }
 
     const region = getRegionByStartLine(lineNumber);
-    const isCollapsed = isLineCollapsed(lineNumber);
+    const isCollapsed = Boolean(region) && isRegionCollapsed(lineNumber);
     const baseLineText = getLineText(lineNumber);
     const lineText = region && isCollapsed ? getCollapsedPreview(baseLineText) : baseLineText;
     const isSelected = isLineSelected(lineNumber);
     const selectedLineRange = getLineSelectionRange(lineNumber, baseLineText, lineText, region, isCollapsed);
+    const rowStyle = getRowStyle(visibleIndex);
 
     renderedRows.push(
       <div
@@ -112,10 +111,7 @@ export function LargeJsonVisibleRows({
           const offset = (data.lineStarts[lineNumber - 1] ?? 0) + getFirstMeaningfulOffset(baseLineText);
           onLocateOffset(offset);
         }}
-        style={{
-          top: `${getRowTop(visibleIndex)}px`,
-          height: `${getRowHeight(visibleIndex)}px`,
-        }}
+        style={rowStyle}
       >
         <span className="large-json-line-number" style={{ width: lineNumberWidth }}>
           {lineNumber}

@@ -14,6 +14,7 @@ interface UseLargeJsonSearchMatchesArgs {
 }
 
 type IndexedLargeJsonSearchMatch = LargeJsonSearchMatch & { matchIndex: number };
+const EMPTY_INDEXED_SEARCH_MATCHES: IndexedLargeJsonSearchMatch[] = [];
 
 export function groupSearchMatchesByLine(searchMatches: LargeJsonSearchMatch[]) {
   const map = new Map<number, IndexedLargeJsonSearchMatch[]>();
@@ -27,6 +28,13 @@ export function groupSearchMatchesByLine(searchMatches: LargeJsonSearchMatch[]) 
   });
 
   return map;
+}
+
+export function getSearchMatchesForLine(
+  matchesByLine: ReadonlyMap<number, IndexedLargeJsonSearchMatch[]>,
+  lineNumber: number
+) {
+  return matchesByLine.get(lineNumber) ?? EMPTY_INDEXED_SEARCH_MATCHES;
 }
 
 export function useLargeJsonSearchMatches({

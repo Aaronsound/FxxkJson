@@ -29,14 +29,20 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
 
   const stateLineSet = useMemo(() => new Set(normalizedStateLines), [normalizedStateLines]);
 
+  const isRegionCollapsed = useCallback(
+    (lineNumber: number) =>
+      foldState.mode === 'all-except' ? !stateLineSet.has(lineNumber) : stateLineSet.has(lineNumber),
+    [foldState.mode, stateLineSet]
+  );
+
   const isLineCollapsed = useCallback(
     (lineNumber: number) => {
       if (findFirstRegionIndexAtStartLine(data.regions, lineNumber) < 0) {
         return false;
       }
-      return foldState.mode === 'all-except' ? !stateLineSet.has(lineNumber) : stateLineSet.has(lineNumber);
+      return isRegionCollapsed(lineNumber);
     },
-    [data.regions, foldState.mode, stateLineSet]
+    [data.regions, isRegionCollapsed]
   );
 
   const collapsedIntervals = useMemo<CollapsedInterval[]>(() => {
@@ -141,6 +147,7 @@ export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseL
     foldAll,
     getRegionByStartLine,
     isLineCollapsed,
+    isRegionCollapsed,
     normalizedStateLines,
     toggleLine,
     unfoldAll,

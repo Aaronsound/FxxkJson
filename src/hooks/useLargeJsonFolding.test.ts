@@ -21,6 +21,8 @@ describe('useLargeJsonFolding', () => {
 
     expect(result.current.normalizedStateLines).toEqual([2]);
     expect(result.current.isLineCollapsed(2)).toBe(true);
+    expect(result.current.isRegionCollapsed(2)).toBe(true);
+    expect(result.current.isLineCollapsed(99)).toBe(false);
     expect(result.current.visibleLineCount).toBeLessThan(data.lineCount);
   });
 

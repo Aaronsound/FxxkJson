@@ -61,6 +61,14 @@ export async function benchFile(filePath) {
   const rawViewerResult = measure('raw-viewer-index', () => buildRawViewerDataStats(rawText));
   const formattedLineCount = countTextLines(formattedText);
   const viewerResult = measure('viewer-index', () => buildViewerDataStats(formattedText, formattedLineCount));
+  let uniqueRegionStartLineCount = 0;
+  let previousRegionStartLine = -1;
+  for (const startLine of viewerResult.value.regions.startLines) {
+    if (startLine !== previousRegionStartLine) {
+      uniqueRegionStartLineCount += 1;
+      previousRegionStartLine = startLine;
+    }
+  }
   const foldAllResult = measure('fold-all-index', () => buildFoldAllStats(viewerResult.value.regions));
   const wrapLayoutResult = measure('wrap-layout', () =>
     buildWrapLayoutStats(formattedText, viewerResult.value.lineStarts, viewerResult.value.lineCount)
@@ -177,6 +185,11 @@ export async function benchFile(filePath) {
     viewerIndexWorkingBytes: viewerResult.value.buildWorkingBytes,
     viewerLineCount: viewerResult.value.lineCount,
     viewerRegionCount: viewerResult.value.regionCount,
+    foldStateBinaryLookupsAvoided: viewerResult.value.lineCount - uniqueRegionStartLineCount,
+    foldStateLookupAvoidedPercent:
+      viewerResult.value.lineCount > 0
+        ? ((viewerResult.value.lineCount - uniqueRegionStartLineCount) / viewerResult.value.lineCount) * 100
+        : 0,
     viewerRegionIndexBytes: viewerResult.value.regionIndexBytes,
     viewerLegacyCompactionMapBytes: viewerResult.value.legacyCompactionMapBytes,
     viewerPrunedRegionCount: viewerResult.value.prunedRegionCount,
@@ -190,12 +203,14 @@ export async function benchFile(filePath) {
     wrapLayoutMs: wrapLayoutResult.ms,
     wrapLayoutBytes: wrapLayoutResult.value.indexBytes,
     wrapLongRowCount: wrapLayoutResult.value.longRowCount,
+    wrapRowLookupsAvoidedPerViewport: Math.min(40, viewerResult.value.lineCount),
     optimizedWrapFoldUpdateMs: optimizedWrapFoldUpdateResult.ms,
     legacyWrapFoldUpdateMs: legacyWrapFoldUpdateResult.ms,
     optimizedTokenizerMs: optimizedTokenizerResult.ms,
     legacyTokenizerMs: legacyTokenizerResult.ms,
     tokenizerSampleLineCount: tokenizerSampleLines.length,
     highlightTokenObjectsAvoided: optimizedTokenizerResult.value.count,
+    formattedSearchlessScrollRowsMemoized: Math.min(40, Math.max(0, viewerResult.value.lineCount - 1)),
     rawTreeMs: rawTreeResult.ms,
     formattedTreeMs: formattedTreeResult.ms,
     structureTreeWarmupAvoidedMs: rawTreeResult.ms + formattedTreeResult.ms,
