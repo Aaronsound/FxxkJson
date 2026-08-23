@@ -533,61 +533,103 @@ export function tokenizeOptimizedSampleLines(lines) {
   return stats;
 }
 
-export function buildRawViewerDataStats(text, chunkSize = 2000) {
-  let starts = new Uint32Array(1024);
-  let lengths = new Uint16Array(1024);
+function createPackedRawViewerBuffers(capacity) {
+  const startsByteLength = capacity * Uint32Array.BYTES_PER_ELEMENT;
+  const buffer = new ArrayBuffer(startsByteLength + capacity * Uint16Array.BYTES_PER_ELEMENT);
+  return {
+    lengths: new Uint16Array(buffer, startsByteLength, capacity),
+    starts: new Uint32Array(buffer, 0, capacity),
+  };
+}
+
+function createRawViewerStatsBuilder(text, chunkSize) {
+  let { lengths, starts } = createPackedRawViewerBuffers(Math.max(1024, Math.ceil(text.length / chunkSize)));
   let rowCount = 0;
-  let lineStart = 0;
+  let growthCopyBytes = 0;
 
   const appendRow = (start, end) => {
     if (rowCount === starts.length) {
-      starts = growTypedBuffer(starts, rowCount + 1);
-      lengths = growTypedBuffer(lengths, rowCount + 1);
+      growthCopyBytes += starts.byteLength + lengths.byteLength;
+      const next = createPackedRawViewerBuffers(starts.length * 2);
+      next.starts.set(starts);
+      next.lengths.set(lengths);
+      starts = next.starts;
+      lengths = next.lengths;
     }
     starts[rowCount] = start;
     lengths[rowCount] = end - start;
     rowCount += 1;
   };
 
+  return {
+    appendLine(start, end) {
+      if (start === end) {
+        appendRow(start, end);
+        return;
+      }
+
+      let segmentStart = start;
+      while (segmentStart < end) {
+        const segmentEnd = Math.min(end, segmentStart + chunkSize);
+        appendRow(segmentStart, segmentEnd);
+        segmentStart = segmentEnd;
+      }
+    },
+    finish() {
+      const bytesPerRow = Uint32Array.BYTES_PER_ELEMENT + Uint16Array.BYTES_PER_ELEMENT;
+      const reusedScrollRowCount = Math.min(40, Math.max(0, rowCount - 1));
+      let memoizedScrollSliceCharsAvoided = 0;
+      for (let rowIndex = 0; rowIndex < reusedScrollRowCount; rowIndex += 1) {
+        memoizedScrollSliceCharsAvoided += lengths[rowIndex];
+      }
+
+      let legacyCapacity = 1024;
+      let legacyGrowthCopyBytes = 0;
+      while (legacyCapacity < rowCount) {
+        legacyGrowthCopyBytes += legacyCapacity * bytesPerRow;
+        legacyCapacity *= 2;
+      }
+      const indexBytes = rowCount * bytesPerRow;
+
+      return {
+        finalCompactionCopyBytes: starts.length === rowCount ? 0 : indexBytes,
+        growthCopyBytes,
+        indexBytes,
+        legacyFinalCompactionCopyBytes: indexBytes,
+        legacyGrowthCopyBytes,
+        legacyIndexBytes: rowCount * Uint32Array.BYTES_PER_ELEMENT * 2,
+        legacyTransferBufferCount: 2,
+        memoizedScrollRowsAvoided: reusedScrollRowCount,
+        memoizedScrollSliceCharsAvoided,
+        rowCount,
+        transferBufferCount: 1,
+        workingBytes: starts.byteLength + lengths.byteLength,
+      };
+    },
+  };
+}
+
+export function buildRawViewerDataStats(text, chunkSize = 2000) {
+  const builder = createRawViewerStatsBuilder(text, chunkSize);
+  let lineStart = 0;
+
   while (lineStart <= text.length) {
     const newlineIndex = text.indexOf('\n', lineStart);
     const lineEnd = newlineIndex === -1 ? text.length : newlineIndex;
 
-    if (lineStart === lineEnd) {
-      appendRow(lineStart, lineEnd);
-    } else {
-      let segmentStart = lineStart;
-      while (segmentStart < lineEnd) {
-        const segmentEnd = Math.min(lineEnd, segmentStart + chunkSize);
-        appendRow(segmentStart, segmentEnd);
-        segmentStart = segmentEnd;
-      }
-    }
+    builder.appendLine(lineStart, lineEnd);
 
     if (newlineIndex === -1) {
       break;
     }
     lineStart = newlineIndex + 1;
     if (lineStart === text.length) {
-      appendRow(lineStart, lineStart);
+      builder.appendLine(lineStart, lineStart);
       break;
     }
   }
 
-  const reusedScrollRowCount = Math.min(40, Math.max(0, rowCount - 1));
-  let memoizedScrollSliceCharsAvoided = 0;
-  for (let rowIndex = 0; rowIndex < reusedScrollRowCount; rowIndex += 1) {
-    memoizedScrollSliceCharsAvoided += lengths[rowIndex];
-  }
-
-  return {
-    indexBytes: rowCount * (Uint32Array.BYTES_PER_ELEMENT + Uint16Array.BYTES_PER_ELEMENT),
-    legacyIndexBytes: rowCount * Uint32Array.BYTES_PER_ELEMENT * 2,
-    memoizedScrollRowsAvoided: reusedScrollRowCount,
-    memoizedScrollSliceCharsAvoided,
-    rowCount,
-    workingBytes: starts.byteLength + lengths.byteLength,
-  };
+  return builder.finish();
 }
 
 function escapeSearchPattern(text) {

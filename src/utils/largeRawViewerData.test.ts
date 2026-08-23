@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildLargeRawViewerData, findRawSegmentIndex, getRawSegmentEnd } from './largeRawViewerData';
 
 describe('largeRawViewerData', () => {
@@ -34,5 +34,28 @@ describe('largeRawViewerData', () => {
 
     expect(Array.from(zeroSized.lengths)).toEqual([1, 1, 1, 1]);
     expect(Array.from(oversized.lengths)).toEqual([65_535, 4_465]);
+  });
+
+  it('preallocates and reuses exact raw-row buffers for long single-line JSON', () => {
+    const startsSet = vi.spyOn(Uint32Array.prototype, 'set');
+    const lengthsSet = vi.spyOn(Uint16Array.prototype, 'set');
+    try {
+      const text = 'x'.repeat(2048);
+      const data = buildLargeRawViewerData(text, 1);
+
+      expect(data.rowCount).toBe(2048);
+      expect(data.starts.length).toBe(2048);
+      expect(data.lengths.length).toBe(2048);
+      expect(data.starts[2047]).toBe(2047);
+      expect(data.starts.buffer).toBe(data.lengths.buffer);
+      expect(data.starts.buffer.byteLength).toBe(
+        2048 * (Uint32Array.BYTES_PER_ELEMENT + Uint16Array.BYTES_PER_ELEMENT)
+      );
+      expect(startsSet).not.toHaveBeenCalled();
+      expect(lengthsSet).not.toHaveBeenCalled();
+    } finally {
+      startsSet.mockRestore();
+      lengthsSet.mockRestore();
+    }
   });
 });

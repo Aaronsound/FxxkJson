@@ -83,6 +83,15 @@ describe('jsonWorkerTextPayload', () => {
       rawViewerData.starts.buffer,
       rawViewerData.lengths.buffer,
     ]);
+
+    const packedBuffer = new ArrayBuffer(12);
+    expect(
+      getRawViewerTransferables({
+        starts: new Uint32Array(packedBuffer, 0, 2),
+        lengths: new Uint16Array(packedBuffer, 8, 2),
+        rowCount: 2,
+      })
+    ).toEqual([packedBuffer]);
   });
 
   it('keeps only a copied line index in the worker and transfers the complete viewer index', () => {

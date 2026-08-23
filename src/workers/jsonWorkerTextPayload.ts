@@ -67,9 +67,10 @@ export function getRawViewerTransferables(rawViewerData: LargeRawViewerData | nu
     return [];
   }
 
-  return [rawViewerData.starts.buffer, rawViewerData.lengths.buffer].filter(
+  const buffers = [rawViewerData.starts.buffer, rawViewerData.lengths.buffer].filter(
     (buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer
   );
+  return Array.from(new Set(buffers));
 }
 
 export function getLargeViewerTransferables(viewerData: LargeJsonViewerData | null | undefined) {

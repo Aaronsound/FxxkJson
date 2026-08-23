@@ -265,6 +265,12 @@ export async function benchFile(filePath) {
     rawScrollSliceCharsAvoided: rawViewerResult.value.memoizedScrollSliceCharsAvoided,
     rawViewerRowCount: rawViewerResult.value.rowCount,
     rawViewerWorkingBytes: rawViewerResult.value.workingBytes,
+    rawViewerTransferBufferCount: rawViewerResult.value.transferBufferCount,
+    rawViewerLegacyTransferBufferCount: rawViewerResult.value.legacyTransferBufferCount,
+    rawViewerGrowthCopyBytesAvoided:
+      rawViewerResult.value.legacyGrowthCopyBytes - rawViewerResult.value.growthCopyBytes,
+    rawViewerCompactionCopyBytesAvoided:
+      rawViewerResult.value.legacyFinalCompactionCopyBytes - rawViewerResult.value.finalCompactionCopyBytes,
     caseInsensitiveSearchBatchMs: caseInsensitiveSearchBatchResult.ms,
     caseInsensitiveSearchBatchCount: caseInsensitiveSearchBatchResult.value.count,
     normalizedSearchCopyCharsAvoided: formattedText.length,
