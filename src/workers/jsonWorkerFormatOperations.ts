@@ -40,14 +40,11 @@ interface ViewerCacheEntry {
 interface JsonWorkerFormatOperationsArgs {
   cancelInteractiveRequests: (tabId: string) => void;
   clearDeferredStructureWarmup: (tabId: string) => void;
-  clearDirectValueWarmup: (tabId: string) => void;
-  directValueTreeCache: Map<string, unknown>;
   editJsonCache: Map<string, { originalText?: string }>;
   ensureStructureTrees: (tabId: string, cached: StructureCacheEntry) => boolean;
   latestFormatRequestByTab: Map<string, number>;
   nodeEditCache: Map<string, unknown>;
   scheduleDeferredStructureWarmup: (tabId: string, requestId: number, delayMs?: number) => void;
-  scheduleDirectValueTreeWarmup: (tabId: string, requestId: number, text: string) => void;
   structureCache: Map<string, StructureCacheEntry>;
   viewerCache: Map<string, ViewerCacheEntry>;
 }
@@ -82,21 +79,17 @@ function postWorkerMessage(message: Record<string, unknown>, transfer: Transfera
 export function createJsonWorkerFormatOperations({
   cancelInteractiveRequests,
   clearDeferredStructureWarmup,
-  clearDirectValueWarmup,
-  directValueTreeCache,
   editJsonCache,
   ensureStructureTrees,
   latestFormatRequestByTab,
   nodeEditCache,
   scheduleDeferredStructureWarmup,
-  scheduleDirectValueTreeWarmup,
   structureCache,
   viewerCache,
 }: JsonWorkerFormatOperationsArgs) {
   function prepareFormatRequest(tabId: string, requestId: number, sourceText: string) {
     latestFormatRequestByTab.set(tabId, requestId);
     cancelInteractiveRequests(tabId);
-    clearDirectValueWarmup(tabId);
     clearDeferredStructureWarmup(tabId);
     const cachedEditJson = editJsonCache.get(tabId);
     if (cachedEditJson?.originalText !== sourceText) {
@@ -104,7 +97,6 @@ export function createJsonWorkerFormatOperations({
     }
     nodeEditCache.delete(tabId);
     viewerCache.delete(tabId);
-    directValueTreeCache.delete(tabId);
   }
 
   function buildFormatArtifacts({
@@ -185,10 +177,6 @@ export function createJsonWorkerFormatOperations({
           },
           getLargeViewerTransferables(viewerData)
         );
-
-        if (viewerData && !deferStructure) {
-          scheduleDirectValueTreeWarmup(tabId, requestId, formatted);
-        }
       }, 0);
     } else {
       viewerCache.delete(tabId);
@@ -275,7 +263,6 @@ export function createJsonWorkerFormatOperations({
   function clearFormatFailureArtifacts(tabId: string) {
     structureCache.delete(tabId);
     viewerCache.delete(tabId);
-    directValueTreeCache.delete(tabId);
     clearDeferredStructureWarmup(tabId);
   }
 

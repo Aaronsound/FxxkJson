@@ -1,8 +1,7 @@
-import { getLocation } from 'jsonc-parser';
 import type { JsonEditPath, LargeJsonLineIndex, WorkerMessage } from '../types/jsonTool';
 import type { LightweightLocateCache, LocateRange } from '../utils/lightweightLocate';
 import { getIdentityLocateRange, getLightweightTokenLocateRange } from '../utils/lightweightLocate';
-import { getJsonPathLocateRange } from '../utils/jsonPathLocate';
+import { getJsonOffsetLocateResult, getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import { getLocateCandidateOffsets } from './jsonWorkerLocateCandidates';
 
 interface DirectLocateCacheEntry {
@@ -85,14 +84,17 @@ export function getPathCalibratedDirectLocateRange(
 
   const candidateOffsets = getLocateCandidateOffsets(cached.formattedText, offset);
   for (const candidateOffset of candidateOffsets) {
-    const location = getLocation(cached.formattedText, candidateOffset);
-    const rightRange = getJsonPathLocateRange(cached.formattedText, location.path);
-    const leftRange = getJsonPathLocateRange(cached.rawText, location.path);
-    if (leftRange && rightRange) {
+    const rightResult = getJsonOffsetLocateResult(cached.formattedText, candidateOffset);
+    if (!rightResult) {
+      continue;
+    }
+
+    const leftRange = getJsonPathLocateRange(cached.rawText, rightResult.path);
+    if (leftRange) {
       return {
         leftRange,
-        rightRange,
-        path: location.path,
+        rightRange: rightResult.range,
+        path: rightResult.path,
       };
     }
   }
@@ -121,19 +123,18 @@ export function getRightOnlyLocateResult(
   try {
     const candidateOffsets = getLocateCandidateOffsets(sourceText, offset);
     for (const candidateOffset of candidateOffsets) {
-      const location = getLocation(sourceText, candidateOffset);
-      const rightRange = getJsonPathLocateRange(sourceText, location.path);
+      const rightResult = getJsonOffsetLocateResult(sourceText, candidateOffset);
 
-      if (rightRange) {
+      if (rightResult) {
         return {
           type: 'locate-result',
           requestId,
           tabId,
           found: true,
           rightOnly: true,
-          rightStartOffset: rightRange.startOffset,
-          rightEndOffset: rightRange.endOffset,
-          path: location.path,
+          rightStartOffset: rightResult.range.startOffset,
+          rightEndOffset: rightResult.range.endOffset,
+          path: rightResult.path,
         };
       }
     }

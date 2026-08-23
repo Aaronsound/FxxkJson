@@ -41,8 +41,9 @@ export function buildJsonWorkerProcessingPlan(
   const metrics = knownMetrics ?? measureJsonDocument(text);
   const textByteLength = metrics.textByteLength;
   const largeMode = shouldUseLargeModeForMetrics(metrics);
-  const shouldBuildStructureIndex = textByteLength > 0 && textByteLength <= STRUCTURE_SYNC_THRESHOLD && locateRequested;
-  const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
+  const shouldBuildStructureIndex =
+    !largeMode && textByteLength > 0 && textByteLength <= STRUCTURE_SYNC_THRESHOLD && locateRequested;
+  const shouldAttemptDirectLocate = largeMode && locateRequested;
   const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
 
   return {
@@ -51,8 +52,9 @@ export function buildJsonWorkerProcessingPlan(
     shouldBuildStructureIndex,
     shouldAttemptDirectLocate,
     workerLocateEnabled,
-    shouldDeferStructureIndex: largeMode && shouldBuildStructureIndex,
-    shouldBuildLargeViewer: textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD,
+    shouldDeferStructureIndex: false,
+    shouldBuildLargeViewer:
+      textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD || metrics.exceedsDedicatedViewerLineThreshold,
     deferredStructureWarmupDelayMs: getDeferredStructureWarmupDelayMs(textByteLength),
   };
 }

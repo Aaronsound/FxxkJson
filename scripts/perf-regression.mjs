@@ -184,6 +184,7 @@ function printResults(results, failures, baselinePath) {
       caseInsensitiveSearch: formatDuration(result.caseInsensitiveSearchBatchMs),
       rawTree: formatDuration(result.rawTreeMs),
       formattedTree: formatDuration(result.formattedTreeMs),
+      treeWarmupAvoided: formatDuration(result.structureTreeWarmupAvoidedMs),
       rightSearch: formatDuration(result.rightSearchBatchMs),
       rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
       leftSearch: formatDuration(result.leftSearchBatchMs),

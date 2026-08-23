@@ -8,14 +8,11 @@ import type { NodeEditStructureCacheEntry, NodeEditViewerCacheEntry } from './js
 function createHarness() {
   const structureCache = new Map<string, NodeEditStructureCacheEntry>();
   const viewerCache = new Map<string, NodeEditViewerCacheEntry>();
-  const directValueTreeCache = new Map();
   const latestFormatRequestByTab = new Map<string, number>();
   const nodeEditCache = new Map();
   const scheduleDeferredStructureWarmup = vi.fn();
   const operations = createJsonNodeEditOperations({
     clearDeferredStructureWarmup: vi.fn(),
-    clearDirectValueWarmup: vi.fn(),
-    directValueTreeCache,
     getLocateCandidateOffsets,
     getStructureWarmupDelayForTexts: vi.fn(() => 25),
     latestFormatRequestByTab,
@@ -26,7 +23,6 @@ function createHarness() {
   });
 
   return {
-    directValueTreeCache,
     latestFormatRequestByTab,
     nodeEditCache,
     operations,
@@ -62,6 +58,36 @@ describe('jsonNodeEditOperations', () => {
       rawStartOffset: rawText.indexOf('"old"'),
       formattedStartOffset: formattedText.indexOf('"old"'),
     });
+  });
+
+  it('reads and caches direct-locate node ranges without allocating syntax trees', () => {
+    const { nodeEditCache, operations, structureCache } = createHarness();
+    const rawText = '{"items":[{"name":"old"},{"name":"target"}]}';
+    const formattedText =
+      '{\n  "items": [\n    {\n      "name": "old"\n    },\n    {\n      "name": "target"\n    }\n  ]\n}';
+    structureCache.set('tab-a', {
+      directLocate: true,
+      directLocateMode: 'token-search',
+      requestId: 4,
+      rawText,
+      formattedText,
+    });
+
+    const payload = JSON.parse(
+      operations.readJsonNodeForEdit('tab-a', formattedText, formattedText.indexOf('"target"'))
+    ) as {
+      path: Array<string | number>;
+      value: string;
+    };
+
+    expect(payload).toEqual({ path: ['items', 1, 'name'], value: '"target"' });
+    expect(nodeEditCache.get('tab-a')).toMatchObject({
+      path: ['items', 1, 'name'],
+      rawStartOffset: rawText.indexOf('"target"'),
+      formattedStartOffset: formattedText.indexOf('"target"'),
+    });
+    expect(structureCache.get('tab-a')).not.toHaveProperty('rawTree');
+    expect(structureCache.get('tab-a')).not.toHaveProperty('formattedTree');
   });
 
   it('saves a node and refreshes raw, formatted, viewer, and structure caches', () => {

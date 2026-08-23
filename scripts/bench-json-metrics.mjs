@@ -440,6 +440,7 @@ export function readFirstRequestValue(formattedText, formattedTree) {
 function findStreamingJsonPathRange(text, targetPath) {
   let range = null;
   let targetContainer = null;
+  const rangeFound = Symbol('range-found');
   const pathsEqual = (left, right) =>
     left.length === right.length && left.every((segment, index) => segment === right[index]);
   const isPrefix = (prefix, path) =>
@@ -458,21 +459,29 @@ function findStreamingJsonPathRange(text, targetPath) {
   const endContainer = (kind, offset, length) => {
     if (!range && targetContainer?.kind === kind) {
       range = { startOffset: targetContainer.startOffset, endOffset: offset + length };
-      targetContainer = null;
+      throw rangeFound;
     }
   };
 
-  visit(text, {
-    onArrayBegin: (offset, _length, _line, _character, pathSupplier) => beginContainer('array', offset, pathSupplier),
-    onArrayEnd: (offset, length) => endContainer('array', offset, length),
-    onLiteralValue: (_value, offset, length, _line, _character, pathSupplier) => {
-      if (!range && pathsEqual(pathSupplier(), targetPath)) {
-        range = { startOffset: offset, endOffset: offset + length };
-      }
-    },
-    onObjectBegin: (offset, _length, _line, _character, pathSupplier) => beginContainer('object', offset, pathSupplier),
-    onObjectEnd: (offset, length) => endContainer('object', offset, length),
-  });
+  try {
+    visit(text, {
+      onArrayBegin: (offset, _length, _line, _character, pathSupplier) => beginContainer('array', offset, pathSupplier),
+      onArrayEnd: (offset, length) => endContainer('array', offset, length),
+      onLiteralValue: (_value, offset, length, _line, _character, pathSupplier) => {
+        if (!range && pathsEqual(pathSupplier(), targetPath)) {
+          range = { startOffset: offset, endOffset: offset + length };
+          throw rangeFound;
+        }
+      },
+      onObjectBegin: (offset, _length, _line, _character, pathSupplier) =>
+        beginContainer('object', offset, pathSupplier),
+      onObjectEnd: (offset, length) => endContainer('object', offset, length),
+    });
+  } catch (error) {
+    if (error !== rangeFound) {
+      throw error;
+    }
+  }
 
   return range;
 }

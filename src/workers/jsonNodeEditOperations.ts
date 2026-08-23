@@ -1,4 +1,4 @@
-import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
+import { findNodeAtLocation } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
 import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type {
@@ -11,6 +11,7 @@ import type {
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
+import { getJsonOffsetLocateResult, getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import {
   deleteJsonNodePreservingOriginalFormat,
@@ -18,7 +19,6 @@ import {
   saveJsonNodePreservingOriginalFormat,
 } from '../utils/preserveJsonFormat';
 import { createNodeEditCacheEntry, getCachedNodeRange } from './jsonNodeEditCache';
-import type { DirectValueTreeCacheEntry } from './jsonWorkerStructureOperations';
 import { copyLargeViewerLineIndex } from './jsonWorkerTextPayload';
 
 interface NodeEditStructureCacheEntry {
@@ -60,8 +60,6 @@ interface PatchCachedFormattedNodeResult {
 
 interface JsonNodeEditOperationsArgs {
   clearDeferredStructureWarmup: (tabId: string) => void;
-  clearDirectValueWarmup: (tabId: string) => void;
-  directValueTreeCache: Map<string, DirectValueTreeCacheEntry>;
   getLocateCandidateOffsets: (text: string, offset: number) => number[];
   getStructureWarmupDelayForTexts: (
     rawText: string | null | undefined,
@@ -95,8 +93,6 @@ function getCachedFormattedText(
 
 export function createJsonNodeEditOperations({
   clearDeferredStructureWarmup,
-  clearDirectValueWarmup,
-  directValueTreeCache,
   getLocateCandidateOffsets,
   getStructureWarmupDelayForTexts,
   latestFormatRequestByTab,
@@ -118,49 +114,48 @@ export function createJsonNodeEditOperations({
     }
 
     const cachedStructure = structureCache.get(tabId);
-    const tree =
-      cachedStructure?.formattedText === sourceText && cachedStructure.formattedTree
-        ? cachedStructure.formattedTree
-        : parseTree(sourceText);
-
-    if (!tree) {
-      throw new Error('当前节点无法编辑');
-    }
+    const hasMatchingStructureText = cachedStructure?.formattedText === sourceText;
+    const rawSourceText = hasMatchingStructureText
+      ? typeof cachedStructure.rawText === 'string'
+        ? cachedStructure.rawText
+        : cachedStructure.directLocateMode === 'identity'
+          ? sourceText
+          : null
+      : null;
 
     const candidateOffsets = getLocateCandidateOffsets(sourceText, offset);
     for (const candidateOffset of candidateOffsets) {
-      const location = getLocation(sourceText, candidateOffset);
-      const node = findNodeAtLocation(tree, location.path);
+      const formattedResult = getJsonOffsetLocateResult(sourceText, candidateOffset);
 
-      if (node) {
-        if (cachedStructure?.formattedText === sourceText && !cachedStructure.formattedTree) {
-          cachedStructure.formattedTree = tree;
-          structureCache.set(tabId, cachedStructure);
-        }
-
-        const rawNode =
-          cachedStructure?.formattedText === sourceText && cachedStructure.rawTree
-            ? findNodeAtLocation(cachedStructure.rawTree, location.path)
+      if (formattedResult) {
+        const rawRange = rawSourceText ? getJsonPathLocateRange(rawSourceText, formattedResult.path) : null;
+        const rawTreeNode =
+          !rawRange && hasMatchingStructureText && cachedStructure.rawTree
+            ? findNodeAtLocation(cachedStructure.rawTree, formattedResult.path)
             : null;
+        const rawNode = rawRange
+          ? { offset: rawRange.startOffset, length: rawRange.endOffset - rawRange.startOffset }
+          : rawTreeNode;
         const rawTextLength =
-          typeof cachedStructure?.rawText === 'string'
-            ? cachedStructure.rawText.length
-            : cachedStructure?.rawTree?.length;
+          typeof rawSourceText === 'string' ? rawSourceText.length : cachedStructure?.rawTree?.length;
 
         nodeEditCache.set(
           tabId,
           createNodeEditCacheEntry({
             formattedText: sourceText,
-            path: [...location.path],
-            formattedNode: node,
+            path: formattedResult.path,
+            formattedNode: {
+              offset: formattedResult.range.startOffset,
+              length: formattedResult.range.endOffset - formattedResult.range.startOffset,
+            },
             rawNode,
             rawTextLength,
           })
         );
 
         return JSON.stringify({
-          path: location.path,
-          value: sourceText.slice(node.offset, node.offset + node.length),
+          path: formattedResult.path,
+          value: sourceText.slice(formattedResult.range.startOffset, formattedResult.range.endOffset),
         });
       }
     }
@@ -212,8 +207,6 @@ export function createJsonNodeEditOperations({
       viewerCache.delete(tabId);
     }
 
-    directValueTreeCache.delete(tabId);
-    clearDirectValueWarmup(tabId);
     clearDeferredStructureWarmup(tabId);
 
     const cachedStructure = structureCache.get(tabId);

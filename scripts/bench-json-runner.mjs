@@ -120,6 +120,7 @@ export async function benchFile(filePath) {
     wrapLongRowCount: wrapLayoutResult.value.longRowCount,
     rawTreeMs: rawTreeResult.ms,
     formattedTreeMs: formattedTreeResult.ms,
+    structureTreeWarmupAvoidedMs: rawTreeResult.ms + formattedTreeResult.ms,
     rightSearchBatchMs: rightSearchBatchResult.ms,
     rightSearchBatchCount: rightSearchBatchResult.value.count,
     rightSearchLoadMoreMs: rightSearchLoadMoreResult.ms,

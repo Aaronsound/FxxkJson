@@ -9,8 +9,6 @@ import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.t
 
 const structureCache = new Map();
 const viewerCache = new Map();
-const directValueTreeCache = new Map();
-const directValueWarmupTimers = new Map();
 const deferredStructureWarmupTimers = new Map();
 const editJsonCache = new Map();
 const nodeEditCache = new Map();
@@ -20,24 +18,17 @@ const latestSearchRequestByKey = new Map();
 const latestLocateRequestByTab = new Map();
 const {
   clearDeferredStructureWarmup,
-  clearDirectValueWarmup,
   ensureStructureTrees,
   getStructureWarmupDelayForTexts,
   scheduleDeferredStructureWarmup,
-  scheduleDirectValueTreeWarmup,
 } = createJsonWorkerStructureOperations({
-  directValueTreeCache,
-  directValueWarmupTimers,
   deferredStructureWarmupTimers,
   latestFormatRequestByTab,
   structureCache,
-  viewerCache,
 });
 
 const jsonNodeEditOperations = createJsonNodeEditOperations({
   clearDeferredStructureWarmup,
-  clearDirectValueWarmup,
-  directValueTreeCache,
   getLocateCandidateOffsets,
   getStructureWarmupDelayForTexts,
   latestFormatRequestByTab,
@@ -65,14 +56,11 @@ const jsonWorkerLocateOperations = createJsonWorkerLocateOperations({
 const jsonWorkerFormatOperations = createJsonWorkerFormatOperations({
   cancelInteractiveRequests,
   clearDeferredStructureWarmup,
-  clearDirectValueWarmup,
-  directValueTreeCache,
   editJsonCache,
   ensureStructureTrees,
   latestFormatRequestByTab,
   nodeEditCache,
   scheduleDeferredStructureWarmup,
-  scheduleDirectValueTreeWarmup,
   structureCache,
   viewerCache,
 });
@@ -84,11 +72,9 @@ function cancelInteractiveRequests(tabId) {
 }
 
 function handleClearStructureMessage(message) {
-  clearDirectValueWarmup(message.tabId);
   clearDeferredStructureWarmup(message.tabId);
   structureCache.delete(message.tabId);
   viewerCache.delete(message.tabId);
-  directValueTreeCache.delete(message.tabId);
   editJsonCache.delete(message.tabId);
   nodeEditCache.delete(message.tabId);
   rawSearchCache.delete(message.tabId);
