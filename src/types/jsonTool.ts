@@ -47,6 +47,7 @@ export interface EditJsonWorkerRequest {
   tabId: string;
   operation: EditJsonWorkerOperation;
   text: string;
+  textByteLength?: number;
   originalText?: string;
   path?: JsonEditPath;
   offset?: number;
@@ -76,7 +77,9 @@ export type WorkerRequestMessage =
   | (WorkerRequestBase & {
       type: 'edit-json';
       operation: EditJsonWorkerRequest['operation'];
-      text: EditJsonWorkerRequest['text'];
+      text?: EditJsonWorkerRequest['text'];
+      textBuffer?: ArrayBuffer;
+      textByteLength?: EditJsonWorkerRequest['textByteLength'];
       originalText?: EditJsonWorkerRequest['originalText'];
       path?: EditJsonWorkerRequest['path'];
       offset?: EditJsonWorkerRequest['offset'];

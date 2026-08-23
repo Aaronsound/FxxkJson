@@ -1,12 +1,45 @@
 import type { JsonSearchOptions } from '../types/jsonTool';
 import { getSearchMatcher, isWholeWordMatch } from './searchTextCore';
 
+function replaceExactTextSearchMatches(text: string, searchTerm: string, wholeWord: boolean, replacement: string) {
+  let result = '';
+  let copyStart = 0;
+  let searchStart = 0;
+
+  while (searchStart < text.length) {
+    const start = text.indexOf(searchTerm, searchStart);
+    if (start === -1) {
+      break;
+    }
+
+    const end = start + searchTerm.length;
+    searchStart = end;
+    if (wholeWord && !isWholeWordMatch(text, start, end)) {
+      continue;
+    }
+
+    result += text.slice(copyStart, start);
+    result += replacement;
+    copyStart = end;
+  }
+
+  return copyStart === 0 ? text : `${result}${text.slice(copyStart)}`;
+}
+
 export function replaceTextSearchMatches(
   text: string,
   searchTerm: string,
   options: JsonSearchOptions,
   replacement: string
 ) {
+  if (!searchTerm) {
+    return text;
+  }
+
+  if (!options.useRegex && options.matchCase) {
+    return replaceExactTextSearchMatches(text, searchTerm, options.wholeWord, replacement);
+  }
+
   const matcher = getSearchMatcher(searchTerm, options);
   if (!matcher) {
     return text;

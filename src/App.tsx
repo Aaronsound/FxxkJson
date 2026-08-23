@@ -466,12 +466,14 @@ const App: React.FC = () => {
     ...{ activeTab, activeTabIdRef },
     beginPastePerformanceSession,
     ...{ getTabContent, largeRawViewerMatches, leftEditorRef, normalizedLeftMatchIndex, openLeftFind },
+    rawTextByteLength: activeDocumentMeta.rawLength,
     ...{ queueFormat, registerLeftEditorContextMenu, renameTab },
-    requestReplaceText: ({ tabId, text, searchTerm, searchOptions, replacement }) =>
+    requestReplaceText: ({ tabId, text, textByteLength, searchTerm, searchOptions, replacement }) =>
       requestWorkerEditJson({
         tabId,
         operation: 'replace-text',
         text,
+        textByteLength,
         searchTerm,
         searchOptions,
         replacement,

@@ -200,6 +200,8 @@ function printResults(results, failures, baselinePath) {
       searchObjectsAvoided: result.searchResultObjectAllocationsAvoided,
       highlightMatchCopiesAvoided: result.highlightMatchCopiesAvoided,
       leftReplaceAll: formatDuration(result.leftReplaceAllMs),
+      exactReplaceHotPath: `${formatDuration(result.leftReplaceAllMs)} / ${formatDuration(result.legacyLeftReplaceAllMs)}`,
+      replaceTransfer: formatBytes(result.replaceTransferBytes),
       leftRegexReplaceAll: formatDuration(result.leftRegexReplaceAllMs),
       nodeRead: formatDuration(result.nodeValueReadMs),
       streamingNodeRead: formatDuration(result.streamingNodeReadMs),

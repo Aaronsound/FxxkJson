@@ -170,6 +170,28 @@ describe('createJsonWorkerInteractiveFlow', () => {
     await expect(edit).resolves.toBe('"{\\"ok\\":true}"');
   });
 
+  it('transfers large replace-all source text while keeping other edit requests inline', () => {
+    const { flow, requests, transfers } = createFlow();
+
+    void flow.requestEditJson({
+      tabId: 'tab-a',
+      operation: 'replace-text',
+      text: '{"needle":true}',
+      textByteLength: LARGE_FILE_THRESHOLD,
+      searchTerm: 'needle',
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+      replacement: 'value',
+    });
+    void flow.requestEditJson({ tabId: 'tab-a', operation: 'escape-json', text: '{"ok":true}' });
+
+    expect(requests[0]).toMatchObject({ type: 'edit-json', operation: 'replace-text' });
+    expect('text' in requests[0]).toBe(false);
+    expect('textBuffer' in requests[0] && requests[0].textBuffer).toBeInstanceOf(ArrayBuffer);
+    expect(transfers[0]).toEqual(['textBuffer' in requests[0] ? requests[0].textBuffer : undefined]);
+    expect(requests[1]).toMatchObject({ type: 'edit-json', operation: 'escape-json', text: '{"ok":true}' });
+    expect(transfers[1]).toEqual([]);
+  });
+
   it('decodes transferable raw and formatted node-save text results', async () => {
     const { flow, requests } = createFlow();
     const encoder = new TextEncoder();

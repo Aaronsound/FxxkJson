@@ -164,6 +164,7 @@ export function createJsonWorkerInteractiveFlow({
     tabId,
     operation,
     text,
+    textByteLength,
     originalText,
     path,
     offset,
@@ -179,19 +180,27 @@ export function createJsonWorkerInteractiveFlow({
 
       const requestId = ++locateRequestCounter;
       pendingEditJsonRequests[requestId] = { reject, resolve };
-      postWorkerRequest({
-        type: 'edit-json',
-        requestId,
-        tabId,
-        operation,
-        text,
-        originalText,
-        path,
-        offset,
-        searchTerm,
-        searchOptions,
-        replacement,
-      });
+      const textPayload =
+        operation === 'replace-text'
+          ? createWorkerTextPayload(text, textByteLength)
+          : { message: { text }, transfer: [] };
+      postWorkerRequest(
+        {
+          type: 'edit-json',
+          requestId,
+          tabId,
+          operation,
+          ...textPayload.message,
+          textByteLength,
+          originalText,
+          path,
+          offset,
+          searchTerm,
+          searchOptions,
+          replacement,
+        },
+        textPayload.transfer
+      );
     });
 
   const requestEditJson = (request: EditJsonWorkerRequest) =>

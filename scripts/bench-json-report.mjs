@@ -24,6 +24,7 @@ export function printResult(result) {
       duration: formatDuration(result.leftSearchLoadMoreMs),
     },
     { stage: 'left-replace-all', duration: formatDuration(result.leftReplaceAllMs) },
+    { stage: 'legacy-left-replace-all', duration: formatDuration(result.legacyLeftReplaceAllMs) },
     { stage: 'left-regex-replace-all', duration: formatDuration(result.leftRegexReplaceAllMs) },
     { stage: 'node-value-read', duration: formatDuration(result.nodeValueReadMs) },
     { stage: 'node-edit-patch', duration: formatDuration(result.nodeEditPatchMs) },
@@ -32,6 +33,7 @@ export function printResult(result) {
   console.log(`Viewer regions: ${result.viewerRegionCount.toLocaleString()}`);
   console.log(`Viewer compact index: ${formatBytes(result.viewerIndexBytes)}`);
   console.log(`Viewer compact region index: ${formatBytes(result.viewerRegionIndexBytes)}`);
+  console.log(`Replace round-trip transferable text: ${formatBytes(result.replaceTransferBytes)}`);
 }
 
 export function printSummary(results) {
@@ -56,6 +58,7 @@ export function printSummary(results) {
       leftSearch: formatDuration(result.leftSearchBatchMs),
       leftSearchMore: formatDuration(result.leftSearchLoadMoreMs),
       leftReplaceAll: formatDuration(result.leftReplaceAllMs),
+      legacyLeftReplaceAll: formatDuration(result.legacyLeftReplaceAllMs),
       leftRegexReplaceAll: formatDuration(result.leftRegexReplaceAllMs),
       nodeRead: formatDuration(result.nodeValueReadMs),
       nodePatch: formatDuration(result.nodeEditPatchMs),

@@ -659,8 +659,42 @@ export function findOptimizedLineAwareLiteralBatch(text, query, lineStarts, maxR
   return { count, lineChecksum };
 }
 
+export function replaceLegacyExactMatches(text, query, replacement) {
+  const matcher = new RegExp(escapeSearchPattern(query), 'g');
+  let result = '';
+  let copyStart = 0;
+  let match;
+
+  while ((match = matcher.exec(text)) !== null) {
+    result += text.slice(copyStart, match.index);
+    result += replacement;
+    copyStart = match.index + match[0].length;
+  }
+
+  return copyStart === 0 ? text : `${result}${text.slice(copyStart)}`;
+}
+
 export function replaceLiteralMatches(text, query, replacement) {
-  return text.split(query).join(replacement);
+  if (!query) {
+    return text;
+  }
+
+  let result = '';
+  let copyStart = 0;
+  let searchStart = 0;
+  while (searchStart < text.length) {
+    const start = text.indexOf(query, searchStart);
+    if (start === -1) {
+      break;
+    }
+    const end = start + query.length;
+    result += text.slice(copyStart, start);
+    result += replacement;
+    copyStart = end;
+    searchStart = end;
+  }
+
+  return copyStart === 0 ? text : `${result}${text.slice(copyStart)}`;
 }
 
 export function replaceRegexMatches(text, query, replacement) {

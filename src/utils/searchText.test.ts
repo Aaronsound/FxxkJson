@@ -75,6 +75,23 @@ describe('searchText', () => {
     ).toBe('node-1 node-22 node-3 items-4');
   });
 
+  it('keeps literal replacement text and whole-word boundaries on the exact native path', () => {
+    expect(
+      replaceTextSearchMatches(
+        'a.b a.b_extra A.B (a.b)',
+        'a.b',
+        { matchCase: true, wholeWord: true, useRegex: false },
+        '$&-updated'
+      )
+    ).toBe('$&-updated a.b_extra A.B ($&-updated)');
+    expect(
+      replaceTextSearchMatches('unchanged', 'missing', { matchCase: true, wholeWord: false, useRegex: false }, 'next')
+    ).toBe('unchanged');
+    expect(
+      replaceTextSearchMatches('anything', '', { matchCase: true, wholeWord: false, useRegex: false }, 'next')
+    ).toBe('anything');
+  });
+
   it('can cancel async batched searches before returning stale results', async () => {
     const text = Array.from({ length: 1000 }, (_, index) => `FxxkJson item ${index}`).join('\n');
     const lineStarts = buildLineStarts(text);

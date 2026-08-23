@@ -1,12 +1,12 @@
 import type { EditJsonWorkerOperation, EditJsonWorkerRequest, JsonEditPath, WorkerMessage } from '../types/jsonTool';
-import { parseJsonForFormatting } from '../utils/jsonFormat';
-import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
-import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
-import type { JsonValue } from '../utils/preserveJsonFormat';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
+import { parseJsonForFormatting } from '../utils/jsonFormat';
+import type { JsonValue } from '../utils/preserveJsonFormat';
+import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
 import { replaceTextSearchMatches } from '../utils/searchText';
 import type { SaveNodeEditResult } from './jsonNodeEditOperations';
-import { postNodeSaveResult } from './jsonWorkerTextPayload';
+import { postNodeSaveResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
 
 interface EditJsonCacheEntry {
   originalText: string;
@@ -35,8 +35,10 @@ interface JsonWorkerEditJsonOperationsArgs {
   jsonNodeEditOperations: JsonNodeEditOperations;
 }
 
-type EditJsonWorkerRequestMessage = EditJsonWorkerRequest & {
+type EditJsonWorkerRequestMessage = Omit<EditJsonWorkerRequest, 'text'> & {
   requestId: number;
+  text?: string;
+  textBuffer?: ArrayBuffer;
   type?: 'edit-json';
 };
 
@@ -102,8 +104,8 @@ export function createJsonWorkerEditJsonOperations({
   jsonNodeEditOperations,
 }: JsonWorkerEditJsonOperationsArgs) {
   function handleEditJsonMessage(message: EditJsonWorkerRequestMessage) {
-    const { requestId, tabId, operation, text, originalText, path, offset, replacement, searchOptions, searchTerm } =
-      message;
+    const { requestId, tabId, operation, originalText, path, offset, replacement, searchOptions, searchTerm } = message;
+    const text = readMessageText(message);
 
     try {
       const data = (() => {
@@ -170,6 +172,20 @@ export function createJsonWorkerEditJsonOperations({
       })();
 
       if (data === null) {
+        return;
+      }
+
+      if (operation === 'replace-text') {
+        postTextResult(
+          {
+            type: 'edit-json-result',
+            requestId,
+            tabId,
+            operation,
+            success: true,
+          },
+          data
+        );
         return;
       }
 

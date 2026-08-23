@@ -19,6 +19,7 @@ import {
   measureRepeated,
   readFirstRequestValue,
   readFirstRequestValueStreaming,
+  replaceLegacyExactMatches,
   replaceLiteralMatches,
   replaceRegexMatches,
   tokenizeLegacySampleLines,
@@ -105,6 +106,12 @@ export async function benchFile(filePath) {
   const leftReplaceAllResult = measure('leftReplaceAll', () =>
     replaceLiteralMatches(rawText, leftSearchQuery, `${leftSearchQuery}-replaced`)
   );
+  const legacyLeftReplaceAllResult = measure('legacyLeftReplaceAll', () =>
+    replaceLegacyExactMatches(rawText, leftSearchQuery, `${leftSearchQuery}-replaced`)
+  );
+  if (leftReplaceAllResult.value !== legacyLeftReplaceAllResult.value) {
+    throw new Error(`Replace benchmark implementations diverged for ${absolutePath}`);
+  }
   const leftRegexReplaceAllResult = measure('leftRegexReplaceAll', () =>
     replaceRegexMatches(rawText, 'req-([a-z]+)-(\\d+)', 'trace-$1-$2')
   );
@@ -177,6 +184,8 @@ export async function benchFile(filePath) {
     leftSearchLoadMoreMs: leftSearchLoadMoreResult.ms,
     leftSearchLoadMoreCount: leftSearchLoadMoreResult.value.count,
     leftReplaceAllMs: leftReplaceAllResult.ms,
+    legacyLeftReplaceAllMs: legacyLeftReplaceAllResult.ms,
+    replaceTransferBytes: rawBytes + Buffer.byteLength(leftReplaceAllResult.value, 'utf8'),
     leftRegexReplaceAllMs: leftRegexReplaceAllResult.ms,
     nodeValueReadMs: nodeValueReadResult.ms,
     streamingNodeReadMs: streamingNodeReadResult.ms,

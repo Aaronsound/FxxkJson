@@ -25,12 +25,14 @@ interface UseLeftEditorActionsArgs {
   leftEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   normalizedLeftMatchIndex: number;
   openLeftFind: () => void;
+  rawTextByteLength: number;
   queueFormat: (tabId: string, text: string, immediate?: boolean, metrics?: JsonDocumentMetrics) => void;
   registerLeftEditorContextMenu: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   renameTab: (tabId: string, title: string) => void;
   requestReplaceText: (args: {
     tabId: string;
     text: string;
+    textByteLength?: number;
     searchTerm: string;
     searchOptions: JsonSearchOptions;
     replacement: string;
@@ -54,6 +56,7 @@ export function useLeftEditorActions({
   leftEditorRef,
   normalizedLeftMatchIndex,
   openLeftFind,
+  rawTextByteLength,
   queueFormat,
   registerLeftEditorContextMenu,
   renameTab,
@@ -146,6 +149,7 @@ export function useLeftEditorActions({
       const updated = await requestReplaceText({
         tabId: currentTabId,
         text: currentText,
+        textByteLength: rawTextByteLength,
         searchTerm,
         searchOptions,
         replacement,
