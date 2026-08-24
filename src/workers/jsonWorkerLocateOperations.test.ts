@@ -1,5 +1,6 @@
 import { parseTree } from 'jsonc-parser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EMPTY_LARGE_JSON_VIEWER_REGIONS } from '../types/jsonTool';
 import { buildLineStarts } from '../utils/searchText';
 import {
   createJsonWorkerLocateOperations,
@@ -54,13 +55,10 @@ describe('jsonWorkerLocateOperations', () => {
 
   it('returns a right-only locate result from direct formatted text', () => {
     const formattedText = '{\n  "name": "demo"\n}';
-    const result = getRightOnlyLocateResult(
-      'tab-a',
-      7,
-      formattedText.indexOf('"demo"'),
-      { requestId: 6, formattedText },
-      (_tabId, _requestId, text) => parseTree(text)
-    );
+    const result = getRightOnlyLocateResult('tab-a', 7, formattedText.indexOf('"demo"'), {
+      requestId: 6,
+      formattedText,
+    });
 
     expect(result).toMatchObject({
       found: true,
@@ -74,7 +72,7 @@ describe('jsonWorkerLocateOperations', () => {
   });
 
   it('returns not found for right-only locate when formatted text is unavailable', () => {
-    expect(getRightOnlyLocateResult('tab-a', 7, 0, null, () => undefined)).toMatchObject({
+    expect(getRightOnlyLocateResult('tab-a', 7, 0, null)).toMatchObject({
       found: false,
       requestId: 7,
       rightOnly: true,
@@ -88,7 +86,7 @@ describe('jsonWorkerLocateOperations', () => {
     const viewerData = {
       lineCount: 3,
       lineStarts: buildLineStarts(formattedText),
-      regions: [],
+      regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
     };
     const cached = {
       directLocate: true,
@@ -111,15 +109,13 @@ describe('jsonWorkerLocateOperations', () => {
     const rawText = '{"name":"demo","count":1}';
     const formattedText = '{\n  "name": "demo",\n  "count": 1\n}';
     const result = getPathCalibratedDirectLocateRange(
-      'tab-a',
       {
         directLocate: true,
         formattedText,
         rawText,
         requestId: 3,
       },
-      formattedText.indexOf('"demo"'),
-      (_tabId, _requestId, text) => parseTree(text)
+      formattedText.indexOf('"demo"')
     );
 
     expect(result).toMatchObject({
@@ -152,7 +148,6 @@ describe('jsonWorkerLocateOperations', () => {
     ]);
     const operations = createJsonWorkerLocateOperations({
       ensureStructureTrees: vi.fn(() => true),
-      getDirectValueTree: vi.fn((_tabId, _requestId, text) => parseTree(text)),
       latestLocateRequestByTab,
       structureCache,
       viewerCache: new Map(),
@@ -191,7 +186,6 @@ describe('jsonWorkerLocateOperations', () => {
     const formattedText = '{\n  "name": "demo"\n}';
     const operations = createJsonWorkerLocateOperations({
       ensureStructureTrees: vi.fn(() => true),
-      getDirectValueTree: vi.fn((_tabId, _requestId, text) => parseTree(text)),
       latestLocateRequestByTab: new Map(),
       structureCache: new Map(),
       viewerCache: new Map([
@@ -203,7 +197,7 @@ describe('jsonWorkerLocateOperations', () => {
             viewerData: {
               lineCount: 3,
               lineStarts: buildLineStarts(formattedText),
-              regions: [],
+              regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
             },
           },
         ],

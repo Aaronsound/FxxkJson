@@ -1,4 +1,4 @@
-import type { LargeJsonSearchMatch } from '../types/jsonTool';
+import type { LargeJsonSearchMatch, LargeJsonViewerRegions } from '../types/jsonTool';
 
 export interface VisibleSegment {
   actualStart: number;
@@ -13,11 +13,19 @@ export interface CollapsedInterval {
   triggerLine: number;
 }
 
+export interface LargeJsonWrapLayout {
+  lineHeight: number;
+  longRowIndexes: Uint32Array;
+  visibleLineCount: number;
+}
+
 export interface JsonSyntaxToken {
   start: number;
   end: number;
   className?: string;
 }
+
+type JsonSyntaxTokenVisitor = (start: number, end: number, className?: string) => void;
 
 export interface HighlightedJsonLineSegment {
   className?: string;
@@ -54,6 +62,149 @@ export function binarySearchSegment(segments: VisibleSegment[], visibleIndex: nu
   }
 
   return null;
+}
+
+export function binarySearchActualSegment(segments: VisibleSegment[], lineNumber: number) {
+  let low = 0;
+  let high = segments.length - 1;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const current = segments[mid];
+
+    if (lineNumber < current.actualStart) {
+      high = mid - 1;
+      continue;
+    }
+
+    if (lineNumber > current.actualEnd) {
+      low = mid + 1;
+      continue;
+    }
+
+    return current;
+  }
+
+  return null;
+}
+
+export function getActualLineNumberFromVisibleSegments(segments: VisibleSegment[], visibleIndex: number) {
+  const onlySegment = segments.length === 1 ? segments[0] : null;
+  if (onlySegment) {
+    if (visibleIndex < onlySegment.visibleStart || visibleIndex > onlySegment.visibleEnd) {
+      return null;
+    }
+
+    return onlySegment.actualStart + (visibleIndex - onlySegment.visibleStart);
+  }
+
+  const segment = binarySearchSegment(segments, visibleIndex);
+  return segment ? segment.actualStart + (visibleIndex - segment.visibleStart) : null;
+}
+
+export function getVisibleIndexFromVisibleSegments(segments: VisibleSegment[], lineNumber: number) {
+  const onlySegment = segments.length === 1 ? segments[0] : null;
+  if (onlySegment) {
+    if (lineNumber < onlySegment.actualStart || lineNumber > onlySegment.actualEnd) {
+      return null;
+    }
+
+    return onlySegment.visibleStart + (lineNumber - onlySegment.actualStart);
+  }
+
+  const segment = binarySearchActualSegment(segments, lineNumber);
+  return segment ? segment.visibleStart + (lineNumber - segment.actualStart) : null;
+}
+
+export function findCollapsedInterval(intervals: CollapsedInterval[], lineNumber: number) {
+  let low = 0;
+  let high = intervals.length - 1;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const interval = intervals[middle];
+
+    if (lineNumber < interval.start) {
+      high = middle - 1;
+      continue;
+    }
+
+    if (lineNumber > interval.end) {
+      low = middle + 1;
+      continue;
+    }
+
+    return interval;
+  }
+
+  return null;
+}
+
+function appendCollapsedInterval(intervals: CollapsedInterval[], startLine: number, endLine: number) {
+  const interval = {
+    start: startLine + 1,
+    end: endLine - 1,
+    triggerLine: startLine,
+  };
+
+  if (interval.start > interval.end) {
+    return;
+  }
+
+  const previous = intervals[intervals.length - 1];
+  if (!previous) {
+    intervals.push(interval);
+    return;
+  }
+
+  if (interval.start <= previous.end) {
+    previous.end = Math.max(previous.end, interval.end);
+    return;
+  }
+
+  intervals.push(interval);
+}
+
+function findFirstRegionStartingAtOrAfter(startLines: Uint32Array, lineNumber: number, fromIndex: number) {
+  let low = Math.max(0, fromIndex);
+  let high = startLines.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (startLines[middle] < lineNumber) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+export function buildAllExceptCollapsedIntervals(
+  regions: LargeJsonViewerRegions,
+  expandedStartLines: ReadonlySet<number>
+) {
+  const intervals: CollapsedInterval[] = [];
+  let index = 0;
+
+  while (index < regions.startLines.length) {
+    const startLine = regions.startLines[index];
+    if (expandedStartLines.has(startLine)) {
+      index += 1;
+      continue;
+    }
+
+    const endLine = regions.endLines[index];
+    appendCollapsedInterval(intervals, startLine, endLine);
+
+    // Fold regions are stored in document order. Once a parent is collapsed,
+    // every following region that starts before its closing line is hidden and
+    // cannot contribute another visible trigger or interval.
+    index = findFirstRegionStartingAtOrAfter(regions.startLines, endLine, index + 1);
+  }
+
+  return intervals;
 }
 
 export function buildVisibleSegments(lineCount: number, collapsedIntervals: CollapsedInterval[]): VisibleSegment[] {
@@ -96,6 +247,228 @@ export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
 
+const LARGE_JSON_ESTIMATED_CHARACTER_WIDTH = 7.2;
+const LARGE_JSON_HORIZONTAL_GUTTER_WIDTH = 40;
+export const LARGE_JSON_MAX_WRAPPED_ROWS = 4;
+
+export function getLargeJsonWrapColumnCount(viewportWidth: number, lineNumberDigits: number) {
+  const effectiveViewportWidth = viewportWidth > 0 ? viewportWidth : 520;
+  const lineNumberWidth = Math.max(3, lineNumberDigits) * LARGE_JSON_ESTIMATED_CHARACTER_WIDTH;
+  return Math.max(
+    24,
+    Math.floor(
+      (effectiveViewportWidth - lineNumberWidth - LARGE_JSON_HORIZONTAL_GUTTER_WIDTH) /
+        LARGE_JSON_ESTIMATED_CHARACTER_WIDTH
+    )
+  );
+}
+
+interface BuildLargeJsonWrapLayoutArgs {
+  actualLongRowIndexes?: Uint32Array;
+  lineHeight: number;
+  lineStarts: Uint32Array;
+  textLength: number;
+  visibleLineCount: number;
+  visibleSegments: VisibleSegment[];
+  wrapColumnCount: number;
+}
+
+interface BuildLargeJsonLongRowIndexesArgs {
+  lineStarts: Uint32Array;
+  textLength: number;
+  wrapColumnCount: number;
+}
+
+function growLongRowIndexes(buffer: Uint32Array, minimumCapacity: number) {
+  let capacity = Math.max(16, buffer.length);
+  while (capacity < minimumCapacity) {
+    capacity *= 2;
+  }
+
+  const next = new Uint32Array(capacity);
+  next.set(buffer);
+  return next;
+}
+
+function findFirstLongRowAtOrAfter(longRowIndexes: Uint32Array, visibleIndex: number) {
+  let low = 0;
+  let high = longRowIndexes.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (longRowIndexes[middle] < visibleIndex) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+export function buildLargeJsonLongRowIndexes({
+  lineStarts,
+  textLength,
+  wrapColumnCount,
+}: BuildLargeJsonLongRowIndexesArgs) {
+  let longRowIndexes = new Uint32Array(Math.min(Math.max(16, lineStarts.length), 1024));
+  let longRowCount = 0;
+  const safeWrapColumnCount = Math.max(1, wrapColumnCount);
+
+  for (let lineIndex = 0; lineIndex < lineStarts.length; lineIndex += 1) {
+    const lineStart = lineStarts[lineIndex] ?? 0;
+    const nextLineStart = lineIndex + 1 < lineStarts.length ? lineStarts[lineIndex + 1] : textLength;
+    const lineLength = Math.max(0, nextLineStart - lineStart - (lineIndex + 1 < lineStarts.length ? 1 : 0));
+    if (lineLength <= safeWrapColumnCount) {
+      continue;
+    }
+
+    if (longRowCount === longRowIndexes.length) {
+      longRowIndexes = growLongRowIndexes(longRowIndexes, longRowCount + 1);
+    }
+    longRowIndexes[longRowCount] = lineIndex;
+    longRowCount += 1;
+  }
+
+  return longRowIndexes.length === longRowCount ? longRowIndexes : longRowIndexes.slice(0, longRowCount);
+}
+
+export function projectLargeJsonLongRowIndexes(
+  actualLongRowIndexes: Uint32Array,
+  lineCount: number,
+  visibleLineCount: number,
+  visibleSegments: VisibleSegment[]
+) {
+  const onlySegment = visibleSegments.length === 1 ? visibleSegments[0] : null;
+  if (
+    onlySegment?.actualStart === 1 &&
+    onlySegment.actualEnd === lineCount &&
+    onlySegment.visibleStart === 0 &&
+    onlySegment.visibleEnd === visibleLineCount - 1
+  ) {
+    return actualLongRowIndexes;
+  }
+
+  if (actualLongRowIndexes.length === 0 || visibleLineCount === 0) {
+    return new Uint32Array(0);
+  }
+
+  let projectedIndexes = new Uint32Array(Math.min(Math.max(16, actualLongRowIndexes.length), 1024));
+  let projectedCount = 0;
+  let sourceIndex = 0;
+
+  for (const segment of visibleSegments) {
+    const actualStartIndex = segment.actualStart - 1;
+    const actualEndIndex = segment.actualEnd - 1;
+    sourceIndex = findFirstLongRowAtOrAfter(actualLongRowIndexes, actualStartIndex);
+
+    while (sourceIndex < actualLongRowIndexes.length) {
+      const actualLineIndex = actualLongRowIndexes[sourceIndex];
+      if (actualLineIndex > actualEndIndex) {
+        break;
+      }
+
+      if (projectedCount === projectedIndexes.length) {
+        projectedIndexes = growLongRowIndexes(projectedIndexes, projectedCount + 1);
+      }
+      projectedIndexes[projectedCount] = segment.visibleStart + (actualLineIndex - actualStartIndex);
+      projectedCount += 1;
+      sourceIndex += 1;
+    }
+  }
+
+  return projectedIndexes.slice(0, projectedCount);
+}
+
+export function buildLargeJsonWrapLayout({
+  actualLongRowIndexes,
+  lineHeight,
+  lineStarts,
+  textLength,
+  visibleLineCount,
+  visibleSegments,
+  wrapColumnCount,
+}: BuildLargeJsonWrapLayoutArgs): LargeJsonWrapLayout {
+  const documentLongRowIndexes =
+    actualLongRowIndexes ?? buildLargeJsonLongRowIndexes({ lineStarts, textLength, wrapColumnCount });
+
+  return {
+    lineHeight,
+    longRowIndexes: projectLargeJsonLongRowIndexes(
+      documentLongRowIndexes,
+      lineStarts.length,
+      visibleLineCount,
+      visibleSegments
+    ),
+    visibleLineCount,
+  };
+}
+
+export function getLargeJsonRowTop(layout: LargeJsonWrapLayout, visibleIndex: number) {
+  const safeVisibleIndex = Math.max(0, Math.min(visibleIndex, layout.visibleLineCount));
+  const longRowsBefore = findFirstLongRowAtOrAfter(layout.longRowIndexes, safeVisibleIndex);
+  return (safeVisibleIndex + longRowsBefore * (LARGE_JSON_MAX_WRAPPED_ROWS - 1)) * layout.lineHeight;
+}
+
+export function getLargeJsonRowLayout(layout: LargeJsonWrapLayout, visibleIndex: number) {
+  const safeVisibleIndex = Math.max(0, Math.min(visibleIndex, Math.max(0, layout.visibleLineCount - 1)));
+  const longRowIndex = findFirstLongRowAtOrAfter(layout.longRowIndexes, safeVisibleIndex);
+  return {
+    height:
+      layout.lineHeight * (layout.longRowIndexes[longRowIndex] === safeVisibleIndex ? LARGE_JSON_MAX_WRAPPED_ROWS : 1),
+    top: (safeVisibleIndex + longRowIndex * (LARGE_JSON_MAX_WRAPPED_ROWS - 1)) * layout.lineHeight,
+  };
+}
+
+export function getLargeJsonRowHeight(layout: LargeJsonWrapLayout, visibleIndex: number) {
+  const safeVisibleIndex = Math.max(0, Math.min(visibleIndex, Math.max(0, layout.visibleLineCount - 1)));
+  const longRowIndex = findFirstLongRowAtOrAfter(layout.longRowIndexes, safeVisibleIndex);
+  const isLongRow = layout.longRowIndexes[longRowIndex] === safeVisibleIndex;
+  return layout.lineHeight * (isLongRow ? LARGE_JSON_MAX_WRAPPED_ROWS : 1);
+}
+
+export function getLargeJsonContentHeight(layout: LargeJsonWrapLayout) {
+  return getLargeJsonRowTop(layout, layout.visibleLineCount);
+}
+
+export function getLargeJsonVisibleIndexAtOffset(layout: LargeJsonWrapLayout, offset: number) {
+  if (layout.visibleLineCount === 0) {
+    return 0;
+  }
+
+  const targetRowOffset = Math.max(0, offset) / layout.lineHeight;
+  const extraRowsPerLongLine = LARGE_JSON_MAX_WRAPPED_ROWS - 1;
+  const { longRowIndexes } = layout;
+  let low = 0;
+  let high = longRowIndexes.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    const expandedStart = longRowIndexes[middle] + middle * extraRowsPerLongLine;
+    if (expandedStart <= targetRowOffset) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  const precedingLongRowIndex = low - 1;
+  let visibleIndex: number;
+
+  if (precedingLongRowIndex < 0) {
+    visibleIndex = Math.floor(targetRowOffset);
+  } else {
+    const longRowVisibleIndex = longRowIndexes[precedingLongRowIndex];
+    const expandedStart = longRowVisibleIndex + precedingLongRowIndex * extraRowsPerLongLine;
+    visibleIndex =
+      targetRowOffset < expandedStart + LARGE_JSON_MAX_WRAPPED_ROWS
+        ? longRowVisibleIndex
+        : Math.floor(targetRowOffset - (precedingLongRowIndex + 1) * extraRowsPerLongLine);
+  }
+
+  return Math.max(0, Math.min(visibleIndex, layout.visibleLineCount - 1));
+}
+
 function getJsonStringEnd(lineText: string, start: number) {
   let index = start + 1;
   let escaped = false;
@@ -120,29 +493,119 @@ function getJsonStringEnd(lineText: string, start: number) {
 function getNextNonWhitespaceIndex(lineText: string, start: number) {
   let index = start;
 
-  while (index < lineText.length && /\s/.test(lineText[index])) {
+  while (index < lineText.length && isWhitespaceCode(lineText.charCodeAt(index))) {
     index += 1;
   }
 
   return index;
 }
 
-export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
-  const tokens: JsonSyntaxToken[] = [];
+function isWhitespaceCode(charCode: number) {
+  return (
+    (charCode >= 9 && charCode <= 13) ||
+    charCode === 32 ||
+    charCode === 160 ||
+    charCode === 5760 ||
+    (charCode >= 8192 && charCode <= 8202) ||
+    charCode === 8232 ||
+    charCode === 8233 ||
+    charCode === 8239 ||
+    charCode === 8287 ||
+    charCode === 12288 ||
+    charCode === 65279
+  );
+}
+
+function isDigitCode(charCode: number) {
+  return charCode >= 48 && charCode <= 57;
+}
+
+function getJsonNumberEnd(lineText: string, start: number) {
+  let index = start;
+  if (lineText.charCodeAt(index) === 45) {
+    index += 1;
+  }
+
+  const firstDigit = lineText.charCodeAt(index);
+  if (firstDigit === 48) {
+    index += 1;
+  } else if (firstDigit >= 49 && firstDigit <= 57) {
+    index += 1;
+    while (isDigitCode(lineText.charCodeAt(index))) {
+      index += 1;
+    }
+  } else {
+    return start;
+  }
+
+  if (lineText.charCodeAt(index) === 46 && isDigitCode(lineText.charCodeAt(index + 1))) {
+    index += 2;
+    while (isDigitCode(lineText.charCodeAt(index))) {
+      index += 1;
+    }
+  }
+
+  const exponentCode = lineText.charCodeAt(index);
+  if (exponentCode === 69 || exponentCode === 101) {
+    let exponentEnd = index + 1;
+    const signCode = lineText.charCodeAt(exponentEnd);
+    if (signCode === 43 || signCode === 45) {
+      exponentEnd += 1;
+    }
+    if (isDigitCode(lineText.charCodeAt(exponentEnd))) {
+      exponentEnd += 1;
+      while (isDigitCode(lineText.charCodeAt(exponentEnd))) {
+        exponentEnd += 1;
+      }
+      index = exponentEnd;
+    }
+  }
+
+  return index;
+}
+
+function getJsonLiteralEnd(lineText: string, start: number) {
+  const charCode = lineText.charCodeAt(start);
+  if (charCode === 116 && lineText.startsWith('true', start)) {
+    return start + 4;
+  }
+  if (charCode === 102 && lineText.startsWith('false', start)) {
+    return start + 5;
+  }
+  if (charCode === 110 && lineText.startsWith('null', start)) {
+    return start + 4;
+  }
+  return start;
+}
+
+function isJsonPunctuationCode(charCode: number) {
+  return (
+    charCode === 44 ||
+    charCode === 46 ||
+    charCode === 58 ||
+    charCode === 91 ||
+    charCode === 93 ||
+    charCode === 123 ||
+    charCode === 125
+  );
+}
+
+export function visitJsonLineTokens(lineText: string, visit: JsonSyntaxTokenVisitor) {
   let index = 0;
 
   const pushToken = (start: number, end: number, className?: string) => {
     if (end > start) {
-      tokens.push({ start, end, className });
+      visit(start, end, className);
     }
   };
 
   while (index < lineText.length) {
     const char = lineText[index];
+    const charCode = lineText.charCodeAt(index);
 
-    if (/\s/.test(char)) {
+    if (isWhitespaceCode(charCode)) {
       const start = index;
-      while (index < lineText.length && /\s/.test(lineText[index])) {
+      while (index < lineText.length && isWhitespaceCode(lineText.charCodeAt(index))) {
         index += 1;
       }
       pushToken(start, index);
@@ -162,23 +625,23 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
       continue;
     }
 
-    if (char === '-' || /\d/.test(char)) {
-      const match = lineText.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
-      if (match) {
-        pushToken(index, index + match[0].length, 'large-json-token large-json-token-value large-json-token-number');
-        index += match[0].length;
+    if (charCode === 45 || isDigitCode(charCode)) {
+      const end = getJsonNumberEnd(lineText, index);
+      if (end > index) {
+        pushToken(index, end, 'large-json-token large-json-token-value large-json-token-number');
+        index = end;
         continue;
       }
     }
 
-    const literal = ['true', 'false', 'null'].find((candidate) => lineText.startsWith(candidate, index));
-    if (literal) {
-      pushToken(index, index + literal.length, 'large-json-token large-json-token-value large-json-token-literal');
-      index += literal.length;
+    const literalEnd = getJsonLiteralEnd(lineText, index);
+    if (literalEnd > index) {
+      pushToken(index, literalEnd, 'large-json-token large-json-token-value large-json-token-literal');
+      index = literalEnd;
       continue;
     }
 
-    if ('{}[]:,.'.includes(char)) {
+    if (isJsonPunctuationCode(charCode)) {
       pushToken(index, index + 1, 'large-json-token large-json-token-punctuation');
       index += 1;
       continue;
@@ -187,7 +650,13 @@ export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
     pushToken(index, index + 1);
     index += 1;
   }
+}
 
+export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
+  const tokens: JsonSyntaxToken[] = [];
+  visitJsonLineTokens(lineText, (start, end, className) => {
+    tokens.push({ start, end, className });
+  });
   return tokens;
 }
 
@@ -196,15 +665,6 @@ export function buildHighlightedJsonLineSegments(
   lineMatches: Array<LargeJsonSearchMatch & { matchIndex: number }>,
   activeMatchIndex: number
 ): HighlightedJsonLineSegment[] {
-  const normalizedMatches = lineMatches
-    .map((match) => ({
-      ...match,
-      localStart: clamp(match.localStart, 0, lineText.length),
-      localEnd: clamp(match.localEnd, 0, lineText.length),
-    }))
-    .filter((match) => match.localEnd > match.localStart)
-    .sort((left, right) => left.localStart - right.localStart);
-  const syntaxTokens = tokenizeJsonLine(lineText);
   const segments: HighlightedJsonLineSegment[] = [];
   let matchCursor = 0;
 
@@ -227,29 +687,36 @@ export function buildHighlightedJsonLineSegments(
     });
   };
 
-  syntaxTokens.forEach((token) => {
-    let cursor = token.start;
+  // Search matches arrive in ascending document-offset order and grouping by line
+  // preserves that order, so they can be consumed without per-line copies or sorting.
+  visitJsonLineTokens(lineText, (tokenStart, tokenEnd, className) => {
+    let cursor = tokenStart;
 
-    while (cursor < token.end) {
-      while (matchCursor < normalizedMatches.length && normalizedMatches[matchCursor].localEnd <= cursor) {
+    while (cursor < tokenEnd) {
+      let match = lineMatches[matchCursor];
+      let matchStart = match ? clamp(match.localStart, 0, lineText.length) : 0;
+      let matchEnd = match ? clamp(match.localEnd, 0, lineText.length) : 0;
+      while (match && (matchEnd <= matchStart || matchEnd <= cursor)) {
         matchCursor += 1;
+        match = lineMatches[matchCursor];
+        matchStart = match ? clamp(match.localStart, 0, lineText.length) : 0;
+        matchEnd = match ? clamp(match.localEnd, 0, lineText.length) : 0;
       }
 
-      const match = normalizedMatches[matchCursor];
-      if (!match || match.localStart >= token.end) {
-        pushSegment(cursor, token.end, token.className);
+      if (!match || matchStart >= tokenEnd) {
+        pushSegment(cursor, tokenEnd, className);
         break;
       }
 
-      if (cursor < match.localStart) {
-        const segmentEnd = Math.min(match.localStart, token.end);
-        pushSegment(cursor, segmentEnd, token.className);
+      if (cursor < matchStart) {
+        const segmentEnd = Math.min(matchStart, tokenEnd);
+        pushSegment(cursor, segmentEnd, className);
         cursor = segmentEnd;
         continue;
       }
 
-      const segmentEnd = Math.min(match.localEnd, token.end);
-      pushSegment(cursor, segmentEnd, token.className, match);
+      const segmentEnd = Math.min(matchEnd, tokenEnd);
+      pushSegment(cursor, segmentEnd, className, match);
       cursor = segmentEnd;
     }
   });

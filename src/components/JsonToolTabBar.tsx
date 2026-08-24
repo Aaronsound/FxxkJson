@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { RenamingTabState, Tab } from '../types/jsonTool';
+import type React from 'react';
+import { useEffect, useRef } from 'react';
+import type { RenamingTabState, Tab } from '../types/jsonTool';
 
 interface JsonToolTabBarProps {
   tabs: Tab[];

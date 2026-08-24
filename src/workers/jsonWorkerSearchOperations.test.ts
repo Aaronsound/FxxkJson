@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import type { WorkerMessage } from '../types/jsonTool';
+import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import { unpackSearchMatches } from '../utils/searchMatchPayload';
 import { buildLineStarts } from '../utils/searchText';
-import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
 import type { RawSearchCacheEntry, ViewerSearchCacheEntry } from './jsonWorkerSearchOperations';
+import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations';
 
 function createOperations() {
   const latestSearchRequestByKey = new Map();
@@ -19,7 +20,11 @@ function createOperations() {
 }
 
 function getPostedSearchResult(index = 0) {
-  return vi.mocked(postMessage).mock.calls[index][0] as WorkerMessage;
+  const message = vi.mocked(postMessage).mock.calls[index][0] as WorkerMessage;
+  return {
+    ...message,
+    matches: unpackSearchMatches(message.matchData) ?? message.matches,
+  };
 }
 
 async function flushSearchTimer() {
@@ -57,31 +62,30 @@ describe('jsonWorkerSearchOperations', () => {
     });
     await flushSearchTimer();
 
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        append: false,
-        hasMore: false,
-        query: 'alpha',
-        requestId: 1,
-        tabId: 'tab-a',
-        target: 'left',
-      })
-    );
-    expect(getPostedSearchResult().matches).toHaveLength(2);
+    const result = getPostedSearchResult();
+    expect(result).toMatchObject({
+      append: false,
+      hasMore: false,
+      query: 'alpha',
+      requestId: 1,
+      tabId: 'tab-a',
+      target: 'left',
+    });
+    expect(result.matches).toHaveLength(2);
+    expect(postMessage).toHaveBeenCalledWith(expect.any(Object), [expect.any(ArrayBuffer)]);
     const cachedRaw = rawSearchCache.get('tab-a');
     expect(cachedRaw).toMatchObject({
       rawRevision: 2,
       rawText: '{"name":"Alpha"}\n{"name":"beta alpha"}',
     });
     expect(cachedRaw?.lineStarts).toBeInstanceOf(Uint32Array);
-    expect(cachedRaw?.lowerRawText).toContain('alpha');
+    expect(cachedRaw).not.toHaveProperty('lowerRawText');
   });
 
   it('returns an empty left result when cached raw revision is stale', async () => {
     const { operations, rawSearchCache } = createOperations();
     rawSearchCache.set('tab-a', {
       lineStarts: buildLineStarts('{"name":"alpha"}'),
-      lowerRawText: null,
       rawRevision: 1,
       rawText: '{"name":"alpha"}',
     });
@@ -110,11 +114,9 @@ describe('jsonWorkerSearchOperations', () => {
     const { operations, viewerCache } = createOperations();
     viewerCache.set('tab-a', {
       formattedText: '{\n  "name": "alpha",\n  "other": "Alpha"\n}',
-      lowerFormattedText: null,
       viewerData: {
         lineCount: 4,
         lineStarts: buildLineStarts('{\n  "name": "alpha",\n  "other": "Alpha"\n}'),
-        regions: [],
       },
     });
 
@@ -129,18 +131,18 @@ describe('jsonWorkerSearchOperations', () => {
     });
     await flushSearchTimer();
 
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        append: true,
-        hasMore: false,
-        query: 'alpha',
-        requestId: 1,
-        tabId: 'tab-a',
-        target: 'right',
-      })
-    );
-    expect(getPostedSearchResult().matches).toHaveLength(2);
-    expect(viewerCache.get('tab-a')?.lowerFormattedText).toContain('alpha');
+    const result = getPostedSearchResult();
+    expect(result).toMatchObject({
+      append: true,
+      hasMore: false,
+      query: 'alpha',
+      requestId: 1,
+      tabId: 'tab-a',
+      target: 'right',
+    });
+    expect(result.matches).toHaveLength(2);
+    expect(postMessage).toHaveBeenCalledWith(expect.any(Object), [expect.any(ArrayBuffer)]);
+    expect(viewerCache.get('tab-a')).not.toHaveProperty('lowerFormattedText');
   });
 
   it('does not post stale search results after a newer request arrives', async () => {
@@ -150,7 +152,6 @@ describe('jsonWorkerSearchOperations', () => {
       viewerData: {
         lineCount: 1,
         lineStarts: buildLineStarts('{"name":"alpha"}'),
-        regions: [],
       },
     });
 

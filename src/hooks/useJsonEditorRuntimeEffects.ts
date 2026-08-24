@@ -1,7 +1,5 @@
 import { useEffect, type MutableRefObject } from 'react';
-import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LargeJsonViewerData, LargeViewerStatus, Tab } from '../types/jsonTool';
-import { getMonacoOptions } from '../utils/jsonEditorInteractions';
 
 interface UseJsonEditorRuntimeEffectsArgs {
   activeDocumentMeta: {
@@ -17,14 +15,17 @@ interface UseJsonEditorRuntimeEffectsArgs {
   getTabContent: (tabId: string) => string;
   isBuildingDedicatedRightViewer: boolean;
   isLargeFileMode: boolean;
-  leftEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   logRightEditorState: (event: string, tabId: string, extra?: Record<string, unknown>) => void;
-  rightEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   shouldEnableRightPaneFolding: boolean;
-  shouldUseDedicatedLeftViewer: boolean;
   shouldUseDedicatedRightViewer: boolean;
-  syncLeftModel: (tabId: string, content: string, forceValue?: boolean) => void;
-  syncRightModel: (tabId: string, content: string, forceValue?: boolean) => void;
+  syncLeftModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
+  syncRightModel: (
+    tabId: string,
+    content: string,
+    forceValue?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
   wrapLongLines: boolean;
 }
 
@@ -39,11 +40,8 @@ export function useJsonEditorRuntimeEffects({
   getTabContent,
   isBuildingDedicatedRightViewer,
   isLargeFileMode,
-  leftEditorRef,
   logRightEditorState,
-  rightEditorRef,
   shouldEnableRightPaneFolding,
-  shouldUseDedicatedLeftViewer,
   shouldUseDedicatedRightViewer,
   syncLeftModel,
   syncRightModel,
@@ -60,8 +58,14 @@ export function useJsonEditorRuntimeEffects({
 
     const currentRaw = getTabContent(activeTab.id);
     const currentFormatted = formattedTextByTabRef.current[activeTab.id] ?? '';
-    syncLeftModel(activeTab.id, currentRaw);
-    syncRightModel(activeTab.id, currentFormatted);
+    syncLeftModel(activeTab.id, currentRaw, false, activeDocumentMeta.rawLength);
+    syncRightModel(
+      activeTab.id,
+      currentFormatted,
+      false,
+      activeDocumentMeta.formattedLength,
+      activeDocumentMeta.rawLength
+    );
   }, [
     activeDocumentMeta.formattedLength,
     activeDocumentMeta.rawLength,
@@ -71,31 +75,13 @@ export function useJsonEditorRuntimeEffects({
   ]);
 
   useEffect(() => {
-    if (!shouldUseDedicatedLeftViewer) {
-      leftEditorRef.current?.updateOptions(
-        getMonacoOptions({
-          largeMode: isLargeFileMode,
-          wrapLongLines,
-        })
-      );
-      leftEditorRef.current?.layout();
-    }
-    if (!shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
-      rightEditorRef.current?.updateOptions(
-        getMonacoOptions({
-          largeMode: isLargeFileMode,
-          wrapLongLines,
-          readOnly: true,
-          enableStructuralFolding: shouldEnableRightPaneFolding,
-        })
-      );
-      rightEditorRef.current?.layout();
-    }
-    if (activeTab && !shouldUseDedicatedRightViewer) {
+    if (activeTab && !shouldUseDedicatedRightViewer && !isBuildingDedicatedRightViewer) {
       logRightEditorState(
         activeTab.id === activeTabId ? 'right-editor-options-refreshed' : 'right-editor-options-skipped',
         activeTab.id,
         {
+          formattedBytes: activeDocumentMeta.formattedLength,
+          rawBytes: activeDocumentMeta.rawLength,
           isLargeFileMode,
           shouldEnableRightPaneFolding,
           wrapLongLines,
@@ -103,12 +89,13 @@ export function useJsonEditorRuntimeEffects({
       );
     }
   }, [
+    activeDocumentMeta.formattedLength,
+    activeDocumentMeta.rawLength,
     activeTab,
     activeTabId,
     isBuildingDedicatedRightViewer,
     isLargeFileMode,
     shouldEnableRightPaneFolding,
-    shouldUseDedicatedLeftViewer,
     shouldUseDedicatedRightViewer,
     wrapLongLines,
   ]);

@@ -46,7 +46,7 @@ describe('JsonToolTabBar', () => {
   it('keeps tab and close button positions stable for repeated close clicks', () => {
     const tabStyles = readFileSync(join(process.cwd(), 'src/styles/tabs-overrides.css'), 'utf8');
 
-    expect(tabStyles).toContain('--tab-width: 180px;');
+    expect(tabStyles).toContain('--tab-width: 128px;');
     expect(tabStyles).toContain('flex: 0 0 var(--tab-width);');
     expect(tabStyles).toContain('width: var(--tab-width);');
     expect(tabStyles).toContain('box-sizing: border-box;');

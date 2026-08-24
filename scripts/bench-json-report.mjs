@@ -24,12 +24,16 @@ export function printResult(result) {
       duration: formatDuration(result.leftSearchLoadMoreMs),
     },
     { stage: 'left-replace-all', duration: formatDuration(result.leftReplaceAllMs) },
+    { stage: 'legacy-left-replace-all', duration: formatDuration(result.legacyLeftReplaceAllMs) },
     { stage: 'left-regex-replace-all', duration: formatDuration(result.leftRegexReplaceAllMs) },
     { stage: 'node-value-read', duration: formatDuration(result.nodeValueReadMs) },
     { stage: 'node-edit-patch', duration: formatDuration(result.nodeEditPatchMs) },
   ]);
   console.log(`Viewer lines: ${result.viewerLineCount.toLocaleString()}`);
   console.log(`Viewer regions: ${result.viewerRegionCount.toLocaleString()}`);
+  console.log(`Viewer compact index: ${formatBytes(result.viewerIndexBytes)}`);
+  console.log(`Viewer compact region index: ${formatBytes(result.viewerRegionIndexBytes)}`);
+  console.log(`Replace round-trip transferable text: ${formatBytes(result.replaceTransferBytes)}`);
 }
 
 export function printSummary(results) {
@@ -48,11 +52,13 @@ export function printSummary(results) {
       rawTree: formatDuration(result.rawTreeMs),
       formattedTree: formatDuration(result.formattedTreeMs),
       viewerIndex: formatDuration(result.viewerIndexMs),
+      viewerIndexSize: formatBytes(result.viewerIndexBytes),
       rightSearch: formatDuration(result.rightSearchBatchMs),
       rightSearchMore: formatDuration(result.rightSearchLoadMoreMs),
       leftSearch: formatDuration(result.leftSearchBatchMs),
       leftSearchMore: formatDuration(result.leftSearchLoadMoreMs),
       leftReplaceAll: formatDuration(result.leftReplaceAllMs),
+      legacyLeftReplaceAll: formatDuration(result.legacyLeftReplaceAllMs),
       leftRegexReplaceAll: formatDuration(result.leftRegexReplaceAllMs),
       nodeRead: formatDuration(result.nodeValueReadMs),
       nodePatch: formatDuration(result.nodeEditPatchMs),

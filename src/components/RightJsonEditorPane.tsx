@@ -1,14 +1,19 @@
-import React from 'react';
+import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import JsonMonacoEditor from './JsonMonacoEditor';
-import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
+import LargeJsonReadonlyViewer, { type LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
 import type { PaneFindPathItem } from './PaneFindWidget';
 import PaneFindWidget from './PaneFindWidget';
-import type { JsonSearchOptions, LargeJsonSearchMatch, LargeJsonViewerData } from '../types/jsonTool';
+import type {
+  JsonSearchOptions,
+  LargeJsonFoldState,
+  LargeJsonSearchMatch,
+  LargeJsonViewerData,
+} from '../types/jsonTool';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface RightJsonEditorPaneProps {
-  activeLargeViewerCollapsedLines: number[];
+  activeLargeViewerFoldState: LargeJsonFoldState;
   activeLargeViewerData: LargeJsonViewerData | null;
   activeRightMatchCount: number;
   formattedValue: string;
@@ -49,7 +54,7 @@ interface RightJsonEditorPaneProps {
   onPinCurrentRightPath: () => void;
   onPrevRight: () => void;
   onRenameRightKey: (offset: number) => void;
-  onRightCollapsedLinesChange: (lines: number[]) => void;
+  onRightFoldStateChange: (state: LargeJsonFoldState) => void;
   onRightMatchCountChange: (count: number) => void;
   onRightMount: OnMount;
   onRightSearchOptionsChange: (options: JsonSearchOptions) => void;
@@ -63,7 +68,7 @@ interface RightJsonEditorPaneProps {
 const defaultT = createTranslator('zh');
 
 const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
-  activeLargeViewerCollapsedLines,
+  activeLargeViewerFoldState,
   activeLargeViewerData,
   activeRightMatchCount,
   formattedValue,
@@ -104,7 +109,7 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
   onPinCurrentRightPath,
   onPrevRight,
   onRenameRightKey,
-  onRightCollapsedLinesChange,
+  onRightFoldStateChange,
   onRightMatchCountChange,
   onRightMount,
   onRightSearchOptionsChange,
@@ -168,13 +173,13 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
             data={activeLargeViewerData}
             isDarkMode={isDarkMode}
             wrapLongLines={wrapLongLines}
-            collapsedLines={activeLargeViewerCollapsedLines}
+            foldState={activeLargeViewerFoldState}
             searchTerm={rightSearchTerm}
             searchOptions={rightSearchOptions}
             searchMatches={largeViewerMatches}
             activeMatchIndex={rightMatchIndex}
             selectedRange={rightSelectedRange}
-            onCollapsedLinesChange={onRightCollapsedLinesChange}
+            onFoldStateChange={onRightFoldStateChange}
             onMatchCountChange={onRightMatchCountChange}
             onLocateOffset={onLocateRightOffset}
             onCopyPath={onCopyRightPath}

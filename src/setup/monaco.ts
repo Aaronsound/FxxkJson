@@ -37,7 +37,7 @@ export function setupMonacoWorker() {
   });
 
   self.MonacoEnvironment = {
-    getWorker: function (moduleId, label) {
+    getWorker: (moduleId, label) => {
       // 根据 label 类型，返回不同的 Worker 实例
       if (label === 'json') {
         return new JsonWorker();

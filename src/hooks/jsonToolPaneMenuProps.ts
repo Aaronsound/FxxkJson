@@ -1,10 +1,11 @@
 import type { JsonToolWorkspaceInput } from './createJsonToolWorkspaceProps';
+import type { LargeJsonFoldState } from '../types/jsonTool';
 
 export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
   const {
     activeDocumentMeta,
     activeLargeRawViewerData,
-    activeLargeViewerCollapsedLines,
+    activeLargeViewerFoldState,
     activeLargeViewerData,
     activeLeftMatchCount,
     activeRawText,
@@ -66,7 +67,7 @@ export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
     rightSearchTerm,
     selectRightPinnedPath,
     setIsRightFindOpen,
-    setLargeViewerCollapsedLinesByTab,
+    setLargeViewerFoldStateByTab,
     setLargeViewerMatchCount,
     setLeftReplaceText,
     setRightMatchIndex,
@@ -114,7 +115,7 @@ export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
       t,
     },
     rightPaneProps: {
-      activeLargeViewerCollapsedLines,
+      activeLargeViewerFoldState,
       activeLargeViewerData,
       activeRightMatchCount,
       formattedValue,
@@ -157,10 +158,10 @@ export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
       onPrevRight: gotoPrevRight,
       onRenameRightKey: (offset: number) =>
         applyRightNodeMutationAtOffset(activeTab.id, offset, true, 'rename-node-key'),
-      onRightCollapsedLinesChange: (lines: number[]) => {
-        setLargeViewerCollapsedLinesByTab((current: Record<string, number[]>) => ({
+      onRightFoldStateChange: (state: LargeJsonFoldState) => {
+        setLargeViewerFoldStateByTab((current) => ({
           ...current,
-          [activeTab.id]: lines,
+          [activeTab.id]: state,
         }));
       },
       onRightMatchCountChange: setLargeViewerMatchCount,

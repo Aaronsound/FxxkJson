@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import type { FoldTargetMode } from '../utils/foldableLine';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 

@@ -1,6 +1,6 @@
-import { MutableRefObject, useEffect } from 'react';
+import { type MutableRefObject, useEffect } from 'react';
 import type { StructureStatus, WorkerMessage } from '../types/jsonTool';
-import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
+import type { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
 import { handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
@@ -18,7 +18,6 @@ interface UseJsonWorkerLifecycleArgs {
   clearPendingFormat: (tabId: string) => void;
   formatWatchdogTimersRef: MutableRefObject<Record<string, number>>;
   formatTimersRef: MutableRefObject<Record<string, number>>;
-  formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   interactiveFlow: ReturnType<typeof createJsonWorkerInteractiveFlow>;
   latestRequestRef: MutableRefObject<Record<string, number>>;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
@@ -26,8 +25,8 @@ interface UseJsonWorkerLifecycleArgs {
   readWorkerText: (message: WorkerMessage) => string | null;
   readWorkerTextField: (
     message: WorkerMessage,
-    textKey: 'data' | 'repairedText',
-    bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+    textKey: 'data' | 'repairedText' | 'formattedText',
+    bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
   ) => string | null;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
   workerRef: MutableRefObject<Worker | null>;
@@ -79,7 +78,6 @@ export function useJsonWorkerLifecycle({
   clearPendingFormat,
   formatWatchdogTimersRef,
   formatTimersRef,
-  formattedTextByTabRef,
   interactiveFlow,
   latestRequestRef,
   performanceSessionsRef,
@@ -132,7 +130,6 @@ export function useJsonWorkerLifecycle({
       handleJsonFormattingWorkerResult(event.data, {
         callbacks: callbacksRef.current,
         clearFormatWatchdog,
-        formattedTextByTabRef,
         latestRequestRef,
         performanceSessionsRef,
         rawTextByTabRef,
@@ -156,7 +153,6 @@ export function useJsonWorkerLifecycle({
     clearFormatWatchdog,
     clearPendingFormat,
     formatWatchdogTimersRef,
-    formattedTextByTabRef,
     interactiveFlow,
     performanceSessionsRef,
   ]);

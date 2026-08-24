@@ -1,7 +1,26 @@
-import { forwardRef, MouseEvent as ReactMouseEvent, useCallback, useImperativeHandle, useRef } from 'react';
-import { DEFAULT_SEARCH_OPTIONS, LargeJsonSearchMatch, LargeJsonViewerData } from '../types/jsonTool';
+import {
+  forwardRef,
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from 'react';
+import {
+  DEFAULT_SEARCH_OPTIONS,
+  type LargeJsonFoldState,
+  type LargeJsonSearchMatch,
+  type LargeJsonViewerData,
+} from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
-import { clamp } from '../utils/largeJsonViewerRender';
+import {
+  buildLargeJsonWrapLayout,
+  buildLargeJsonLongRowIndexes,
+  clamp,
+  findCollapsedInterval,
+  getLargeJsonContentHeight,
+  getLargeJsonWrapColumnCount,
+} from '../utils/largeJsonViewerRender';
 import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import { LargeJsonLineText } from './LargeJsonLineText';
@@ -12,7 +31,7 @@ import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
 import { useLargeJsonSelection, type LargeJsonLocalSelectionRange } from '../hooks/useLargeJsonSelection';
 import { useLargeJsonContextMenu } from '../hooks/useLargeJsonContextMenu';
 import { useLargeJsonViewport } from '../hooks/useLargeJsonViewport';
-import { useLargeJsonSearchMatches } from '../hooks/useLargeJsonSearchMatches';
+import { getSearchMatchesForLine, useLargeJsonSearchMatches } from '../hooks/useLargeJsonSearchMatches';
 import { useLargeJsonActiveMatchReveal } from '../hooks/useLargeJsonActiveMatchReveal';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
@@ -24,13 +43,13 @@ interface LargeJsonReadonlyViewerProps {
   data: LargeJsonViewerData;
   isDarkMode: boolean;
   wrapLongLines: boolean;
-  collapsedLines: number[];
+  foldState: LargeJsonFoldState;
   searchTerm: string;
   searchOptions?: JsonSearchOptions;
   searchMatches?: LargeJsonSearchMatch[];
   activeMatchIndex: number;
   selectedRange?: { start: number; end: number } | null;
-  onCollapsedLinesChange: (lines: number[]) => void;
+  onFoldStateChange: (state: LargeJsonFoldState) => void;
   onMatchCountChange: (count: number) => void;
   onLocateOffset: (offset: number) => void;
   onCopyPath: (offset: number) => void | Promise<void>;
@@ -62,13 +81,13 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       data,
       isDarkMode,
       wrapLongLines,
-      collapsedLines,
+      foldState,
       searchTerm,
       searchOptions = DEFAULT_SEARCH_OPTIONS,
       searchMatches: searchMatchesFromWorker,
       activeMatchIndex,
       selectedRange = null,
-      onCollapsedLinesChange,
+      onFoldStateChange,
       onMatchCountChange,
       onLocateOffset,
       onCopyPath,
@@ -87,24 +106,54 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const { closeContextMenu, contextMenu, setContextMenu } = useLargeJsonContextMenu({ searchTerm });
-    const { queueScrollTopUpdate, scrollTop, viewportHeight } = useLargeJsonViewport({ containerRef });
-    const rowHeight = wrapLongLines ? LINE_HEIGHT * 4 : LINE_HEIGHT;
+    const { queueScrollTopUpdate, scrollTop, viewportHeight, viewportWidth } = useLargeJsonViewport({ containerRef });
+    const rowHeight = LINE_HEIGHT;
 
     const {
       collapsedIntervals,
-      collapsedLineSet,
+      expandLine,
       foldAll,
-      normalizedCollapsedLines,
-      regionsByStartLine,
+      getRegionEndLineByStartLine,
+      getRegionByStartLine,
+      isLineCollapsed,
+      isRegionCollapsed,
       toggleLine,
       unfoldAll,
       visibleLineCount,
       visibleSegments,
     } = useLargeJsonFolding({
-      collapsedLines,
+      foldState,
       data,
-      onCollapsedLinesChange,
+      onFoldStateChange,
     });
+    const lineNumberDigits = Math.max(3, String(data.lineCount).length);
+    const wrapColumnCount = getLargeJsonWrapColumnCount(viewportWidth, lineNumberDigits);
+    const actualLongRowIndexes = useMemo(
+      () =>
+        wrapLongLines
+          ? buildLargeJsonLongRowIndexes({
+              lineStarts: data.lineStarts,
+              textLength: text.length,
+              wrapColumnCount,
+            })
+          : null,
+      [data.lineStarts, text.length, wrapColumnCount, wrapLongLines]
+    );
+    const wrapLayout = useMemo(
+      () =>
+        actualLongRowIndexes
+          ? buildLargeJsonWrapLayout({
+              actualLongRowIndexes,
+              lineHeight: rowHeight,
+              lineStarts: data.lineStarts,
+              textLength: text.length,
+              visibleLineCount,
+              visibleSegments,
+              wrapColumnCount,
+            })
+          : null,
+      [actualLongRowIndexes, data.lineStarts, text.length, visibleLineCount, visibleSegments, wrapColumnCount]
+    );
 
     const getLineText = useCallback(
       (lineNumber: number) => {
@@ -120,15 +169,22 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       [data.lineCount, data.lineStarts, text]
     );
 
-    const { endVisibleIndex, getActualLineNumber, getVisibleIndexForActualLine, startVisibleIndex } =
-      useLargeJsonVisibleWindow({
-        rowHeight,
-        scrollTop,
-        viewportHeight,
-        visibleLineCount,
-        visibleSegments,
-        overscan: OVERSCAN,
-      });
+    const {
+      endVisibleIndex,
+      getActualLineNumber,
+      getRowStyle,
+      getRowTop,
+      getVisibleIndexForActualLine,
+      startVisibleIndex,
+    } = useLargeJsonVisibleWindow({
+      rowHeight,
+      wrapLayout,
+      scrollTop,
+      viewportHeight,
+      visibleLineCount,
+      visibleSegments,
+      overscan: OVERSCAN,
+    });
 
     const resolveOffsetFromPoint = useCallback(
       (event: ReactMouseEvent<HTMLElement>, lineNumber: number, lineText: string) => {
@@ -168,12 +224,12 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
 
     const { getLineSelectionRange, handleCopy, handleKeyDown, isLineSelected, resetFullDocumentSelection } =
       useLargeJsonSelection({
-        collapsedLineSet,
         containerRef,
         data,
         getLineText,
+        getRegionByStartLine,
+        isLineCollapsed,
         onOpenFind,
-        regionsByStartLine,
         selectedRange,
         text,
       });
@@ -198,20 +254,16 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         },
         revealOffset(offset: number) {
           const lineNumber = getLineNumberForOffset(data.lineStarts, clamp(Math.floor(offset), 0, text.length));
-          const containingCollapsedRegion = collapsedIntervals.find(
-            (interval) => lineNumber >= interval.start && lineNumber <= interval.end
-          );
+          const containingCollapsedRegion = findCollapsedInterval(collapsedIntervals, lineNumber);
 
           if (containingCollapsedRegion) {
-            onCollapsedLinesChange(
-              normalizedCollapsedLines.filter((line) => line !== containingCollapsedRegion.triggerLine)
-            );
+            expandLine(containingCollapsedRegion.triggerLine);
             return;
           }
 
           const visibleIndex = getVisibleIndexForActualLine(lineNumber);
           if (visibleIndex !== null && containerRef.current) {
-            containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
+            containerRef.current.scrollTop = getRowTop(Math.max(0, visibleIndex - 3));
             containerRef.current.focus({ preventScroll: true });
           }
         },
@@ -219,11 +271,10 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       [
         collapsedIntervals,
         data.lineStarts,
+        expandLine,
         foldAll,
+        getRowTop,
         getVisibleIndexForActualLine,
-        normalizedCollapsedLines,
-        onCollapsedLinesChange,
-        rowHeight,
         text.length,
         unfoldAll,
       ]
@@ -234,13 +285,16 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       collapsedIntervals,
       containerRef,
       getVisibleIndexForActualLine,
-      normalizedCollapsedLines,
-      onCollapsedLinesChange,
+      getRowTop,
+      onExpandCollapsedLine: expandLine,
       onLocateOffset,
-      rowHeight,
     });
 
-    const lineNumberWidth = `${Math.max(3, String(data.lineCount).length)}ch`;
+    const lineNumberWidth = `${lineNumberDigits}ch`;
+    const contentHeight = Math.max(
+      rowHeight,
+      wrapLayout ? getLargeJsonContentHeight(wrapLayout) : visibleLineCount * rowHeight
+    );
 
     const renderLineText = useCallback(
       (lineNumber: number, lineText: string, selectedLineRange: LargeJsonLocalSelectionRange | null) => {
@@ -249,7 +303,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
             activeMatchIndex={effectiveMatchIndex}
             lineNumber={lineNumber}
             lineText={lineText}
-            matches={matchesByLine.get(lineNumber) ?? []}
+            matches={getSearchMatchesForLine(matchesByLine, lineNumber)}
             selectedLineRange={selectedLineRange}
           />
         );
@@ -270,21 +324,21 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         onScroll={(event) => queueScrollTopUpdate(event.currentTarget.scrollTop)}
         onCopy={handleCopy}
       >
-        <div className="large-json-spacer" style={{ height: `${Math.max(visibleLineCount, 1) * rowHeight}px` }}>
+        <div className="large-json-spacer" style={{ height: `${contentHeight}px` }}>
           <LargeJsonVisibleRows
-            collapsedLineSet={collapsedLineSet}
             data={data}
             endVisibleIndex={endVisibleIndex}
             getActualLineNumber={getActualLineNumber}
             getLineSelectionRange={getLineSelectionRange}
             getLineText={getLineText}
+            getRegionEndLineByStartLine={getRegionEndLineByStartLine}
+            getRowStyle={getRowStyle}
+            isRegionCollapsed={isRegionCollapsed}
             isLineSelected={isLineSelected}
             lineNumberWidth={lineNumberWidth}
             onLocateOffset={onLocateOffset}
-            regionsByStartLine={regionsByStartLine}
             renderLineText={renderLineText}
             resolveOffsetFromPoint={resolveOffsetFromPoint}
-            rowHeight={rowHeight}
             setContextMenu={setContextMenu}
             startVisibleIndex={startVisibleIndex}
             toggleLine={toggleLine}
@@ -294,8 +348,8 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
         {contextMenu && (
           <LargeJsonContextMenu
             contextMenu={contextMenu}
-            isCollapsed={contextMenu.foldLine !== null && collapsedLineSet.has(contextMenu.foldLine)}
-            isParentCollapsed={contextMenu.parentFoldLine !== null && collapsedLineSet.has(contextMenu.parentFoldLine)}
+            isCollapsed={contextMenu.foldLine !== null && isLineCollapsed(contextMenu.foldLine)}
+            isParentCollapsed={contextMenu.parentFoldLine !== null && isLineCollapsed(contextMenu.parentFoldLine)}
             isDarkMode={isDarkMode}
             onClose={closeContextMenu}
             onToggleFold={toggleLine}

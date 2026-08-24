@@ -2,6 +2,8 @@ import {
   EMPTY_DOCUMENT_META,
   LARGE_FILE_THRESHOLD,
   STRUCTURE_SYNC_THRESHOLD,
+  EMPTY_LARGE_JSON_FOLD_STATE,
+  type LargeJsonFoldState,
   type LargeJsonViewerData,
   type LargeRawViewerData,
   type LocateFeedback,
@@ -23,7 +25,7 @@ interface UseActiveJsonTabStateArgs {
   largeFileLocateEnabledByTab: Record<string, boolean>;
   largeModeByTab: Record<string, boolean>;
   largeRawViewerDataByTab: Record<string, LargeRawViewerData | null>;
-  largeViewerCollapsedLinesByTab: Record<string, number[]>;
+  largeViewerFoldStateByTab: Record<string, LargeJsonFoldState>;
   largeViewerDataByTab: Record<string, LargeJsonViewerData | null>;
   largeViewerStatusByTab: Record<string, 'idle' | 'building' | 'ready'>;
   locateFeedbackByTab: Record<string, LocateFeedback | null>;
@@ -45,7 +47,7 @@ export function useActiveJsonTabState({
   largeFileLocateEnabledByTab,
   largeModeByTab,
   largeRawViewerDataByTab,
-  largeViewerCollapsedLinesByTab,
+  largeViewerFoldStateByTab,
   largeViewerDataByTab,
   largeViewerStatusByTab,
   locateFeedbackByTab,
@@ -92,7 +94,9 @@ export function useActiveJsonTabState({
   const activeLargeViewerData = activeTab ? (largeViewerDataByTab[activeTab.id] ?? null) : null;
   const activeLargeRawViewerData = activeTab ? (largeRawViewerDataByTab[activeTab.id] ?? null) : null;
   const activeLargeViewerStatus = activeTab ? (largeViewerStatusByTab[activeTab.id] ?? 'idle') : 'idle';
-  const activeLargeViewerCollapsedLines = activeTab ? (largeViewerCollapsedLinesByTab[activeTab.id] ?? []) : [];
+  const activeLargeViewerFoldState = activeTab
+    ? (largeViewerFoldStateByTab[activeTab.id] ?? EMPTY_LARGE_JSON_FOLD_STATE)
+    : EMPTY_LARGE_JSON_FOLD_STATE;
   const shouldUseDedicatedRightViewer = Boolean(activeLargeViewerData && formattedValue);
   const shouldUseDedicatedLeftViewer = Boolean(activeRawText && activeDocumentMeta.rawLength >= LARGE_FILE_THRESHOLD);
   const isBuildingDedicatedRightViewer = Boolean(
@@ -102,7 +106,7 @@ export function useActiveJsonTabState({
   return {
     activeDocumentMeta,
     activeLargeRawViewerData,
-    activeLargeViewerCollapsedLines,
+    activeLargeViewerFoldState,
     activeLargeViewerData,
     activeLargeViewerStatus,
     activeLocateFeedback,

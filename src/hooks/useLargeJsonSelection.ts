@@ -1,7 +1,7 @@
 import {
-  ClipboardEvent as ReactClipboardEvent,
-  KeyboardEvent as ReactKeyboardEvent,
-  RefObject,
+  type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
   useCallback,
   useMemo,
   useRef,
@@ -23,23 +23,23 @@ export interface LargeJsonLocalSelectionRange {
 }
 
 interface UseLargeJsonSelectionParams {
-  collapsedLineSet: Set<number>;
   containerRef: RefObject<HTMLDivElement | null>;
   data: LargeJsonViewerData;
   getLineText: (lineNumber: number) => string;
+  getRegionByStartLine: (lineNumber: number) => LargeJsonViewerRegion | undefined;
+  isLineCollapsed: (lineNumber: number) => boolean;
   onOpenFind: () => void;
-  regionsByStartLine: Map<number, LargeJsonViewerRegion>;
   selectedRange: { start: number; end: number } | null;
   text: string;
 }
 
 export function useLargeJsonSelection({
-  collapsedLineSet,
   containerRef,
   data,
   getLineText,
+  getRegionByStartLine,
+  isLineCollapsed,
   onOpenFind,
-  regionsByStartLine,
   selectedRange,
   text,
 }: UseLargeJsonSelectionParams) {
@@ -69,7 +69,7 @@ export function useLargeJsonSelection({
       lineNumber: number,
       baseLineText: string,
       renderedLineText: string,
-      region: LargeJsonViewerRegion | undefined,
+      regionEndLine: number | null,
       isCollapsed: boolean
     ): LargeJsonLocalSelectionRange | null => {
       if (!normalizedSelectedRange) {
@@ -79,8 +79,8 @@ export function useLargeJsonSelection({
       const lineStart = data.lineStarts[lineNumber - 1] ?? 0;
       const lineEnd = lineStart + baseLineText.length;
 
-      if (region && isCollapsed) {
-        const regionEnd = getLineDocumentEnd(region.endLine);
+      if (regionEndLine !== null && isCollapsed) {
+        const regionEnd = getLineDocumentEnd(regionEndLine);
         const selectionIntersectsCollapsedRegion =
           normalizedSelectedRange.end > lineStart && normalizedSelectedRange.start < Math.max(regionEnd, lineStart + 1);
 
@@ -136,16 +136,16 @@ export function useLargeJsonSelection({
   const getCopyTextForCollapsedSelection = useCallback(
     (startLine: number, endLine: number, startOffset: number, endOffset: number) => {
       return getCollapsedCopyText({
-        collapsedLineSet,
         endLine,
         endOffset,
         getLineText,
-        regionsByStartLine,
+        getRegionByStartLine,
+        isLineCollapsed,
         startLine,
         startOffset,
       });
     },
-    [collapsedLineSet, getLineText, regionsByStartLine]
+    [getLineText, getRegionByStartLine, isLineCollapsed]
   );
 
   const handleSelectAll = useCallback(

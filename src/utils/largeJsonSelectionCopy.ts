@@ -2,18 +2,18 @@ import type { LargeJsonViewerRegion } from '../types/jsonTool';
 
 interface CollapsedSelectionTextArgs {
   getLineText: (lineNumber: number) => string;
+  getRegionByStartLine: (lineNumber: number) => LargeJsonViewerRegion | undefined;
   lineNumber: number;
-  regionsByStartLine: Map<number, LargeJsonViewerRegion>;
   startOffset: number;
 }
 
 export function getCollapsedSelectionText({
   getLineText,
+  getRegionByStartLine,
   lineNumber,
-  regionsByStartLine,
   startOffset,
 }: CollapsedSelectionTextArgs) {
-  const region = regionsByStartLine.get(lineNumber);
+  const region = getRegionByStartLine(lineNumber);
   if (!region) {
     return getLineText(lineNumber);
   }
@@ -46,27 +46,27 @@ export function getCollapsedSelectionText({
 }
 
 interface CopyTextForCollapsedSelectionArgs {
-  collapsedLineSet: Set<number>;
   endLine: number;
   endOffset: number;
   getLineText: (lineNumber: number) => string;
-  regionsByStartLine: Map<number, LargeJsonViewerRegion>;
+  getRegionByStartLine: (lineNumber: number) => LargeJsonViewerRegion | undefined;
+  isLineCollapsed: (lineNumber: number) => boolean;
   startLine: number;
   startOffset: number;
 }
 
 export function getCopyTextForCollapsedSelection({
-  collapsedLineSet,
   endLine,
   endOffset,
   getLineText,
-  regionsByStartLine,
+  getRegionByStartLine,
+  isLineCollapsed,
   startLine,
   startOffset,
 }: CopyTextForCollapsedSelectionArgs) {
   let includesCollapsedLine = false;
   for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
-    if (collapsedLineSet.has(lineNumber)) {
+    if (isLineCollapsed(lineNumber)) {
       includesCollapsedLine = true;
       break;
     }
@@ -76,11 +76,11 @@ export function getCopyTextForCollapsedSelection({
     return null;
   }
 
-  if (startLine === endLine && collapsedLineSet.has(startLine)) {
+  if (startLine === endLine && isLineCollapsed(startLine)) {
     return getCollapsedSelectionText({
       getLineText,
+      getRegionByStartLine,
       lineNumber: startLine,
-      regionsByStartLine,
       startOffset,
     });
   }
@@ -89,14 +89,14 @@ export function getCopyTextForCollapsedSelection({
   let lineNumber = startLine;
 
   while (lineNumber <= endLine) {
-    if (collapsedLineSet.has(lineNumber)) {
-      const region = regionsByStartLine.get(lineNumber);
+    if (isLineCollapsed(lineNumber)) {
+      const region = getRegionByStartLine(lineNumber);
       if (region) {
         parts.push(
           getCollapsedSelectionText({
             getLineText,
+            getRegionByStartLine,
             lineNumber,
-            regionsByStartLine,
             startOffset: lineNumber === startLine ? startOffset : 0,
           })
         );

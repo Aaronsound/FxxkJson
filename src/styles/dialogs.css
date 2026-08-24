@@ -70,9 +70,11 @@
 .edit-modal-fold-overlay {
   position: absolute;
   top: 0;
+  bottom: 0;
   left: 46px;
   z-index: 5;
   width: 24px;
+  overflow: hidden;
   pointer-events: none;
 }
 

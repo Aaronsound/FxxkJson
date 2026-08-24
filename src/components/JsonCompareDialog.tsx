@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import type React from 'react';
+import { useMemo, useState } from 'react';
 import type { Tab } from '../types/jsonTool';
-import { compareJsonTexts, JsonDiffEntry, JsonDiffResult, JsonDiffType } from '../utils/jsonDiff';
+import { compareJsonTexts, type JsonDiffEntry, type JsonDiffResult, type JsonDiffType } from '../utils/jsonDiff';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface JsonCompareDialogProps {

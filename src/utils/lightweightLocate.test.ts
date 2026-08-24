@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { buildLargeViewerData } from './largeJsonViewerData';
-import { getIdentityLocateRange, getLightweightTokenLocateRange } from './lightweightLocate';
+import {
+  getIdentityLocateRange,
+  getLightweightTokenLocateRange,
+  MAX_LIGHTWEIGHT_LOCATE_TOKEN_CACHE_ENTRIES,
+} from './lightweightLocate';
 
 function buildData(text: string) {
   const data = buildLargeViewerData(text, 1);
@@ -76,6 +80,28 @@ describe('lightweightLocate', () => {
     expect(repeatedThirdRange?.startOffset).toBe(thirdRawRequestOffset);
     expect(cache.tokenOffsetsByToken.has('"request"')).toBe(true);
     expect(cache.tokenOffsetsByToken.size).toBe(cacheSizeAfterThirdLocate);
+    expect(cache.tokenOffsetsByToken.get('"request"')?.rawOffsets).toBeInstanceOf(Uint32Array);
+  });
+
+  it('indexes only the selected candidate and bounds unique token cache growth', () => {
+    const values = Array.from({ length: 70 }, (_, index) => `value-${index}`);
+    const rawText = JSON.stringify({ values });
+    const formattedText = JSON.stringify(JSON.parse(rawText), null, 2);
+    const viewerData = buildData(formattedText);
+    const cache = { tokenOffsetsByToken: new Map() };
+
+    const firstToken = JSON.stringify(values[0]);
+    getLightweightTokenLocateRange(rawText, formattedText, viewerData, formattedText.indexOf(firstToken), cache);
+    expect(cache.tokenOffsetsByToken.size).toBe(1);
+    expect(cache.tokenOffsetsByToken.has(firstToken)).toBe(true);
+
+    for (const value of values.slice(1)) {
+      const token = JSON.stringify(value);
+      getLightweightTokenLocateRange(rawText, formattedText, viewerData, formattedText.indexOf(token), cache);
+    }
+
+    expect(cache.tokenOffsetsByToken.size).toBe(MAX_LIGHTWEIGHT_LOCATE_TOKEN_CACHE_ENTRIES);
+    expect(cache.tokenOffsetsByToken.has(firstToken)).toBe(false);
   });
 
   it('keeps identity direct locate on the active formatted line', () => {

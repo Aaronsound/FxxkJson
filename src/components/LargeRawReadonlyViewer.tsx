@@ -1,18 +1,27 @@
-import { useCallback, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { LargeRawViewerData } from '../types/jsonTool';
-import { buildLargeRawViewerData, findRawSegmentIndex } from '../utils/largeRawViewerData';
+import { buildLargeRawViewerData, findRawSegmentIndex, getRawSegmentEnd } from '../utils/largeRawViewerData';
+import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 import './LargeRawReadonlyViewer.css';
 
-const LINE_HEIGHT = 19;
+const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
 const OVERSCAN = 20;
 const APPROX_CHAR_WIDTH = 7.7;
 const REVEAL_CONTEXT_CHARS = 24;
 const STICKY_OFFSET_WIDTH = 88;
 const PRECISE_REVEAL_PADDING = 24;
 
-interface RawHighlightRange {
+export interface RawHighlightRange {
   start: number;
   end: number;
+}
+
+export interface LargeRawReadonlyRowProps {
+  chunkEnd: number;
+  chunkStart: number;
+  highlightRange: RawHighlightRange | null;
+  rowIndex: number;
+  text: string;
 }
 
 interface LargeRawReadonlyViewerProps {
@@ -50,6 +59,56 @@ function renderChunkText(text: string, chunkStart: number, chunkEnd: number, hig
     </>
   );
 }
+
+function chunkIntersectsHighlight(chunkStart: number, chunkEnd: number, highlightRange: RawHighlightRange | null) {
+  return Boolean(highlightRange && highlightRange.end > chunkStart && highlightRange.start < chunkEnd);
+}
+
+export function areLargeRawReadonlyRowPropsEqual(previous: LargeRawReadonlyRowProps, next: LargeRawReadonlyRowProps) {
+  if (
+    previous.text !== next.text ||
+    previous.rowIndex !== next.rowIndex ||
+    previous.chunkStart !== next.chunkStart ||
+    previous.chunkEnd !== next.chunkEnd
+  ) {
+    return false;
+  }
+
+  const previousHighlighted = chunkIntersectsHighlight(previous.chunkStart, previous.chunkEnd, previous.highlightRange);
+  const nextHighlighted = chunkIntersectsHighlight(next.chunkStart, next.chunkEnd, next.highlightRange);
+  if (!previousHighlighted || !nextHighlighted) {
+    return previousHighlighted === nextHighlighted;
+  }
+
+  const chunkLength = previous.chunkEnd - previous.chunkStart;
+  const previousStart = clamp((previous.highlightRange?.start ?? 0) - previous.chunkStart, 0, chunkLength);
+  const nextStart = clamp((next.highlightRange?.start ?? 0) - next.chunkStart, 0, chunkLength);
+  return (
+    previousStart === nextStart &&
+    clamp((previous.highlightRange?.end ?? 0) - previous.chunkStart, previousStart, chunkLength) ===
+      clamp((next.highlightRange?.end ?? 0) - next.chunkStart, nextStart, chunkLength)
+  );
+}
+
+function LargeRawReadonlyRowView({ chunkEnd, chunkStart, highlightRange, rowIndex, text }: LargeRawReadonlyRowProps) {
+  const isHighlighted = chunkIntersectsHighlight(chunkStart, chunkEnd, highlightRange);
+
+  return (
+    <div
+      className={`large-raw-row ${isHighlighted ? 'highlighted' : ''}`}
+      style={{
+        top: `${rowIndex * LINE_HEIGHT}px`,
+        height: `${LINE_HEIGHT}px`,
+      }}
+    >
+      <span className="large-raw-offset">{chunkStart.toLocaleString()}</span>
+      <code className="large-raw-text">{renderChunkText(text, chunkStart, chunkEnd, highlightRange)}</code>
+    </div>
+  );
+}
+
+const LargeRawReadonlyRow = memo(LargeRawReadonlyRowView, areLargeRawReadonlyRowPropsEqual);
+LargeRawReadonlyRow.displayName = 'LargeRawReadonlyRow';
 
 const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRawReadonlyViewerProps>(
   ({ text, data, isDarkMode, highlightRange }, ref) => {
@@ -142,7 +201,7 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
           const safeEndOffset = clamp(endOffset, safeOffset, text.length);
           const rowIndex = findRawSegmentIndex(segments, safeOffset);
           const rowStart = segments.starts[rowIndex] ?? 0;
-          const rowEnd = segments.ends[rowIndex] ?? rowStart;
+          const rowEnd = getRawSegmentEnd(segments, rowIndex);
           const localStart = clamp(safeOffset - rowStart, 0, Math.max(0, rowEnd - rowStart));
           const nextScrollTop = Math.max(0, (rowIndex - 3) * LINE_HEIGHT);
           const nextScrollLeft = Math.max(0, (localStart - REVEAL_CONTEXT_CHARS) * APPROX_CHAR_WIDTH);
@@ -215,23 +274,17 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
     const rows = [];
     for (let rowIndex = visibleRange.start; rowIndex <= visibleRange.end; rowIndex += 1) {
       const chunkStart = segments.starts[rowIndex] ?? 0;
-      const chunkEnd = segments.ends[rowIndex] ?? chunkStart;
-      const isHighlighted = Boolean(
-        highlightRange && highlightRange.end > chunkStart && highlightRange.start < chunkEnd
-      );
+      const chunkEnd = getRawSegmentEnd(segments, rowIndex);
 
       rows.push(
-        <div
+        <LargeRawReadonlyRow
           key={rowIndex}
-          className={`large-raw-row ${isHighlighted ? 'highlighted' : ''}`}
-          style={{
-            top: `${rowIndex * LINE_HEIGHT}px`,
-            height: `${LINE_HEIGHT}px`,
-          }}
-        >
-          <span className="large-raw-offset">{chunkStart.toLocaleString()}</span>
-          <code className="large-raw-text">{renderChunkText(text, chunkStart, chunkEnd, highlightRange)}</code>
-        </div>
+          chunkEnd={chunkEnd}
+          chunkStart={chunkStart}
+          highlightRange={highlightRange}
+          rowIndex={rowIndex}
+          text={text}
+        />
       );
     }
 

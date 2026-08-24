@@ -1,5 +1,6 @@
+import type { LargeJsonLineIndex, LargeJsonViewerData, LargeRawViewerData, WorkerMessage } from '../types/jsonTool';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
-import type { WorkerMessage } from '../types/jsonTool';
+import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
 type TextPayloadMessage = { text?: string; textBuffer?: ArrayBuffer };
 type MutableWorkerTextMessage = Record<string, unknown>;
@@ -27,7 +28,7 @@ export function getTextEncoder() {
 }
 
 export function getTextByteLength(text: string) {
-  return getTextEncoder().encode(text).length;
+  return getUtf8ByteLength(text);
 }
 
 export function readMessageText(message: TextPayloadMessage) {
@@ -47,9 +48,10 @@ export function appendTextPayload(
   transfer: Transferable[],
   stringKey: string,
   bufferKey: string,
-  text: string
+  text: string,
+  knownByteLength?: number
 ) {
-  if (text.length >= LARGE_FILE_THRESHOLD) {
+  if ((knownByteLength ?? getTextByteLength(text)) >= LARGE_FILE_THRESHOLD) {
     const bytes = getTextEncoder().encode(text);
     const buffer = bytes.buffer;
     message[bufferKey] = buffer;
@@ -60,17 +62,77 @@ export function appendTextPayload(
   message[stringKey] = text;
 }
 
-export function postTextResult(payload: Partial<WorkerMessage>, text: string) {
+export function getRawViewerTransferables(rawViewerData: LargeRawViewerData | null | undefined) {
+  if (!rawViewerData) {
+    return [];
+  }
+
+  const buffers = [rawViewerData.starts.buffer, rawViewerData.lengths.buffer].filter(
+    (buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer
+  );
+  return Array.from(new Set(buffers));
+}
+
+export function getLargeViewerTransferables(viewerData: LargeJsonViewerData | null | undefined) {
+  if (!viewerData) {
+    return [];
+  }
+
+  const buffers = [
+    viewerData.lineStarts.buffer,
+    viewerData.regions.startLines.buffer,
+    viewerData.regions.endLines.buffer,
+    viewerData.regions.parentIndexes.buffer,
+    viewerData.regions.kinds.buffer,
+  ].filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
+
+  return Array.from(new Set(buffers));
+}
+
+export function copyLargeViewerLineIndex(viewerData: LargeJsonViewerData): LargeJsonLineIndex {
+  return {
+    lineStarts: viewerData.lineStarts.slice(),
+    lineCount: viewerData.lineCount,
+  };
+}
+
+export function postTextResult(payload: Partial<WorkerMessage>, text: string, byteLength?: number) {
   const message = { ...payload };
   const transfer: Transferable[] = [];
-  appendTextPayload(message, transfer, 'data', 'dataBuffer', text);
+  appendTextPayload(message, transfer, 'data', 'dataBuffer', text, byteLength);
+  transfer.push(...getRawViewerTransferables(payload.rawViewerData));
   (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
 }
 
-export function postRepairResult(payload: Partial<WorkerMessage>, formattedText: string, repairedText: string) {
+export function postRepairResult(
+  payload: Partial<WorkerMessage>,
+  formattedText: string,
+  repairedText: string,
+  formattedByteLength?: number,
+  repairedByteLength?: number
+) {
   const message = { ...payload };
   const transfer: Transferable[] = [];
-  appendTextPayload(message, transfer, 'data', 'dataBuffer', formattedText);
-  appendTextPayload(message, transfer, 'repairedText', 'repairedTextBuffer', repairedText);
+  appendTextPayload(message, transfer, 'data', 'dataBuffer', formattedText, formattedByteLength);
+  appendTextPayload(message, transfer, 'repairedText', 'repairedTextBuffer', repairedText, repairedByteLength);
+  transfer.push(...getRawViewerTransferables(payload.rawViewerData));
+  (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
+}
+
+export function postNodeSaveResult(
+  payload: Partial<WorkerMessage>,
+  rawText: string,
+  formattedText: string | null,
+  rawByteLength?: number,
+  formattedByteLength?: number
+) {
+  const message = { ...payload };
+  const transfer: Transferable[] = [];
+  appendTextPayload(message, transfer, 'data', 'dataBuffer', rawText, rawByteLength);
+  if (typeof formattedText === 'string') {
+    appendTextPayload(message, transfer, 'formattedText', 'formattedTextBuffer', formattedText, formattedByteLength);
+  }
+  transfer.push(...getRawViewerTransferables(payload.rawViewerData));
+  transfer.push(...getLargeViewerTransferables(payload.viewerData));
   (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
 }

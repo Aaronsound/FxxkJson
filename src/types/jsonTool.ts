@@ -39,6 +39,7 @@ export interface WorkerSearchRequest {
   append?: boolean;
   target?: SearchTarget;
   text?: string;
+  textByteLength?: number;
   rawRevision?: number;
 }
 
@@ -46,6 +47,7 @@ export interface EditJsonWorkerRequest {
   tabId: string;
   operation: EditJsonWorkerOperation;
   text: string;
+  textByteLength?: number;
   originalText?: string;
   path?: JsonEditPath;
   offset?: number;
@@ -66,6 +68,8 @@ export type WorkerRequestMessage =
       startOffset: number;
       append: boolean;
       text?: WorkerSearchRequest['text'];
+      textBuffer?: ArrayBuffer;
+      textByteLength?: WorkerSearchRequest['textByteLength'];
       rawRevision?: WorkerSearchRequest['rawRevision'];
     })
   | (WorkerRequestBase & { type: 'locate'; offset: number })
@@ -73,7 +77,9 @@ export type WorkerRequestMessage =
   | (WorkerRequestBase & {
       type: 'edit-json';
       operation: EditJsonWorkerRequest['operation'];
-      text: EditJsonWorkerRequest['text'];
+      text?: EditJsonWorkerRequest['text'];
+      textBuffer?: ArrayBuffer;
+      textByteLength?: EditJsonWorkerRequest['textByteLength'];
       originalText?: EditJsonWorkerRequest['originalText'];
       path?: EditJsonWorkerRequest['path'];
       offset?: EditJsonWorkerRequest['offset'];
@@ -103,6 +109,9 @@ export interface WorkerMessage {
   repairedText?: string;
   repairedTextBuffer?: ArrayBuffer;
   formattedText?: string;
+  formattedTextBuffer?: ArrayBuffer;
+  rawMetrics?: JsonDocumentMetrics;
+  formattedMetrics?: JsonDocumentMetrics;
   structureWarming?: boolean;
   value?: string | null;
   error?: string;
@@ -118,6 +127,7 @@ export interface WorkerMessage {
   viewerIndexMs?: number | null;
   query?: string;
   matches?: LargeJsonSearchMatch[];
+  matchData?: Uint32Array;
   hasMore?: boolean;
   nextStartOffset?: number;
   append?: boolean;
@@ -155,15 +165,42 @@ export interface LargeJsonViewerRegion {
   kind: 'object' | 'array';
 }
 
-export interface LargeJsonViewerData {
+export interface LargeJsonViewerRegions {
+  startLines: Uint32Array;
+  endLines: Uint32Array;
+  parentIndexes: Int32Array;
+  kinds: Uint8Array;
+}
+
+export interface LargeJsonLineIndex {
   lineStarts: Uint32Array;
-  regions: LargeJsonViewerRegion[];
   lineCount: number;
 }
 
+export const EMPTY_LARGE_JSON_VIEWER_REGIONS: LargeJsonViewerRegions = {
+  startLines: new Uint32Array(0),
+  endLines: new Uint32Array(0),
+  parentIndexes: new Int32Array(0),
+  kinds: new Uint8Array(0),
+};
+
+export interface LargeJsonViewerData extends LargeJsonLineIndex {
+  regions: LargeJsonViewerRegions;
+}
+
+export interface JsonDocumentMetrics {
+  exceedsDedicatedViewerLineThreshold: boolean;
+  lineCount: number;
+  textByteLength: number;
+}
+
+export type LargeJsonFoldState = { mode: 'explicit'; lines: number[] } | { mode: 'all-except'; lines: number[] };
+
+export const EMPTY_LARGE_JSON_FOLD_STATE: LargeJsonFoldState = { mode: 'explicit', lines: [] };
+
 export interface LargeRawViewerData {
   starts: Uint32Array;
-  ends: Uint32Array;
+  lengths: Uint16Array;
   rowCount: number;
 }
 
@@ -174,6 +211,7 @@ export interface LargeJsonSearchMatch {
   lineStartOffset: number;
   localStart: number;
   localEnd: number;
+  matchIndex?: number;
 }
 
 export interface JsonSearchOptions {

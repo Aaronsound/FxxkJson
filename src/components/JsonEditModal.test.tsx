@@ -157,7 +157,9 @@ class MockEditor {
   setSelection = vi.fn((selection: InstanceType<typeof mockEditorState.MockSelection>) => {
     this.selection = selection;
     this.position = selection.getEndPosition();
-    this.cursorSelectionListeners.forEach((listener) => listener());
+    this.cursorSelectionListeners.forEach((listener) => {
+      listener();
+    });
   });
 
   setHiddenAreas = vi.fn();
@@ -248,6 +250,13 @@ class MockEditor {
     return 0;
   }
 
+  getLayoutInfo() {
+    return {
+      lineNumbersLeft: 8,
+      lineNumbersWidth: 36,
+    };
+  }
+
   onDidDispose(listener: () => void) {
     this.disposeListeners.push(listener);
     return { dispose: vi.fn() };
@@ -316,7 +325,9 @@ class MockEditor {
         Math.max(startOffset, endOffset)
       )}`
     );
-    this.contentListeners.forEach((listener) => listener());
+    this.contentListeners.forEach((listener) => {
+      listener();
+    });
   }
 }
 
@@ -358,7 +369,9 @@ vi.mock('@monaco-editor/react', async () => {
             const nextValue = event.target.value;
             setValue(nextValue);
             editorRef.current?.model.setValue(nextValue);
-            editorRef.current?.contentListeners.forEach((listener) => listener());
+            editorRef.current?.contentListeners.forEach((listener) => {
+              listener();
+            });
             onChange?.(nextValue);
           }}
         />
@@ -427,6 +440,12 @@ describe('JsonEditModal search position', () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+  });
+
+  it('shows feedback after copying a JSON string literal', () => {
+    renderModal('{"ok":true}', { hasCopiedLiteral: true });
+
+    expect(screen.getByText('已复制 JSON 字符串字面量')).toBeInTheDocument();
   });
 
   it('keeps a late search match active after editing its value', async () => {
@@ -702,6 +721,7 @@ describe('JsonEditModal search position', () => {
     });
 
     expect(container.querySelectorAll('.edit-modal-fold-button')).toHaveLength(2);
+    expect(container.querySelector<HTMLElement>('.edit-modal-fold-overlay')?.style.left).toBe('47px');
     fireEvent.click(container.querySelector('.edit-modal-fold-button') as HTMLButtonElement);
     expect(editor.setHiddenAreas).toHaveBeenCalledWith(
       [
@@ -710,7 +730,7 @@ describe('JsonEditModal search position', () => {
           endLineNumber: 5,
         }),
       ],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
     await act(async () => {
       vi.advanceTimersByTime(250);
@@ -720,7 +740,7 @@ describe('JsonEditModal search position', () => {
     fireEvent.click(container.querySelector('.edit-modal-fold-button.collapsed') as HTMLButtonElement);
     expect(editor.setHiddenAreas).toHaveBeenLastCalledWith(
       [],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
     expect(editor.foldingModel.toggleCollapseState).not.toHaveBeenCalled();
     expect(editor.updateOptions).toHaveBeenCalledWith(
@@ -758,8 +778,58 @@ describe('JsonEditModal search position', () => {
           endLineNumber: 5,
         }),
       ],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
+  });
+
+  it('adds fallback fold buttons for nested object and array property lines', async () => {
+    const { container } = renderModal(
+      ['{', '  "nested": {', '    "tags": [', '      "json"', '    ]', '  }', '}'].join('\n')
+    );
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    editor.foldingRegions.length = 1;
+    editor.foldingRegions.getStartLineNumber.mockImplementation(() => 1);
+    editor.foldingRegions.getEndLineNumber.mockImplementation(() => 7);
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    const foldLines = Array.from(container.querySelectorAll<HTMLElement>('.edit-modal-fold-button')).map((button) =>
+      Number(button.dataset.lineNumber)
+    );
+    expect(foldLines).toEqual(expect.arrayContaining([1, 2, 3]));
+  });
+
+  it('coalesces repeated scroll folding refreshes into one frame and trailing checks', async () => {
+    renderModal(['[', '  {', '    "name": "first"', '  }', ']'].join('\n'));
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    editor.foldingContribution.getFoldingModel.mockClear();
+
+    act(() => {
+      for (let index = 0; index < 25; index += 1) {
+        editor.scrollListeners.forEach((listener) => {
+          listener();
+        });
+      }
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(editor.foldingContribution.getFoldingModel.mock.calls.length).toBeGreaterThan(0);
+    expect(editor.foldingContribution.getFoldingModel.mock.calls.length).toBeLessThanOrEqual(3);
   });
 
   it('deduplicates repeated fallback fold buttons on the same line', async () => {
@@ -788,7 +858,7 @@ describe('JsonEditModal search position', () => {
           endLineNumber: 4,
         }),
       ],
-      expect.objectContaining({ id: 'hanjson-edit-modal-folding' })
+      expect.objectContaining({ id: 'fxxkjson-edit-modal-folding' })
     );
   });
 
@@ -815,7 +885,9 @@ describe('JsonEditModal search position', () => {
     renderModal('{"name":"first"}');
     const editor = mockEditorState.editor;
 
-    editor?.disposeListeners.forEach((listener) => listener());
+    editor?.disposeListeners.forEach((listener) => {
+      listener();
+    });
 
     expect(editor?.model.dispose).toHaveBeenCalled();
   });

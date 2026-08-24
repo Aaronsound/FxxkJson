@@ -45,8 +45,8 @@ export function createJsonWorkerClient(getWorker: () => Worker | null) {
 
   const readTextField = (
     message: WorkerMessage,
-    stringKey: 'data' | 'repairedText',
-    bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+    stringKey: 'data' | 'repairedText' | 'formattedText',
+    bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
   ) => {
     if (typeof message[stringKey] === 'string') {
       return message[stringKey];

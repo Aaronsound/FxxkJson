@@ -44,7 +44,7 @@ describe('JsonEditorPanes', () => {
       onPrevLeft: noOp,
     };
     const rightPaneProps: RightPaneProps = {
-      activeLargeViewerCollapsedLines: [],
+      activeLargeViewerFoldState: { mode: 'explicit', lines: [] },
       activeLargeViewerData: null,
       activeRightMatchCount: 0,
       formattedValue: '',
@@ -85,7 +85,7 @@ describe('JsonEditorPanes', () => {
       onPinCurrentRightPath: noOp,
       onPrevRight: noOp,
       onRenameRightKey: noOp,
-      onRightCollapsedLinesChange: noOp,
+      onRightFoldStateChange: noOp,
       onRightMatchCountChange: noOp,
       onRightMount: noOp,
       onRightSearchOptionsChange: noOp,

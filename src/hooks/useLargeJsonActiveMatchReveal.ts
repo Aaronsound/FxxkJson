@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
+import { findCollapsedInterval } from '../utils/largeJsonViewerRender';
 
 interface CollapsedInterval {
   start: number;
@@ -12,10 +13,9 @@ interface UseLargeJsonActiveMatchRevealArgs {
   collapsedIntervals: CollapsedInterval[];
   containerRef: RefObject<HTMLDivElement | null>;
   getVisibleIndexForActualLine: (lineNumber: number) => number | null;
-  normalizedCollapsedLines: number[];
-  onCollapsedLinesChange: (lines: number[]) => void;
+  getRowTop: (visibleIndex: number) => number;
+  onExpandCollapsedLine: (lineNumber: number) => void;
   onLocateOffset: (offset: number) => void;
-  rowHeight: number;
 }
 
 export function useLargeJsonActiveMatchReveal({
@@ -23,46 +23,35 @@ export function useLargeJsonActiveMatchReveal({
   collapsedIntervals,
   containerRef,
   getVisibleIndexForActualLine,
-  normalizedCollapsedLines,
-  onCollapsedLinesChange,
+  getRowTop,
+  onExpandCollapsedLine,
   onLocateOffset,
-  rowHeight,
 }: UseLargeJsonActiveMatchRevealArgs) {
-  const onCollapsedLinesChangeRef = useRef(onCollapsedLinesChange);
+  const onExpandCollapsedLineRef = useRef(onExpandCollapsedLine);
   const onLocateOffsetRef = useRef(onLocateOffset);
 
   useEffect(() => {
-    onCollapsedLinesChangeRef.current = onCollapsedLinesChange;
+    onExpandCollapsedLineRef.current = onExpandCollapsedLine;
     onLocateOffsetRef.current = onLocateOffset;
-  }, [onCollapsedLinesChange, onLocateOffset]);
+  }, [onExpandCollapsedLine, onLocateOffset]);
 
   useEffect(() => {
     if (!activeMatch) {
       return;
     }
 
-    const containingCollapsedRegion = collapsedIntervals.find(
-      (interval) => activeMatch.lineNumber >= interval.start && activeMatch.lineNumber <= interval.end
-    );
+    const containingCollapsedRegion = findCollapsedInterval(collapsedIntervals, activeMatch.lineNumber);
 
     if (containingCollapsedRegion) {
-      const next = normalizedCollapsedLines.filter((line) => line !== containingCollapsedRegion.triggerLine);
-      onCollapsedLinesChangeRef.current(next);
+      onExpandCollapsedLineRef.current(containingCollapsedRegion.triggerLine);
       return;
     }
 
     const visibleIndex = getVisibleIndexForActualLine(activeMatch.lineNumber);
     if (visibleIndex !== null && containerRef.current) {
-      containerRef.current.scrollTop = Math.max(0, (visibleIndex - 3) * rowHeight);
+      containerRef.current.scrollTop = getRowTop(Math.max(0, visibleIndex - 3));
     }
 
     onLocateOffsetRef.current(activeMatch.start);
-  }, [
-    activeMatch,
-    collapsedIntervals,
-    containerRef,
-    getVisibleIndexForActualLine,
-    normalizedCollapsedLines,
-    rowHeight,
-  ]);
+  }, [activeMatch, collapsedIntervals, containerRef, getVisibleIndexForActualLine, getRowTop]);
 }

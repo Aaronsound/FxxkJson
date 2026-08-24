@@ -1,4 +1,5 @@
 import type { MutableRefObject } from 'react';
+import { DEDICATED_RIGHT_VIEWER_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type {
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -6,7 +7,7 @@ import type {
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
-import { getUtf8ByteLength, shouldUseDedicatedRightViewer, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
+import { resolveJsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
 import { getFormatWorkerResult, getRepairWorkerResult } from '../utils/jsonWorkerResponse';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
@@ -24,22 +25,51 @@ interface JsonFormattingWorkerResultCallbacks {
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   syncPerformanceSnapshot: (tabId: string, shouldLog?: boolean) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
-  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateFormattedContent: (
+    tabId: string,
+    content: string,
+    syncModel?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+}
+
+function getDocumentSizeState(
+  rawText: string,
+  formattedText: string,
+  knownRawMetrics?: WorkerMessage['rawMetrics'],
+  knownFormattedMetrics?: WorkerMessage['formattedMetrics']
+) {
+  const rawMetrics = resolveJsonDocumentMetrics(rawText, knownRawMetrics);
+  const formattedMetrics = resolveJsonDocumentMetrics(formattedText, knownFormattedMetrics);
+  const rawBytes = rawMetrics.textByteLength;
+  const formattedBytes = formattedMetrics.textByteLength;
+  const hasHighFormattedLineCount =
+    formattedBytes < LARGE_FILE_THRESHOLD && formattedMetrics.exceedsDedicatedViewerLineThreshold;
+
+  return {
+    formattedBytes,
+    largeMode: rawBytes >= LARGE_FILE_THRESHOLD || formattedBytes >= LARGE_FILE_THRESHOLD || hasHighFormattedLineCount,
+    rawBytes,
+    shouldBuildLargeViewer:
+      rawBytes >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
+      formattedBytes >= DEDICATED_RIGHT_VIEWER_THRESHOLD ||
+      hasHighFormattedLineCount,
+  };
 }
 
 interface JsonFormattingWorkerResultContext {
   callbacks: JsonFormattingWorkerResultCallbacks;
   clearFormatWatchdog: (tabId: string) => void;
-  formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   latestRequestRef: MutableRefObject<Record<string, number>>;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
   readWorkerText: (message: WorkerMessage) => string | null;
   readWorkerTextField: (
     message: WorkerMessage,
-    stringKey: 'data' | 'repairedText',
-    bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+    stringKey: 'data' | 'repairedText' | 'formattedText',
+    bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
   ) => string | null;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
 }
@@ -66,7 +96,6 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
   const {
     callbacks,
     clearFormatWatchdog,
-    formattedTextByTabRef,
     latestRequestRef,
     performanceSessionsRef,
     rawTextByTabRef,
@@ -92,12 +121,16 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
 
     if (result.isSuccessful && data) {
       const rawText = rawTextByTabRef.current[tabId] ?? '';
-      const largeMode = shouldUseLargeMode(rawText, data);
-      const shouldBuildLargeViewer = shouldUseDedicatedRightViewer(rawText, data);
+      const { formattedBytes, largeMode, rawBytes, shouldBuildLargeViewer } = getDocumentSizeState(
+        rawText,
+        data,
+        message.rawMetrics,
+        message.formattedMetrics
+      );
       callbacks.logEvent('format-success', {
         tabId,
         requestId,
-        formattedLength: getUtf8ByteLength(data),
+        formattedLength: formattedBytes,
       });
       callbacks.setTabFormatting(tabId, false);
       callbacks.setTabLargeMode(tabId, largeMode);
@@ -107,10 +140,10 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
       if (performanceSession?.requestId === requestId) {
         performanceSession.formatCompletedAt = performance.now();
         performanceSession.rightModelStartedAt = performance.now();
-        performanceSession.formattedBytes = getUtf8ByteLength(data);
+        performanceSession.formattedBytes = formattedBytes;
         performanceSession.largeMode = largeMode;
       }
-      callbacks.updateFormattedContent(tabId, data, true);
+      callbacks.updateFormattedContent(tabId, data, true, formattedBytes, rawBytes);
       if (performanceSession?.requestId === requestId) {
         performanceSession.rightModelCompletedAt = performance.now();
         performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
@@ -140,7 +173,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
       requestId,
       error: result.error ?? 'JSON parse failed',
     });
-    callbacks.updateFormattedContent(tabId, '', true);
+    callbacks.updateFormattedContent(tabId, '', true, 0, performanceSession?.rawBytes);
     callbacks.setTabError(tabId, result.error ?? 'JSON 解析失败');
     callbacks.setStructureStatus(tabId, 'disabled');
     return true;
@@ -152,14 +185,18 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
     const { error, formattedText, repairedText } = result;
 
     if (result.isSuccessful && typeof formattedText === 'string' && typeof repairedText === 'string') {
-      const largeMode = shouldUseLargeMode(repairedText, formattedText);
-      const shouldBuildLargeViewer = shouldUseDedicatedRightViewer(repairedText, formattedText);
+      const { formattedBytes, largeMode, rawBytes, shouldBuildLargeViewer } = getDocumentSizeState(
+        repairedText,
+        formattedText,
+        message.rawMetrics,
+        message.formattedMetrics
+      );
       const now = performance.now();
       callbacks.logEvent('repair-success', {
         tabId,
         requestId,
-        repairedLength: getUtf8ByteLength(repairedText),
-        formattedLength: getUtf8ByteLength(formattedText),
+        repairedLength: rawBytes,
+        formattedLength: formattedBytes,
       });
       callbacks.setTabFormatting(tabId, false);
       callbacks.setTabLargeMode(tabId, largeMode);
@@ -170,13 +207,13 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
         performanceSession.leftModelCompletedAt = now;
         performanceSession.formatCompletedAt = now;
         performanceSession.rightModelStartedAt = performance.now();
-        performanceSession.rawBytes = getUtf8ByteLength(repairedText);
-        performanceSession.formattedBytes = getUtf8ByteLength(formattedText);
+        performanceSession.rawBytes = rawBytes;
+        performanceSession.formattedBytes = formattedBytes;
         performanceSession.largeMode = largeMode;
       }
-      callbacks.updateTabContent(tabId, repairedText, true);
+      callbacks.updateTabContent(tabId, repairedText, true, rawBytes);
       callbacks.setLargeRawViewerData(tabId, result.rawViewerData);
-      callbacks.updateFormattedContent(tabId, formattedText, true);
+      callbacks.updateFormattedContent(tabId, formattedText, true, formattedBytes, rawBytes);
       callbacks.resetSearchState();
       if (performanceSession?.requestId === requestId) {
         performanceSession.rightModelCompletedAt = performance.now();
@@ -246,10 +283,8 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
     true
   );
   callbacks.setStructureStatus(tabId, message.ready ? 'ready' : 'disabled');
-  const rawText = rawTextByTabRef.current[tabId] ?? '';
-  const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-  const shouldWaitForViewer = shouldUseDedicatedRightViewer(rawText, formattedText);
-  if (!shouldWaitForViewer || Boolean(performanceSession?.viewerReadyAt)) {
+  const shouldWaitForViewer = Boolean(performanceSession?.largeMode);
+  if (!shouldWaitForViewer || performanceSession?.viewerReadyAt) {
     callbacks.setProcessingStage(tabId, 'idle');
   }
   return true;

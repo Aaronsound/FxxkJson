@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { PerformanceTrigger } from '../types/jsonTool';
-import { getUtf8ByteLength, isLargeDocument } from '../utils/jsonDocumentMetrics';
+import { measureJsonDocument, shouldUseLargeModeForMetrics } from '../utils/jsonDocumentMetrics';
 
 interface UseJsonToolWorkspaceActionsArgs {
   beginPerformanceSession: (
@@ -16,7 +16,7 @@ interface UseJsonToolWorkspaceActionsArgs {
   setIsDarkMode: (updater: (current: boolean) => boolean) => void;
   setIsDiagnosticsLogOpen: (open: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
-  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
 export function useJsonToolWorkspaceActions({
@@ -30,22 +30,26 @@ export function useJsonToolWorkspaceActions({
 }: UseJsonToolWorkspaceActionsArgs) {
   const applyRawUpdate = useCallback(
     (tabId: string, updated: string) => {
-      updateTabContent(tabId, updated, true);
-      setTabLargeMode(tabId, isLargeDocument(updated));
+      const metrics = measureJsonDocument(updated);
+      updateTabContent(tabId, updated, true, metrics.textByteLength);
+      setTabLargeMode(tabId, shouldUseLargeModeForMetrics(metrics));
+      return metrics;
     },
     [setTabLargeMode, updateTabContent]
   );
 
   const beginPastePerformanceSession = useCallback(
     (tabId: string, nextContent: string) => {
+      const metrics = measureJsonDocument(nextContent);
       beginPerformanceSession(
         tabId,
         'paste',
         '剪贴板粘贴',
         null,
-        getUtf8ByteLength(nextContent),
-        isLargeDocument(nextContent)
+        metrics.textByteLength,
+        shouldUseLargeModeForMetrics(metrics)
       );
+      return metrics;
     },
     [beginPerformanceSession]
   );

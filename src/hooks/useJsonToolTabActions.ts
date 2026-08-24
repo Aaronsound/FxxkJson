@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { PerformanceSnapshot, StructureStatus, Tab } from '../types/jsonTool';
 import { createTab } from '../utils/jsonToolModels';
 
