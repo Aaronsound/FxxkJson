@@ -23,10 +23,10 @@ export async function getAvailablePort() {
 
 export async function startElectronApp({ appMain, cwd, electronCli, extraEnvironment = {}, port }) {
   let stderr = '';
-  const shouldDisableSandbox = process.platform === 'linux' && (process.env.CI === 'true' || process.env.CI === '1');
+  const isLinuxCi = process.platform === 'linux' && (process.env.CI === 'true' || process.env.CI === '1');
   const electronArgs = [
     electronCli,
-    ...(shouldDisableSandbox ? ['--no-sandbox'] : []),
+    ...(isLinuxCi ? ['--no-sandbox', '--disable-gpu'] : []),
     `--remote-debugging-port=${port}`,
     appMain,
   ];
@@ -34,7 +34,7 @@ export async function startElectronApp({ appMain, cwd, electronCli, extraEnviron
     cwd,
     env: {
       ...process.env,
-      ...(shouldDisableSandbox ? { ELECTRON_DISABLE_SANDBOX: '1' } : {}),
+      ...(isLinuxCi ? { ELECTRON_DISABLE_SANDBOX: '1' } : {}),
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       ELECTRON_OPEN_DEVTOOLS: '0',
       ...extraEnvironment,
