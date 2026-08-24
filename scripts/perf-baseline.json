@@ -5,6 +5,10 @@
     "sample-5mb.json": {
       "totalFormatMs": 55,
       "viewerIndexMs": 55,
+      "foldAllIntervalsMs": 2,
+      "wrapLayoutMs": 10,
+      "rawViewerIndexMs": 10,
+      "caseInsensitiveSearchBatchMs": 10,
       "rawTreeMs": 180,
       "formattedTreeMs": 330,
       "rightSearchBatchMs": 80,
@@ -14,11 +18,17 @@
       "leftReplaceAllMs": 80,
       "leftRegexReplaceAllMs": 80,
       "nodeValueReadMs": 25,
-      "nodeEditPatchMs": 25
+      "streamingNodeReadMs": 150,
+      "nodeEditPatchMs": 25,
+      "nodeEditViewerIndexMs": 70
     },
     "sample-20mb.json": {
       "totalFormatMs": 550,
       "viewerIndexMs": 330,
+      "foldAllIntervalsMs": 2,
+      "wrapLayoutMs": 20,
+      "rawViewerIndexMs": 30,
+      "caseInsensitiveSearchBatchMs": 30,
       "rawTreeMs": 1100,
       "formattedTreeMs": 1650,
       "rightSearchBatchMs": 220,
@@ -28,7 +38,9 @@
       "leftReplaceAllMs": 220,
       "leftRegexReplaceAllMs": 220,
       "nodeValueReadMs": 50,
-      "nodeEditPatchMs": 50
+      "streamingNodeReadMs": 600,
+      "nodeEditPatchMs": 50,
+      "nodeEditViewerIndexMs": 400
     }
   }
 }

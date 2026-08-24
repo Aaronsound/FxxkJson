@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { LARGE_FILE_THRESHOLD, STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
 import { buildJsonWorkerProcessingPlan, getDeferredStructureWarmupDelayMs } from './jsonWorkerPlan';
+import { measureJsonDocument } from './jsonDocumentMetrics';
 
 describe('jsonWorkerPlan', () => {
   it('keeps small documents out of large viewer and skips locate index until requested', () => {
@@ -24,17 +25,41 @@ describe('jsonWorkerPlan', () => {
     expect(plan.workerLocateEnabled).toBe(true);
   });
 
-  it('builds a deferred structure index for supported large files when locate is requested', () => {
+  it('uses streaming direct locate for supported large files without building syntax trees', () => {
     const text = 'a'.repeat(LARGE_FILE_THRESHOLD);
     const plan = buildJsonWorkerProcessingPlan(text, true);
 
     expect(plan.largeMode).toBe(true);
     expect(plan.shouldBuildLargeViewer).toBe(true);
-    expect(plan.shouldBuildStructureIndex).toBe(true);
-    expect(plan.shouldAttemptDirectLocate).toBe(false);
+    expect(plan.shouldBuildStructureIndex).toBe(false);
+    expect(plan.shouldAttemptDirectLocate).toBe(true);
     expect(plan.workerLocateEnabled).toBe(true);
-    expect(plan.shouldDeferStructureIndex).toBe(true);
+    expect(plan.shouldDeferStructureIndex).toBe(false);
     expect(plan.deferredStructureWarmupDelayMs).toBe(350);
+  });
+
+  it('reuses a byte length measured by the import pipeline', () => {
+    const plan = buildJsonWorkerProcessingPlan('small string placeholder', true, {
+      ...measureJsonDocument('small string placeholder'),
+      textByteLength: LARGE_FILE_THRESHOLD,
+    });
+
+    expect(plan.textByteLength).toBe(LARGE_FILE_THRESHOLD);
+    expect(plan.largeMode).toBe(true);
+    expect(plan.shouldBuildLargeViewer).toBe(true);
+  });
+
+  it('builds the direct viewer before enabling locate for line-rich documents', () => {
+    const plan = buildJsonWorkerProcessingPlan('small placeholder', true, {
+      exceedsDedicatedViewerLineThreshold: true,
+      lineCount: 50_001,
+      textByteLength: 200_000,
+    });
+
+    expect(plan.largeMode).toBe(true);
+    expect(plan.shouldBuildLargeViewer).toBe(true);
+    expect(plan.shouldAttemptDirectLocate).toBe(true);
+    expect(plan.shouldBuildStructureIndex).toBe(false);
   });
 
   it('uses direct lightweight locate above the full structure sync threshold', () => {

@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - main
-      - dev-codex
-      - 'codex/**'
+      - dev
   pull_request:
     branches:
       - main
-      - dev-codex
+      - dev
 
 permissions:
   contents: read
@@ -39,3 +38,6 @@ jobs:
 
       - name: Run project checks and coverage
         run: npm run check
+
+      - name: Audit production dependencies
+        run: npm run audit:prod

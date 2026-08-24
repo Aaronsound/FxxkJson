@@ -52,7 +52,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
     const hiddenStart = fixtureText.indexOf('"items"');
 
     renderViewer({
-      collapsedLines: [2],
+      foldState: { mode: 'explicit', lines: [2] },
       selectedRange: {
         start: hiddenStart,
         end: hiddenStart + '"items"'.length,
@@ -74,7 +74,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
 
   it('copies the underlying JSON text instead of the collapsed preview', () => {
     renderViewer({
-      collapsedLines: [1],
+      foldState: { mode: 'explicit', lines: [1] },
     });
 
     const line = requireElement('.large-json-line-text[data-collapsed="true"]');
@@ -110,7 +110,7 @@ describe('LargeJsonReadonlyViewer selection and copy', () => {
 
     renderViewer({
       text: arrayText,
-      collapsedLines: [2],
+      foldState: { mode: 'explicit', lines: [2] },
     });
 
     const line = requireElement('.large-json-line-text[data-line-number="2"][data-collapsed="true"]');

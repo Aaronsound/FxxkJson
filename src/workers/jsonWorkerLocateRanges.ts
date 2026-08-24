@@ -1,9 +1,7 @@
-import { findNodeAtLocation, getLocation } from 'jsonc-parser';
-import type { Node } from 'jsonc-parser';
-import type { JsonEditPath, LargeJsonViewerData, WorkerMessage } from '../types/jsonTool';
+import type { JsonEditPath, LargeJsonLineIndex, WorkerMessage } from '../types/jsonTool';
 import type { LightweightLocateCache, LocateRange } from '../utils/lightweightLocate';
 import { getIdentityLocateRange, getLightweightTokenLocateRange } from '../utils/lightweightLocate';
-import { getJsonPathLocateRange } from '../utils/jsonPathLocate';
+import { getJsonOffsetLocateResult, getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import { getLocateCandidateOffsets } from './jsonWorkerLocateCandidates';
 
 interface DirectLocateCacheEntry {
@@ -13,13 +11,13 @@ interface DirectLocateCacheEntry {
   rawText?: string;
   requestId?: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 interface RightLocateViewerEntry {
   formattedText?: string;
   requestId?: number;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 interface PathCalibratedDirectLocateRange {
@@ -27,8 +25,6 @@ interface PathCalibratedDirectLocateRange {
   path: JsonEditPath;
   rightRange: LocateRange;
 }
-
-type GetDirectValueTree = (tabId: string, requestId: number, text: string) => Node | undefined;
 
 export function getDirectLocateRange(cached: DirectLocateCacheEntry | null | undefined, offset: number) {
   if (!cached || !cached.directLocate || !cached.viewerData || !(cached.viewerData.lineStarts instanceof Uint32Array)) {
@@ -74,10 +70,8 @@ export function getDirectRightLocateRange(cached: DirectLocateCacheEntry | null 
 }
 
 export function getPathCalibratedDirectLocateRange(
-  tabId: string,
   cached: DirectLocateCacheEntry | null | undefined,
-  offset: number,
-  getDirectValueTree: GetDirectValueTree
+  offset: number
 ): PathCalibratedDirectLocateRange | null {
   if (
     !cached ||
@@ -88,33 +82,19 @@ export function getPathCalibratedDirectLocateRange(
     return null;
   }
 
-  if (typeof cached.requestId !== 'number') {
-    return null;
-  }
-
-  const formattedTree = getDirectValueTree(tabId, cached.requestId, cached.formattedText);
-  if (!formattedTree) {
-    return null;
-  }
-
   const candidateOffsets = getLocateCandidateOffsets(cached.formattedText, offset);
   for (const candidateOffset of candidateOffsets) {
-    const location = getLocation(cached.formattedText, candidateOffset);
-    const rightNode = findNodeAtLocation(formattedTree, location.path);
-
-    if (!rightNode) {
+    const rightResult = getJsonOffsetLocateResult(cached.formattedText, candidateOffset);
+    if (!rightResult) {
       continue;
     }
 
-    const leftRange = getJsonPathLocateRange(cached.rawText, location.path);
+    const leftRange = getJsonPathLocateRange(cached.rawText, rightResult.path);
     if (leftRange) {
       return {
         leftRange,
-        rightRange: {
-          startOffset: rightNode.offset,
-          endOffset: rightNode.offset + rightNode.length,
-        },
-        path: location.path,
+        rightRange: rightResult.range,
+        path: rightResult.path,
       };
     }
   }
@@ -126,11 +106,9 @@ export function getRightOnlyLocateResult(
   tabId: string,
   requestId: number,
   offset: number,
-  cachedViewer: RightLocateViewerEntry | null | undefined,
-  getDirectValueTree: GetDirectValueTree
+  cachedViewer: RightLocateViewerEntry | null | undefined
 ): WorkerMessage {
   const sourceText = cachedViewer?.formattedText;
-  const sourceRequestId = cachedViewer?.requestId ?? requestId;
 
   if (typeof sourceText !== 'string' || !sourceText) {
     return {
@@ -143,33 +121,20 @@ export function getRightOnlyLocateResult(
   }
 
   try {
-    const formattedTree = getDirectValueTree(tabId, sourceRequestId, sourceText);
-
-    if (!formattedTree) {
-      return {
-        type: 'locate-result',
-        requestId,
-        tabId,
-        found: false,
-        rightOnly: true,
-      };
-    }
-
     const candidateOffsets = getLocateCandidateOffsets(sourceText, offset);
     for (const candidateOffset of candidateOffsets) {
-      const location = getLocation(sourceText, candidateOffset);
-      const rightNode = findNodeAtLocation(formattedTree, location.path);
+      const rightResult = getJsonOffsetLocateResult(sourceText, candidateOffset);
 
-      if (rightNode) {
+      if (rightResult) {
         return {
           type: 'locate-result',
           requestId,
           tabId,
           found: true,
           rightOnly: true,
-          rightStartOffset: rightNode.offset,
-          rightEndOffset: rightNode.offset + rightNode.length,
-          path: location.path,
+          rightStartOffset: rightResult.range.startOffset,
+          rightEndOffset: rightResult.range.endOffset,
+          path: rightResult.path,
         };
       }
     }

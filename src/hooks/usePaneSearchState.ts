@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 

@@ -21,6 +21,16 @@ declare global {
     platform: string;
   }
 
+  interface RuntimeProcessMetric {
+    memory: {
+      peakWorkingSetSize: number;
+      workingSetSize: number;
+    };
+    name: string | null;
+    pid: number;
+    type: string;
+  }
+
   interface Window {
     electronAPI?: {
       appendLog: (payload: string) => Promise<string>;
@@ -30,6 +40,7 @@ declare global {
       readClipboardText?: () => Promise<string>;
       writeClipboardText: (text: string) => Promise<boolean>;
       getRuntimeInfo?: () => Promise<RuntimeAppInfo>;
+      getProcessMetrics?: () => Promise<RuntimeProcessMetric[]>;
       openJsonFile: () => Promise<NativeJsonFile | null>;
       onFindShortcut?: (callback: () => void) => () => void;
     };

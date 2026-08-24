@@ -1,5 +1,5 @@
-import { DEDICATED_RIGHT_VIEWER_THRESHOLD } from '../types/jsonTool';
-import { getUtf8ByteLength, shouldBuildWorkerStructure, shouldUseLargeMode } from './jsonDocumentMetrics';
+import { DEDICATED_RIGHT_VIEWER_THRESHOLD, STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
+import { type JsonDocumentMetrics, measureJsonDocument, shouldUseLargeModeForMetrics } from './jsonDocumentMetrics';
 
 export interface JsonWorkerProcessingPlan {
   textByteLength: number;
@@ -33,11 +33,17 @@ export function getDeferredStructureWarmupDelayMs(
   return baseDelayMs;
 }
 
-export function buildJsonWorkerProcessingPlan(text: string, locateRequested: boolean): JsonWorkerProcessingPlan {
-  const textByteLength = getUtf8ByteLength(text);
-  const largeMode = shouldUseLargeMode(text);
-  const shouldBuildStructureIndex = shouldBuildWorkerStructure(text, locateRequested);
-  const shouldAttemptDirectLocate = !shouldBuildStructureIndex && locateRequested && largeMode;
+export function buildJsonWorkerProcessingPlan(
+  text: string,
+  locateRequested: boolean,
+  knownMetrics?: JsonDocumentMetrics
+): JsonWorkerProcessingPlan {
+  const metrics = knownMetrics ?? measureJsonDocument(text);
+  const textByteLength = metrics.textByteLength;
+  const largeMode = shouldUseLargeModeForMetrics(metrics);
+  const shouldBuildStructureIndex =
+    !largeMode && textByteLength > 0 && textByteLength <= STRUCTURE_SYNC_THRESHOLD && locateRequested;
+  const shouldAttemptDirectLocate = largeMode && locateRequested;
   const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
 
   return {
@@ -46,8 +52,9 @@ export function buildJsonWorkerProcessingPlan(text: string, locateRequested: boo
     shouldBuildStructureIndex,
     shouldAttemptDirectLocate,
     workerLocateEnabled,
-    shouldDeferStructureIndex: largeMode && shouldBuildStructureIndex,
-    shouldBuildLargeViewer: textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD,
+    shouldDeferStructureIndex: false,
+    shouldBuildLargeViewer:
+      textByteLength >= DEDICATED_RIGHT_VIEWER_THRESHOLD || metrics.exceedsDedicatedViewerLineThreshold,
     deferredStructureWarmupDelayMs: getDeferredStructureWarmupDelayMs(textByteLength),
   };
 }

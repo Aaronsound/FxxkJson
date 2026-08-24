@@ -3,7 +3,7 @@ import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { StructureStatus } from '../types/jsonTool';
 import { STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
 import { logDiagnosticsToConsole } from '../utils/diagnosticsLogger';
-import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
+import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
 
 interface UseRightEditorDiagnosticsArgs {
   activeTabIdRef: MutableRefObject<string>;
@@ -40,10 +40,15 @@ export function useRightEditorDiagnostics({
     const model = editor?.getModel();
     const rawText = rawTextByTabRef.current[tabId] ?? '';
     const formattedText = formattedTextByTabRef.current[tabId] ?? '';
+    const rawBytes = typeof extra.rawBytes === 'number' ? extra.rawBytes : measureJsonDocument(rawText).textByteLength;
+    const formattedBytes =
+      typeof extra.formattedBytes === 'number'
+        ? extra.formattedBytes
+        : measureJsonDocument(formattedText).textByteLength;
     const payload = {
       tabId,
-      rawBytes: getUtf8ByteLength(rawText),
-      formattedBytes: getUtf8ByteLength(formattedText),
+      rawBytes,
+      formattedBytes,
       isActiveTab: activeTabIdRef.current === tabId,
       modelLanguageId: model?.getLanguageId() ?? null,
       modelLineCount: model?.getLineCount() ?? 0,
@@ -51,7 +56,7 @@ export function useRightEditorDiagnostics({
       largeMode: Boolean(largeModeRef.current[tabId]),
       locateEnabled: Boolean(largeFileLocateEnabledRef.current[tabId]),
       structureStatus: structureStatusRef.current[tabId] ?? null,
-      withinStructureThreshold: getUtf8ByteLength(rawText) <= STRUCTURE_SYNC_THRESHOLD,
+      withinStructureThreshold: rawBytes <= STRUCTURE_SYNC_THRESHOLD,
       ...extra,
     };
 

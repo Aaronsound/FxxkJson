@@ -24,14 +24,25 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": false,
+      "preset": "recommended",
       "a11y": {
+        "preset": "none",
         "useButtonType": "error"
       },
+      "complexity": {
+        "noImportantStyles": "off"
+      },
       "correctness": {
-        "noUnusedImports": "error"
+        "noUnusedImports": "error",
+        "useExhaustiveDependencies": "warn"
+      },
+      "style": {
+        "noDescendingSpecificity": "off",
+        "noNonNullAssertion": "warn"
       },
       "suspicious": {
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "off",
         "noDebugger": "error"
       }
     }

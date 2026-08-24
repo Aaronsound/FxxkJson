@@ -60,7 +60,7 @@ function valuesEqual(left: unknown, right: unknown): boolean {
     const rightKeys = Object.keys(right);
     return (
       leftKeys.length === rightKeys.length &&
-      leftKeys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && valuesEqual(left[key], right[key]))
+      leftKeys.every((key) => Object.hasOwn(right, key) && valuesEqual(left[key], right[key]))
     );
   }
 
@@ -115,8 +115,8 @@ function compareValues(left: unknown, right: unknown, path: Array<string | numbe
       }
 
       const childPath = [...path, key];
-      const hasLeft = Object.prototype.hasOwnProperty.call(left, key);
-      const hasRight = Object.prototype.hasOwnProperty.call(right, key);
+      const hasLeft = Object.hasOwn(left, key);
+      const hasRight = Object.hasOwn(right, key);
       if (!hasLeft) {
         addDiff(diffs, 'added', childPath, undefined, right[key]);
       } else if (!hasRight) {

@@ -1,36 +1,38 @@
-import type { LargeJsonViewerRegion } from '../types/jsonTool';
+import type { LargeJsonViewerRegions } from '../types/jsonTool';
+import { findLastRegionIndexStartingAtOrBefore } from './largeJsonViewerData';
 
-function findDeepestContainingRegion(
-  regions: LargeJsonViewerRegion[],
-  lineNumber: number,
-  shouldInclude: (region: LargeJsonViewerRegion) => boolean
-) {
-  let deepestRegion: LargeJsonViewerRegion | null = null;
+function findDeepestContainingRegionIndex(regions: LargeJsonViewerRegions, lineNumber: number) {
+  let index = findLastRegionIndexStartingAtOrBefore(regions, lineNumber);
 
-  for (const region of regions) {
-    if (lineNumber < region.startLine || lineNumber > region.endLine || !shouldInclude(region)) {
-      continue;
+  while (index >= 0) {
+    if (regions.endLines[index] >= lineNumber) {
+      return index;
     }
-
-    if (!deepestRegion || region.startLine >= deepestRegion.startLine) {
-      deepestRegion = region;
-    }
+    index = regions.parentIndexes[index];
   }
 
-  return deepestRegion;
+  return -1;
 }
 
-export function getRegionFoldTargets(regions: LargeJsonViewerRegion[], lineNumber: number) {
-  const currentRegion = findDeepestContainingRegion(regions, lineNumber, (region) => region.startLine === lineNumber);
-  const parentRegion = findDeepestContainingRegion(regions, lineNumber, (region) => region.startLine < lineNumber);
+export function getRegionFoldTargets(regions: LargeJsonViewerRegions, lineNumber: number) {
+  const deepestIndex = findDeepestContainingRegionIndex(regions, lineNumber);
+  const currentIndex = deepestIndex >= 0 && regions.startLines[deepestIndex] === lineNumber ? deepestIndex : -1;
+  let parentIndex = currentIndex >= 0 ? regions.parentIndexes[currentIndex] : deepestIndex;
+
+  while (parentIndex >= 0 && regions.startLines[parentIndex] === lineNumber) {
+    parentIndex = regions.parentIndexes[parentIndex];
+  }
+
+  const currentLine = currentIndex >= 0 ? regions.startLines[currentIndex] : null;
+  const parentLine = parentIndex >= 0 ? regions.startLines[parentIndex] : null;
 
   return {
-    currentLine: currentRegion?.startLine ?? null,
-    parentLine: parentRegion?.startLine ?? null,
-    nearestLine: currentRegion?.startLine ?? parentRegion?.startLine ?? null,
+    currentLine,
+    parentLine,
+    nearestLine: currentLine ?? parentLine,
   };
 }
 
-export function findNearestRegionStartLine(regions: LargeJsonViewerRegion[], lineNumber: number) {
+export function findNearestRegionStartLine(regions: LargeJsonViewerRegions, lineNumber: number) {
   return getRegionFoldTargets(regions, lineNumber).nearestLine;
 }

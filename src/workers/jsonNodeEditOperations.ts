@@ -1,9 +1,17 @@
-import { findNodeAtLocation, getLocation, parseTree } from 'jsonc-parser';
+import { findNodeAtLocation } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
-import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
-import type { JsonEditPath, LargeJsonViewerData, LargeRawViewerData } from '../types/jsonTool';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
+import type {
+  JsonDocumentMetrics,
+  JsonEditPath,
+  LargeJsonLineIndex,
+  LargeJsonViewerData,
+  LargeRawViewerData,
+} from '../types/jsonTool';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
+import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
+import { getJsonOffsetLocateResult, getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import {
   deleteJsonNodePreservingOriginalFormat,
@@ -11,7 +19,7 @@ import {
   saveJsonNodePreservingOriginalFormat,
 } from '../utils/preserveJsonFormat';
 import { createNodeEditCacheEntry, getCachedNodeRange } from './jsonNodeEditCache';
-import type { DirectValueTreeCacheEntry } from './jsonWorkerStructureOperations';
+import { copyLargeViewerLineIndex } from './jsonWorkerTextPayload';
 
 interface NodeEditStructureCacheEntry {
   directLocate?: boolean;
@@ -22,18 +30,20 @@ interface NodeEditStructureCacheEntry {
   rawTree?: Node;
   requestId: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData | null;
+  viewerData?: LargeJsonLineIndex | null;
 }
 
 interface NodeEditViewerCacheEntry {
   formattedText: string;
   requestId: number;
-  viewerData: LargeJsonViewerData;
+  viewerData: LargeJsonLineIndex;
 }
 
 interface SaveNodeEditResult {
   formattedText: string | null;
+  formattedMetrics: JsonDocumentMetrics | null;
   rawText: string;
+  rawMetrics: JsonDocumentMetrics;
   rawViewerData: LargeRawViewerData | null;
   structureWarming: boolean;
   viewerData: LargeJsonViewerData | null;
@@ -42,6 +52,7 @@ interface SaveNodeEditResult {
 
 interface PatchCachedFormattedNodeResult {
   formattedText: string | null;
+  formattedMetrics: JsonDocumentMetrics | null;
   structureWarming: boolean;
   viewerData: LargeJsonViewerData | null;
   viewerIndexMs: number | null;
@@ -49,14 +60,8 @@ interface PatchCachedFormattedNodeResult {
 
 interface JsonNodeEditOperationsArgs {
   clearDeferredStructureWarmup: (tabId: string) => void;
-  clearDirectValueWarmup: (tabId: string) => void;
-  directValueTreeCache: Map<string, DirectValueTreeCacheEntry>;
   getLocateCandidateOffsets: (text: string, offset: number) => number[];
-  getStructureWarmupDelayForTexts: (
-    rawText: string | null | undefined,
-    formattedText: string | null | undefined,
-    baseDelayMs: number
-  ) => number;
+  getStructureWarmupDelayForByteLength: (textByteLength: number, baseDelayMs: number) => number;
   latestFormatRequestByTab: Map<string, number>;
   nodeEditCache: Parameters<typeof getCachedNodeRange>[0];
   scheduleDeferredStructureWarmup: (tabId: string, requestId: number, delayMs?: number) => void;
@@ -84,10 +89,8 @@ function getCachedFormattedText(
 
 export function createJsonNodeEditOperations({
   clearDeferredStructureWarmup,
-  clearDirectValueWarmup,
-  directValueTreeCache,
   getLocateCandidateOffsets,
-  getStructureWarmupDelayForTexts,
+  getStructureWarmupDelayForByteLength,
   latestFormatRequestByTab,
   nodeEditCache,
   scheduleDeferredStructureWarmup,
@@ -107,49 +110,48 @@ export function createJsonNodeEditOperations({
     }
 
     const cachedStructure = structureCache.get(tabId);
-    const tree =
-      cachedStructure?.formattedText === sourceText && cachedStructure.formattedTree
-        ? cachedStructure.formattedTree
-        : parseTree(sourceText);
-
-    if (!tree) {
-      throw new Error('当前节点无法编辑');
-    }
+    const hasMatchingStructureText = cachedStructure?.formattedText === sourceText;
+    const rawSourceText = hasMatchingStructureText
+      ? typeof cachedStructure.rawText === 'string'
+        ? cachedStructure.rawText
+        : cachedStructure.directLocateMode === 'identity'
+          ? sourceText
+          : null
+      : null;
 
     const candidateOffsets = getLocateCandidateOffsets(sourceText, offset);
     for (const candidateOffset of candidateOffsets) {
-      const location = getLocation(sourceText, candidateOffset);
-      const node = findNodeAtLocation(tree, location.path);
+      const formattedResult = getJsonOffsetLocateResult(sourceText, candidateOffset);
 
-      if (node) {
-        if (cachedStructure?.formattedText === sourceText && !cachedStructure.formattedTree) {
-          cachedStructure.formattedTree = tree;
-          structureCache.set(tabId, cachedStructure);
-        }
-
-        const rawNode =
-          cachedStructure?.formattedText === sourceText && cachedStructure.rawTree
-            ? findNodeAtLocation(cachedStructure.rawTree, location.path)
+      if (formattedResult) {
+        const rawRange = rawSourceText ? getJsonPathLocateRange(rawSourceText, formattedResult.path) : null;
+        const rawTreeNode =
+          !rawRange && hasMatchingStructureText && cachedStructure.rawTree
+            ? findNodeAtLocation(cachedStructure.rawTree, formattedResult.path)
             : null;
+        const rawNode = rawRange
+          ? { offset: rawRange.startOffset, length: rawRange.endOffset - rawRange.startOffset }
+          : rawTreeNode;
         const rawTextLength =
-          typeof cachedStructure?.rawText === 'string'
-            ? cachedStructure.rawText.length
-            : cachedStructure?.rawTree?.length;
+          typeof rawSourceText === 'string' ? rawSourceText.length : cachedStructure?.rawTree?.length;
 
         nodeEditCache.set(
           tabId,
           createNodeEditCacheEntry({
             formattedText: sourceText,
-            path: [...location.path],
-            formattedNode: node,
+            path: formattedResult.path,
+            formattedNode: {
+              offset: formattedResult.range.startOffset,
+              length: formattedResult.range.endOffset - formattedResult.range.startOffset,
+            },
             rawNode,
             rawTextLength,
           })
         );
 
         return JSON.stringify({
-          path: location.path,
-          value: sourceText.slice(node.offset, node.offset + node.length),
+          path: formattedResult.path,
+          value: sourceText.slice(formattedResult.range.startOffset, formattedResult.range.endOffset),
         });
       }
     }
@@ -161,7 +163,8 @@ export function createJsonNodeEditOperations({
     tabId: string,
     text: string,
     path: JsonEditPath,
-    rawText: string
+    rawText: string,
+    rawMetrics: JsonDocumentMetrics
   ): PatchCachedFormattedNodeResult {
     const formattedText =
       getCachedFormattedText(tabId, structureCache, viewerCache) ?? nodeEditCache.get(tabId)?.formattedText;
@@ -169,6 +172,7 @@ export function createJsonNodeEditOperations({
     if (typeof formattedText !== 'string') {
       return {
         formattedText: null,
+        formattedMetrics: null,
         structureWarming: false,
         viewerData: null,
         viewerIndexMs: null,
@@ -178,9 +182,15 @@ export function createJsonNodeEditOperations({
     const nextFormattedText = saveJsonNodePreservingOriginalFormat(formattedText, path, text, {
       range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText),
     });
+    const formattedMetrics = measureJsonDocument(nextFormattedText);
+    const previousViewerData = viewerCache.get(tabId)?.viewerData ?? structureCache.get(tabId)?.viewerData;
+    const lineCapacityHint = previousViewerData
+      ? Math.min(previousViewerData.lineCount, nextFormattedText.length + 1)
+      : undefined;
     const viewerIndexStartedAt = performance.now();
-    const viewerData = buildLargeViewerData(nextFormattedText);
+    const viewerData = buildLargeViewerData(nextFormattedText, DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, lineCapacityHint);
     const viewerIndexMs = performance.now() - viewerIndexStartedAt;
+    const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
     const requestId = latestFormatRequestByTab.get(tabId) ?? 0;
     let structureWarming = false;
 
@@ -188,27 +198,26 @@ export function createJsonNodeEditOperations({
       viewerCache.set(tabId, {
         requestId,
         formattedText: nextFormattedText,
-        viewerData,
+        viewerData: workerViewerData!,
       });
     } else {
       viewerCache.delete(tabId);
     }
 
-    directValueTreeCache.delete(tabId);
-    clearDirectValueWarmup(tabId);
     clearDeferredStructureWarmup(tabId);
 
     const cachedStructure = structureCache.get(tabId);
     if (cachedStructure) {
       if (cachedStructure.directLocate) {
         if (viewerData) {
+          const isIdentityFormat = rawText === nextFormattedText;
           structureCache.set(tabId, {
             requestId,
             directLocate: true,
-            directLocateMode: rawText === nextFormattedText ? 'identity' : 'token-search',
-            rawText: rawText === nextFormattedText ? undefined : rawText,
+            directLocateMode: isIdentityFormat ? 'identity' : 'token-search',
+            rawText: isIdentityFormat ? undefined : rawText,
             formattedText: nextFormattedText,
-            viewerData,
+            viewerData: workerViewerData!,
             tokenLocateCache: { tokenOffsetsByToken: new Map() },
           });
         } else {
@@ -225,7 +234,10 @@ export function createJsonNodeEditOperations({
         scheduleDeferredStructureWarmup(
           tabId,
           requestId,
-          getStructureWarmupDelayForTexts(rawText, nextFormattedText, 150)
+          getStructureWarmupDelayForByteLength(
+            Math.max(rawMetrics.textByteLength, formattedMetrics.textByteLength),
+            150
+          )
         );
         structureWarming = true;
       }
@@ -233,6 +245,7 @@ export function createJsonNodeEditOperations({
 
     return {
       formattedText: nextFormattedText,
+      formattedMetrics,
       structureWarming,
       viewerData,
       viewerIndexMs,
@@ -252,13 +265,15 @@ export function createJsonNodeEditOperations({
     const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text, {
       range: getCachedNodeRange(nodeEditCache, tabId, path, 'raw', originalText),
     });
-    const rawViewerData = rawText.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
-    const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText);
+    const rawMetrics = measureJsonDocument(rawText);
+    const rawViewerData = rawMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
+    const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText, rawMetrics);
 
     nodeEditCache.delete(tabId);
 
     return {
       rawText,
+      rawMetrics,
       rawViewerData,
       ...formattedPatch,
     };

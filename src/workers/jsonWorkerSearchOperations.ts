@@ -1,33 +1,26 @@
+import type { LargeJsonLineIndex, SearchTarget, WorkerMessage, WorkerSearchRequest } from '../types/jsonTool';
 import { DEFAULT_SEARCH_OPTIONS, SEARCH_BATCH_SIZE } from '../types/jsonTool';
-import type {
-  JsonSearchOptions,
-  LargeJsonViewerData,
-  SearchTarget,
-  WorkerMessage,
-  WorkerSearchRequest,
-} from '../types/jsonTool';
+import { packSearchMatches } from '../utils/searchMatchPayload';
 import { buildLineStarts, findTextSearchBatchAsync } from '../utils/searchText';
+import { readMessageText } from './jsonWorkerTextPayload';
 
 type SearchRequestMessage = WorkerSearchRequest & {
   append?: boolean;
   requestId: number;
   startOffset?: number;
+  textBuffer?: ArrayBuffer;
   type?: 'search';
 };
 
 interface RawSearchCacheEntry {
-  lowerFormattedText?: string | null;
   lineStarts: Uint32Array | null;
-  lowerRawText: string | null;
   rawRevision: number | null;
   rawText: string;
 }
 
 interface ViewerSearchCacheEntry {
   formattedText: string;
-  lowerRawText?: string | null;
-  lowerFormattedText?: string | null;
-  viewerData: LargeJsonViewerData;
+  viewerData: LargeJsonLineIndex;
 }
 
 interface JsonWorkerSearchOperationsArgs {
@@ -35,8 +28,6 @@ interface JsonWorkerSearchOperationsArgs {
   rawSearchCache: Map<string, RawSearchCacheEntry>;
   viewerCache: Map<string, ViewerSearchCacheEntry>;
 }
-
-type NormalizedSearchTextKey = 'lowerFormattedText' | 'lowerRawText';
 
 export function getSearchRequestKey(tabId: string, target: SearchTarget) {
   return `${target}:${tabId}`;
@@ -47,29 +38,21 @@ export function createJsonWorkerSearchOperations({
   rawSearchCache,
   viewerCache,
 }: JsonWorkerSearchOperationsArgs) {
-  function getNormalizedText(
-    cached: RawSearchCacheEntry | ViewerSearchCacheEntry,
-    key: NormalizedSearchTextKey,
-    text: string,
-    searchOptions: JsonSearchOptions
-  ) {
-    if (searchOptions.matchCase || searchOptions.useRegex) {
-      return undefined;
-    }
-
-    if (typeof cached[key] !== 'string') {
-      cached[key] = text.toLowerCase();
-    }
-
-    return cached[key];
-  }
-
   function isLatestSearchRequest(tabId: string, target: SearchTarget, requestId: number) {
     return latestSearchRequestByKey.get(getSearchRequestKey(tabId, target)) === requestId;
   }
 
   function postSearchResultIfLatest(payload: WorkerMessage) {
     if (!isLatestSearchRequest(payload.tabId, payload.target ?? 'right', payload.requestId)) {
+      return;
+    }
+
+    if (payload.matches && payload.matches.length > 0) {
+      const matchData = packSearchMatches(payload.matches);
+      const message = { ...payload, matches: undefined, matchData };
+      (self as unknown as { postMessage(message: unknown, transfer: Transferable[]): void }).postMessage(message, [
+        matchData.buffer,
+      ]);
       return;
     }
 
@@ -99,12 +82,11 @@ export function createJsonWorkerSearchOperations({
     }
 
     if (target === 'left') {
-      if (typeof message.text === 'string') {
+      if (typeof message.text === 'string' || message.textBuffer instanceof ArrayBuffer) {
         rawSearchCache.set(tabId, {
-          rawText: message.text,
+          rawText: readMessageText(message),
           rawRevision: message.rawRevision ?? null,
           lineStarts: null,
-          lowerRawText: null,
         });
       }
 
@@ -137,8 +119,7 @@ export function createJsonWorkerSearchOperations({
           effectiveSearchOptions,
           startOffset,
           SEARCH_BATCH_SIZE,
-          shouldCancel,
-          getNormalizedText(cachedRaw, 'lowerRawText', cachedRaw.rawText, effectiveSearchOptions)
+          shouldCancel
         );
 
         if (result.cancelled || shouldCancel()) {
@@ -179,8 +160,7 @@ export function createJsonWorkerSearchOperations({
         effectiveSearchOptions,
         startOffset,
         SEARCH_BATCH_SIZE,
-        shouldCancel,
-        getNormalizedText(cachedViewer, 'lowerFormattedText', cachedViewer.formattedText, effectiveSearchOptions)
+        shouldCancel
       );
 
       if (result.cancelled || shouldCancel()) {

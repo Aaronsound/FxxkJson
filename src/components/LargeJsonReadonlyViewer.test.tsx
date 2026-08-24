@@ -1,7 +1,8 @@
-import React, { createRef } from 'react';
+import type React from 'react';
+import { createRef } from 'react';
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import LargeJsonReadonlyViewer, { LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
+import LargeJsonReadonlyViewer, { type LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
 import { fixtureText, renderViewer } from './LargeJsonReadonlyViewer.testUtils';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
@@ -40,10 +41,10 @@ describe('LargeJsonReadonlyViewer rendering', () => {
       data,
       isDarkMode: false,
       wrapLongLines: false,
-      collapsedLines: [],
+      foldState: { mode: 'explicit', lines: [] },
       searchTerm: 'name',
       activeMatchIndex: 0,
-      onCollapsedLinesChange: firstCollapsedChange,
+      onFoldStateChange: firstCollapsedChange,
       onMatchCountChange: vi.fn(),
       onLocateOffset: firstLocate,
       onCopyPath: vi.fn(),
@@ -67,7 +68,7 @@ describe('LargeJsonReadonlyViewer rendering', () => {
     rerender(
       <LargeJsonReadonlyViewer
         {...baseProps}
-        onCollapsedLinesChange={refreshedCollapsedChange}
+        onFoldStateChange={refreshedCollapsedChange}
         onLocateOffset={refreshedLocate}
       />
     );
@@ -114,9 +115,24 @@ describe('LargeJsonReadonlyViewer rendering', () => {
     expect(row?.style.height).toBe(`${JSON_EDITOR_LINE_HEIGHT}px`);
   });
 
+  it('keeps short lines compact while wrapping only a genuinely long line', () => {
+    const text = ['{', `  "payload": "${'x'.repeat(500)}",`, '  "ok": true', '}'].join('\n');
+    renderViewer({ text, wrapLongLines: true });
+
+    const firstRow = document.querySelector<HTMLElement>('.large-json-line-text[data-line-number="1"]')?.parentElement;
+    const longRow = document.querySelector<HTMLElement>('.large-json-line-text[data-line-number="2"]')?.parentElement;
+    const followingRow = document.querySelector<HTMLElement>(
+      '.large-json-line-text[data-line-number="3"]'
+    )?.parentElement;
+
+    expect(firstRow?.style.height).toBe(`${JSON_EDITOR_LINE_HEIGHT}px`);
+    expect(longRow?.style.height).toBe(`${JSON_EDITOR_LINE_HEIGHT * 4}px`);
+    expect(followingRow?.style.top).toBe(`${JSON_EDITOR_LINE_HEIGHT * 5}px`);
+  });
+
   it('preserves fold all and unfold all commands through the ref API', () => {
     const ref = createRef<LargeJsonReadonlyViewerHandle>();
-    const onCollapsedLinesChange = vi.fn();
+    const onFoldStateChange = vi.fn();
     const data = buildLargeViewerData(fixtureText, 1);
     if (!data) {
       throw new Error('Expected large viewer fixture data');
@@ -129,10 +145,10 @@ describe('LargeJsonReadonlyViewer rendering', () => {
         data={data}
         isDarkMode={false}
         wrapLongLines={false}
-        collapsedLines={[]}
+        foldState={{ mode: 'explicit', lines: [] }}
         searchTerm=""
         activeMatchIndex={0}
-        onCollapsedLinesChange={onCollapsedLinesChange}
+        onFoldStateChange={onFoldStateChange}
         onMatchCountChange={vi.fn()}
         onLocateOffset={vi.fn()}
         onCopyPath={vi.fn()}
@@ -149,24 +165,24 @@ describe('LargeJsonReadonlyViewer rendering', () => {
     );
 
     ref.current?.foldAll();
-    expect(onCollapsedLinesChange).toHaveBeenCalledWith(data.regions.map((region) => region.startLine));
+    expect(onFoldStateChange).toHaveBeenCalledWith({ mode: 'all-except', lines: [] });
 
     ref.current?.unfoldAll();
-    expect(onCollapsedLinesChange).toHaveBeenCalledWith([]);
+    expect(onFoldStateChange).toHaveBeenCalledWith({ mode: 'explicit', lines: [] });
   });
 
   it('auto-expands collapsed regions when the active match falls inside them', async () => {
-    const onCollapsedLinesChange = vi.fn();
+    const onFoldStateChange = vi.fn();
 
     renderViewer({
-      collapsedLines: [3],
+      foldState: { mode: 'explicit', lines: [3] },
       searchTerm: '1',
       activeMatchIndex: 0,
-      onCollapsedLinesChange,
+      onFoldStateChange,
     });
 
     await waitFor(() => {
-      expect(onCollapsedLinesChange).toHaveBeenCalledWith([]);
+      expect(onFoldStateChange).toHaveBeenCalledWith({ mode: 'explicit', lines: [] });
     });
   });
 });

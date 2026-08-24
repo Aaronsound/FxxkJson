@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LeftEditorContextMenuState } from '../components/LeftEditorContextMenu';
 import type { Tab } from '../types/jsonTool';
 import { readTextFromClipboard, writeTextToClipboard } from '../utils/clipboard';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import { getContentAfterSelectionReplace } from '../utils/jsonEditorMountActions';
-import { getUtf8ByteLength, shouldUseLargeMode } from '../utils/jsonDocumentMetrics';
+import { measureJsonDocument, shouldUseLargeModeForMetrics } from '../utils/jsonDocumentMetrics';
 
 interface UseLeftEditorContextMenuArgs {
   activeTab: Tab | null;
@@ -50,13 +50,14 @@ export function useLeftEditorContextMenu({
   }, [leftEditorContextMenu]);
 
   const beginPastePerformanceSession = (tabId: string, nextContent: string) => {
+    const metrics = measureJsonDocument(nextContent);
     beginPerformanceSession(
       tabId,
       'paste',
       '剪贴板粘贴',
       null,
-      getUtf8ByteLength(nextContent),
-      shouldUseLargeMode(nextContent)
+      metrics.textByteLength,
+      shouldUseLargeModeForMetrics(metrics)
     );
   };
 

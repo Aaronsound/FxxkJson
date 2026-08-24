@@ -1,7 +1,7 @@
-import React from 'react';
+import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import JsonMonacoEditor from './JsonMonacoEditor';
-import LargeRawReadonlyViewer, { LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
+import LargeRawReadonlyViewer, { type LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
 import PaneFindWidget from './PaneFindWidget';
 import type { JsonSearchOptions, LargeRawViewerData } from '../types/jsonTool';
 import { createTranslator, type I18nKey } from '../utils/i18n';

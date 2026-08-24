@@ -1,48 +1,105 @@
 import { useCallback, useMemo } from 'react';
-import type { LargeJsonViewerData, LargeJsonViewerRegion } from '../types/jsonTool';
-import { buildVisibleSegments } from '../utils/largeJsonViewerRender';
+import type { LargeJsonFoldState, LargeJsonViewerData } from '../types/jsonTool';
+import { findFirstRegionIndexAtStartLine, getLargeJsonViewerRegionAtStartLine } from '../utils/largeJsonViewerData';
+import { buildAllExceptCollapsedIntervals, buildVisibleSegments } from '../utils/largeJsonViewerRender';
 import type { CollapsedInterval } from '../utils/largeJsonViewerRender';
 
 interface UseLargeJsonFoldingArgs {
-  collapsedLines: number[];
+  foldState: LargeJsonFoldState;
   data: LargeJsonViewerData;
-  onCollapsedLinesChange: (lines: number[]) => void;
+  onFoldStateChange: (state: LargeJsonFoldState) => void;
 }
 
-export function useLargeJsonFolding({ collapsedLines, data, onCollapsedLinesChange }: UseLargeJsonFoldingArgs) {
-  const regionsByStartLine = useMemo(() => {
-    const map = new Map<number, LargeJsonViewerRegion>();
-    data.regions.forEach((region) => {
-      if (!map.has(region.startLine)) {
-        map.set(region.startLine, region);
+function findSortedNumberIndex(lines: number[], lineNumber: number) {
+  let low = 0;
+  let high = lines.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lines[middle] < lineNumber) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low;
+}
+
+export function insertSortedFoldLine(lines: number[], lineNumber: number) {
+  const index = findSortedNumberIndex(lines, lineNumber);
+  if (lines[index] === lineNumber) {
+    return lines;
+  }
+
+  return [...lines.slice(0, index), lineNumber, ...lines.slice(index)];
+}
+
+export function removeSortedFoldLine(lines: number[], lineNumber: number) {
+  const index = findSortedNumberIndex(lines, lineNumber);
+  if (lines[index] !== lineNumber) {
+    return lines;
+  }
+
+  return [...lines.slice(0, index), ...lines.slice(index + 1)];
+}
+
+export function useLargeJsonFolding({ foldState, data, onFoldStateChange }: UseLargeJsonFoldingArgs) {
+  const getRegionByStartLine = useCallback(
+    (lineNumber: number) => getLargeJsonViewerRegionAtStartLine(data.regions, lineNumber) ?? undefined,
+    [data.regions]
+  );
+
+  const getRegionEndLineByStartLine = useCallback(
+    (lineNumber: number) => {
+      const regionIndex = findFirstRegionIndexAtStartLine(data.regions, lineNumber);
+      return regionIndex >= 0 ? data.regions.endLines[regionIndex] : null;
+    },
+    [data.regions]
+  );
+
+  const normalizedState = useMemo(() => {
+    const candidateLines = Array.from(new Set(foldState.lines)).sort((left, right) => left - right);
+    const lines: number[] = [];
+    const regionIndexes: number[] = [];
+
+    candidateLines.forEach((line) => {
+      const regionIndex = findFirstRegionIndexAtStartLine(data.regions, line);
+      if (regionIndex >= 0) {
+        lines.push(line);
+        regionIndexes.push(regionIndex);
       }
     });
-    return map;
-  }, [data.regions]);
 
-  const normalizedCollapsedLines = useMemo(() => {
-    const uniqueLines = new Set<number>();
-    collapsedLines.forEach((line) => {
-      if (regionsByStartLine.has(line)) {
-        uniqueLines.add(line);
+    return { lines, regionIndexes };
+  }, [data.regions, foldState.lines]);
+  const normalizedStateLines = normalizedState.lines;
+
+  const stateLineSet = useMemo(() => new Set(normalizedStateLines), [normalizedStateLines]);
+
+  const isRegionCollapsed = useCallback(
+    (lineNumber: number) =>
+      foldState.mode === 'all-except' ? !stateLineSet.has(lineNumber) : stateLineSet.has(lineNumber),
+    [foldState.mode, stateLineSet]
+  );
+
+  const isLineCollapsed = useCallback(
+    (lineNumber: number) => {
+      if (findFirstRegionIndexAtStartLine(data.regions, lineNumber) < 0) {
+        return false;
       }
-    });
-
-    return Array.from(uniqueLines).sort((left, right) => left - right);
-  }, [collapsedLines, regionsByStartLine]);
+      return isRegionCollapsed(lineNumber);
+    },
+    [data.regions, isRegionCollapsed]
+  );
 
   const collapsedIntervals = useMemo<CollapsedInterval[]>(() => {
     const intervals: CollapsedInterval[] = [];
 
-    normalizedCollapsedLines.forEach((startLine) => {
-      const region = regionsByStartLine.get(startLine);
-      if (!region) {
-        return;
-      }
-
+    const appendInterval = (startLine: number, endLine: number) => {
       const interval = {
         start: startLine + 1,
-        end: region.endLine - 1,
+        end: endLine - 1,
         triggerLine: startLine,
       };
 
@@ -62,10 +119,17 @@ export function useLargeJsonFolding({ collapsedLines, data, onCollapsedLinesChan
       }
 
       intervals.push(interval);
-    });
+    };
 
-    return intervals;
-  }, [normalizedCollapsedLines, regionsByStartLine]);
+    if (foldState.mode === 'explicit') {
+      normalizedStateLines.forEach((startLine, stateIndex) => {
+        appendInterval(startLine, data.regions.endLines[normalizedState.regionIndexes[stateIndex]]);
+      });
+      return intervals;
+    }
+
+    return buildAllExceptCollapsedIntervals(data.regions, stateLineSet);
+  }, [data.regions, foldState.mode, normalizedState, normalizedStateLines, stateLineSet]);
 
   const visibleSegments = useMemo(
     () => buildVisibleSegments(data.lineCount, collapsedIntervals),
@@ -77,40 +141,60 @@ export function useLargeJsonFolding({ collapsedLines, data, onCollapsedLinesChan
     [visibleSegments]
   );
 
-  const collapsedLineSet = useMemo(() => new Set(normalizedCollapsedLines), [normalizedCollapsedLines]);
-
-  const toggleLine = useCallback(
+  const expandLine = useCallback(
     (lineNumber: number) => {
-      if (!regionsByStartLine.has(lineNumber)) {
+      if (!isLineCollapsed(lineNumber)) {
         return;
       }
 
-      const next = new Set(collapsedLineSet);
-      if (next.has(lineNumber)) {
-        next.delete(lineNumber);
-      } else {
-        next.add(lineNumber);
+      if (foldState.mode === 'all-except') {
+        onFoldStateChange({ mode: 'all-except', lines: insertSortedFoldLine(normalizedStateLines, lineNumber) });
+        return;
       }
 
-      onCollapsedLinesChange(Array.from(next).sort((left, right) => left - right));
+      onFoldStateChange({ mode: 'explicit', lines: removeSortedFoldLine(normalizedStateLines, lineNumber) });
     },
-    [collapsedLineSet, onCollapsedLinesChange, regionsByStartLine]
+    [foldState.mode, isLineCollapsed, normalizedStateLines, onFoldStateChange]
+  );
+
+  const toggleLine = useCallback(
+    (lineNumber: number) => {
+      if (findFirstRegionIndexAtStartLine(data.regions, lineNumber) < 0) {
+        return;
+      }
+
+      if (isLineCollapsed(lineNumber)) {
+        expandLine(lineNumber);
+        return;
+      }
+
+      if (foldState.mode === 'all-except') {
+        onFoldStateChange({ mode: 'all-except', lines: removeSortedFoldLine(normalizedStateLines, lineNumber) });
+        return;
+      }
+
+      onFoldStateChange({ mode: 'explicit', lines: insertSortedFoldLine(normalizedStateLines, lineNumber) });
+    },
+    [data.regions, expandLine, foldState.mode, isLineCollapsed, normalizedStateLines, onFoldStateChange]
   );
 
   const foldAll = useCallback(() => {
-    onCollapsedLinesChange(data.regions.map((region) => region.startLine));
-  }, [data.regions, onCollapsedLinesChange]);
+    onFoldStateChange({ mode: 'all-except', lines: [] });
+  }, [onFoldStateChange]);
 
   const unfoldAll = useCallback(() => {
-    onCollapsedLinesChange([]);
-  }, [onCollapsedLinesChange]);
+    onFoldStateChange({ mode: 'explicit', lines: [] });
+  }, [onFoldStateChange]);
 
   return {
     collapsedIntervals,
-    collapsedLineSet,
+    expandLine,
     foldAll,
-    normalizedCollapsedLines,
-    regionsByStartLine,
+    getRegionEndLineByStartLine,
+    getRegionByStartLine,
+    isLineCollapsed,
+    isRegionCollapsed,
+    normalizedStateLines,
     toggleLine,
     unfoldAll,
     visibleLineCount,

@@ -1,5 +1,5 @@
-import { MutableRefObject, useCallback, useRef } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import { type MutableRefObject, useCallback, useRef } from 'react';
 import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -10,14 +10,14 @@ import type {
   RightNodeSelection,
   StructureStatus,
 } from '../types/jsonTool';
-import { PerformanceSession } from './useJsonPerformanceTracking';
-import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
-import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
-import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
 import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
+import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
+import { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
+import { createJsonWorkerTabArtifactActions } from './jsonWorkerTabArtifacts';
+import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { useJsonWorkerCallbacksRef } from './useJsonWorkerCallbacksRef';
 import { useJsonWorkerInternalRefs } from './useJsonWorkerInternalRefs';
-import { createJsonWorkerTabArtifactActions } from './jsonWorkerTabArtifacts';
+import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
 
 export interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
@@ -69,8 +69,14 @@ export interface UseJsonFormattingWorkerArgs {
     nextStartOffset?: number,
     append?: boolean
   ) => void;
-  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
-  updateFormattedContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+  updateFormattedContent: (
+    tabId: string,
+    content: string,
+    syncModel?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
   resetSearchState: () => void;
   revealLeftRange: (startOffset: number, endOffset: number) => void;
   clearLeftHighlights: () => void;
@@ -154,9 +160,10 @@ export function useJsonFormattingWorker({
   const interactiveFlowRef = useRef<ReturnType<typeof createJsonWorkerInteractiveFlow> | null>(null);
   interactiveFlowRef.current ??= createJsonWorkerInteractiveFlow({
     activeTabIdRef,
-    formattedTextByTabRef,
+    createWorkerTextPayload,
     getCallbacks: () => callbacksRef.current,
     postWorkerRequest,
+    readWorkerTextField,
     structureStatusRef,
     workerRef,
     workerStructureEnabledRef,
@@ -256,7 +263,6 @@ export function useJsonFormattingWorker({
     clearPendingFormat,
     formatWatchdogTimersRef,
     formatTimersRef,
-    formattedTextByTabRef,
     interactiveFlow,
     latestRequestRef,
     performanceSessionsRef,

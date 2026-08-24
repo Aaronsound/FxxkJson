@@ -27,9 +27,14 @@ The workflow in `.github/workflows/desktop-release.yml` packages macOS and Windo
 ```bash
 git checkout main
 git pull origin main
+git merge-base --is-ancestor HEAD origin/main
 git tag -a v1.0.8 -m "FxxkJson desktop release v1.0.8"
 git push origin v1.0.8
 ```
+
+Create release tags only after the release commit has been merged into `main`. Do not create a release tag directly
+from `dev`, and do not move a tag after it has been pushed. If a tag was created from the wrong branch, merge the
+intended commit into `main` and publish the next version tag instead.
 
 After the workflow finishes, open the GitHub repository and go to **Releases**. The generated `.dmg`, `.exe`, and `.zip` files will be attached to that release.
 

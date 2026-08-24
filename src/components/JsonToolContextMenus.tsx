@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import LeftEditorContextMenu from './LeftEditorContextMenu';
 import RightEditorContextMenu from './RightEditorContextMenu';
 import type { FoldTargetMode } from '../utils/foldableLine';

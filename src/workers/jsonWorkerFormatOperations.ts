@@ -1,11 +1,21 @@
-import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
-import type { LargeJsonViewerData, WorkerRequestMessage } from '../types/jsonTool';
-import { shouldUseDedicatedRightViewer } from '../utils/jsonDocumentMetrics';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
+import type { LargeJsonLineIndex, WorkerRequestMessage } from '../types/jsonTool';
+import {
+  type JsonDocumentMetrics,
+  measureJsonDocument,
+  shouldUseDedicatedRightViewerForMetrics,
+} from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
-import { postRepairResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import {
+  copyLargeViewerLineIndex,
+  getLargeViewerTransferables,
+  postRepairResult,
+  postTextResult,
+  readMessageText,
+} from './jsonWorkerTextPayload';
 
 type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
 
@@ -18,26 +28,23 @@ interface StructureCacheEntry {
   rawTree?: unknown;
   requestId: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData | null;
+  viewerData?: LargeJsonLineIndex | null;
 }
 
 interface ViewerCacheEntry {
   formattedText: string;
   requestId: number;
-  viewerData: LargeJsonViewerData;
+  viewerData: LargeJsonLineIndex;
 }
 
 interface JsonWorkerFormatOperationsArgs {
   cancelInteractiveRequests: (tabId: string) => void;
   clearDeferredStructureWarmup: (tabId: string) => void;
-  clearDirectValueWarmup: (tabId: string) => void;
-  directValueTreeCache: Map<string, unknown>;
   editJsonCache: Map<string, { originalText?: string }>;
   ensureStructureTrees: (tabId: string, cached: StructureCacheEntry) => boolean;
   latestFormatRequestByTab: Map<string, number>;
   nodeEditCache: Map<string, unknown>;
   scheduleDeferredStructureWarmup: (tabId: string, requestId: number, delayMs?: number) => void;
-  scheduleDirectValueTreeWarmup: (tabId: string, requestId: number, text: string) => void;
   structureCache: Map<string, StructureCacheEntry>;
   viewerCache: Map<string, ViewerCacheEntry>;
 }
@@ -48,35 +55,41 @@ interface BuildFormatArtifactsArgs {
   enableDirectLocate: boolean;
   enableStructure: boolean;
   formatted: string;
+  formattedMetrics: JsonDocumentMetrics;
   normalizedNestedString: boolean;
   requestId: number;
   sourceText: string;
+  sourceMetrics: JsonDocumentMetrics;
   structureWarmupDelayMs?: number;
   tabId: string;
 }
 
-function postWorkerMessage(message: Record<string, unknown>) {
+function postWorkerMessage(message: Record<string, unknown>, transfer: Transferable[] = []) {
+  if (transfer.length > 0) {
+    (self as unknown as { postMessage(message: unknown, transfer: Transferable[]): void }).postMessage(
+      message,
+      transfer
+    );
+    return;
+  }
+
   postMessage(message);
 }
 
 export function createJsonWorkerFormatOperations({
   cancelInteractiveRequests,
   clearDeferredStructureWarmup,
-  clearDirectValueWarmup,
-  directValueTreeCache,
   editJsonCache,
   ensureStructureTrees,
   latestFormatRequestByTab,
   nodeEditCache,
   scheduleDeferredStructureWarmup,
-  scheduleDirectValueTreeWarmup,
   structureCache,
   viewerCache,
 }: JsonWorkerFormatOperationsArgs) {
   function prepareFormatRequest(tabId: string, requestId: number, sourceText: string) {
     latestFormatRequestByTab.set(tabId, requestId);
     cancelInteractiveRequests(tabId);
-    clearDirectValueWarmup(tabId);
     clearDeferredStructureWarmup(tabId);
     const cachedEditJson = editJsonCache.get(tabId);
     if (cachedEditJson?.originalText !== sourceText) {
@@ -84,14 +97,15 @@ export function createJsonWorkerFormatOperations({
     }
     nodeEditCache.delete(tabId);
     viewerCache.delete(tabId);
-    directValueTreeCache.delete(tabId);
   }
 
   function buildFormatArtifacts({
     requestId,
     tabId,
     sourceText,
+    sourceMetrics,
     formatted,
+    formattedMetrics,
     normalizedNestedString,
     enableStructure,
     enableDirectLocate,
@@ -99,7 +113,7 @@ export function createJsonWorkerFormatOperations({
     buildViewer,
     structureWarmupDelayMs,
   }: BuildFormatArtifactsArgs) {
-    const shouldBuildViewer = buildViewer || shouldUseDedicatedRightViewer(sourceText, formatted);
+    const shouldBuildViewer = buildViewer || shouldUseDedicatedRightViewerForMetrics(sourceMetrics, formattedMetrics);
 
     if (shouldBuildViewer) {
       setTimeout(() => {
@@ -108,13 +122,24 @@ export function createJsonWorkerFormatOperations({
         }
 
         const viewerIndexStartedAt = performance.now();
-        const viewerData = buildLargeViewerData(formatted);
+        const viewerData = buildLargeViewerData(
+          formatted,
+          DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
+          formattedMetrics.lineCount
+        );
         const viewerIndexMs = performance.now() - viewerIndexStartedAt;
+        const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
+        const isIdentityFormat =
+          Boolean(viewerData) &&
+          !enableStructure &&
+          enableDirectLocate &&
+          !normalizedNestedString &&
+          sourceText === formatted;
         if (viewerData) {
           viewerCache.set(tabId, {
             requestId,
             formattedText: formatted,
-            viewerData,
+            viewerData: workerViewerData!,
           });
         } else {
           viewerCache.delete(tabId);
@@ -125,10 +150,10 @@ export function createJsonWorkerFormatOperations({
             structureCache.set(tabId, {
               requestId,
               directLocate: true,
-              directLocateMode: sourceText === formatted ? 'identity' : 'token-search',
-              rawText: sourceText === formatted ? undefined : sourceText,
+              directLocateMode: isIdentityFormat ? 'identity' : 'token-search',
+              rawText: isIdentityFormat ? undefined : sourceText,
               formattedText: formatted,
-              viewerData,
+              viewerData: workerViewerData!,
               tokenLocateCache: { tokenOffsetsByToken: new Map() },
             });
             postWorkerMessage({
@@ -148,17 +173,16 @@ export function createJsonWorkerFormatOperations({
           }
         }
 
-        postWorkerMessage({
-          type: 'viewer-ready',
-          requestId,
-          tabId,
-          viewerData,
-          viewerIndexMs,
-        });
-
-        if (viewerData && !deferStructure) {
-          scheduleDirectValueTreeWarmup(tabId, requestId, formatted);
-        }
+        postWorkerMessage(
+          {
+            type: 'viewer-ready',
+            requestId,
+            tabId,
+            viewerData,
+            viewerIndexMs,
+          },
+          getLargeViewerTransferables(viewerData)
+        );
       }, 0);
     } else {
       viewerCache.delete(tabId);
@@ -245,7 +269,6 @@ export function createJsonWorkerFormatOperations({
   function clearFormatFailureArtifacts(tabId: string) {
     structureCache.delete(tabId);
     viewerCache.delete(tabId);
-    directValueTreeCache.delete(tabId);
     clearDeferredStructureWarmup(tabId);
   }
 
@@ -254,8 +277,10 @@ export function createJsonWorkerFormatOperations({
     const text = readMessageText(message);
     prepareFormatRequest(tabId, requestId, text);
     try {
-      const rawViewerData = text.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
+      const sourceMetrics = measureJsonDocument(text);
+      const rawViewerData = sourceMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
       const { formatted, normalizedNestedString } = formatJsonText(text);
+      const formattedMetrics = measureJsonDocument(formatted);
       postTextResult(
         {
           type: 'format-result',
@@ -263,15 +288,20 @@ export function createJsonWorkerFormatOperations({
           tabId,
           success: true,
           rawViewerData,
+          rawMetrics: sourceMetrics,
+          formattedMetrics,
         },
-        formatted
+        formatted,
+        formattedMetrics.textByteLength
       );
 
       buildFormatArtifacts({
         requestId,
         tabId,
         sourceText: text,
+        sourceMetrics,
         formatted,
+        formattedMetrics,
         normalizedNestedString,
         enableStructure,
         enableDirectLocate,
@@ -297,7 +327,10 @@ export function createJsonWorkerFormatOperations({
     prepareFormatRequest(tabId, requestId, text);
     try {
       const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
-      const rawViewerData = repaired.length >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
+      const sourceMetrics = measureJsonDocument(repaired);
+      const formattedMetrics = measureJsonDocument(formatted);
+      const rawViewerData =
+        sourceMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
 
       postRepairResult(
         {
@@ -306,16 +339,22 @@ export function createJsonWorkerFormatOperations({
           tabId,
           success: true,
           rawViewerData,
+          rawMetrics: sourceMetrics,
+          formattedMetrics,
         },
         formatted,
-        repaired
+        repaired,
+        formattedMetrics.textByteLength,
+        sourceMetrics.textByteLength
       );
 
       buildFormatArtifacts({
         requestId,
         tabId,
         sourceText: repaired,
+        sourceMetrics,
         formatted,
+        formattedMetrics,
         normalizedNestedString,
         enableStructure,
         enableDirectLocate,

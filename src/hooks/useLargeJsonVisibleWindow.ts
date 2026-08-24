@@ -1,9 +1,16 @@
 import { useCallback } from 'react';
-import { binarySearchSegment } from '../utils/largeJsonViewerRender';
-import type { VisibleSegment } from '../utils/largeJsonViewerRender';
+import {
+  getActualLineNumberFromVisibleSegments,
+  getLargeJsonRowLayout,
+  getLargeJsonRowTop,
+  getLargeJsonVisibleIndexAtOffset,
+  getVisibleIndexFromVisibleSegments,
+} from '../utils/largeJsonViewerRender';
+import type { LargeJsonWrapLayout, VisibleSegment } from '../utils/largeJsonViewerRender';
 
 interface UseLargeJsonVisibleWindowArgs {
   rowHeight: number;
+  wrapLayout?: LargeJsonWrapLayout | null;
   scrollTop: number;
   viewportHeight: number;
   visibleLineCount: number;
@@ -13,6 +20,7 @@ interface UseLargeJsonVisibleWindowArgs {
 
 export function useLargeJsonVisibleWindow({
   rowHeight,
+  wrapLayout = null,
   scrollTop,
   viewportHeight,
   visibleLineCount,
@@ -20,43 +28,52 @@ export function useLargeJsonVisibleWindow({
   overscan,
 }: UseLargeJsonVisibleWindowArgs) {
   const getActualLineNumber = useCallback(
-    (visibleIndex: number) => {
-      const segment = binarySearchSegment(visibleSegments, visibleIndex);
-      if (!segment) {
-        return null;
-      }
-
-      return segment.actualStart + (visibleIndex - segment.visibleStart);
-    },
+    (visibleIndex: number) => getActualLineNumberFromVisibleSegments(visibleSegments, visibleIndex),
     [visibleSegments]
   );
 
   const getVisibleIndexForActualLine = useCallback(
-    (lineNumber: number) => {
-      for (const segment of visibleSegments) {
-        if (lineNumber < segment.actualStart) {
-          break;
-        }
-
-        if (lineNumber <= segment.actualEnd) {
-          return segment.visibleStart + (lineNumber - segment.actualStart);
-        }
-      }
-
-      return null;
-    },
+    (lineNumber: number) => getVisibleIndexFromVisibleSegments(visibleSegments, lineNumber),
     [visibleSegments]
   );
 
-  const startVisibleIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-  const endVisibleIndex = Math.min(
-    Math.max(0, visibleLineCount - 1),
-    Math.ceil((scrollTop + viewportHeight) / rowHeight) + overscan
+  const getRowTop = useCallback(
+    (visibleIndex: number) => {
+      if (wrapLayout) {
+        return getLargeJsonRowTop(wrapLayout, visibleIndex);
+      }
+      return Math.max(0, visibleIndex) * rowHeight;
+    },
+    [rowHeight, wrapLayout]
   );
+
+  const getRowStyle = useCallback(
+    (visibleIndex: number) => {
+      if (wrapLayout) {
+        return getLargeJsonRowLayout(wrapLayout, visibleIndex);
+      }
+      return {
+        height: rowHeight,
+        top: Math.max(0, visibleIndex) * rowHeight,
+      };
+    },
+    [rowHeight, wrapLayout]
+  );
+
+  const startIndex = wrapLayout
+    ? getLargeJsonVisibleIndexAtOffset(wrapLayout, scrollTop)
+    : Math.floor(scrollTop / rowHeight);
+  const endIndex = wrapLayout
+    ? getLargeJsonVisibleIndexAtOffset(wrapLayout, scrollTop + viewportHeight)
+    : Math.ceil((scrollTop + viewportHeight) / rowHeight);
+  const startVisibleIndex = Math.max(0, startIndex - overscan);
+  const endVisibleIndex = Math.min(Math.max(0, visibleLineCount - 1), endIndex + overscan);
 
   return {
     endVisibleIndex,
     getActualLineNumber,
+    getRowStyle,
+    getRowTop,
     getVisibleIndexForActualLine,
     startVisibleIndex,
   };

@@ -35,6 +35,36 @@ export async function runRightNodeScenario(cdp) {
     'right click locate highlight'
   );
 
+  await evaluate(
+    cdp,
+    `document.querySelector('.toolbar-section-label')
+      ?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`
+  );
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.right-editor-pane .rightNodeSelectionHighlight')`),
+    'right selection highlight dismissed outside the formatted pane'
+  );
+  await evaluate(
+    cdp,
+    `(() => {
+      const line = Array.from(document.querySelectorAll('.right-editor-pane .large-json-line-text'))
+        .find((element) => element.getAttribute('title')?.includes('traceId'));
+      if (!line) return false;
+      const rect = line.getBoundingClientRect();
+      line.dispatchEvent(new MouseEvent('mouseup', {
+        bubbles: true,
+        button: 0,
+        clientX: rect.left + 32,
+        clientY: rect.top + Math.min(10, rect.height / 2)
+      }));
+      return true;
+    })()`
+  );
+  await waitFor(
+    () => evaluate(cdp, `Boolean(document.querySelector('.right-editor-pane .rightNodeSelectionHighlight'))`),
+    'right selection highlight restored on node click'
+  );
+
   await openTraceIdContextMenu(cdp);
   await evaluate(
     cdp,

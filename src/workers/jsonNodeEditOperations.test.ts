@@ -8,16 +8,14 @@ import type { NodeEditStructureCacheEntry, NodeEditViewerCacheEntry } from './js
 function createHarness() {
   const structureCache = new Map<string, NodeEditStructureCacheEntry>();
   const viewerCache = new Map<string, NodeEditViewerCacheEntry>();
-  const directValueTreeCache = new Map();
   const latestFormatRequestByTab = new Map<string, number>();
   const nodeEditCache = new Map();
   const scheduleDeferredStructureWarmup = vi.fn();
+  const getStructureWarmupDelayForByteLength = vi.fn(() => 25);
   const operations = createJsonNodeEditOperations({
     clearDeferredStructureWarmup: vi.fn(),
-    clearDirectValueWarmup: vi.fn(),
-    directValueTreeCache,
     getLocateCandidateOffsets,
-    getStructureWarmupDelayForTexts: vi.fn(() => 25),
+    getStructureWarmupDelayForByteLength,
     latestFormatRequestByTab,
     nodeEditCache,
     scheduleDeferredStructureWarmup,
@@ -26,7 +24,7 @@ function createHarness() {
   });
 
   return {
-    directValueTreeCache,
+    getStructureWarmupDelayForByteLength,
     latestFormatRequestByTab,
     nodeEditCache,
     operations,
@@ -64,9 +62,45 @@ describe('jsonNodeEditOperations', () => {
     });
   });
 
+  it('reads and caches direct-locate node ranges without allocating syntax trees', () => {
+    const { nodeEditCache, operations, structureCache } = createHarness();
+    const rawText = '{"items":[{"name":"old"},{"name":"target"}]}';
+    const formattedText =
+      '{\n  "items": [\n    {\n      "name": "old"\n    },\n    {\n      "name": "target"\n    }\n  ]\n}';
+    structureCache.set('tab-a', {
+      directLocate: true,
+      directLocateMode: 'token-search',
+      requestId: 4,
+      rawText,
+      formattedText,
+    });
+
+    const payload = JSON.parse(
+      operations.readJsonNodeForEdit('tab-a', formattedText, formattedText.indexOf('"target"'))
+    ) as {
+      path: Array<string | number>;
+      value: string;
+    };
+
+    expect(payload).toEqual({ path: ['items', 1, 'name'], value: '"target"' });
+    expect(nodeEditCache.get('tab-a')).toMatchObject({
+      path: ['items', 1, 'name'],
+      rawStartOffset: rawText.indexOf('"target"'),
+      formattedStartOffset: formattedText.indexOf('"target"'),
+    });
+    expect(structureCache.get('tab-a')).not.toHaveProperty('rawTree');
+    expect(structureCache.get('tab-a')).not.toHaveProperty('formattedTree');
+  });
+
   it('saves a node and refreshes raw, formatted, viewer, and structure caches', () => {
-    const { latestFormatRequestByTab, operations, scheduleDeferredStructureWarmup, structureCache, viewerCache } =
-      createHarness();
+    const {
+      getStructureWarmupDelayForByteLength,
+      latestFormatRequestByTab,
+      operations,
+      scheduleDeferredStructureWarmup,
+      structureCache,
+      viewerCache,
+    } = createHarness();
     const rawText = '{"name":"old","count":1}';
     const formattedText = '{\n  "name": "old",\n  "count": 1\n}';
     latestFormatRequestByTab.set('tab-a', 9);
@@ -83,6 +117,8 @@ describe('jsonNodeEditOperations', () => {
 
     expect(result.rawText).toBe('{"name":"new","count":1}');
     expect(result.formattedText).toBe('{\n  "name": "new",\n  "count": 1\n}');
+    expect(result.rawMetrics).toMatchObject({ lineCount: 1, textByteLength: 24 });
+    expect(result.formattedMetrics).toMatchObject({ lineCount: 4, textByteLength: 33 });
     expect(result.viewerData).toBeNull();
     expect(result.structureWarming).toBe(true);
     expect(viewerCache.has('tab-a')).toBe(false);
@@ -94,6 +130,7 @@ describe('jsonNodeEditOperations', () => {
       formattedTree: undefined,
     });
     expect(scheduleDeferredStructureWarmup).toHaveBeenCalledWith('tab-a', 9, 25);
+    expect(getStructureWarmupDelayForByteLength).toHaveBeenCalledWith(33, 150);
   });
 
   it('deletes nodes and renames object keys through preserve-format helpers', () => {

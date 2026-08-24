@@ -1,5 +1,5 @@
-import { MutableRefObject, useEffect, useRef, useState } from 'react';
-import { PerformanceSnapshot, PerformanceSnapshotStatus, PerformanceTrigger } from '../types/jsonTool';
+import { type MutableRefObject, useEffect, useRef, useState } from 'react';
+import type { PerformanceSnapshot, PerformanceSnapshotStatus, PerformanceTrigger } from '../types/jsonTool';
 import { getDiagnosticsLogLevel } from '../utils/diagnosticsLogLevel';
 
 export type PerformanceSession = {

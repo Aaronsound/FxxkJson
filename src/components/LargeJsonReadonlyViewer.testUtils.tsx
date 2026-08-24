@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { render } from '@testing-library/react';
 import { vi } from 'vitest';
 import LargeJsonReadonlyViewer from './LargeJsonReadonlyViewer';
@@ -28,10 +28,10 @@ export function renderViewer(overrides: Partial<React.ComponentProps<typeof Larg
     data,
     isDarkMode: false,
     wrapLongLines: false,
-    collapsedLines: [],
+    foldState: { mode: 'explicit', lines: [] },
     searchTerm: '',
     activeMatchIndex: 0,
-    onCollapsedLinesChange: vi.fn(),
+    onFoldStateChange: vi.fn(),
     onMatchCountChange: vi.fn(),
     onLocateOffset: vi.fn(),
     onCopyPath: vi.fn(),

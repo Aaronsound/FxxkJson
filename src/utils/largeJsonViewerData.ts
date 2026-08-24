@@ -1,27 +1,100 @@
-import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD } from '../types/jsonTool';
 import type {
   JsonSearchOptions,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeJsonViewerRegion,
+  LargeJsonViewerRegions,
 } from '../types/jsonTool';
-import { findTextSearchBatch, findTextSearchMatches } from './searchText';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD } from '../types/jsonTool';
 import type { TextSearchBatch } from './searchText';
+import { findTextSearchBatch, findTextSearchMatches } from './searchText';
+
+const INITIAL_LINE_INDEX_CAPACITY = 4096;
+const INITIAL_REGION_INDEX_CAPACITY = 1024;
+
+function growUint32Buffer(buffer: Uint32Array, minimumCapacity: number) {
+  let capacity = Math.max(1, buffer.length);
+  while (capacity < minimumCapacity) {
+    capacity = Math.max(minimumCapacity, capacity * 2);
+  }
+
+  const next = new Uint32Array(capacity);
+  next.set(buffer);
+  return next;
+}
+
+function growInt32Buffer(buffer: Int32Array, minimumCapacity: number) {
+  let capacity = Math.max(1, buffer.length);
+  while (capacity < minimumCapacity) {
+    capacity = Math.max(minimumCapacity, capacity * 2);
+  }
+
+  const next = new Int32Array(capacity);
+  next.set(buffer);
+  return next;
+}
+
+function growUint8Buffer(buffer: Uint8Array, minimumCapacity: number) {
+  let capacity = Math.max(1, buffer.length);
+  while (capacity < minimumCapacity) {
+    capacity = Math.max(minimumCapacity, capacity * 2);
+  }
+
+  const next = new Uint8Array(capacity);
+  next.set(buffer);
+  return next;
+}
+
+function packViewerRegions(
+  startLines: Uint32Array,
+  endLines: Uint32Array,
+  parentIndexes: Int32Array,
+  kinds: Uint8Array,
+  regionCount: number
+): LargeJsonViewerRegions {
+  const uint32Bytes = regionCount * Uint32Array.BYTES_PER_ELEMENT;
+  const buffer = new ArrayBuffer(regionCount * 13);
+  const compactStartLines = new Uint32Array(buffer, 0, regionCount);
+  const compactEndLines = new Uint32Array(buffer, uint32Bytes, regionCount);
+  const compactParentIndexes = new Int32Array(buffer, uint32Bytes * 2, regionCount);
+  const compactKinds = new Uint8Array(buffer, uint32Bytes * 3, regionCount);
+  compactStartLines.set(startLines.subarray(0, regionCount));
+  compactEndLines.set(endLines.subarray(0, regionCount));
+  compactParentIndexes.set(parentIndexes.subarray(0, regionCount));
+  compactKinds.set(kinds.subarray(0, regionCount));
+  return {
+    startLines: compactStartLines,
+    endLines: compactEndLines,
+    parentIndexes: compactParentIndexes,
+    kinds: compactKinds,
+  };
+}
 
 export function buildLargeViewerData(
   text: string,
-  lineThreshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD
+  lineThreshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
+  lineCapacityHint?: number
 ): LargeJsonViewerData | null {
-  const lineStarts = [0];
-  const regions: LargeJsonViewerRegion[] = [];
-  const stackClose: Array<'}' | ']'> = [];
-  const stackRegionIndex: number[] = [];
+  const initialLineCapacity =
+    typeof lineCapacityHint === 'number' && Number.isSafeInteger(lineCapacityHint) && lineCapacityHint > 0
+      ? lineCapacityHint
+      : INITIAL_LINE_INDEX_CAPACITY;
+  let lineStarts = new Uint32Array(initialLineCapacity);
+  lineStarts[0] = 0;
+  let lineCount = 1;
+  let regionStartLines = new Uint32Array(INITIAL_REGION_INDEX_CAPACITY);
+  let regionEndLines = new Uint32Array(INITIAL_REGION_INDEX_CAPACITY);
+  let regionParentIndexes = new Int32Array(INITIAL_REGION_INDEX_CAPACITY);
+  let regionKinds = new Uint8Array(INITIAL_REGION_INDEX_CAPACITY);
+  let stackRegionIndexes = new Int32Array(INITIAL_REGION_INDEX_CAPACITY);
+  let regionCount = 0;
+  let stackDepth = 0;
   let line = 1;
   let inString = false;
   let escaping = false;
 
   for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
+    const charCode = text.charCodeAt(index);
 
     if (inString) {
       if (escaping) {
@@ -29,70 +102,134 @@ export function buildLargeViewerData(
         continue;
       }
 
-      if (char === '\\') {
+      if (charCode === 92) {
         escaping = true;
         continue;
       }
 
-      if (char === '"') {
+      if (charCode === 34) {
         inString = false;
       }
       continue;
     }
 
-    if (char === '"') {
+    if (charCode === 34) {
       inString = true;
       continue;
     }
 
-    if (char === '\n') {
+    if (charCode === 10) {
       line += 1;
-      lineStarts.push(index + 1);
+      if (lineCount === lineStarts.length) {
+        lineStarts = growUint32Buffer(lineStarts, lineCount + 1);
+      }
+      lineStarts[lineCount] = index + 1;
+      lineCount += 1;
       continue;
     }
 
-    if (char === '{') {
-      stackClose.push('}');
-      stackRegionIndex.push(regions.length);
-      regions.push({
-        startLine: line,
-        endLine: line,
-        kind: 'object',
-      });
+    if (charCode === 123 || charCode === 91) {
+      if (regionCount === regionStartLines.length) {
+        const minimumCapacity = regionCount + 1;
+        regionStartLines = growUint32Buffer(regionStartLines, minimumCapacity);
+        regionEndLines = growUint32Buffer(regionEndLines, minimumCapacity);
+        regionParentIndexes = growInt32Buffer(regionParentIndexes, minimumCapacity);
+        regionKinds = growUint8Buffer(regionKinds, minimumCapacity);
+      }
+      if (stackDepth === stackRegionIndexes.length) {
+        stackRegionIndexes = growInt32Buffer(stackRegionIndexes, stackDepth + 1);
+      }
+
+      regionStartLines[regionCount] = line;
+      regionEndLines[regionCount] = line;
+      regionParentIndexes[regionCount] = stackDepth > 0 ? stackRegionIndexes[stackDepth - 1] : -1;
+      regionKinds[regionCount] = charCode === 91 ? 1 : 0;
+      stackRegionIndexes[stackDepth] = regionCount;
+      stackDepth += 1;
+      regionCount += 1;
       continue;
     }
 
-    if (char === '[') {
-      stackClose.push(']');
-      stackRegionIndex.push(regions.length);
-      regions.push({
-        startLine: line,
-        endLine: line,
-        kind: 'array',
-      });
-      continue;
-    }
-
-    if (char === '}' || char === ']') {
-      const expectedClose = stackClose.pop();
-      const regionIndex = stackRegionIndex.pop();
-      if (expectedClose !== char || typeof regionIndex !== 'number' || !regions[regionIndex]) {
+    if (charCode === 125 || charCode === 93) {
+      if (stackDepth === 0) {
         continue;
       }
 
-      regions[regionIndex].endLine = line;
+      stackDepth -= 1;
+      const regionIndex = stackRegionIndexes[stackDepth];
+      const expectedKind = charCode === 93 ? 1 : 0;
+      if (regionKinds[regionIndex] !== expectedKind) {
+        regionCount = Math.min(regionCount, regionIndex);
+        continue;
+      }
+
+      if (regionStartLines[regionIndex] < line) {
+        regionEndLines[regionIndex] = line;
+      } else {
+        regionCount = Math.min(regionCount, regionIndex);
+      }
     }
   }
 
-  if (lineStarts.length <= lineThreshold) {
+  if (lineCount <= lineThreshold) {
+    return null;
+  }
+
+  const regions = packViewerRegions(regionStartLines, regionEndLines, regionParentIndexes, regionKinds, regionCount);
+
+  return {
+    lineStarts: lineStarts.length === lineCount ? lineStarts : lineStarts.slice(0, lineCount),
+    regions,
+    lineCount,
+  };
+}
+
+export function getLargeJsonViewerRegion(regions: LargeJsonViewerRegions, index: number): LargeJsonViewerRegion | null {
+  if (index < 0 || index >= regions.startLines.length) {
     return null;
   }
 
   return {
-    lineStarts: Uint32Array.from(lineStarts),
-    regions: regions.filter((region) => region.startLine < region.endLine),
-    lineCount: lineStarts.length,
+    startLine: regions.startLines[index],
+    endLine: regions.endLines[index],
+    kind: regions.kinds[index] === 1 ? 'array' : 'object',
   };
+}
+
+export function findFirstRegionIndexAtStartLine(regions: LargeJsonViewerRegions, lineNumber: number) {
+  let low = 0;
+  let high = regions.startLines.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (regions.startLines[middle] < lineNumber) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low < regions.startLines.length && regions.startLines[low] === lineNumber ? low : -1;
+}
+
+export function findLastRegionIndexStartingAtOrBefore(regions: LargeJsonViewerRegions, lineNumber: number) {
+  let low = 0;
+  let high = regions.startLines.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (regions.startLines[middle] <= lineNumber) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  return low - 1;
+}
+
+export function getLargeJsonViewerRegionAtStartLine(regions: LargeJsonViewerRegions, lineNumber: number) {
+  return getLargeJsonViewerRegion(regions, findFirstRegionIndexAtStartLine(regions, lineNumber));
 }
 
 export function binarySearchLineStarts(lineStarts: Uint32Array, offset: number) {

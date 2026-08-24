@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type {
+  LargeJsonFoldState,
   LargeJsonSearchMatch,
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -10,6 +11,7 @@ import type {
   StructureStatus,
   TabDocumentMeta,
 } from '../types/jsonTool';
+import { EMPTY_LARGE_JSON_FOLD_STATE } from '../types/jsonTool';
 import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
 interface UseJsonToolStateSettersArgs {
@@ -29,7 +31,7 @@ interface UseJsonToolStateSettersArgs {
   setLargeFileLocateEnabledState: (tabId: string, enabled: boolean) => void;
   setLargeRawViewerDataByTab: Dispatch<SetStateAction<Record<string, LargeRawViewerData | null>>>;
   setLargeRawViewerMatches: (matches: LargeJsonSearchMatch[]) => void;
-  setLargeViewerCollapsedLinesByTab: Dispatch<SetStateAction<Record<string, number[]>>>;
+  setLargeViewerFoldStateByTab: Dispatch<SetStateAction<Record<string, LargeJsonFoldState>>>;
   setLargeViewerDataByTab: Dispatch<SetStateAction<Record<string, LargeJsonViewerData | null>>>;
   setLargeViewerMatchCount: (count: number) => void;
   setLargeViewerMatches: (matches: LargeJsonSearchMatch[]) => void;
@@ -43,8 +45,14 @@ interface UseJsonToolStateSettersArgs {
   setStructureStatusState: (tabId: string, status: StructureStatus) => void;
   setTabLargeModeState: (tabId: string, enabled: boolean) => void;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
-  syncLeftModel: (tabId: string, content: string, forceValue?: boolean) => void;
-  syncRightModel: (tabId: string, content: string, forceValue?: boolean) => void;
+  syncLeftModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
+  syncRightModel: (
+    tabId: string,
+    content: string,
+    forceValue?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
 }
 
 export function useJsonToolStateSetters({
@@ -64,7 +72,7 @@ export function useJsonToolStateSetters({
   setLargeFileLocateEnabledState,
   setLargeRawViewerDataByTab,
   setLargeRawViewerMatches,
-  setLargeViewerCollapsedLinesByTab,
+  setLargeViewerFoldStateByTab,
   setLargeViewerDataByTab,
   setLargeViewerMatchCount,
   setLargeViewerMatches,
@@ -121,7 +129,7 @@ export function useJsonToolStateSetters({
 
   const setLargeViewerData = (tabId: string, data: LargeJsonViewerData | null) => {
     setLargeViewerDataByTab((current) => ({ ...current, [tabId]: data }));
-    setLargeViewerCollapsedLinesByTab((current) => ({ ...current, [tabId]: [] }));
+    setLargeViewerFoldStateByTab((current) => ({ ...current, [tabId]: EMPTY_LARGE_JSON_FOLD_STATE }));
     setRightNodeSelection(tabId, null);
     if (tabId === activeTabIdRef.current) {
       setLargeViewerMatches([]);
@@ -159,8 +167,8 @@ export function useJsonToolStateSetters({
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
 
-  const updateTabContent = (tabId: string, content: string, syncModel = false) => {
-    const byteLength = getUtf8ByteLength(content);
+  const updateTabContent = (tabId: string, content: string, syncModel = false, knownByteLength?: number) => {
+    const byteLength = knownByteLength ?? getUtf8ByteLength(content);
     rawTextByTabRef.current[tabId] = content;
     setLargeRawViewerData(tabId, null);
     setRightNodeSelection(tabId, null);
@@ -171,12 +179,18 @@ export function useJsonToolStateSetters({
     }));
 
     if (syncModel) {
-      syncLeftModel(tabId, content, true);
+      syncLeftModel(tabId, content, true, byteLength);
     }
   };
 
-  const updateFormattedContent = (tabId: string, content: string, syncModel = false) => {
-    const byteLength = getUtf8ByteLength(content);
+  const updateFormattedContent = (
+    tabId: string,
+    content: string,
+    syncModel = false,
+    knownByteLength?: number,
+    knownRawByteLength?: number
+  ) => {
+    const byteLength = knownByteLength ?? getUtf8ByteLength(content);
     formattedTextByTabRef.current[tabId] = content;
     setRightNodeSelection(tabId, null);
     setDocumentMeta(tabId, (current) => ({
@@ -186,7 +200,7 @@ export function useJsonToolStateSetters({
     }));
 
     if (syncModel) {
-      syncRightModel(tabId, content, true);
+      syncRightModel(tabId, content, true, byteLength, knownRawByteLength);
     }
   };
 

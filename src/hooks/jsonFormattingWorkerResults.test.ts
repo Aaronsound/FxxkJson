@@ -1,6 +1,7 @@
 import type { MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { LargeJsonViewerData, LargeRawViewerData, StructureStatus, WorkerMessage } from '../types/jsonTool';
+import { EMPTY_LARGE_JSON_VIEWER_REGIONS } from '../types/jsonTool';
 import { handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
@@ -60,8 +61,8 @@ function createContext(overrides: Partial<Parameters<typeof handleJsonFormatting
     readWorkerText: (message: WorkerMessage) => message.data ?? null,
     readWorkerTextField: (
       message: WorkerMessage,
-      stringKey: 'data' | 'repairedText',
-      bufferKey: 'dataBuffer' | 'repairedTextBuffer'
+      stringKey: 'data' | 'repairedText' | 'formattedText',
+      bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
     ) => {
       if (typeof message[stringKey] === 'string') {
         return message[stringKey] ?? null;
@@ -95,7 +96,7 @@ describe('handleJsonFormattingWorkerResult', () => {
 
   it('applies a successful format result and clears the watchdog', () => {
     const rawViewerData = {
-      ends: new Uint32Array([2]),
+      lengths: new Uint16Array([2]),
       rowCount: 1,
       starts: new Uint32Array([0]),
     } satisfies LargeRawViewerData;
@@ -119,9 +120,38 @@ describe('handleJsonFormattingWorkerResult', () => {
     expect(callbacks.logEvent).toHaveBeenCalledWith('format-success', expect.objectContaining({ requestId: 1 }));
     expect(callbacks.setTabFormatting).toHaveBeenCalledWith('tab-a', false);
     expect(callbacks.setLargeRawViewerData).toHaveBeenCalledWith('tab-a', rawViewerData);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 16, 11);
     expect(callbacks.syncPerformanceSnapshot).toHaveBeenCalledWith('tab-a', true);
     expect(session).toMatchObject({ error: null, formattedBytes: 16, status: 'ready' });
+  });
+
+  it('uses worker document metrics instead of rescanning result strings on the UI thread', () => {
+    const { callbacks, context } = createContext();
+
+    handleJsonFormattingWorkerResult(
+      {
+        data: '{\n  "ok": true\n}',
+        rawMetrics: {
+          exceedsDedicatedViewerLineThreshold: false,
+          lineCount: 1,
+          textByteLength: 11,
+        },
+        formattedMetrics: {
+          exceedsDedicatedViewerLineThreshold: true,
+          lineCount: 50_001,
+          textByteLength: 4_000,
+        },
+        requestId: 1,
+        success: true,
+        tabId: 'tab-a',
+        type: 'format-result',
+      },
+      context
+    );
+
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 4_000, 11);
+    expect(callbacks.setTabLargeMode).toHaveBeenCalledWith('tab-a', true);
+    expect(callbacks.setLargeViewerStatus).toHaveBeenCalledWith('tab-a', 'building');
   });
 
   it('surfaces a failed format result', () => {
@@ -133,7 +163,7 @@ describe('handleJsonFormattingWorkerResult', () => {
     );
 
     expect(callbacks.setLargeViewerData).toHaveBeenCalledWith('tab-a', null);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0, 0);
     expect(callbacks.setStructureStatus).toHaveBeenCalledWith('tab-a', 'disabled');
     expect(callbacks.setTabError).toHaveBeenCalledWith('tab-a', 'bad json');
     expect(callbacks.mutatePerformanceSession).toHaveBeenCalledWith('tab-a', expect.any(Function), true);
@@ -142,7 +172,7 @@ describe('handleJsonFormattingWorkerResult', () => {
 
   it('applies a successful repair result and resets search state', () => {
     const rawViewerData = {
-      ends: new Uint32Array([7]),
+      lengths: new Uint16Array([7]),
       rowCount: 1,
       starts: new Uint32Array([0]),
     } satisfies LargeRawViewerData;
@@ -165,8 +195,8 @@ describe('handleJsonFormattingWorkerResult', () => {
 
     expect(context.clearFormatWatchdog).toHaveBeenCalledWith('tab-a');
     expect(callbacks.logEvent).toHaveBeenCalledWith('repair-success', expect.objectContaining({ requestId: 1 }));
-    expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '{"ok":true}', true);
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true);
+    expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '{"ok":true}', true, 11);
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 16, 11);
     expect(callbacks.setLargeRawViewerData).toHaveBeenCalledWith('tab-a', rawViewerData);
     expect(callbacks.resetSearchState).toHaveBeenCalled();
     expect(session).toMatchObject({ error: null, formattedBytes: 16, rawBytes: 11, status: 'ready' });
@@ -190,7 +220,11 @@ describe('handleJsonFormattingWorkerResult', () => {
   });
 
   it('updates dedicated viewer state from viewer-ready messages', () => {
-    const viewerData = { lineCount: 1, lineStarts: new Uint32Array([0]), regions: [] } satisfies LargeJsonViewerData;
+    const viewerData = {
+      lineCount: 1,
+      lineStarts: new Uint32Array([0]),
+      regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
+    } satisfies LargeJsonViewerData;
     const { callbacks, context, session } = createContext({
       performanceSessionsRef: ref({ 'tab-a': createSession({ structureEnabled: true }) }),
     });

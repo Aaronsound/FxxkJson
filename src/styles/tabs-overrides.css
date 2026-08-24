@@ -1,6 +1,6 @@
 /* Tab bar overrides */
 .tab-bar {
-  --tab-width: 180px;
+  --tab-width: 128px;
   align-items: flex-end;
   gap: 8px;
   flex: 0 0 auto;
@@ -13,7 +13,8 @@
   align-items: center;
   gap: 6px;
   width: var(--tab-width);
-  min-width: 0;
+  min-width: var(--tab-width);
+  max-width: var(--tab-width);
   margin-right: 0;
   padding: 7px 10px 8px;
   border: 1px solid transparent;

@@ -1,5 +1,5 @@
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { WorkerRequestMessage } from '../types/jsonTool';
 import { disposeModel, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
 import type { JsonWorkerCallbacks } from './useJsonWorkerCallbacksRef';
@@ -52,8 +52,8 @@ export function createJsonWorkerTabArtifactActions({
     callbacksRef.current.setLargeRawViewerData(tabId, null);
     clearTabStructure(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
-    callbacksRef.current.updateTabContent(tabId, '', true);
-    callbacksRef.current.updateFormattedContent(tabId, '', true);
+    callbacksRef.current.updateTabContent(tabId, '', true, 0);
+    callbacksRef.current.updateFormattedContent(tabId, '', true, 0, 0);
     callbacksRef.current.setTabError(tabId, null);
   };
 

@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import type React from 'react';
+import { useEffect } from 'react';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface AboutDialogProps {

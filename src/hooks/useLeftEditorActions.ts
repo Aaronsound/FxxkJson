@@ -9,24 +9,30 @@ import {
   registerPasteContentTracking,
   registerSelectAllDeleteCommands,
 } from '../utils/jsonEditorMountActions';
-import { isLargeDocument } from '../utils/jsonDocumentMetrics';
+import {
+  type JsonDocumentMetrics,
+  measureJsonDocument,
+  shouldUseLargeModeForMetrics,
+} from '../utils/jsonDocumentMetrics';
 import { selectionCoversModel } from '../utils/jsonToolModels';
 
 interface UseLeftEditorActionsArgs {
   activeTab: Tab | null | undefined;
   activeTabIdRef: MutableRefObject<string>;
-  beginPastePerformanceSession: (tabId: string, nextContent: string) => void;
+  beginPastePerformanceSession: (tabId: string, nextContent: string) => JsonDocumentMetrics;
   getTabContent: (tabId: string) => string;
   largeRawViewerMatches: LargeJsonSearchMatch[];
   leftEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   normalizedLeftMatchIndex: number;
   openLeftFind: () => void;
-  queueFormat: (tabId: string, text: string, immediate?: boolean) => void;
+  rawTextByteLength: number;
+  queueFormat: (tabId: string, text: string, immediate?: boolean, metrics?: JsonDocumentMetrics) => void;
   registerLeftEditorContextMenu: (editor: monaco.editor.IStandaloneCodeEditor) => void;
   renameTab: (tabId: string, title: string) => void;
   requestReplaceText: (args: {
     tabId: string;
     text: string;
+    textByteLength?: number;
     searchTerm: string;
     searchOptions: JsonSearchOptions;
     replacement: string;
@@ -37,8 +43,8 @@ interface UseLeftEditorActionsArgs {
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   shouldUseDedicatedLeftViewer: boolean;
   suppressLeftChangeRef: MutableRefObject<Record<string, boolean>>;
-  syncLeftModel: (tabId: string, content: string, forceValue?: boolean) => void;
-  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  syncLeftModel: (tabId: string, content: string, forceValue?: boolean, byteLength?: number) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
 export function useLeftEditorActions({
@@ -50,6 +56,7 @@ export function useLeftEditorActions({
   leftEditorRef,
   normalizedLeftMatchIndex,
   openLeftFind,
+  rawTextByteLength,
   queueFormat,
   registerLeftEditorContextMenu,
   renameTab,
@@ -104,8 +111,8 @@ export function useLeftEditorActions({
       onPasteContent(nextContent) {
         const currentTabId = activeTabIdRef.current;
         if (currentTabId) {
-          beginPastePerformanceSession(currentTabId, nextContent);
-          queueFormat(currentTabId, nextContent);
+          const metrics = beginPastePerformanceSession(currentTabId, nextContent);
+          queueFormat(currentTabId, nextContent, false, metrics);
         }
       },
     });
@@ -123,10 +130,11 @@ export function useLeftEditorActions({
     }
 
     const nextContent = value ?? '';
-    const largeMode = isLargeDocument(nextContent);
-    updateTabContent(activeTab.id, nextContent);
+    const metrics = measureJsonDocument(nextContent);
+    const largeMode = shouldUseLargeModeForMetrics(metrics);
+    updateTabContent(activeTab.id, nextContent, false, metrics.textByteLength);
     setTabLargeMode(activeTab.id, largeMode);
-    queueFormat(activeTab.id, nextContent);
+    queueFormat(activeTab.id, nextContent, false, metrics);
   };
 
   const replaceAllLeftText = async (searchTerm: string, searchOptions: JsonSearchOptions, replacement: string) => {
@@ -141,6 +149,7 @@ export function useLeftEditorActions({
       const updated = await requestReplaceText({
         tabId: currentTabId,
         text: currentText,
+        textByteLength: rawTextByteLength,
         searchTerm,
         searchOptions,
         replacement,
@@ -150,10 +159,11 @@ export function useLeftEditorActions({
         return;
       }
 
-      updateTabContent(currentTabId, updated, true);
-      setTabLargeMode(currentTabId, isLargeDocument(updated));
+      const metrics = measureJsonDocument(updated);
+      updateTabContent(currentTabId, updated, true, metrics.textByteLength);
+      setTabLargeMode(currentTabId, shouldUseLargeModeForMetrics(metrics));
       resetSearchState();
-      queueFormat(currentTabId, updated);
+      queueFormat(currentTabId, updated, false, metrics);
     } catch (error) {
       setTabError(currentTabId, error instanceof Error ? `全部替换失败：${error.message}` : '全部替换失败');
     }
@@ -191,9 +201,10 @@ export function useLeftEditorActions({
       }
 
       const updated = `${currentText.slice(0, currentMatch.start)}${replacementText}${currentText.slice(currentMatch.end)}`;
-      updateTabContent(currentTabId, updated, true);
-      setTabLargeMode(currentTabId, isLargeDocument(updated));
-      queueFormat(currentTabId, updated);
+      const metrics = measureJsonDocument(updated);
+      updateTabContent(currentTabId, updated, true, metrics.textByteLength);
+      setTabLargeMode(currentTabId, shouldUseLargeModeForMetrics(metrics));
+      queueFormat(currentTabId, updated, false, metrics);
     } catch (error) {
       setTabError(currentTabId, error instanceof Error ? `替换失败：${error.message}` : '替换失败');
     }

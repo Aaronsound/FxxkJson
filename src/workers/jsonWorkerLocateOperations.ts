@@ -1,6 +1,6 @@
 import { findNodeAtLocation, getLocation } from 'jsonc-parser';
 import type { Node } from 'jsonc-parser';
-import type { LargeJsonViewerData, WorkerMessage } from '../types/jsonTool';
+import type { LargeJsonLineIndex, WorkerMessage } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import { getLocateCandidateOffsets } from './jsonWorkerLocateCandidates';
@@ -24,20 +24,19 @@ interface LocateStructureCacheEntry {
   rawTree?: Node;
   requestId?: number;
   tokenLocateCache?: LightweightLocateCache;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 interface LocateViewerCacheEntry {
   formattedText?: string;
   requestId?: number;
-  viewerData?: LargeJsonViewerData;
+  viewerData?: LargeJsonLineIndex;
 }
 
 type LocateRequestMessage = { offset: number; requestId: number; tabId: string };
 
 interface JsonWorkerLocateOperationsArgs {
   ensureStructureTrees: (tabId: string, cached: LocateStructureCacheEntry | undefined) => boolean;
-  getDirectValueTree: (tabId: string, requestId: number, text: string) => Node | undefined;
   latestLocateRequestByTab: Map<string, number>;
   structureCache: Map<string, LocateStructureCacheEntry>;
   viewerCache: Map<string, LocateViewerCacheEntry>;
@@ -65,7 +64,6 @@ export function getResolvedNodes(cached: LocateStructureCacheEntry | null | unde
 
 export function createJsonWorkerLocateOperations({
   ensureStructureTrees,
-  getDirectValueTree,
   latestLocateRequestByTab,
   structureCache,
   viewerCache,
@@ -90,7 +88,7 @@ export function createJsonWorkerLocateOperations({
     }
 
     const cached = structureCache.get(tabId);
-    const pathCalibratedRange = getPathCalibratedDirectLocateRange(tabId, cached, offset, getDirectValueTree);
+    const pathCalibratedRange = getPathCalibratedDirectLocateRange(cached, offset);
 
     if (!isLatestLocateRequest(tabId, requestId)) {
       return;
@@ -201,7 +199,7 @@ export function createJsonWorkerLocateOperations({
       }
 
       const cachedViewer = viewerCache.get(tabId);
-      const result = getRightOnlyLocateResult(tabId, requestId, offset, cachedViewer, getDirectValueTree);
+      const result = getRightOnlyLocateResult(tabId, requestId, offset, cachedViewer);
       const path = Array.isArray(result.path) ? result.path : undefined;
       postLocateResultIfLatest({
         ...result,

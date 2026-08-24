@@ -8,8 +8,10 @@ import type {
   StructureStatus,
   WorkerMessage,
   WorkerRequestMessage,
+  WorkerRequestTextPayload,
   WorkerSearchRequest,
 } from '../types/jsonTool';
+import { unpackSearchMatches } from '../utils/searchMatchPayload';
 
 type WorkerRef = MutableRefObject<Worker | null>;
 type WorkerRecordRef<T> = MutableRefObject<Record<string, T>>;
@@ -38,9 +40,17 @@ export interface JsonWorkerInteractiveCallbacks {
 
 interface JsonWorkerInteractiveFlowArgs {
   activeTabIdRef: MutableRefObject<string>;
-  formattedTextByTabRef: WorkerRecordRef<string>;
+  createWorkerTextPayload: (
+    text: string,
+    byteLength?: number
+  ) => { message: WorkerRequestTextPayload; transfer: Transferable[] };
   getCallbacks: () => JsonWorkerInteractiveCallbacks;
   postWorkerRequest: (message: WorkerRequestMessage, transfer?: Transferable[]) => void;
+  readWorkerTextField: (
+    message: WorkerMessage,
+    stringKey: 'data' | 'formattedText',
+    bufferKey: 'dataBuffer' | 'formattedTextBuffer'
+  ) => string | null;
   structureStatusRef: WorkerRecordRef<StructureStatus>;
   workerRef: WorkerRef;
   workerStructureEnabledRef: WorkerRecordRef<boolean>;
@@ -52,9 +62,10 @@ function getSearchRequestKey(target: SearchTarget, tabId: string) {
 
 export function createJsonWorkerInteractiveFlow({
   activeTabIdRef,
-  formattedTextByTabRef,
+  createWorkerTextPayload,
   getCallbacks,
   postWorkerRequest,
+  readWorkerTextField,
   structureStatusRef,
   workerRef,
   workerStructureEnabledRef,
@@ -115,6 +126,7 @@ export function createJsonWorkerInteractiveFlow({
     append = false,
     target = 'right',
     text,
+    textByteLength,
     rawRevision,
   }: WorkerSearchRequest) => {
     const callbacks = getCallbacks();
@@ -129,24 +141,30 @@ export function createJsonWorkerInteractiveFlow({
 
     const requestId = ++searchRequestCounter;
     latestSearchRequests[getSearchRequestKey(target, tabId)] = requestId;
-    postWorkerRequest({
-      type: 'search',
-      requestId,
-      tabId,
-      target,
-      query,
-      searchOptions,
-      startOffset,
-      append,
-      text,
-      rawRevision,
-    });
+    const textPayload = typeof text === 'string' ? createWorkerTextPayload(text, textByteLength) : null;
+    postWorkerRequest(
+      {
+        type: 'search',
+        requestId,
+        tabId,
+        target,
+        query,
+        searchOptions,
+        startOffset,
+        append,
+        ...textPayload?.message,
+        textByteLength,
+        rawRevision,
+      },
+      textPayload?.transfer
+    );
   };
 
   const requestEditJsonResult = ({
     tabId,
     operation,
     text,
+    textByteLength,
     originalText,
     path,
     offset,
@@ -162,19 +180,27 @@ export function createJsonWorkerInteractiveFlow({
 
       const requestId = ++locateRequestCounter;
       pendingEditJsonRequests[requestId] = { reject, resolve };
-      postWorkerRequest({
-        type: 'edit-json',
-        requestId,
-        tabId,
-        operation,
-        text,
-        originalText,
-        path,
-        offset,
-        searchTerm,
-        searchOptions,
-        replacement,
-      });
+      const textPayload =
+        operation === 'replace-text'
+          ? createWorkerTextPayload(text, textByteLength)
+          : { message: { text }, transfer: [] };
+      postWorkerRequest(
+        {
+          type: 'edit-json',
+          requestId,
+          tabId,
+          operation,
+          ...textPayload.message,
+          textByteLength,
+          originalText,
+          path,
+          offset,
+          searchTerm,
+          searchOptions,
+          replacement,
+        },
+        textPayload.transfer
+      );
     });
 
   const requestEditJson = (request: EditJsonWorkerRequest) =>
@@ -195,9 +221,10 @@ export function createJsonWorkerInteractiveFlow({
 
     const callbacks = getCallbacks();
     const applyResults = target === 'left' ? callbacks.setLeftSearchResults : callbacks.setLargeViewerSearchResults;
+    const matches = unpackSearchMatches(message.matchData) ?? message.matches ?? [];
     applyResults(
       message.tabId,
-      message.matches ?? [],
+      matches,
       Boolean(message.hasMore),
       message.nextStartOffset ?? 0,
       Boolean(message.append)
@@ -282,8 +309,14 @@ export function createJsonWorkerInteractiveFlow({
       const pending = pendingEditJsonRequests[message.requestId];
       if (pending) {
         delete pendingEditJsonRequests[message.requestId];
-        if (message.success && typeof message.data === 'string') {
-          pending.resolve(message);
+        const data = readWorkerTextField(message, 'data', 'dataBuffer');
+        const formattedText = readWorkerTextField(message, 'formattedText', 'formattedTextBuffer');
+        if (message.success && typeof data === 'string') {
+          pending.resolve({
+            ...message,
+            data,
+            formattedText: formattedText ?? message.formattedText,
+          });
         } else {
           pending.reject(new Error(message.error ?? 'JSON 处理失败'));
         }

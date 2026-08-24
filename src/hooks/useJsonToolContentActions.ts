@@ -1,9 +1,12 @@
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { EditJsonWorkerOperation, EditJsonWorkerRequest, StructureStatus, Tab } from '../types/jsonTool';
 import { DEFAULT_TAB_TITLE } from '../types/jsonTool';
-import { getContentAfterSelectionReplace } from '../utils/jsonEditorMountActions';
-import { getUtf8ByteLength, isLargeDocument } from '../utils/jsonDocumentMetrics';
+import {
+  type JsonDocumentMetrics,
+  measureJsonDocument,
+  shouldUseLargeModeForMetrics,
+} from '../utils/jsonDocumentMetrics';
 
 type EscapeOperation = Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>;
 
@@ -24,8 +27,8 @@ interface UseJsonToolContentActionsArgs {
   leftSearchWorkerRevisionRef: MutableRefObject<Record<string, number>>;
   largeModeRef: MutableRefObject<Record<string, boolean>>;
   openDocumentEditSession: (value: string) => void;
-  queueFormat: (tabId: string, text: string, immediate?: boolean) => void;
-  queueRepair: (tabId: string, text: string) => void;
+  queueFormat: (tabId: string, text: string, immediate?: boolean, metrics?: JsonDocumentMetrics) => void;
+  queueRepair: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   renameTab: (tabId: string, title: string) => void;
   requestWorkerEditJson: (request: EditJsonWorkerRequest) => Promise<string>;
   resetSearchState: () => void;
@@ -35,7 +38,7 @@ interface UseJsonToolContentActionsArgs {
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
   setTabError: (tabId: string, error: string | null) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
-  updateTabContent: (tabId: string, content: string, syncModel?: boolean) => void;
+  updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
 }
 
 export function useJsonToolContentActions({
@@ -67,23 +70,17 @@ export function useJsonToolContentActions({
     }
 
     const currentText = getTabContent(activeTab.id);
+    const metrics = measureJsonDocument(currentText);
     if (!currentText.trim()) {
       clearPerformanceState(activeTab.id);
-      queueFormat(activeTab.id, currentText, true);
+      queueFormat(activeTab.id, currentText, true, metrics);
       return;
     }
 
-    const largeMode = Boolean(largeModeRef.current[activeTab.id]) || isLargeDocument(currentText);
-    beginPerformanceSession(
-      activeTab.id,
-      'manual-format',
-      activeTab.title,
-      null,
-      getUtf8ByteLength(currentText),
-      largeMode
-    );
+    const largeMode = Boolean(largeModeRef.current[activeTab.id]) || shouldUseLargeModeForMetrics(metrics);
+    beginPerformanceSession(activeTab.id, 'manual-format', activeTab.title, null, metrics.textByteLength, largeMode);
     setTabLargeMode(activeTab.id, largeMode);
-    queueFormat(activeTab.id, currentText, true);
+    queueFormat(activeTab.id, currentText, true, metrics);
   };
 
   const handleRepairJson = () => {
@@ -97,10 +94,11 @@ export function useJsonToolContentActions({
       return;
     }
 
-    const largeMode = isLargeDocument(currentText);
-    beginPerformanceSession(activeTab.id, 'repair', activeTab.title, null, getUtf8ByteLength(currentText), largeMode);
+    const metrics = measureJsonDocument(currentText);
+    const largeMode = shouldUseLargeModeForMetrics(metrics);
+    beginPerformanceSession(activeTab.id, 'repair', activeTab.title, null, metrics.textByteLength, largeMode);
     setTabLargeMode(activeTab.id, largeMode);
-    queueRepair(activeTab.id, currentText);
+    queueRepair(activeTab.id, currentText, metrics);
   };
 
   const handleJsonEscapeTransform = async (operation: EscapeOperation, label: string) => {
@@ -124,13 +122,6 @@ export function useJsonToolContentActions({
     setEditJsonBusyLabel(`正在${label}...`);
     try {
       const transformed = await requestWorkerEditJson({ tabId: currentTabId, operation, text: sourceText });
-      const nextContent =
-        hasSelection && model && selection
-          ? getContentAfterSelectionReplace(model, selection, transformed)
-          : transformed;
-      const largeMode = isLargeDocument(nextContent);
-
-      setTabLargeMode(currentTabId, largeMode);
       setTabError(currentTabId, null);
 
       if (hasSelection && editor && selection) {
@@ -145,9 +136,11 @@ export function useJsonToolContentActions({
         return;
       }
 
-      updateTabContent(currentTabId, transformed, true);
+      const metrics = measureJsonDocument(transformed);
+      setTabLargeMode(currentTabId, shouldUseLargeModeForMetrics(metrics));
+      updateTabContent(currentTabId, transformed, true, metrics.textByteLength);
       resetSearchState();
-      queueFormat(currentTabId, transformed, true);
+      queueFormat(currentTabId, transformed, true, metrics);
     } catch (error) {
       setTabError(currentTabId, error instanceof Error ? `${label}失败：${error.message}` : `${label}失败`);
     } finally {
@@ -186,7 +179,8 @@ export function useJsonToolContentActions({
     }
 
     const currentText = getTabContent(activeTab.id);
-    const largeMode = isLargeDocument(currentText);
+    const metrics = measureJsonDocument(currentText);
+    const largeMode = shouldUseLargeModeForMetrics(metrics);
     setLargeFileLocateEnabled(activeTab.id, enabled);
 
     if (!currentText.trim()) {
@@ -199,7 +193,7 @@ export function useJsonToolContentActions({
       return;
     }
 
-    queueFormat(activeTab.id, currentText, true);
+    queueFormat(activeTab.id, currentText, true, metrics);
   };
 
   const handleClear = () => {

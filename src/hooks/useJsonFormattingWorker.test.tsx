@@ -258,7 +258,12 @@ describe('useJsonFormattingWorker', () => {
             viewerData: {
               lineCount: 3,
               lineStarts: new Uint32Array([0, 2, formattedJson.length - 2]),
-              regions: [],
+              regions: {
+                startLines: new Uint32Array(0),
+                endLines: new Uint32Array(0),
+                parentIndexes: new Int32Array(0),
+                kinds: new Uint8Array(0),
+              },
             },
             viewerIndexMs: 12,
           },
@@ -266,8 +271,14 @@ describe('useJsonFormattingWorker', () => {
       );
     });
 
-    expect(args.updateTabContent).toHaveBeenCalledWith('tab-a', largeJson, true);
-    expect(args.updateFormattedContent).toHaveBeenLastCalledWith('tab-a', formattedJson, true);
+    expect(args.updateTabContent).toHaveBeenCalledWith('tab-a', largeJson, true, largeJson.length);
+    expect(args.updateFormattedContent).toHaveBeenLastCalledWith(
+      'tab-a',
+      formattedJson,
+      true,
+      formattedJson.length,
+      largeJson.length
+    );
     expect(args.setLargeViewerStatus).toHaveBeenLastCalledWith('tab-a', 'ready');
     expect(args.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'idle');
     expect(args.setTabError).toHaveBeenLastCalledWith('tab-a', null);

@@ -33,6 +33,9 @@ describe('createJsonWorkerClient', () => {
 
     expect(client.readText({ data: 'plain text' } as WorkerMessage)).toBe('plain text');
     expect(client.readText({ dataBuffer: encoded } as WorkerMessage)).toBe('buffer text');
+    expect(
+      client.readTextField({ formattedTextBuffer: encoded } as WorkerMessage, 'formattedText', 'formattedTextBuffer')
+    ).toBe('buffer text');
     expect(client.readText({} as WorkerMessage)).toBeNull();
   });
 });

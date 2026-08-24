@@ -1,4 +1,4 @@
-import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 
 interface UseLargeJsonViewportParams {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -9,6 +9,7 @@ export function useLargeJsonViewport({ containerRef }: UseLargeJsonViewportParam
   const scrollAnimationFrameRef = useRef<number | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(0);
 
   const queueScrollTopUpdate = useCallback((nextScrollTop: number) => {
     pendingScrollTopRef.current = nextScrollTop;
@@ -39,18 +40,25 @@ export function useLargeJsonViewport({ containerRef }: UseLargeJsonViewportParam
     }
 
     const syncSize = () => {
-      setViewportHeight(container.clientHeight);
+      const rect = container.getBoundingClientRect();
+      setViewportHeight(container.clientHeight || Math.round(rect.height));
+      setViewportWidth(container.clientWidth || Math.round(rect.width));
     };
 
     syncSize();
+    const layoutFrame = window.requestAnimationFrame(syncSize);
     const observer = new ResizeObserver(syncSize);
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(layoutFrame);
+      observer.disconnect();
+    };
   }, [containerRef]);
 
   return {
     queueScrollTopUpdate,
     scrollTop,
     viewportHeight,
+    viewportWidth,
   };
 }
