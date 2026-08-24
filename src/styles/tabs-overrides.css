@@ -1,5 +1,6 @@
 /* Tab bar overrides */
 .tab-bar {
+  --tab-width: 128px;
   align-items: flex-end;
   gap: 8px;
   flex: 0 0 auto;
@@ -7,16 +8,18 @@
 }
 
 .tab-bar .tab {
-  box-sizing: border-box;
-  flex: 0 0 128px;
+  flex: 0 0 var(--tab-width);
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: 128px;
-  min-width: 128px;
-  max-width: 128px;
+  width: var(--tab-width);
+  min-width: var(--tab-width);
+  max-width: var(--tab-width);
   margin-right: 0;
   padding: 7px 10px 8px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  box-sizing: border-box;
   overflow: hidden;
 }
 
@@ -64,8 +67,9 @@
 }
 
 .tab-rename-input {
-  width: 140px;
-  max-width: 180px;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   font: inherit;
   color: inherit;
   background: transparent;
