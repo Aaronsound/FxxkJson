@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createTranslator } from '../utils/i18n';
 import JsonToolToolbar from './JsonToolToolbar';
 
 function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolToolbar>> = {}) {
@@ -85,6 +86,18 @@ describe('JsonToolToolbar', () => {
     expect(props.onOpenAbout).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps About as the final item in the more menu', () => {
+    renderToolbar();
+
+    fireEvent.click(screen.getByText('更多'));
+    const menu = document.querySelector('.toolbar-more-popover');
+    expect(menu).not.toBeNull();
+    if (!menu) throw new Error('更多菜单未渲染');
+
+    const items = within(menu as HTMLElement).getAllByRole('button');
+    expect(items.at(-1)).toHaveTextContent('关于');
+  });
+
   it('keeps low-frequency appearance actions in the more menu', () => {
     const { props } = renderToolbar();
 
@@ -92,10 +105,26 @@ describe('JsonToolToolbar', () => {
     fireEvent.click(screen.getByText('更多'));
     fireEvent.click(screen.getByRole('button', { name: '深色模式' }));
     fireEvent.click(screen.getByText('更多'));
-    fireEvent.click(screen.getByRole('button', { name: '语言' }));
+    fireEvent.click(screen.getByText('语言'));
+    fireEvent.click(screen.getByRole('radio', { name: 'English' }));
 
     expect(props.onToggleDarkMode).toHaveBeenCalledTimes(1);
     expect(props.onLanguageChange).toHaveBeenCalledWith('en');
+  });
+
+  it('shows explicit language choices and marks the current language', () => {
+    const { rerender, props } = renderToolbar();
+
+    fireEvent.click(screen.getByText('更多'));
+    fireEvent.click(screen.getByText('语言'));
+    expect(screen.getByRole('radio', { name: '简体中文' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'English' })).not.toBeChecked();
+
+    rerender(<JsonToolToolbar {...props} language="en" t={createTranslator('en')} />);
+    fireEvent.click(screen.getByText('More'));
+    fireEvent.click(screen.getByText('Language'));
+    expect(screen.getByRole('radio', { name: 'Chinese (简体中文)' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'English' })).toBeChecked();
   });
 
   it('opens JSON compare from the toolbar', () => {

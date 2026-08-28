@@ -4,6 +4,7 @@ import type { JsonSearchOptions, LargeRawViewerData } from '../types/jsonTool';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 import JsonMonacoEditor from './JsonMonacoEditor';
 import LargeRawReadonlyViewer, { type LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
+import PaneProcessingStatus from './PaneProcessingStatus';
 import PaneFindWidget from './PaneFindWidget';
 
 interface LeftJsonEditorPaneProps {
@@ -78,7 +79,8 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
   <div
     className="editor-pane left-editor-pane"
     style={{
-      flex: 1,
+      flex: '0 1 auto',
+      minWidth: 0,
       display: 'flex',
       flexDirection: 'column',
       borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd',
@@ -112,6 +114,7 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           onPrev={onPrevLeft}
           onNext={onNextLeft}
           onClose={onCloseLeftFind}
+          t={t}
         />
       )}
       <div className="editor-pane-content">
@@ -143,7 +146,7 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           <span>{t('pane.rawEmptyHint')}</span>
         </div>
       )}
-      {processingStageText && <div className="editor-loading-overlay">{processingStageText}</div>}
+      {processingStageText && <PaneProcessingStatus message={processingStageText} />}
     </div>
   </div>
 );

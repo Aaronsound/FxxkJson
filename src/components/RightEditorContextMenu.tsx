@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { FoldTargetMode } from '../utils/foldableLine';
 import { createTranslator, type I18nKey } from '../utils/i18n';
+import ContextMenuSurface from './ContextMenuSurface';
 
 export type RightEditorContextMenuState = {
   x: number;
@@ -59,53 +60,118 @@ const RightEditorContextMenu: React.FC<RightEditorContextMenuProps> = ({
   };
 
   return (
-    <div
-      className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
+    <ContextMenuSurface
+      ariaLabel={t('context.menuLabel')}
+      isDarkMode={isDarkMode}
+      onClose={onClose}
       style={{
         left: contextMenu.x,
         top: contextMenu.y,
       }}
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
     >
-      {contextMenu.hasCurrentFoldTarget && (
-        <button type="button" className="large-json-context-menu-item" onClick={() => runToggleFold('current')}>
-          {t('context.toggleCurrentFold')}
-        </button>
+      {(contextMenu.hasCurrentFoldTarget || contextMenu.hasParentFoldTarget) && (
+        <div className="large-json-context-menu-group" role="group" aria-label={t('context.foldGroup')}>
+          {contextMenu.hasCurrentFoldTarget && (
+            <button
+              type="button"
+              role="menuitem"
+              className="large-json-context-menu-item"
+              onClick={() => runToggleFold('current')}
+            >
+              {t('context.toggleCurrentFold')}
+            </button>
+          )}
+          {contextMenu.hasParentFoldTarget && (
+            <button
+              type="button"
+              role="menuitem"
+              className="large-json-context-menu-item"
+              onClick={() => runToggleFold('parent')}
+            >
+              {t('context.toggleParentFold')}
+            </button>
+          )}
+        </div>
       )}
-      {contextMenu.hasParentFoldTarget && (
-        <button type="button" className="large-json-context-menu-item" onClick={() => runToggleFold('parent')}>
-          {t('context.toggleParentFold')}
+      <div className="large-json-context-menu-group" role="group" aria-label={t('context.copyGroup')}>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyPath)}
+        >
+          {t('context.copyPath')}
         </button>
-      )}
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyPath)}>
-        {t('context.copyPath')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyKey)}>
-        {t('context.copyKey')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyValue)}>
-        {t('context.copyValue')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyCompactJson)}>
-        {t('context.copyCompact')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyFormattedJson)}>
-        {t('context.copyFormatted')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onEditValue)}>
-        {t('context.editValue')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onRenameKey)}>
-        {t('context.renameKey')}
-      </button>
-      <button type="button" className="large-json-context-menu-item danger" onClick={() => runAction(onDeleteValue)}>
-        {t('context.deleteNode')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onUnescapeValue)}>
-        {t('context.unescapeValue')}
-      </button>
-    </div>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyKey)}
+        >
+          {t('context.copyKey')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyValue)}
+        >
+          {t('context.copyValue')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyCompactJson)}
+        >
+          {t('context.copyCompact')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyFormattedJson)}
+        >
+          {t('context.copyFormatted')}
+        </button>
+      </div>
+      <div className="large-json-context-menu-group" role="group" aria-label={t('context.editGroup')}>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onEditValue)}
+        >
+          {t('context.editValue')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onRenameKey)}
+        >
+          {t('context.renameKey')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onUnescapeValue)}
+        >
+          {t('context.unescapeValue')}
+        </button>
+      </div>
+      <div className="large-json-context-menu-group" role="group" aria-label={t('context.dangerGroup')}>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item danger"
+          onClick={() => runAction(onDeleteValue)}
+        >
+          {t('context.deleteNode')}
+        </button>
+      </div>
+    </ContextMenuSurface>
   );
 };
 

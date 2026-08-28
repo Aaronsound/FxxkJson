@@ -105,6 +105,9 @@ describe('JsonEditorPanes', () => {
     expect(screen.getByPlaceholderText('替换为')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('搜索原始 JSON').closest('.editor-pane-body')).toHaveClass('pane-find-open');
     expect(screen.getByPlaceholderText('搜索格式化结果').closest('.editor-pane-body')).toHaveClass('pane-find-open');
+    expect(document.querySelector('.left-editor-pane')).toHaveStyle({ flex: '0 1 auto', minWidth: 0 });
+    expect(document.querySelector('.right-editor-pane')).toHaveStyle({ flex: '0 1 auto', minWidth: 0 });
+    expect(document.querySelector('.gutter.gutter-horizontal')).toHaveStyle({ width: '10px' });
 
     rerender(
       <JsonEditorPanes

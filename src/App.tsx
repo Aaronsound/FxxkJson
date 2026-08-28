@@ -600,6 +600,10 @@ const App: React.FC = () => {
   });
 
   useContextualFindShortcut({
+    closeLeftFind,
+    closeRightFind,
+    isLeftFindOpen,
+    isRightFindOpen,
     openLeftFind,
     openRightFind,
   });

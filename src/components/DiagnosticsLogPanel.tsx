@@ -6,6 +6,7 @@ import {
   type DiagnosticsContextItem,
   type DiagnosticsLogFilter,
 } from '../utils/diagnosticsLogView';
+import OperationNotice from './OperationNotice';
 
 const LOG_PREVIEW_BYTES = 160 * 1024;
 
@@ -173,7 +174,7 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
           <button type="button" onClick={onClose}>
             关闭
           </button>
-          {copyNotice && <span className="modal-copy-hint">{copyNotice}</span>}
+          {copyNotice && <OperationNotice>{copyNotice}</OperationNotice>}
         </div>
       </div>
     </div>

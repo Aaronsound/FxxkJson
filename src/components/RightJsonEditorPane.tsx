@@ -11,6 +11,7 @@ import JsonMonacoEditor from './JsonMonacoEditor';
 import LargeJsonReadonlyViewer, { type LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
 import type { PaneFindPathItem } from './PaneFindWidget';
 import PaneFindWidget from './PaneFindWidget';
+import PaneProcessingStatus from './PaneProcessingStatus';
 
 interface RightJsonEditorPaneProps {
   activeLargeViewerFoldState: LargeJsonFoldState;
@@ -122,7 +123,8 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
   <div
     className="editor-pane right-editor-pane"
     style={{
-      flex: 1,
+      flex: '0 1 auto',
+      minWidth: 0,
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
@@ -164,6 +166,7 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
           onPrev={onPrevRight}
           onNext={onNextRight}
           onClose={onCloseRightFind}
+          t={t}
         />
       )}
       <div className="editor-pane-content">
@@ -219,11 +222,9 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
         </div>
       )}
       {isBuildingDedicatedRightViewer && !isImportingActiveTab && (
-        <div className="editor-loading-overlay">{processingStageText ?? t('pane.buildingLargeViewer')}</div>
+        <PaneProcessingStatus message={processingStageText ?? t('pane.buildingLargeViewer')} />
       )}
-      {processingStageText && !isBuildingDedicatedRightViewer && (
-        <div className="editor-loading-overlay">{processingStageText}</div>
-      )}
+      {processingStageText && !isBuildingDedicatedRightViewer && <PaneProcessingStatus message={processingStageText} />}
     </div>
   </div>
 );

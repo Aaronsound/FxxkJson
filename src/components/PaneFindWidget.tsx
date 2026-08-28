@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { JsonSearchOptions } from '../types/jsonTool';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 import './PaneFindWidget.css';
 
 export interface PaneFindResultItem {
@@ -45,7 +46,10 @@ interface PaneFindWidgetProps {
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
+
+const defaultT = createTranslator('zh');
 
 const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   value,
@@ -77,13 +81,18 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
   onPrev,
   onNext,
   onClose,
+  t = defaultT,
 }) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const shouldShowResultList = resultItems.length > 0;
   const shouldShowQuickItems = recentSearches.length > 0 || favoritePaths.length > 0 || canPinPath;
   const countText = matchCount > 0 ? `${currentIndex}/${matchCount}${hasMore ? '+' : ''}` : '0/0';
-  const searchProgressText = value ? (hasMore ? `已加载 ${matchCount} 条` : `共 ${matchCount} 条`) : '';
+  const searchProgressText = value
+    ? hasMore
+      ? t('search.loadedCount', { count: matchCount })
+      : t('search.totalCount', { count: matchCount })
+    : '';
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -164,7 +173,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >
-        <div className="pane-find-row">
+        <div className="pane-find-row pane-find-search-row">
           <input
             ref={inputRef}
             className="pane-find-input"
@@ -192,23 +201,27 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
           />
           <span
             className="pane-find-count"
-            title={hasMore ? `已加载 ${matchCount} 条结果，可继续加载更多` : `共 ${matchCount} 条结果`}
+            title={
+              hasMore
+                ? t('search.loadedCountHint', { count: matchCount })
+                : t('search.totalCountHint', { count: matchCount })
+            }
           >
             {countText}
           </span>
           {searchProgressText && <span className="pane-find-progress">{searchProgressText}</span>}
           {hasMore && (
             <button type="button" className="pane-find-button" onClick={onLoadMore} disabled={isLoadingMore}>
-              {isLoadingMore ? '加载中...' : '加载更多'}
+              {isLoadingMore ? t('search.loadingMore') : t('search.loadMore')}
             </button>
           )}
-          <div className="pane-find-options" aria-label="搜索匹配规则">
+          <div className="pane-find-options" aria-label={t('search.rulesLabel')}>
             <button
               type="button"
               className={`pane-find-button pane-find-option ${searchOptions.matchCase ? 'active' : ''}`}
               onClick={() => updateOption('matchCase')}
               aria-pressed={searchOptions.matchCase}
-              title="区分大小写"
+              title={t('search.matchCase')}
             >
               Aa
             </button>
@@ -217,7 +230,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
               className={`pane-find-button pane-find-option ${searchOptions.wholeWord ? 'active' : ''}`}
               onClick={() => updateOption('wholeWord')}
               aria-pressed={searchOptions.wholeWord}
-              title="全词匹配"
+              title={t('search.wholeWord')}
             >
               Ab
             </button>
@@ -226,32 +239,34 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
               className={`pane-find-button pane-find-option ${searchOptions.useRegex ? 'active' : ''}`}
               onClick={() => updateOption('useRegex')}
               aria-pressed={searchOptions.useRegex}
-              title="使用正则表达式"
+              title={t('search.useRegex')}
             >
               .*
             </button>
           </div>
-          <button type="button" className="pane-find-button" onClick={onPrev} disabled={matchCount === 0}>
-            上一个
-          </button>
-          <button type="button" className="pane-find-button" onClick={onNext} disabled={matchCount === 0}>
-            下一个
-          </button>
-          <button
-            type="button"
-            className="pane-find-button pane-find-close"
-            onClick={onClose}
-            aria-label="关闭搜索"
-            title="关闭搜索"
-          >
-            x
-          </button>
+          <div className="pane-find-navigation">
+            <button type="button" className="pane-find-button" onClick={onPrev} disabled={matchCount === 0}>
+              {t('search.previous')}
+            </button>
+            <button type="button" className="pane-find-button" onClick={onNext} disabled={matchCount === 0}>
+              {t('search.next')}
+            </button>
+            <button
+              type="button"
+              className="pane-find-button pane-find-close"
+              onClick={onClose}
+              aria-label={t('search.close')}
+              title={t('search.close')}
+            >
+              ×
+            </button>
+          </div>
         </div>
         {canReplace && (
           <div className="pane-find-row pane-find-replace-row">
             <input
               className="pane-find-input"
-              placeholder="替换为"
+              placeholder={t('search.replacePlaceholder')}
               value={replaceValue}
               onChange={(event) => onReplaceValueChange?.(event.target.value)}
               onKeyDown={(event) => {
@@ -274,10 +289,10 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
             <span className="pane-find-count" aria-hidden="true" />
             <div className="pane-find-replace-actions">
               <button type="button" className="pane-find-button" onClick={onReplace} disabled={matchCount === 0}>
-                替换
+                {t('search.replace')}
               </button>
               <button type="button" className="pane-find-button" onClick={onReplaceAll} disabled={matchCount === 0}>
-                全部替换
+                {t('search.replaceAll')}
               </button>
             </div>
           </div>
@@ -286,11 +301,11 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
           <div className="pane-find-quick-panel">
             {(canPinPath || favoritePaths.length > 0) && (
               <div className="pane-find-quick-group">
-                <div className="pane-find-quick-label">收藏路径</div>
+                <div className="pane-find-quick-label">{t('search.favoritePaths')}</div>
                 <div className="pane-find-chips">
                   {canPinPath && (
                     <button type="button" className="pane-find-chip primary" onClick={onPinPath}>
-                      固定当前路径
+                      {t('search.pinCurrentPath')}
                     </button>
                   )}
                   {favoritePaths.map((item) => (
@@ -309,7 +324,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
             )}
             {recentSearches.length > 0 && (
               <div className="pane-find-quick-group">
-                <div className="pane-find-quick-label">最近搜索</div>
+                <div className="pane-find-quick-label">{t('search.recent')}</div>
                 <div className="pane-find-chips">
                   {recentSearches.map((term) => (
                     <button
@@ -328,7 +343,7 @@ const PaneFindWidget: React.FC<PaneFindWidgetProps> = ({
           </div>
         )}
         {shouldShowResultList && (
-          <div className="pane-find-results" aria-label={resultListLabel ?? '搜索结果'}>
+          <div className="pane-find-results" aria-label={resultListLabel ?? t('search.results')}>
             {resultListLabel && <div className="pane-find-results-label">{resultListLabel}</div>}
             <div className="pane-find-results-list">
               {resultItems.map((item) => (

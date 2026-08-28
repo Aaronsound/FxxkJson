@@ -27,8 +27,8 @@ describe('RightEditorContextMenu', () => {
   it('toggles current and parent folding with the active tab and offset', () => {
     render(<RightEditorContextMenu {...baseProps} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '展开/收缩当前节点' }));
-    fireEvent.click(screen.getByRole('button', { name: '展开/收缩所属层级' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '展开/收缩当前节点' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '展开/收缩所属层级' }));
 
     expect(baseProps.onClose).toHaveBeenCalledTimes(2);
     expect(baseProps.onToggleFold).toHaveBeenNthCalledWith(1, 'tab-1', 56, 'current');
@@ -43,8 +43,8 @@ describe('RightEditorContextMenu', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: '展开/收缩当前节点' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '展开/收缩所属层级' }));
+    expect(screen.queryByRole('menuitem', { name: '展开/收缩当前节点' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: '展开/收缩所属层级' }));
 
     expect(baseProps.onToggleFold).toHaveBeenCalledWith('tab-1', 56, 'parent');
   });
@@ -52,7 +52,7 @@ describe('RightEditorContextMenu', () => {
   it('runs node actions with the active tab and offset', async () => {
     render(<RightEditorContextMenu {...baseProps} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '重命名 key' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '重命名 key' }));
 
     expect(baseProps.onRenameKey).toHaveBeenCalledWith('tab-1', 56);
     await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));

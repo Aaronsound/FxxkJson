@@ -1,5 +1,6 @@
 import type React from 'react';
 import { createTranslator, type I18nKey } from '../utils/i18n';
+import ContextMenuSurface from './ContextMenuSurface';
 
 export type LeftEditorContextMenuState = {
   x: number;
@@ -36,38 +37,54 @@ const LeftEditorContextMenu: React.FC<LeftEditorContextMenuProps> = ({
   };
 
   return (
-    <div
-      className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
+    <ContextMenuSurface
+      ariaLabel={t('editorContext.menuLabel')}
+      isDarkMode={isDarkMode}
+      onClose={onClose}
       style={{
         left: contextMenu.x,
         top: contextMenu.y,
       }}
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
     >
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onPaste)}>
-        {t('editorContext.paste')}
-      </button>
-      <button
-        type="button"
-        className="large-json-context-menu-item"
-        disabled={!contextMenu.hasSelection}
-        onClick={() => runAction(onCopy)}
-      >
-        {t('editorContext.copy')}
-      </button>
-      <button
-        type="button"
-        className="large-json-context-menu-item"
-        disabled={!contextMenu.hasSelection}
-        onClick={() => runAction(onCut)}
-      >
-        {t('editorContext.cut')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onSelectAll)}>
-        {t('editorContext.selectAll')}
-      </button>
-    </div>
+      <div className="large-json-context-menu-group" role="group" aria-label={t('editorContext.clipboardGroup')}>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onPaste)}
+        >
+          {t('editorContext.paste')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          disabled={!contextMenu.hasSelection}
+          onClick={() => runAction(onCopy)}
+        >
+          {t('editorContext.copy')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          disabled={!contextMenu.hasSelection}
+          onClick={() => runAction(onCut)}
+        >
+          {t('editorContext.cut')}
+        </button>
+      </div>
+      <div className="large-json-context-menu-group" role="group" aria-label={t('editorContext.selectionGroup')}>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onSelectAll)}
+        >
+          {t('editorContext.selectAll')}
+        </button>
+      </div>
+    </ContextMenuSurface>
   );
 };
 

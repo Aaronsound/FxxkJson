@@ -243,37 +243,51 @@
 .large-json-context-menu {
   position: fixed;
   z-index: 80;
-  min-width: 140px;
-  padding: 6px;
-  border: 1px solid rgba(120, 96, 58, 0.18);
-  border-radius: 10px;
-  background: rgba(250, 247, 239, 0.98);
-  box-shadow: 0 14px 28px rgba(31, 23, 12, 0.18);
+  min-width: 180px;
+  max-width: min(280px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: color-mix(in srgb, var(--app-surface-raised) 97%, transparent);
+  color: var(--app-text);
+  box-shadow: 0 14px 30px rgba(32, 45, 36, 0.2);
   backdrop-filter: blur(10px);
 }
 
 .large-json-context-menu.dark {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(34, 30, 24, 0.98);
+  border-color: var(--app-border);
+  background: color-mix(in srgb, var(--app-surface-raised) 97%, transparent);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
+}
+
+.large-json-context-menu-group + .large-json-context-menu-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--app-border);
 }
 
 .large-json-context-menu-item {
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
+  min-height: 30px;
+  padding: 6px 9px;
+  border-radius: var(--app-radius-sm);
   background: transparent;
   color: inherit;
   text-align: left;
   box-shadow: none;
 }
 
-.large-json-context-menu-item:hover:not(:disabled) {
-  background: rgba(73, 104, 150, 0.14);
+.large-json-context-menu-item:hover:not(:disabled),
+.large-json-context-menu-item:focus-visible {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+  outline: none;
 }
 
 .large-json-context-menu-item.danger {
-  color: #b42318;
+  color: var(--app-danger);
 }
 
 .large-json-context-menu-item.danger:hover:not(:disabled) {
@@ -281,9 +295,9 @@
 }
 
 .large-json-context-menu.dark .large-json-context-menu-item:hover:not(:disabled) {
-  background: rgba(141, 180, 255, 0.16);
+  background: var(--app-accent-soft);
 }
 
 .large-json-context-menu.dark .large-json-context-menu-item.danger {
-  color: #ffb4a8;
+  color: #ffaaa1;
 }

@@ -21,7 +21,7 @@ describe('LeftEditorContextMenu', () => {
   it('runs paste and closes the menu', async () => {
     render(<LeftEditorContextMenu {...baseProps} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '粘贴' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '粘贴' }));
 
     expect(baseProps.onPaste).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(baseProps.onClose).toHaveBeenCalledTimes(1));
@@ -30,9 +30,9 @@ describe('LeftEditorContextMenu', () => {
   it('disables copy and cut without a selection', () => {
     render(<LeftEditorContextMenu {...baseProps} contextMenu={{ x: 24, y: 48, hasSelection: false }} />);
 
-    expect(screen.getByRole('button', { name: '复制' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '剪切' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '全选' })).not.toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: '复制' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: '剪切' })).toBeDisabled();
+    expect(screen.getByRole('menuitem', { name: '全选' })).not.toBeDisabled();
   });
 
   it('positions the menu at the provided viewport coordinates', () => {

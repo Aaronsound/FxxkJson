@@ -26,7 +26,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
     className="editor-split"
     sizes={[50, 50]}
     minSize={200}
-    gutterSize={6}
+    gutterSize={10}
     style={{
       display: 'flex',
       flex: 1,

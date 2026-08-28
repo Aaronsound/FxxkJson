@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import PaneFindWidget from './PaneFindWidget';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import { createTranslator } from '../utils/i18n';
 
 function renderWidget(overrides: Partial<React.ComponentProps<typeof PaneFindWidget>> = {}) {
   const props: React.ComponentProps<typeof PaneFindWidget> = {
@@ -86,5 +87,19 @@ describe('PaneFindWidget', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '$.items[0].requestId' }));
     expect(onSelectFavoritePath).toHaveBeenCalledWith('path-1');
+  });
+
+  it('uses the active language for every search control', () => {
+    renderWidget({
+      canReplace: true,
+      hasMore: true,
+      t: createTranslator('en'),
+    });
+
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Replace with')).toBeInTheDocument();
+    expect(screen.queryByText('加载更多')).not.toBeInTheDocument();
   });
 });

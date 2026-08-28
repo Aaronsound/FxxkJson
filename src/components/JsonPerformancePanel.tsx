@@ -11,6 +11,7 @@ import {
   getPerformanceTriggerLabel,
   performanceStageLabels,
 } from '../utils/performanceDiagnostics';
+import OperationNotice from './OperationNotice';
 
 interface JsonPerformancePanelProps {
   snapshot: PerformanceSnapshot | null;
@@ -88,7 +89,11 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
               <span className="performance-panel-subtitle">{snapshot.sourceLabel}</span>
             </div>
             <div className="performance-panel-status">
-              <span>{new Date(snapshot.updatedAt).toLocaleTimeString('zh-CN', { hour12: false })}</span>
+              <span>
+                {new Date(snapshot.updatedAt).toLocaleTimeString('zh-CN', {
+                  hour12: false,
+                })}
+              </span>
               <button
                 type="button"
                 className="performance-copy-button"
@@ -152,10 +157,13 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
           )}
 
           <div className="performance-meta-row">
-            <span>文件大小：{snapshot.fileSizeBytes ? formatPerformanceBytes(snapshot.fileSizeBytes) : '--'}</span>
+            <span>
+              文件大小：
+              {snapshot.fileSizeBytes ? formatPerformanceBytes(snapshot.fileSizeBytes) : '--'}
+            </span>
             <span>大文件模式：{snapshot.largeMode ? '开启' : '关闭'}</span>
             <span>定位索引：{snapshot.structureEnabled ? '启用' : '未启用'}</span>
-            {copyNotice && <span>{copyNotice}</span>}
+            {copyNotice && <OperationNotice>{copyNotice}</OperationNotice>}
           </div>
 
           {snapshot.error && <div className="performance-error">{snapshot.error}</div>}

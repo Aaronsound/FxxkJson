@@ -38,6 +38,8 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
       detail: `${multiTabMemory.expanded.totalWorkingSetMb.toFixed(1)} MB with auxiliary tabs, ${multiTabMemory.afterClose.totalWorkingSetMb.toFixed(1)} MB after close`,
     },
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
+    { step: 'split resize', detail: 'center gutter resizes both editor panes' },
+    { step: 'dual find escape', detail: 'Escape closes the search belonging to the active pane' },
     { step: 'large folding', detail: 'fold-all stays compact while root and nested nodes preserve expand semantics' },
     { step: 'search', detail: 'right pane traceId search returned results' },
     { step: 'locate', detail: 'right node click highlighted left raw JSON' },
@@ -50,6 +52,91 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
     { step: 'context paste', detail: 'left editor context menu paste inserts desktop clipboard text' },
     { step: 'compare invalid', detail: 'JSON compare reports parse errors for invalid input' },
   ]);
+}
+
+async function assertSplitResize(cdp) {
+  const result = await evaluate(
+    cdp,
+    `(() => {
+      const gutter = document.querySelector('.editor-split > .gutter.gutter-horizontal');
+      const left = document.querySelector('.editor-split > .left-editor-pane');
+      const right = document.querySelector('.editor-split > .right-editor-pane');
+      if (!(gutter instanceof HTMLElement) || !(left instanceof HTMLElement) || !(right instanceof HTMLElement)) {
+        return null;
+      }
+
+      const gutterRect = gutter.getBoundingClientRect();
+      const before = left.getBoundingClientRect().width;
+      const startX = gutterRect.left + gutterRect.width / 2;
+      const targetX = startX + 120;
+      gutter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: startX, clientY: gutterRect.top + 40 }));
+      window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, buttons: 1, clientX: targetX, clientY: gutterRect.top + 40 }));
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: targetX, clientY: gutterRect.top + 40 }));
+      const after = left.getBoundingClientRect().width;
+
+      const movedGutterRect = gutter.getBoundingClientRect();
+      const movedX = movedGutterRect.left + movedGutterRect.width / 2;
+      gutter.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: movedX, clientY: movedGutterRect.top + 40 }));
+      window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, buttons: 1, clientX: startX, clientY: movedGutterRect.top + 40 }));
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: startX, clientY: movedGutterRect.top + 40 }));
+
+      return { before, after, gutterWidth: gutterRect.width };
+    })()`
+  );
+
+  if (!result || result.gutterWidth < 9 || Math.abs(result.after - result.before) < 80) {
+    throw new Error(`Center gutter did not resize editor panes: ${JSON.stringify(result)}`);
+  }
+}
+
+async function assertDualPaneFindEscape(cdp) {
+  const dispatchShortcut = (paneSelector, key, altKey = false) =>
+    evaluate(
+      cdp,
+      `(() => {
+        const input = document.querySelector(${JSON.stringify(`${paneSelector} textarea`)});
+        if (!(input instanceof HTMLTextAreaElement)) return false;
+        input.focus();
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, altKey: ${altKey}, bubbles: true }));
+        return true;
+      })()`
+    );
+
+  if (!(await dispatchShortcut('.left-editor-pane', 'f', true))) {
+    throw new Error('Left editor input was unavailable for the dual-search Escape check');
+  }
+  await waitFor(
+    () => evaluate(cdp, `Boolean(document.querySelector('.left-editor-pane .pane-find-widget'))`),
+    'left pane find opens'
+  );
+
+  if (!(await dispatchShortcut('.right-editor-pane', 'f', true))) {
+    throw new Error('Right editor input was unavailable for the dual-search Escape check');
+  }
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Boolean(document.querySelector('.left-editor-pane .pane-find-widget') && document.querySelector('.right-editor-pane .pane-find-widget'))`
+      ),
+    'both pane finds open'
+  );
+
+  await dispatchShortcut('.left-editor-pane', 'Escape');
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `!document.querySelector('.left-editor-pane .pane-find-widget') && Boolean(document.querySelector('.right-editor-pane .pane-find-widget'))`
+      ),
+    'Escape closes the left pane find only'
+  );
+
+  await dispatchShortcut('.right-editor-pane', 'Escape');
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.right-editor-pane .pane-find-widget')`),
+    'Escape closes the right pane find'
+  );
 }
 
 async function assertLargeViewerAutoWrap(cdp) {
@@ -196,6 +283,8 @@ async function run() {
     getStderr = electronApp.getStderr;
 
     cdp = await connectAndPrepareElectronPage(port);
+    await assertSplitResize(cdp);
+    await assertDualPaneFindEscape(cdp);
     await runEditTransformScenario(cdp);
     await importSampleThroughNativeFileFlow(cdp);
     await waitFor(

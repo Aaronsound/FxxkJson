@@ -1,5 +1,6 @@
 import type React from 'react';
 import { createTranslator, type I18nKey } from '../utils/i18n';
+import ContextMenuSurface from './ContextMenuSurface';
 
 export interface LargeJsonContextMenuState {
   x: number;
@@ -54,68 +55,121 @@ const LargeJsonContextMenu: React.FC<LargeJsonContextMenuProps> = ({
   };
 
   return (
-    <div
-      className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
+    <ContextMenuSurface
+      ariaLabel={t('context.menuLabel')}
+      isDarkMode={isDarkMode}
+      onClose={onClose}
       style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => event.stopPropagation()}
     >
-      {contextMenu.foldLine !== null && (
+      {(contextMenu.foldLine !== null || contextMenu.parentFoldLine !== null) && (
+        <div className="large-json-context-menu-group" role="group" aria-label={t('context.foldGroup')}>
+          {contextMenu.foldLine !== null && (
+            <button
+              type="button"
+              role="menuitem"
+              className="large-json-context-menu-item"
+              onClick={() => {
+                if (contextMenu.foldLine !== null) onToggleFold(contextMenu.foldLine);
+                onClose();
+              }}
+            >
+              {isCollapsed ? t('context.expandCurrentFold') : t('context.collapseCurrentFold')}
+            </button>
+          )}
+          {contextMenu.parentFoldLine !== null && (
+            <button
+              type="button"
+              role="menuitem"
+              className="large-json-context-menu-item"
+              onClick={() => {
+                if (contextMenu.parentFoldLine !== null) onToggleFold(contextMenu.parentFoldLine);
+                onClose();
+              }}
+            >
+              {isParentCollapsed ? t('context.expandParentFold') : t('context.collapseParentFold')}
+            </button>
+          )}
+        </div>
+      )}
+      <div className="large-json-context-menu-group" role="group" aria-label={t('context.copyGroup')}>
         <button
           type="button"
+          role="menuitem"
           className="large-json-context-menu-item"
-          onClick={() => {
-            if (contextMenu.foldLine !== null) {
-              onToggleFold(contextMenu.foldLine);
-            }
-            onClose();
-          }}
+          onClick={() => runAction(onCopyPath)}
         >
-          {isCollapsed ? t('context.expandCurrentFold') : t('context.collapseCurrentFold')}
+          {t('context.copyPath')}
         </button>
-      )}
-      {contextMenu.parentFoldLine !== null && (
         <button
           type="button"
+          role="menuitem"
           className="large-json-context-menu-item"
-          onClick={() => {
-            if (contextMenu.parentFoldLine !== null) {
-              onToggleFold(contextMenu.parentFoldLine);
-            }
-            onClose();
-          }}
+          onClick={() => runAction(onCopyKey)}
         >
-          {isParentCollapsed ? t('context.expandParentFold') : t('context.collapseParentFold')}
+          {t('context.copyKey')}
         </button>
-      )}
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyPath)}>
-        {t('context.copyPath')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyKey)}>
-        {t('context.copyKey')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyValue)}>
-        {t('context.copyValue')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyCompactJson)}>
-        {t('context.copyCompact')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onCopyFormattedJson)}>
-        {t('context.copyFormatted')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onEditValue)}>
-        {t('context.editValue')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onRenameKey)}>
-        {t('context.renameKey')}
-      </button>
-      <button type="button" className="large-json-context-menu-item danger" onClick={() => runAction(onDeleteValue)}>
-        {t('context.deleteNode')}
-      </button>
-      <button type="button" className="large-json-context-menu-item" onClick={() => runAction(onUnescapeValue)}>
-        {t('context.unescapeValue')}
-      </button>
-    </div>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyValue)}
+        >
+          {t('context.copyValue')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyCompactJson)}
+        >
+          {t('context.copyCompact')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onCopyFormattedJson)}
+        >
+          {t('context.copyFormatted')}
+        </button>
+      </div>
+      <div className="large-json-context-menu-group" role="group" aria-label={t('context.editGroup')}>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onEditValue)}
+        >
+          {t('context.editValue')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onRenameKey)}
+        >
+          {t('context.renameKey')}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item"
+          onClick={() => runAction(onUnescapeValue)}
+        >
+          {t('context.unescapeValue')}
+        </button>
+      </div>
+      <div className="large-json-context-menu-group" role="group" aria-label={t('context.dangerGroup')}>
+        <button
+          type="button"
+          role="menuitem"
+          className="large-json-context-menu-item danger"
+          onClick={() => runAction(onDeleteValue)}
+        >
+          {t('context.deleteNode')}
+        </button>
+      </div>
+    </ContextMenuSurface>
   );
 };
 

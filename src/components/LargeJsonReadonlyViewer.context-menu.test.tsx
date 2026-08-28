@@ -46,7 +46,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onLocateOffset.mock.calls[1][0]).toBeGreaterThan(alphaLineStart);
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '复制值' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '复制值' }));
 
     await waitFor(() => {
       expect(onCopyValue).toHaveBeenCalledTimes(1);
@@ -54,7 +54,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onCopyValue).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '复制 JSON Path' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '复制 JSON Path' }));
 
     await waitFor(() => {
       expect(onCopyPath).toHaveBeenCalledTimes(1);
@@ -62,7 +62,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onCopyPath).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '复制 key' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '复制 key' }));
 
     await waitFor(() => {
       expect(onCopyKey).toHaveBeenCalledTimes(1);
@@ -70,7 +70,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onCopyKey).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '复制压缩 JSON' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '复制压缩 JSON' }));
 
     await waitFor(() => {
       expect(onCopyCompactJson).toHaveBeenCalledTimes(1);
@@ -78,7 +78,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onCopyCompactJson).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '复制格式化 JSON' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '复制格式化 JSON' }));
 
     await waitFor(() => {
       expect(onCopyFormattedJson).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onCopyFormattedJson).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '编辑当前值' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '编辑当前值' }));
 
     await waitFor(() => {
       expect(onEditValue).toHaveBeenCalledTimes(1);
@@ -94,7 +94,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onEditValue).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '重命名 key' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '重命名 key' }));
 
     await waitFor(() => {
       expect(onRenameKey).toHaveBeenCalledTimes(1);
@@ -102,7 +102,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onRenameKey).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '删除当前节点' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '删除当前节点' }));
 
     await waitFor(() => {
       expect(onDeleteValue).toHaveBeenCalledTimes(1);
@@ -110,7 +110,7 @@ describe('LargeJsonReadonlyViewer context menu', () => {
     expect(onDeleteValue).toHaveBeenLastCalledWith(expect.any(Number));
 
     fireEvent.contextMenu(line);
-    fireEvent.click(await screen.findByRole('button', { name: '反转义当前值' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '反转义当前值' }));
 
     await waitFor(() => {
       expect(onUnescapeValue).toHaveBeenCalledTimes(1);

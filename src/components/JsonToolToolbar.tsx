@@ -230,29 +230,55 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                   type="button"
                   onClick={() => {
                     moreMenuRef.current?.removeAttribute('open');
-                    onOpenAbout();
-                  }}
-                >
-                  {t('toolbar.about')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    moreMenuRef.current?.removeAttribute('open');
                     onToggleDarkMode();
                   }}
                 >
                   {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
                 </button>
+                <details className="toolbar-language-menu">
+                  <summary className="toolbar-language-trigger">{t('toolbar.language')}</summary>
+                  <div className="toolbar-language-options" role="radiogroup" aria-label={t('toolbar.language')}>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={language === 'zh'}
+                      className={language === 'zh' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'}
+                      onClick={() => {
+                        moreMenuRef.current?.removeAttribute('open');
+                        if (language !== 'zh') onLanguageChange?.('zh');
+                      }}
+                    >
+                      <span className="toolbar-language-check" aria-hidden="true">
+                        {language === 'zh' ? '✓' : ''}
+                      </span>
+                      {t('toolbar.languageChinese')}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={language === 'en'}
+                      className={language === 'en' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'}
+                      onClick={() => {
+                        moreMenuRef.current?.removeAttribute('open');
+                        if (language !== 'en') onLanguageChange?.('en');
+                      }}
+                    >
+                      <span className="toolbar-language-check" aria-hidden="true">
+                        {language === 'en' ? '✓' : ''}
+                      </span>
+                      {t('toolbar.languageEnglish')}
+                    </button>
+                  </div>
+                </details>
                 <button
                   type="button"
+                  className="toolbar-more-about"
                   onClick={() => {
                     moreMenuRef.current?.removeAttribute('open');
-                    onLanguageChange?.(language === 'zh' ? 'en' : 'zh');
+                    onOpenAbout();
                   }}
-                  aria-label={t('toolbar.language')}
                 >
-                  {t('toolbar.languageToggle')}
+                  {t('toolbar.about')}
                 </button>
               </div>
             </details>

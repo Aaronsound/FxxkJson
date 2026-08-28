@@ -52,7 +52,8 @@
 }
 
 .toolbar button,
-.toolbar-more-trigger {
+.toolbar-more-trigger,
+.toolbar-language-trigger {
   min-height: 30px;
   box-sizing: border-box;
   padding: 0 10px;
@@ -64,6 +65,7 @@
 
 .toolbar button:focus-visible,
 .toolbar-more-trigger:focus-visible,
+.toolbar-language-trigger:focus-visible,
 .toolbar-checkbox:has(input:focus-visible) {
   outline: 2px solid var(--app-accent);
   outline-offset: 1px;
@@ -185,6 +187,69 @@
   display: none;
 }
 
+.toolbar-language-menu {
+  display: grid;
+}
+
+.toolbar-language-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+  color: var(--btn-text);
+  user-select: none;
+}
+
+.toolbar-language-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.toolbar-language-trigger::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 12px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+}
+
+.toolbar-language-menu[open] .toolbar-language-trigger::after {
+  transform: rotate(45deg);
+}
+
+.toolbar-language-trigger:hover,
+.toolbar-language-menu[open] .toolbar-language-trigger {
+  background: var(--app-surface-muted);
+}
+
+.toolbar-language-options {
+  display: grid;
+  gap: 2px;
+  margin: 2px 3px 3px 10px;
+  padding-left: 6px;
+  border-left: 1px solid var(--app-border);
+}
+
+.toolbar-more-popover .toolbar-language-option {
+  display: flex;
+  align-items: center;
+  padding-left: 7px;
+}
+
+.toolbar-more-popover .toolbar-language-option.is-selected {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-text);
+}
+
+.toolbar-language-check {
+  flex: 0 0 15px;
+  width: 15px;
+  font-weight: 700;
+}
+
 .toolbar-more-trigger::after {
   content: "";
   width: 6px;
@@ -206,7 +271,7 @@
   right: 0;
   z-index: 80;
   display: grid;
-  min-width: 148px;
+  min-width: 180px;
   gap: 3px;
   padding: 6px;
   border: 1px solid rgba(97, 83, 52, 0.18);
@@ -225,6 +290,13 @@
 
 .toolbar-more-popover button:hover {
   background: var(--app-accent-soft);
+}
+
+.toolbar-more-popover .toolbar-more-about {
+  margin-top: 3px;
+  padding-top: 7px;
+  border-top: 1px solid var(--app-border);
+  border-radius: 0 0 var(--app-radius-sm) var(--app-radius-sm);
 }
 
 .app-container.dark-mode .toolbar-button-secondary {
