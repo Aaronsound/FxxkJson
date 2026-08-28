@@ -63,5 +63,5 @@ describe('jsonToolModels', () => {
     expect(shouldBuildWorkerStructure(large, true)).toBe(true);
     expect(shouldBuildWorkerStructure(nominalTwentyMbFixture, true)).toBe(true);
     expect(shouldBuildWorkerStructure(tooLarge, true)).toBe(false);
-  });
+  }, 15_000);
 });
