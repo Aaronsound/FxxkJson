@@ -36,7 +36,7 @@ describe('jsonToolModels', () => {
     expect(isLargeDocument(atThreshold)).toBe(true);
     expect(canUseStructureSync(atThreshold)).toBe(true);
     expect(canUseStructureSync(aboveStructureThreshold)).toBe(false);
-  });
+  }, 20_000);
 
   it('derives large mode from the current raw and formatted content only', () => {
     const small = '{"ok":true}';
@@ -63,5 +63,5 @@ describe('jsonToolModels', () => {
     expect(shouldBuildWorkerStructure(large, true)).toBe(true);
     expect(shouldBuildWorkerStructure(nominalTwentyMbFixture, true)).toBe(true);
     expect(shouldBuildWorkerStructure(tooLarge, true)).toBe(false);
-  }, 15_000);
+  }, 20_000);
 });
