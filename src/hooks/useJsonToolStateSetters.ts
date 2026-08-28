@@ -23,6 +23,7 @@ interface UseJsonToolStateSettersArgs {
   largeModeRef: MutableRefObject<Record<string, boolean>>;
   largeViewerMatches: LargeJsonSearchMatch[];
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
+  rawRevisionByTabRef: MutableRefObject<Record<string, number>>;
   resetLeftSearchState: () => void;
   resetRightSearchPaging: () => void;
   resetRightSearchState: () => void;
@@ -64,6 +65,7 @@ export function useJsonToolStateSetters({
   largeModeRef,
   largeViewerMatches,
   rawTextByTabRef,
+  rawRevisionByTabRef,
   resetLeftSearchState,
   resetRightSearchPaging,
   resetRightSearchState,
@@ -167,16 +169,19 @@ export function useJsonToolStateSetters({
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
   const getFormattedContent = (tabId: string) => formattedTextByTabRef.current[tabId] ?? '';
+  const getRawRevision = (tabId: string) => rawRevisionByTabRef.current[tabId] ?? 0;
 
   const updateTabContent = (tabId: string, content: string, syncModel = false, knownByteLength?: number) => {
     const byteLength = knownByteLength ?? getUtf8ByteLength(content);
+    const rawRevision = getRawRevision(tabId) + 1;
     rawTextByTabRef.current[tabId] = content;
+    rawRevisionByTabRef.current[tabId] = rawRevision;
     setLargeRawViewerData(tabId, null);
     setRightNodeSelection(tabId, null);
     setDocumentMeta(tabId, (current) => ({
       ...current,
       rawLength: byteLength,
-      rawRevision: current.rawRevision + 1,
+      rawRevision,
     }));
 
     if (syncModel) {
@@ -208,6 +213,7 @@ export function useJsonToolStateSetters({
 
   return {
     getFormattedContent,
+    getRawRevision,
     getTabContent,
     resetSearchState,
     setLargeFileLocateEnabled,

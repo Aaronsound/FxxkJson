@@ -175,6 +175,7 @@ const App: React.FC = () => {
     leftViewStateByTabRef,
     previousActiveTabIdRef,
     rawTextByTabRef,
+    rawRevisionByTabRef,
     rightContextMenuOffsetByTabRef,
     rightDecorationIdsRef,
     rightEditorRef,
@@ -321,6 +322,7 @@ const App: React.FC = () => {
 
   const {
     getFormattedContent,
+    getRawRevision,
     getTabContent,
     resetSearchState,
     setLargeFileLocateEnabled,
@@ -338,7 +340,14 @@ const App: React.FC = () => {
   } = useJsonToolStateSetters({
     activeTabIdRef,
     ...{ clearLeftHighlights, clearRightHighlights },
-    ...{ formattedTextByTabRef, largeFileLocateEnabledRef, largeModeRef, largeViewerMatches, rawTextByTabRef },
+    ...{
+      formattedTextByTabRef,
+      largeFileLocateEnabledRef,
+      largeModeRef,
+      largeViewerMatches,
+      rawRevisionByTabRef,
+      rawTextByTabRef,
+    },
     ...{ resetLeftSearchState, resetRightSearchPaging, resetRightSearchState },
     ...{ setDocumentMeta, setIsRightSearchLoadingMore, setLargeFileLocateEnabledState },
     ...{ setLargeRawViewerDataByTab, setLargeRawViewerMatches, setLargeViewerFoldStateByTab },
@@ -371,7 +380,13 @@ const App: React.FC = () => {
       leftViewStateByTabRef,
       rightViewStateByTabRef,
     },
-    ...{ structureStatusRef, workerStructureEnabledRef, rawTextByTabRef, formattedTextByTabRef },
+    ...{
+      structureStatusRef,
+      workerStructureEnabledRef,
+      rawRevisionByTabRef,
+      rawTextByTabRef,
+      formattedTextByTabRef,
+    },
     ...{ performanceSessionsRef, beginPerformanceSession, clearPerformanceState },
     ...{ logEvent, mutatePerformanceSession, syncPerformanceSnapshot },
     ...{ renameTab, removeTabState, setTabError, setTabImporting, setTabFormatting },
@@ -543,7 +558,7 @@ const App: React.FC = () => {
     closeEditJson: closeEditJsonWithCacheRelease,
     editJsonSession,
     editJsonValueRef,
-    ...{ getFormattedContent, getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
+    ...{ getFormattedContent, getRawRevision, getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
     getLargeViewerData: (tabId) => largeViewerDataByTab[tabId] ?? null,
     ...{ requestWorkerEditJson, requestWorkerEditJsonResult, resetSearchState },
     ...{ setEditJsonBusyLabel, setEditJsonError, setLargeRawViewerData, setLargeViewerData },
@@ -555,7 +570,14 @@ const App: React.FC = () => {
   const { applyRightNodeMutationAtOffset, copyNodeDetailAtOffset, copyValueAtOffset } = useRightNodeActions({
     applyNodeMutationArtifacts,
     applyRawUpdate,
-    ...{ getTabContent, logEvent, queueFormatAfterEditSave, readEditableNodeAtOffset, requestWorkerEditJsonResult },
+    ...{
+      getRawRevision,
+      getTabContent,
+      logEvent,
+      queueFormatAfterEditSave,
+      readEditableNodeAtOffset,
+      requestWorkerEditJsonResult,
+    },
     requestDeleteConfirmation: requestDeleteNode,
     requestRenameKey,
     ...{ resetSearchState, setEditJsonBusyLabel, setTabError },
@@ -564,7 +586,7 @@ const App: React.FC = () => {
   const { addTab, closeTab } = useJsonToolTabActions({
     ...{ activeTabId, activeTabIdRef, formattedTextByTabRef, handleClear },
     ...{ initializeTabArtifacts, initializeTabState, largeFileLocateEnabledRef, largeModeRef },
-    ...{ leftEditorRef, leftSearchWorkerRevisionRef, leftViewStateByTabRef, rawTextByTabRef },
+    ...{ leftEditorRef, leftSearchWorkerRevisionRef, leftViewStateByTabRef, rawRevisionByTabRef, rawTextByTabRef },
     ...{ removeTabArtifacts, removeTabArtifactsState, rightEditorRef, rightViewStateByTabRef },
     ...{ setActiveTabId, setPerformanceByTab, setTabs, structureStatusRef, tabs, workerStructureEnabledRef },
   });

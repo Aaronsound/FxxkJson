@@ -186,8 +186,35 @@ export async function benchFile(filePath) {
   const rawNodeEditText = rawNodeRange
     ? `${rawText.slice(0, rawNodeRange.startOffset)}${nextLiteral}${rawText.slice(rawNodeRange.endOffset)}`
     : rawText;
-  const rawNodeEditPatch = createTextPatch(rawText, rawNodeEditText);
-  const formattedNodeEditPatch = createTextPatch(formattedText, nodeEditPatchResult.value ?? formattedText);
+  const legacyNodePatchScanResult = measure('legacyNodePatchScan', () => ({
+    raw: createTextPatch(rawText, rawNodeEditText),
+    formatted: createTextPatch(formattedText, nodeEditPatchResult.value ?? formattedText),
+  }));
+  const rawNodeEditPatch = rawNodeRange
+    ? {
+        sourceLength: rawText.length,
+        startOffset: rawNodeRange.startOffset,
+        endOffset: rawNodeRange.endOffset,
+        text: nextLiteral,
+      }
+    : legacyNodePatchScanResult.value.raw;
+  const formattedNodeEditPatch = nodeValueReadResult.value
+    ? {
+        sourceLength: formattedText.length,
+        startOffset: nodeValueReadResult.value.start,
+        endOffset: nodeValueReadResult.value.end,
+        text: nextLiteral,
+      }
+    : legacyNodePatchScanResult.value.formatted;
+  const incrementalNodeMetricResult = measure('incrementalNodeMetrics', () => {
+    const rawRemoved = measureDocumentMetrics(rawText.slice(rawNodeEditPatch.startOffset, rawNodeEditPatch.endOffset));
+    const rawInserted = measureDocumentMetrics(rawNodeEditPatch.text);
+    const formattedRemoved = measureDocumentMetrics(
+      formattedText.slice(formattedNodeEditPatch.startOffset, formattedNodeEditPatch.endOffset)
+    );
+    const formattedInserted = measureDocumentMetrics(formattedNodeEditPatch.text);
+    return { formattedInserted, formattedRemoved, rawInserted, rawRemoved };
+  });
   const incrementalNodeEditViewerResult = measureRepeated('nodeEditIncrementalViewerIndex', 10, () =>
     patchLineStarts(viewerResult.value.lineStarts, formattedNodeEditPatch)
   );
@@ -273,11 +300,15 @@ export async function benchFile(filePath) {
     nodeValueReadMs: nodeValueReadResult.ms,
     streamingNodeReadMs: streamingNodeReadResult.ms,
     nodeEditPatchMs: nodeEditPatchResult.ms,
+    nodeExactPatchDiffAvoidedMs: legacyNodePatchScanResult.ms,
+    nodeIncrementalMetricsMs: incrementalNodeMetricResult.ms,
     nodeEditViewerIndexMs: nodeEditViewerResult.ms,
     nodeEditIncrementalViewerIndexMs: incrementalNodeEditViewerResult.ms,
     nodeEditViewerWorkingBytes: nodeEditViewerResult.value.buildWorkingBytes,
     nodeSaveTransferBytes: rawBytes + formattedBytes,
     nodeSavePatchTransferBytes,
+    nodeSaveRequestTransferBytes: rawBytes,
+    nodeSaveCachedRequestTransferBytes: 0,
     nodeWarmupMetricRescanAvoidedMs: uiMetricRescanResult.value.rawMs + uiMetricRescanResult.value.formattedMs,
     identityComparisonAvoidedMs: identityComparisonResult.ms,
     uiMetricRescanAvoidedMs: uiMetricRescanResult.ms,

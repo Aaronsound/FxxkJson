@@ -51,6 +51,8 @@ export interface EditJsonWorkerRequest {
   textByteLength?: number;
   originalText?: string;
   originalTextByteLength?: number;
+  rawRevision?: number;
+  reuseOriginalText?: boolean;
   path?: JsonEditPath;
   offset?: number;
   searchTerm?: string;
@@ -61,8 +63,8 @@ export interface EditJsonWorkerRequest {
 export type WorkerRequestMessage =
   | { type: 'clear-structure'; tabId: string }
   | { type: 'release-transient-cache'; tabId: string }
-  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format' })
-  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'repair' })
+  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format'; rawRevision?: number })
+  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'repair'; rawRevision?: number })
   | (WorkerRequestBase & {
       type: 'search';
       target: SearchTarget;
@@ -86,6 +88,7 @@ export type WorkerRequestMessage =
       originalText?: EditJsonWorkerRequest['originalText'];
       originalTextBuffer?: ArrayBuffer;
       originalTextByteLength?: EditJsonWorkerRequest['originalTextByteLength'];
+      rawRevision?: EditJsonWorkerRequest['rawRevision'];
       path?: EditJsonWorkerRequest['path'];
       offset?: EditJsonWorkerRequest['offset'];
       searchTerm?: EditJsonWorkerRequest['searchTerm'];
@@ -118,6 +121,7 @@ export interface WorkerMessage {
   rawPatch?: JsonTextPatch;
   formattedPatch?: JsonTextPatch;
   viewerPatchApplied?: boolean;
+  requiresOriginalText?: boolean;
   rawMetrics?: JsonDocumentMetrics;
   formattedMetrics?: JsonDocumentMetrics;
   structureWarming?: boolean;

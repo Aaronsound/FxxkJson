@@ -13,6 +13,9 @@ export function useJsonToolRefs(initialTabId: string) {
   const rawTextByTabRef = useRef<Record<string, string>>({
     [initialTabId]: '',
   });
+  const rawRevisionByTabRef = useRef<Record<string, number>>({
+    [initialTabId]: 0,
+  });
   const formattedTextByTabRef = useRef<Record<string, string>>({
     [initialTabId]: '',
   });
@@ -50,6 +53,7 @@ export function useJsonToolRefs(initialTabId: string) {
     leftViewStateByTabRef,
     previousActiveTabIdRef,
     rawTextByTabRef,
+    rawRevisionByTabRef,
     rightContextMenuOffsetByTabRef,
     rightDecorationIdsRef,
     rightEditorRef,

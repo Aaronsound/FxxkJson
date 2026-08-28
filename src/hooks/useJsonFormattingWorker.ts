@@ -29,6 +29,7 @@ export interface UseJsonFormattingWorkerArgs {
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
   workerStructureEnabledRef: MutableRefObject<Record<string, boolean>>;
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
+  rawRevisionByTabRef: MutableRefObject<Record<string, number>>;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
   beginPerformanceSession: (
@@ -94,6 +95,7 @@ export function useJsonFormattingWorker({
   structureStatusRef,
   workerStructureEnabledRef,
   rawTextByTabRef,
+  rawRevisionByTabRef,
   formattedTextByTabRef,
   performanceSessionsRef,
   beginPerformanceSession,
@@ -234,6 +236,7 @@ export function useJsonFormattingWorker({
     latestRequestRef,
     postWorkerRequest,
     requestCounterRef,
+    rawRevisionByTabRef,
     workerStructureEnabledRef,
   });
 
@@ -250,6 +253,7 @@ export function useJsonFormattingWorker({
     leftViewStateByTabRef,
     postWorkerRequest,
     rawTextByTabRef,
+    rawRevisionByTabRef,
     rightViewStateByTabRef,
     structureStatusRef,
     workerStructureEnabledRef,

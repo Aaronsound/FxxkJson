@@ -14,6 +14,7 @@ const deferredStructureWarmupTimers = new Map();
 const editJsonCache = new Map();
 const nodeEditCache = new Map();
 const rawSearchCache = new Map();
+const rawDocumentCache = new Map();
 const latestFormatRequestByTab = new Map();
 const latestSearchRequestByKey = new Map();
 const latestLocateRequestByTab = new Map();
@@ -34,6 +35,7 @@ const jsonNodeEditOperations = createJsonNodeEditOperations({
   getStructureWarmupDelayForByteLength,
   latestFormatRequestByTab,
   nodeEditCache,
+  rawDocumentCache,
   scheduleDeferredStructureWarmup,
   structureCache,
   viewerCache,
@@ -63,6 +65,7 @@ const jsonWorkerFormatOperations = createJsonWorkerFormatOperations({
   ensureStructureTrees,
   latestFormatRequestByTab,
   nodeEditCache,
+  rawDocumentCache,
   scheduleDeferredStructureWarmup,
   structureCache,
   viewerCache,
@@ -81,6 +84,7 @@ function handleClearStructureMessage(message) {
   editJsonCache.delete(message.tabId);
   nodeEditCache.delete(message.tabId);
   rawSearchCache.delete(message.tabId);
+  rawDocumentCache.delete(message.tabId);
   latestFormatRequestByTab.delete(message.tabId);
   cancelInteractiveRequests(message.tabId);
 }
@@ -90,6 +94,7 @@ function handleReleaseTransientCacheMessage(message) {
     cancelInteractiveRequests,
     editJsonCache,
     nodeEditCache,
+    rawDocumentCache,
     rawSearchCache,
   });
 }

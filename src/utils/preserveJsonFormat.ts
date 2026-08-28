@@ -1,5 +1,6 @@
 import { applyEdits, modify } from 'jsonc-parser';
 import type { FormattingOptions, JSONPath } from 'jsonc-parser';
+import type { JsonTextPatch } from '../types/jsonTool';
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -20,6 +21,11 @@ interface JsonNodeRange {
 
 interface SaveJsonNodePreserveOptions {
   range?: JsonNodeRange;
+}
+
+export interface SaveJsonNodePreserveResult {
+  patch: JsonTextPatch | null;
+  text: string;
 }
 
 const MAX_PRESERVED_EDITS = 200;
@@ -253,24 +259,44 @@ export function saveJsonNodePreservingOriginalFormat(
   editedText: string,
   options: SaveJsonNodePreserveOptions = {}
 ) {
+  return saveJsonNodePreservingOriginalFormatWithPatch(originalText, path, editedText, options).text;
+}
+
+export function saveJsonNodePreservingOriginalFormatWithPatch(
+  originalText: string,
+  path: JSONPath,
+  editedText: string,
+  options: SaveJsonNodePreserveOptions = {}
+): SaveJsonNodePreserveResult {
   const editedValue = JSON.parse(editedText) as JsonValue;
 
   if (path.length === 0) {
-    return serializeWithOriginalStyle(originalText, editedValue);
+    return { patch: null, text: serializeWithOriginalStyle(originalText, editedValue) };
   }
 
   const directReplacement = serializeDirectNodeReplacement(originalText, options.range, editedValue);
   if (directReplacement !== null) {
     const { startOffset, endOffset } = options.range!;
-    return `${originalText.slice(0, startOffset)}${directReplacement}${originalText.slice(endOffset)}`;
+    return {
+      patch: {
+        sourceLength: originalText.length,
+        startOffset,
+        endOffset,
+        text: directReplacement,
+      },
+      text: `${originalText.slice(0, startOffset)}${directReplacement}${originalText.slice(endOffset)}`,
+    };
   }
 
-  return applyEdits(
-    originalText,
-    modify(originalText, path, editedValue, {
-      formattingOptions: getFormattingOptions(originalText),
-    })
-  );
+  return {
+    patch: null,
+    text: applyEdits(
+      originalText,
+      modify(originalText, path, editedValue, {
+        formattingOptions: getFormattingOptions(originalText),
+      })
+    ),
+  };
 }
 
 export function deleteJsonNodePreservingOriginalFormat(originalText: string, path: JSONPath) {

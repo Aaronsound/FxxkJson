@@ -4,7 +4,7 @@ import {
   LARGE_FILE_THRESHOLD,
   STRUCTURE_SYNC_THRESHOLD,
 } from '../types/jsonTool';
-import type { JsonDocumentMetrics } from '../types/jsonTool';
+import type { JsonDocumentMetrics, JsonTextPatch } from '../types/jsonTool';
 
 export type { JsonDocumentMetrics } from '../types/jsonTool';
 
@@ -67,6 +67,33 @@ export function measureJsonDocument(
 
 export function getUtf8ByteLength(text: string) {
   return measureJsonDocument(text).textByteLength;
+}
+
+export function patchJsonDocumentMetrics(
+  sourceText: string,
+  sourceMetrics: JsonDocumentMetrics | null | undefined,
+  patch: JsonTextPatch,
+  lineThreshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD
+) {
+  if (
+    !sourceMetrics ||
+    patch.sourceLength !== sourceText.length ||
+    patch.startOffset < 0 ||
+    patch.endOffset < patch.startOffset ||
+    patch.endOffset > sourceText.length
+  ) {
+    return null;
+  }
+
+  const removedMetrics = measureJsonDocument(sourceText.slice(patch.startOffset, patch.endOffset), lineThreshold);
+  const insertedMetrics = measureJsonDocument(patch.text, lineThreshold);
+  const lineCount = sourceMetrics.lineCount - (removedMetrics.lineCount - 1) + (insertedMetrics.lineCount - 1);
+
+  return {
+    exceedsDedicatedViewerLineThreshold: lineThreshold <= 0 ? sourceText.length > 0 : lineCount > lineThreshold,
+    lineCount,
+    textByteLength: sourceMetrics.textByteLength - removedMetrics.textByteLength + insertedMetrics.textByteLength,
+  } satisfies JsonDocumentMetrics;
 }
 
 export function isLargeDocument(text: string) {

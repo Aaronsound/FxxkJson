@@ -4,6 +4,7 @@ import type { WorkerMessage } from '../types/jsonTool';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
 import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
+import { MissingOriginalJsonTextError } from './jsonNodeEditOperations';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -94,7 +95,7 @@ describe('createJsonWorkerEditJsonOperations', () => {
       path: ['remove'],
     });
 
-    expect(deleteJsonNodeForEdit).toHaveBeenCalledWith('tab-a', '{"remove":1,"kept":true}', ['remove']);
+    expect(deleteJsonNodeForEdit).toHaveBeenCalledWith('tab-a', '{"remove":1,"kept":true}', ['remove'], undefined);
     expect(postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'edit-json-result',
@@ -103,6 +104,42 @@ describe('createJsonWorkerEditJsonOperations', () => {
         formattedPatch: expect.any(Object),
       }),
       []
+    );
+  });
+
+  it('requests a full original document when the revision cache is unavailable', () => {
+    const postMessage = vi.fn<(message: unknown, transfer?: Transferable[]) => void>();
+    vi.stubGlobal('self', { postMessage });
+    vi.stubGlobal('postMessage', postMessage);
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => {
+          throw new MissingOriginalJsonTextError();
+        }),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+    });
+
+    operations.handleEditJsonMessage({
+      type: 'edit-json',
+      requestId: 9,
+      tabId: 'tab-a',
+      operation: 'delete-node',
+      text: '',
+      rawRevision: 4,
+      path: ['remove'],
+    });
+
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'edit-json-result',
+        requestId: 9,
+        success: false,
+        requiresOriginalText: true,
+      })
     );
   });
 });

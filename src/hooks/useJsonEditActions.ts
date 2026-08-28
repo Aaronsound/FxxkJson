@@ -38,6 +38,7 @@ interface UseJsonEditActionsArgs {
   getTabContent: (tabId: string) => string;
   getFormattedContent: (tabId: string) => string;
   getLargeViewerData: (tabId: string) => LargeJsonViewerData | null;
+  getRawRevision: (tabId: string) => number;
   mutatePerformanceSession: (tabId: string, mutate: (session: PerformanceSession) => void, shouldLog?: boolean) => void;
   queueFormatAfterEditSave: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   requestWorkerEditJson: (request: EditJsonWorkerRequest) => Promise<string>;
@@ -73,6 +74,7 @@ export function useJsonEditActions({
   getTabContent,
   getFormattedContent,
   getLargeViewerData,
+  getRawRevision,
   mutatePerformanceSession,
   queueFormatAfterEditSave,
   requestWorkerEditJson,
@@ -132,6 +134,8 @@ export function useJsonEditActions({
         operation: isNodeEdit ? 'save-node' : 'save',
         text: editJsonValueRef.current,
         originalText: original,
+        rawRevision: getRawRevision(currentTabId),
+        reuseOriginalText: isNodeEdit,
         path: editJsonSession?.path,
       });
       const updated =

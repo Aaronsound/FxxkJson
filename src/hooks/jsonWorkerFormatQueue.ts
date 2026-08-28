@@ -52,6 +52,7 @@ interface CreateJsonWorkerFormatQueueArgs {
   latestRequestRef: MutableRefObject<Record<string, number>>;
   postWorkerRequest: (message: WorkerRequestMessage, transfer?: Transferable[]) => void;
   requestCounterRef: MutableRefObject<number>;
+  rawRevisionByTabRef: MutableRefObject<Record<string, number>>;
   workerStructureEnabledRef: MutableRefObject<Record<string, boolean>>;
 }
 
@@ -75,6 +76,7 @@ export function createJsonWorkerFormatQueue({
   latestRequestRef,
   postWorkerRequest,
   requestCounterRef,
+  rawRevisionByTabRef,
   workerStructureEnabledRef,
 }: CreateJsonWorkerFormatQueueArgs) {
   const prepareFormatRun = (
@@ -146,6 +148,7 @@ export function createJsonWorkerFormatQueue({
     }
 
     const { plan, requestId } = prepareFormatRun(tabId, text, 'formatting', preparation);
+    const rawRevision = rawRevisionByTabRef.current[tabId] ?? 0;
     callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
       if (!session.pendingFormat) {
         return;
@@ -203,6 +206,7 @@ export function createJsonWorkerFormatQueue({
           deferStructure: plan.shouldDeferStructureIndex,
           buildViewer: plan.shouldBuildLargeViewer,
           structureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
+          rawRevision,
           ...textPayload.message,
         },
         textPayload.transfer
@@ -241,6 +245,7 @@ export function createJsonWorkerFormatQueue({
     }
 
     const { plan, requestId } = prepareFormatRun(tabId, text, 'repairing', metrics);
+    const rawRevision = rawRevisionByTabRef.current[tabId] ?? 0;
     callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
       if (!session.pendingFormat) {
         return;
@@ -284,6 +289,7 @@ export function createJsonWorkerFormatQueue({
         deferStructure: plan.shouldDeferStructureIndex,
         buildViewer: plan.shouldBuildLargeViewer,
         structureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
+        rawRevision,
         ...textPayload.message,
       },
       textPayload.transfer

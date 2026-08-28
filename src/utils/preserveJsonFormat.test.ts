@@ -4,6 +4,7 @@ import {
   deleteJsonNodePreservingOriginalFormat,
   renameJsonObjectKeyPreservingOriginalFormat,
   saveJsonNodePreservingOriginalFormat,
+  saveJsonNodePreservingOriginalFormatWithPatch,
   saveJsonPreservingOriginalFormat,
 } from './preserveJsonFormat';
 
@@ -129,6 +130,22 @@ describe('preserveJsonFormat', () => {
         range: { startOffset, endOffset: startOffset + '"beta"'.length },
       })
     ).toBe('{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"changed"}]}');
+  });
+
+  it('returns the exact known-range patch without diffing the full document', () => {
+    const original = '{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"beta"}]}';
+    const startOffset = original.indexOf('"beta"');
+    const result = saveJsonNodePreservingOriginalFormatWithPatch(original, ['items', 1, 'name'], '"changed"', {
+      range: { startOffset, endOffset: startOffset + '"beta"'.length },
+    });
+
+    expect(result.patch).toEqual({
+      sourceLength: original.length,
+      startOffset,
+      endOffset: startOffset + '"beta"'.length,
+      text: '"changed"',
+    });
+    expect(result.text).toBe('{"items":[{"id":1,"name":"alpha"},{"id":2,"name":"changed"}]}');
   });
 
   it('falls back to path editing when a provided node range is stale', () => {

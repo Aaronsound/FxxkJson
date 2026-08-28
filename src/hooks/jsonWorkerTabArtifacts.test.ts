@@ -38,6 +38,7 @@ function createActions() {
     latestRequestRef: ref<Record<string, number>>({ 'tab-a': 4 }),
     leftViewStateByTabRef: ref<Record<string, null>>({ 'tab-a': null }),
     rawTextByTabRef: ref<Record<string, string>>({ 'tab-a': 'raw' }),
+    rawRevisionByTabRef: ref<Record<string, number>>({ 'tab-a': 1 }),
     rightViewStateByTabRef: ref<Record<string, null>>({ 'tab-a': null }),
     structureStatusRef: ref<Record<string, 'ready' | 'building' | 'disabled'>>({ 'tab-a': 'building' }),
     workerStructureEnabledRef: ref<Record<string, boolean>>({ 'tab-a': true }),
@@ -82,6 +83,7 @@ describe('jsonWorkerTabArtifacts', () => {
     expect(modelMocks.disposeModel).toHaveBeenCalledWith('right:tab-a');
     expect(callbacks.removeTabState).toHaveBeenCalledWith('tab-a');
     expect(refs.rawTextByTabRef.current).not.toHaveProperty('tab-a');
+    expect(refs.rawRevisionByTabRef.current).not.toHaveProperty('tab-a');
     expect(refs.formattedTextByTabRef.current).not.toHaveProperty('tab-a');
     expect(refs.largeModeRef.current).not.toHaveProperty('tab-a');
   });

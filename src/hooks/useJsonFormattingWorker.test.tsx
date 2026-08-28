@@ -26,6 +26,7 @@ class WorkerMock {
 
 function createArgs(): Parameters<typeof useJsonFormattingWorker>[0] {
   const rawTextByTabRef = ref<Record<string, string>>({});
+  const rawRevisionByTabRef = ref<Record<string, number>>({});
   const formattedTextByTabRef = ref<Record<string, string>>({});
   const performanceSessionsRef = ref<Record<string, PerformanceSession>>({});
 
@@ -44,6 +45,7 @@ function createArgs(): Parameters<typeof useJsonFormattingWorker>[0] {
     mutatePerformanceSession: vi.fn(),
     performanceSessionsRef,
     rawTextByTabRef,
+    rawRevisionByTabRef,
     removeTabState: vi.fn(),
     renameTab: vi.fn(),
     resetSearchState: vi.fn(),

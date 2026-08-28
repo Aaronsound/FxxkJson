@@ -18,6 +18,7 @@ function createArgs() {
     applyNodeMutationArtifacts: vi.fn(() => true),
     applyRawUpdate: vi.fn((_tabId: string, updated: string) => measureJsonDocument(updated)),
     getTabContent: vi.fn(() => '{"name":"old"}'),
+    getRawRevision: vi.fn(() => 3),
     logEvent: vi.fn(),
     queueFormatAfterEditSave: vi.fn(),
     readEditableNodeAtOffset: vi.fn().mockResolvedValue({

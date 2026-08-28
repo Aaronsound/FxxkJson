@@ -38,8 +38,14 @@ export async function runMultiTabMemoryScenario(cdp, tempDir, primarySizeMb) {
       `multi-tab import ${index + 1}`,
       90000
     );
+    await waitFor(
+      () => evaluate(cdp, `document.querySelectorAll('.editor-loading-overlay').length === 0`),
+      `multi-tab format ${index + 1}`,
+      90000
+    );
   }
 
+  await collectRendererGarbage(cdp);
   const expanded = await readElectronMemorySnapshot(cdp);
   assertElectronMemoryBudget(expanded, primarySizeMb + AUXILIARY_TAB_COUNT * AUXILIARY_TAB_SIZE_MB);
 

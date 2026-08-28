@@ -1,6 +1,7 @@
 interface JsonWorkerTransientCaches {
   editJsonCache: Map<string, unknown>;
   nodeEditCache: Map<string, unknown>;
+  rawDocumentCache: Map<string, unknown>;
   rawSearchCache: Map<string, unknown>;
 }
 
@@ -10,10 +11,17 @@ interface ReleaseJsonWorkerTransientCachesArgs extends JsonWorkerTransientCaches
 
 export function releaseJsonWorkerTransientCaches(
   tabId: string,
-  { cancelInteractiveRequests, editJsonCache, nodeEditCache, rawSearchCache }: ReleaseJsonWorkerTransientCachesArgs
+  {
+    cancelInteractiveRequests,
+    editJsonCache,
+    nodeEditCache,
+    rawDocumentCache,
+    rawSearchCache,
+  }: ReleaseJsonWorkerTransientCachesArgs
 ) {
   editJsonCache.delete(tabId);
   nodeEditCache.delete(tabId);
+  rawDocumentCache.delete(tabId);
   rawSearchCache.delete(tabId);
   cancelInteractiveRequests(tabId);
 }

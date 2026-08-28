@@ -87,6 +87,7 @@ function createQueue() {
       requests.push(message);
       transfers.push(transfer);
     },
+    rawRevisionByTabRef: recordRef<Record<string, number>>({ 'tab-a': 7 }),
     requestCounterRef,
     workerStructureEnabledRef,
   });
@@ -152,6 +153,7 @@ describe('createJsonWorkerFormatQueue', () => {
       requestId: 1,
       tabId: 'tab-a',
       text: '{"ok":true}',
+      rawRevision: 7,
     });
     expect(callbacks.logEvent).toHaveBeenCalledWith('format-start', expect.objectContaining({ requestId: 1 }));
     expect(session.formatStartedAt).toBeTypeOf('number');

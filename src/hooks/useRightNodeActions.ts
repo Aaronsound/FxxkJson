@@ -18,6 +18,7 @@ interface UseRightNodeActionsArgs {
   ) => boolean;
   applyRawUpdate: (tabId: string, updated: string) => JsonDocumentMetrics;
   getTabContent: (tabId: string) => string;
+  getRawRevision: (tabId: string) => number;
   logEvent: (event: string, payload?: Record<string, unknown>) => void;
   queueFormatAfterEditSave: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   readEditableNodeAtOffset: (
@@ -51,6 +52,7 @@ export function useRightNodeActions({
   applyNodeMutationArtifacts,
   applyRawUpdate,
   getTabContent,
+  getRawRevision,
   logEvent,
   queueFormatAfterEditSave,
   readEditableNodeAtOffset,
@@ -180,6 +182,8 @@ export function useRightNodeActions({
           operation,
           text: workerText,
           originalText: original,
+          rawRevision: getRawRevision(tabId),
+          reuseOriginalText: true,
           path: parsed.path,
         });
         const updated =
