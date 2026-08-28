@@ -159,10 +159,28 @@ describe('JsonToolToolbar', () => {
     const compactActions = document.querySelector('.toolbar-more-compact-actions');
     expect(compactActions).not.toBeNull();
     if (!compactActions) throw new Error('窄窗口操作区未渲染');
+    expect(within(compactActions as HTMLElement).getByText('内容处理')).toBeInTheDocument();
+    expect(within(compactActions as HTMLElement).getByText('文档操作')).toBeInTheDocument();
+    expect(screen.queryByText('设置与帮助')).not.toBeInTheDocument();
+    expect(within(compactActions as HTMLElement).getAllByRole('button')).toHaveLength(7);
     const editButton = within(compactActions as HTMLElement).getByRole('button', { name: '编辑 JSON' });
     expect(editButton).not.toBeDisabled();
     fireEvent.click(editButton);
     expect(props.onEditJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows processing and large-file guidance in a readable status region', () => {
+    const processingStageText = '正在构建大文件查看模式...';
+    renderToolbar({
+      processingStageText,
+      isLargeFileMode: true,
+      isLargeFileLocateEnabled: false,
+    });
+
+    const status = screen.getByRole('status', { name: '当前状态' });
+    expect(status).toHaveTextContent(processingStageText);
+    expect(status).toHaveTextContent('大文件轻量模式已开启');
+    expect(screen.getByTitle(processingStageText)).toBeInTheDocument();
   });
 
   it('opens JSON compare from the toolbar', () => {
@@ -176,7 +194,9 @@ describe('JsonToolToolbar', () => {
   it('offers diagnostics next to visible errors', () => {
     const { props } = renderToolbar({ currentError: 'JSON worker 加载失败' });
 
-    expect(screen.getByText('JSON worker 加载失败')).toBeInTheDocument();
+    const alert = screen.getByRole('alert', { name: '当前状态' });
+    expect(alert).toHaveTextContent('JSON worker 加载失败');
+    expect(screen.getByTitle('JSON worker 加载失败')).toBeInTheDocument();
 
     const diagnosticsButtons = screen.getAllByRole('button', { name: '诊断日志' });
     const diagnosticsButton = diagnosticsButtons.at(-1);

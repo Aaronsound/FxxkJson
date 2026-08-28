@@ -83,6 +83,18 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.editor-pane:focus-within > .editor-pane-header {
+  background: var(--app-accent-soft);
+  box-shadow: inset 3px 0 0 var(--app-accent);
+}
+
+.editor-pane:focus-within > .editor-pane-header .editor-pane-header-title {
+  color: var(--app-accent);
 }
 
 .editor-pane-header.dark {

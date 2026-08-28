@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StructureStatus } from '../types/jsonTool';
 import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 
@@ -147,10 +147,10 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   const [isCompactToolbar, setIsCompactToolbar] = useState(
     () => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 860px)').matches
   );
-  const closeMoreMenu = () => {
+  const closeMoreMenu = useCallback(() => {
     languageMenuRef.current?.removeAttribute('open');
     moreMenuRef.current?.removeAttribute('open');
-  };
+  }, []);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -174,7 +174,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
       document.removeEventListener('pointerdown', handlePointerDown, true);
       window.removeEventListener('keydown', handleEscape, true);
     };
-  }, []);
+  }, [closeMoreMenu]);
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -266,140 +266,158 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
               <div className="toolbar-more-popover">
                 {isCompactToolbar && (
                   <div className="toolbar-more-compact-actions">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeMoreMenu();
-                        onUnescapeJson();
-                      }}
-                      disabled={!canEditJson}
-                    >
-                      {t('toolbar.unescape')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeMoreMenu();
-                        onEscapeJson();
-                      }}
-                      disabled={!canEditJson}
-                    >
-                      {t('toolbar.escape')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeMoreMenu();
-                        onEditJson();
-                      }}
-                      disabled={!canEditJson}
-                    >
-                      {t('toolbar.editJson')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeMoreMenu();
-                        onOpenCompare();
-                      }}
-                      disabled={!canCompareJson}
-                    >
-                      {t('toolbar.compareJson')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeMoreMenu();
-                        onFoldAll();
-                      }}
-                      disabled={!canControlRightPaneFolding}
-                    >
-                      {t('toolbar.foldAll')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeMoreMenu();
-                        onUnfoldAll();
-                      }}
-                      disabled={!canControlRightPaneFolding}
-                    >
-                      {t('toolbar.unfoldAll')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        closeMoreMenu();
-                        onClear();
-                      }}
-                    >
-                      {t('toolbar.clear')}
-                    </button>
+                    <div className="toolbar-more-section">
+                      <div className="toolbar-more-section-label">{t('toolbar.moreContentActions')}</div>
+                      <div className="toolbar-more-section-actions">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMoreMenu();
+                            onUnescapeJson();
+                          }}
+                          disabled={!canEditJson}
+                        >
+                          {t('toolbar.unescape')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMoreMenu();
+                            onEscapeJson();
+                          }}
+                          disabled={!canEditJson}
+                        >
+                          {t('toolbar.escape')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMoreMenu();
+                            onEditJson();
+                          }}
+                          disabled={!canEditJson}
+                        >
+                          {t('toolbar.editJson')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMoreMenu();
+                            onOpenCompare();
+                          }}
+                          disabled={!canCompareJson}
+                        >
+                          {t('toolbar.compareJson')}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="toolbar-more-section">
+                      <div className="toolbar-more-section-label">{t('toolbar.moreDocumentActions')}</div>
+                      <div className="toolbar-more-section-actions">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMoreMenu();
+                            onFoldAll();
+                          }}
+                          disabled={!canControlRightPaneFolding}
+                        >
+                          {t('toolbar.foldAll')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMoreMenu();
+                            onUnfoldAll();
+                          }}
+                          disabled={!canControlRightPaneFolding}
+                        >
+                          {t('toolbar.unfoldAll')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeMoreMenu();
+                            onClear();
+                          }}
+                        >
+                          {t('toolbar.clear')}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeMoreMenu();
-                    onOpenDiagnosticsLog();
-                  }}
-                >
-                  {t('toolbar.diagnostics')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeMoreMenu();
-                    onToggleDarkMode();
-                  }}
-                >
-                  {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
-                </button>
-                <details ref={languageMenuRef} className="toolbar-language-menu">
-                  <summary className="toolbar-language-trigger">{t('toolbar.language')}</summary>
-                  <div className="toolbar-language-options" role="radiogroup" aria-label={t('toolbar.language')}>
+                <div className="toolbar-more-section">
+                  <div className="toolbar-more-section-actions">
                     <button
                       type="button"
-                      role="radio"
-                      aria-checked={language === 'zh'}
-                      className={language === 'zh' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'}
                       onClick={() => {
                         closeMoreMenu();
-                        if (language !== 'zh') onLanguageChange?.('zh');
+                        onOpenDiagnosticsLog();
                       }}
                     >
-                      <span className="toolbar-language-check" aria-hidden="true">
-                        {language === 'zh' ? '✓' : ''}
-                      </span>
-                      {t('toolbar.languageChinese')}
+                      {t('toolbar.diagnostics')}
                     </button>
                     <button
                       type="button"
-                      role="radio"
-                      aria-checked={language === 'en'}
-                      className={language === 'en' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'}
                       onClick={() => {
                         closeMoreMenu();
-                        if (language !== 'en') onLanguageChange?.('en');
+                        onToggleDarkMode();
                       }}
                     >
-                      <span className="toolbar-language-check" aria-hidden="true">
-                        {language === 'en' ? '✓' : ''}
-                      </span>
-                      {t('toolbar.languageEnglish')}
+                      {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
+                    </button>
+                    <details ref={languageMenuRef} className="toolbar-language-menu">
+                      <summary className="toolbar-language-trigger">{t('toolbar.language')}</summary>
+                      <div className="toolbar-language-options" role="radiogroup" aria-label={t('toolbar.language')}>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={language === 'zh'}
+                          className={
+                            language === 'zh' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'
+                          }
+                          onClick={() => {
+                            closeMoreMenu();
+                            if (language !== 'zh') onLanguageChange?.('zh');
+                          }}
+                        >
+                          <span className="toolbar-language-check" aria-hidden="true">
+                            {language === 'zh' ? '✓' : ''}
+                          </span>
+                          {t('toolbar.languageChinese')}
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={language === 'en'}
+                          className={
+                            language === 'en' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'
+                          }
+                          onClick={() => {
+                            closeMoreMenu();
+                            if (language !== 'en') onLanguageChange?.('en');
+                          }}
+                        >
+                          <span className="toolbar-language-check" aria-hidden="true">
+                            {language === 'en' ? '✓' : ''}
+                          </span>
+                          {t('toolbar.languageEnglish')}
+                        </button>
+                      </div>
+                    </details>
+                    <button
+                      type="button"
+                      className="toolbar-more-about"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onOpenAbout();
+                      }}
+                    >
+                      {t('toolbar.about')}
                     </button>
                   </div>
-                </details>
-                <button
-                  type="button"
-                  className="toolbar-more-about"
-                  onClick={() => {
-                    closeMoreMenu();
-                    onOpenAbout();
-                  }}
-                >
-                  {t('toolbar.about')}
-                </button>
+                </div>
               </div>
             </details>
           </div>
@@ -433,20 +451,42 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
               {t('toolbar.performance')}
             </label>
           </div>
+        </div>
 
-          {(processingStageText || hintMessage || currentError) && (
-            <div className="toolbar-feedback" aria-live="polite">
-              {processingStageText && <span className="toolbar-hint">{processingStageText}</span>}
-              {hintMessage && <span className="toolbar-hint">{hintMessage}</span>}
-              {currentError && <span className="toolbar-error">{currentError}</span>}
+        {(processingStageText || hintMessage || currentError) && (
+          <div
+            className={`toolbar-feedback ${currentError ? 'toolbar-feedback-error' : ''}`}
+            role={currentError ? 'alert' : 'status'}
+            aria-live={currentError ? 'assertive' : 'polite'}
+            aria-label={t('toolbar.status')}
+          >
+            <span className="toolbar-feedback-mark" aria-hidden="true">
+              {currentError ? '!' : processingStageText ? '…' : 'i'}
+            </span>
+            <div className="toolbar-feedback-content">
+              {processingStageText && (
+                <span className="toolbar-hint" title={processingStageText}>
+                  {processingStageText}
+                </span>
+              )}
+              {hintMessage && (
+                <span className="toolbar-hint" title={hintMessage}>
+                  {hintMessage}
+                </span>
+              )}
               {currentError && (
-                <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
-                  {t('toolbar.diagnostics')}
-                </button>
+                <span className="toolbar-error" title={currentError}>
+                  {currentError}
+                </span>
               )}
             </div>
-          )}
-        </div>
+            {currentError && (
+              <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
+                {t('toolbar.diagnostics')}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

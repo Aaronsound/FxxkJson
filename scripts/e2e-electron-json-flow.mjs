@@ -40,8 +40,9 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
     {
       step: 'toolbar UI',
-      detail: 'menus dismiss consistently and English diagnostics/performance labels are complete',
+      detail: 'menus stay bounded, status text remains readable, and English labels are complete',
     },
+    { step: 'pane focus', detail: 'the active raw or formatted pane has a visible header accent' },
     { step: 'split resize', detail: 'center gutter resizes both editor panes' },
     { step: 'dual find escape', detail: 'Escape closes the search belonging to the active pane' },
     { step: 'large folding', detail: 'fold-all stays compact while root and nested nodes preserve expand semantics' },
@@ -71,6 +72,13 @@ async function assertToolbarUi(cdp) {
     );
 
   if (!(await openMore())) throw new Error('More menu trigger was unavailable');
+  const desktopMenuWidth = await evaluate(
+    cdp,
+    `document.querySelector('.toolbar-more-popover')?.getBoundingClientRect().width ?? 0`
+  );
+  if (desktopMenuWidth < 131 || desktopMenuWidth > 145) {
+    throw new Error(`Desktop More menu did not use its compact width: ${desktopMenuWidth}`);
+  }
   await evaluate(cdp, `document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
   await waitFor(
     () => evaluate(cdp, `!document.querySelector('.toolbar-more-menu')?.hasAttribute('open')`),
@@ -191,9 +199,119 @@ async function assertToolbarUi(cdp) {
     () => evaluate(cdp, `document.querySelector('.toolbar-more-compact-actions')?.getBoundingClientRect().height > 0`),
     'compact actions are visible inside More menu'
   );
+  const compactMenuMetrics = await evaluate(
+    cdp,
+    `(() => {
+      const menu = document.querySelector('.toolbar-more-popover');
+      if (!(menu instanceof HTMLElement)) return null;
+      const rect = menu.getBoundingClientRect();
+      return {
+        bottom: rect.bottom,
+        overflowY: getComputedStyle(menu).overflowY,
+        sectionLabels: Array.from(menu.querySelectorAll('.toolbar-more-section-label')).map((item) => item.textContent?.trim()),
+        viewportHeight: window.innerHeight,
+      };
+    })()`
+  );
+  if (
+    !compactMenuMetrics ||
+    compactMenuMetrics.bottom > compactMenuMetrics.viewportHeight + 1 ||
+    compactMenuMetrics.overflowY !== 'auto' ||
+    !compactMenuMetrics.sectionLabels.includes('内容处理') ||
+    !compactMenuMetrics.sectionLabels.includes('文档操作') ||
+    compactMenuMetrics.sectionLabels.includes('设置与帮助')
+  ) {
+    throw new Error(`Compact More menu was not grouped and viewport-bounded: ${JSON.stringify(compactMenuMetrics)}`);
+  }
   await evaluate(cdp, `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
   await evaluate(cdp, `window.resizeTo(1200, 800)`);
   await waitFor(() => evaluate(cdp, `window.innerWidth >= 1100`), 'window restores desktop toolbar width');
+}
+
+async function assertPaneFocusAffordance(cdp) {
+  const result = await evaluate(
+    cdp,
+    `(() => {
+      const leftPane = document.querySelector('.left-editor-pane');
+      const rightPane = document.querySelector('.right-editor-pane');
+      const leftHeader = leftPane?.querySelector('.editor-pane-header');
+      const rightHeader = rightPane?.querySelector('.editor-pane-header');
+      const leftInput = leftPane?.querySelector('textarea');
+      const rightInput = rightPane?.querySelector('textarea');
+      if (
+        !(leftPane instanceof HTMLElement) ||
+        !(rightPane instanceof HTMLElement) ||
+        !(leftHeader instanceof HTMLElement) ||
+        !(rightHeader instanceof HTMLElement) ||
+        !(leftInput instanceof HTMLTextAreaElement) ||
+        !(rightInput instanceof HTMLTextAreaElement)
+      ) return null;
+
+      leftInput.focus();
+      const leftFocused = {
+        leftActive: leftPane.matches(':focus-within'),
+        leftShadow: getComputedStyle(leftHeader).boxShadow,
+        rightActive: rightPane.matches(':focus-within'),
+      };
+      rightInput.focus();
+      const rightFocused = {
+        leftActive: leftPane.matches(':focus-within'),
+        rightActive: rightPane.matches(':focus-within'),
+        rightShadow: getComputedStyle(rightHeader).boxShadow,
+      };
+      return { leftFocused, rightFocused };
+    })()`
+  );
+
+  if (
+    !result?.leftFocused.leftActive ||
+    result.leftFocused.rightActive ||
+    result.leftFocused.leftShadow === 'none' ||
+    result.rightFocused.leftActive ||
+    !result.rightFocused.rightActive ||
+    result.rightFocused.rightShadow === 'none'
+  ) {
+    throw new Error(`Editor pane focus affordance was unavailable: ${JSON.stringify(result)}`);
+  }
+}
+
+async function assertReadableToolbarStatus(cdp) {
+  await evaluate(cdp, `window.resizeTo(480, 700)`);
+  await waitFor(() => evaluate(cdp, `window.innerWidth <= 860`), 'window enters compact status layout');
+  const result = await evaluate(
+    cdp,
+    `(() => {
+      const status = document.querySelector('.toolbar-feedback');
+      const content = status?.querySelector('.toolbar-feedback-content');
+      const hint = status?.querySelector('.toolbar-hint');
+      if (!(status instanceof HTMLElement) || !(content instanceof HTMLElement) || !(hint instanceof HTMLElement)) {
+        return null;
+      }
+      const rect = status.getBoundingClientRect();
+      return {
+        ariaLabel: status.getAttribute('aria-label'),
+        contentWhiteSpace: getComputedStyle(content).whiteSpace,
+        hintTitle: hint.getAttribute('title'),
+        hintText: hint.textContent?.trim() ?? '',
+        right: rect.right,
+        scrollWidth: status.scrollWidth,
+        clientWidth: status.clientWidth,
+        viewportWidth: window.innerWidth,
+      };
+    })()`
+  );
+  if (
+    result?.ariaLabel !== '当前状态' ||
+    result.contentWhiteSpace !== 'normal' ||
+    !result.hintTitle ||
+    result.hintTitle !== result.hintText ||
+    result.right > result.viewportWidth + 1 ||
+    result.scrollWidth > result.clientWidth + 1
+  ) {
+    throw new Error(`Toolbar status was clipped in compact layout: ${JSON.stringify(result)}`);
+  }
+  await evaluate(cdp, `window.resizeTo(1200, 800)`);
+  await waitFor(() => evaluate(cdp, `window.innerWidth >= 1100`), 'window restores desktop width after status check');
 }
 
 async function assertSplitResize(cdp) {
@@ -427,6 +545,7 @@ async function run() {
     cdp = await connectAndPrepareElectronPage(port);
     await assertToolbarUi(cdp);
     await assertSplitResize(cdp);
+    await assertPaneFocusAffordance(cdp);
     await assertDualPaneFindEscape(cdp);
     await runEditTransformScenario(cdp);
     await importSampleThroughNativeFileFlow(cdp);
@@ -435,6 +554,7 @@ async function run() {
       'imported and formatted JSON',
       90000
     );
+    await assertReadableToolbarStatus(cdp);
     await assertLargeViewerAutoWrap(cdp);
     await assertLargeViewerFoldAllSemantics(cdp);
     const memorySnapshot = await readElectronMemorySnapshot(cdp);
