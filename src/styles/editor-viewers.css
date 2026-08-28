@@ -116,6 +116,7 @@
   gap: 8px;
   padding: 20px;
   color: rgba(74, 68, 58, 0.8);
+  opacity: 0.78;
   text-align: center;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -144,36 +145,6 @@
   max-width: 300px;
   font-size: 12px;
   line-height: 1.55;
-}
-
-.editor-empty-state-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 4px;
-  pointer-events: auto;
-}
-
-.editor-empty-state-actions button {
-  min-height: 30px;
-  padding: 4px 11px;
-  border: 1px solid rgba(73, 104, 150, 0.14);
-  border-radius: 6px;
-}
-
-.editor-empty-state-actions .editor-empty-state-primary {
-  border-color: rgba(21, 128, 76, 0.2);
-  background: #238b59;
-  color: #ffffff;
-}
-
-.editor-empty-state-actions .editor-empty-state-primary:hover {
-  background: #1c7a4d;
-}
-
-.editor-empty-state-secondary {
-  opacity: 0.78;
 }
 
 .app-container.dark-mode .editor-empty-state {

@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
-import JsonEditorPanes from './JsonEditorPanes';
 import type { LeftPaneProps, RightPaneProps } from './JsonEditorPanes';
+import JsonEditorPanes from './JsonEditorPanes';
 
 vi.mock('@monaco-editor/react', () => ({
   default: () => <div data-testid="monaco-editor" />,
@@ -11,8 +11,6 @@ vi.mock('@monaco-editor/react', () => ({
 describe('JsonEditorPanes', () => {
   it('keeps pane search widgets in the layout above editor content', () => {
     const noOp = vi.fn();
-    const importJson = vi.fn();
-    const pasteJson = vi.fn();
     const leftPaneProps: LeftPaneProps = {
       activeLargeRawViewerData: null,
       activeLeftMatchCount: 0,
@@ -43,8 +41,6 @@ describe('JsonEditorPanes', () => {
       onLeftSearchTermChange: noOp,
       onLoadMoreLeftSearch: noOp,
       onNextLeft: noOp,
-      onImportJson: importJson,
-      onPasteJson: pasteJson,
       onPrevLeft: noOp,
     };
     const rightPaneProps: RightPaneProps = {
@@ -117,10 +113,8 @@ describe('JsonEditorPanes', () => {
         rightPaneProps={{ ...rightPaneProps, isRightFindOpen: false }}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: '导入文件' }));
-    fireEvent.click(screen.getByRole('button', { name: '粘贴 JSON' }));
-
-    expect(importJson).toHaveBeenCalledTimes(1);
-    expect(pasteJson).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('直接输入或粘贴 JSON（⌘V / Ctrl+V），也可以把 JSON 文件拖到窗口中。')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导入文件' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '粘贴 JSON' })).not.toBeInTheDocument();
   });
 });

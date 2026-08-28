@@ -208,7 +208,7 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
         ) : null}
       </div>
       {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
-        <div className="editor-empty-state editor-empty-state-secondary">
+        <div className="editor-empty-state">
           <div className="editor-empty-state-mark" aria-hidden="true">
             {'[ ]'}
           </div>

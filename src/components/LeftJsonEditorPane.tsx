@@ -36,8 +36,6 @@ interface LeftJsonEditorPaneProps {
   onLeftSearchTermChange: (value: string) => void;
   onLoadMoreLeftSearch: () => void;
   onNextLeft: () => void;
-  onImportJson: () => void;
-  onPasteJson: () => void | Promise<void>;
   onPrevLeft: () => void;
   t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
@@ -74,8 +72,6 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
   onLeftSearchTermChange,
   onLoadMoreLeftSearch,
   onNextLeft,
-  onImportJson,
-  onPasteJson,
   onPrevLeft,
   t = defaultT,
 }) => (
@@ -145,14 +141,6 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           </div>
           <strong>{t('pane.rawEmptyTitle')}</strong>
           <span>{t('pane.rawEmptyHint')}</span>
-          <div className="editor-empty-state-actions">
-            <button type="button" className="editor-empty-state-primary" onClick={onImportJson}>
-              {t('pane.rawEmptyImport')}
-            </button>
-            <button type="button" onClick={onPasteJson}>
-              {t('pane.rawEmptyPaste')}
-            </button>
-          </div>
         </div>
       )}
       {processingStageText && <div className="editor-loading-overlay">{processingStageText}</div>}
