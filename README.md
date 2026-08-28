@@ -5,26 +5,29 @@
   <p><strong>简体中文</strong> | <a href="README.en.md">English</a></p>
 
   <p>
+    <a href="https://github.com/Aaronsound/FxxkJson/releases/latest"><img alt="下载最新版" src="https://img.shields.io/badge/下载-macOS%20%7C%20Windows-238b59?logo=github" /></a>
     <a href="https://github.com/Aaronsound/FxxkJson/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Aaronsound/FxxkJson/actions/workflows/ci.yml/badge.svg" /></a>
     <a href="https://github.com/Aaronsound/FxxkJson/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Aaronsound/FxxkJson?sort=semver" /></a>
     <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg" /></a>
   </p>
 </div>
 
-FxxkJson 基于 Electron、React、Vite 和 Monaco Editor 构建，适合处理接口响应、日志、配置文件和 5MB+ 的大 JSON。它提供响应式双栏工作区、可拖动分隔线和 7 种可持久化强调色；所有 JSON 处理都在本机完成，不上传数据，不包含遥测或远程 JSON 处理逻辑。
+FxxkJson 基于 Electron、React、Vite 和 Monaco Editor 构建，适合处理接口响应、日志、配置文件和 5MB+ 的大 JSON。针对大文件提供专用只读查看器、虚拟滚动和延迟索引，并使用 20MB 样本持续做性能与 Electron E2E 回归。所有 JSON 处理都在本机完成，不上传数据。
 
 **快速入口：** [中文使用指南](docs/USER_GUIDE.md) · [English User Guide](docs/USER_GUIDE.en.md) · [下载最新版](https://github.com/Aaronsound/FxxkJson/releases/latest)
 
-## 项目演进
+![FxxkJson 中文界面动态演示](docs/assets/demo.png)
 
-FxxkJson 是 [HanJson](https://github.com/Aaronsound/HanJson) 的重构优化版。它不是从零开始的新工具，而是在原有 JSON 格式化工具经验上继续演进：
+> 动态演示由真实 Electron 应用截图自动合成，依次展示主界面、大文件查看、节点右键操作和 JSON 对比。
 
-- HanJson 起步于 Create React App，后续加入 Electron 桌面运行、Monaco Editor 双栏编辑器、worker 后台格式化和 `jsonc-parser` 节点定位能力。
-- 中间迁移到 Vite 构建链，也就是早期提交中提到的 `HanJson-vite`，用于改善 Electron + Monaco worker 的打包路径、开发启动和构建体验。
-- FxxkJson 在此基础上继续重命名和重构，保留 Electron、React、Vite 和 Monaco Editor 技术栈，同时把原本集中的界面、状态、搜索、编辑和 worker 逻辑拆分到 components、hooks、utils 和 workers。
-- 针对 5MB+ 大 JSON，FxxkJson 不再只依赖右侧第二个 Monaco 编辑器，而是增加专用只读大文件查看器、虚拟滚动、延迟索引、性能面板、诊断日志、自动化测试和发布检查。
+## 为什么选择 FxxkJson
 
-Monaco Editor 是编辑器内核，Vite 是构建工具；二者在当前架构中并行存在，不是互相替代关系。
+| | 能力 | 说明 |
+| --- | --- | --- |
+| ⚡ | 大文件优先 | 5MB+ 自动进入专用查看模式；5MB/20MB 性能回归和打包应用测试防止体验退化。 |
+| 🔒 | 本地处理 | JSON 不上传，不包含分析 SDK、遥测或远程处理逻辑。 |
+| 🧰 | 完整工作流 | 格式化、修复、搜索替换、节点编辑、JSON Path、多标签和结构对比集中在一个桌面工作区。 |
+| 🖥️ | 双平台发布 | 同时提供 Windows x64、macOS Apple Silicon 和 macOS Intel 安装包。 |
 
 ## 下载
 
@@ -39,9 +42,34 @@ Monaco Editor 是编辑器内核，Vite 是构建工具；二者在当前架构�
 
 当前发布包未签名，macOS Gatekeeper 或 Windows SmartScreen 可能会提示风险。请确认你从本仓库 Releases 下载。
 
-## 截图
+## 30 秒上手
 
-以下截图由真实 Electron 应用自动生成并校验。中文 README 使用中文界面，英文 README 使用英文界面。
+1. 下载并打开与你系统匹配的安装包。
+2. 把 JSON 粘贴到左侧、点击“导入 JSON”，或者直接将文件拖进窗口。
+3. 查看右侧自动生成的格式化结果；需要时使用搜索、折叠或右键节点操作。
+
+[查看完整中文使用指南 →](docs/USER_GUIDE.md)
+
+## 你可以用它做什么
+
+- 粘贴或导入 JSON，并在右侧查看格式化结果。
+- 修复常见的非标准 JSON 文本。
+- 对字符串做转义和反转义。
+- 在左侧原始 JSON 中搜索和替换。
+- 在右侧格式化结果中搜索、折叠、复制值、复制 JSON Path。
+- 编辑当前节点、删除节点、重命名 key。
+- 多标签管理不同 JSON，并对比两个标签中的 JSON 差异。
+- 使用固定新增入口、标签滚动按钮和键盘操作管理多个标签。
+- 在翡翠绿、雾霾蓝、石墨灰、经典黑、蓝色、靛蓝和紫色之间切换，设置会在本机保存，并兼容深色模式。
+- 在窄窗口中使用响应式工具栏、菜单和弹窗；双栏分隔线可以左右拖动。
+- 查看 5MB+ 大文件，使用虚拟滚动保持界面响应。
+- 可选开启大文件右侧点击定位，帮助从格式化视图定位回原始 JSON；折叠、定位和节点编辑使用紧凑索引及增量更新降低开销。
+- 查看性能面板和诊断日志，排查大文件导入、格式化、搜索和定位问题。
+
+## 更多界面
+
+<details>
+<summary>展开查看 4 张中文界面截图</summary>
 
 ### 主界面
 
@@ -59,21 +87,18 @@ Monaco Editor 是编辑器内核，Vite 是构建工具；二者在当前架构�
 
 ![JSON 对比弹窗](docs/assets/compare-dialog.png)
 
-## 你可以用它做什么
+</details>
 
-- 粘贴或导入 JSON，并在右侧查看格式化结果。
-- 修复常见的非标准 JSON 文本。
-- 对字符串做转义和反转义。
-- 在左侧原始 JSON 中搜索和替换。
-- 在右侧格式化结果中搜索、折叠、复制值、复制 JSON Path。
-- 编辑当前节点、删除节点、重命名 key。
-- 多标签管理不同 JSON，并对比两个标签中的 JSON 差异。
-- 使用固定新增入口、标签滚动按钮和键盘操作管理多个标签。
-- 在翡翠绿、雾霾蓝、石墨灰、经典黑、蓝色、靛蓝和紫色之间切换，设置会在本机保存，并兼容深色模式。
-- 在窄窗口中使用响应式工具栏、菜单和弹窗；双栏分隔线可以左右拖动。
-- 查看 5MB+ 大文件，使用虚拟滚动保持界面响应。
-- 可选开启大文件右侧点击定位，帮助从格式化视图定位回原始 JSON；折叠、定位和节点编辑使用紧凑索引及增量更新降低开销。
-- 查看性能面板和诊断日志，排查大文件导入、格式化、搜索和定位问题。
+## 项目演进
+
+FxxkJson 是 [HanJson](https://github.com/Aaronsound/HanJson) 的重构优化版。它不是从零开始的新工具，而是在原有 JSON 格式化工具经验上继续演进：
+
+- HanJson 起步于 Create React App，后续加入 Electron 桌面运行、Monaco Editor 双栏编辑器、worker 后台格式化和 `jsonc-parser` 节点定位能力。
+- 中间迁移到 Vite 构建链，也就是早期提交中提到的 `HanJson-vite`，用于改善 Electron + Monaco worker 的打包路径、开发启动和构建体验。
+- FxxkJson 在此基础上继续重命名和重构，保留 Electron、React、Vite 和 Monaco Editor 技术栈，同时把原本集中的界面、状态、搜索、编辑和 worker 逻辑拆分到 components、hooks、utils 和 workers。
+- 针对 5MB+ 大 JSON，FxxkJson 不再只依赖右侧第二个 Monaco 编辑器，而是增加专用只读大文件查看器、虚拟滚动、延迟索引、性能面板、诊断日志、自动化测试和发布检查。
+
+Monaco Editor 是编辑器内核，Vite 是构建工具；二者在当前架构中并行存在，不是互相替代关系。
 
 ## 隐私
 
@@ -95,7 +120,8 @@ npm run smoke        # 运行核心 JSON 流程 smoke 测试
 npm run build        # 构建 renderer 和 Electron 输出
 npm run bundle:size  # 输出构建产物体积
 npm run check        # 文本检查 + 格式化 + lint + 类型检查 + 覆盖率 + smoke + 构建 + 包体积
-npm run docs:screenshots # 启动 Electron 并重新生成中英文 README 截图
+npm run docs:screenshots # 重新生成中英文 Electron 截图和动态演示
+npm run docs:demo        # 仅用现有截图重建中英文动态演示
 npm start            # npm run build 后运行桌面应用
 ```
 
