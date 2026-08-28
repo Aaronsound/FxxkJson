@@ -81,6 +81,7 @@ export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
 
   return {
     isDarkMode,
+    t,
     leftPaneProps: {
       activeLargeRawViewerData,
       activeLeftMatchCount,

@@ -60,6 +60,21 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
   ]);
 }
 
+async function resizeElectronWindow(cdp, width, height, predicate, label) {
+  await evaluate(cdp, `window.resizeTo(${width}, ${height})`);
+  try {
+    await waitFor(() => evaluate(cdp, predicate), label, 3000);
+  } catch {
+    const { windowId } = await cdp.send('Browser.getWindowForTarget');
+    await cdp.send('Browser.setWindowBounds', {
+      windowId,
+      bounds: { height, width },
+    });
+    await waitFor(() => evaluate(cdp, predicate), `${label} through native window bounds`);
+  }
+  await evaluate(cdp, `window.dispatchEvent(new Event('resize')); true`);
+}
+
 async function assertToolbarUi(cdp) {
   const checkboxAlignment = await evaluate(
     cdp,
@@ -302,9 +317,11 @@ async function assertToolbarUi(cdp) {
     () =>
       evaluate(
         cdp,
-        `Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.trim() === 'Import JSON')`
+        `Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.trim() === 'Import JSON') &&
+          document.querySelector('.left-editor-pane .editor-pane-header-title')?.textContent === 'Raw JSON' &&
+          document.querySelector('.right-editor-pane .editor-pane-header-title')?.textContent === 'Formatted result'`
       ),
-    'toolbar switches to English'
+    'toolbar and pane headers switch to English'
   );
 
   await evaluate(
@@ -348,13 +365,14 @@ async function assertToolbarUi(cdp) {
     () =>
       evaluate(
         cdp,
-        `Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.trim() === '导入 JSON')`
+        `Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.trim() === '导入 JSON') &&
+          document.querySelector('.left-editor-pane .editor-pane-header-title')?.textContent === '原始 JSON' &&
+          document.querySelector('.right-editor-pane .editor-pane-header-title')?.textContent === '格式化结果'`
       ),
-    'toolbar switches back to Chinese'
+    'toolbar and pane headers switch back to Chinese'
   );
 
-  await evaluate(cdp, `window.resizeTo(480, 700)`);
-  await waitFor(() => evaluate(cdp, `window.innerWidth <= 860`), 'window enters compact toolbar breakpoint');
+  await resizeElectronWindow(cdp, 480, 700, `window.innerWidth <= 860`, 'window enters compact toolbar breakpoint');
   await waitFor(
     () => evaluate(cdp, `Boolean(document.querySelector('.toolbar-more-compact-actions'))`),
     'compact actions move into More menu'
@@ -418,8 +436,7 @@ async function assertToolbarUi(cdp) {
     throw new Error(`Compact More menu was not grouped and viewport-bounded: ${JSON.stringify(compactMenuMetrics)}`);
   }
   await evaluate(cdp, `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
-  await evaluate(cdp, `window.resizeTo(1200, 800)`);
-  await waitFor(() => evaluate(cdp, `window.innerWidth >= 1100`), 'window restores desktop toolbar width');
+  await resizeElectronWindow(cdp, 1200, 800, `window.innerWidth >= 1100`, 'window restores desktop toolbar width');
 }
 
 async function assertPaneFocusAffordance(cdp) {
@@ -470,8 +487,7 @@ async function assertPaneFocusAffordance(cdp) {
 }
 
 async function assertReadableToolbarStatus(cdp) {
-  await evaluate(cdp, `window.resizeTo(480, 700)`);
-  await waitFor(() => evaluate(cdp, `window.innerWidth <= 860`), 'window enters compact status layout');
+  await resizeElectronWindow(cdp, 480, 700, `window.innerWidth <= 860`, 'window enters compact status layout');
   const result = await evaluate(
     cdp,
     `(() => {
@@ -504,8 +520,13 @@ async function assertReadableToolbarStatus(cdp) {
   ) {
     throw new Error(`Toolbar status was clipped in compact layout: ${JSON.stringify(result)}`);
   }
-  await evaluate(cdp, `window.resizeTo(1200, 800)`);
-  await waitFor(() => evaluate(cdp, `window.innerWidth >= 1100`), 'window restores desktop width after status check');
+  await resizeElectronWindow(
+    cdp,
+    1200,
+    800,
+    `window.innerWidth >= 1100`,
+    'window restores desktop width after status check'
+  );
 }
 
 async function assertSplitResize(cdp) {

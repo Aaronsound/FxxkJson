@@ -11,7 +11,7 @@
   </p>
 </div>
 
-FxxkJson is built with Electron, React, Vite, and Monaco Editor. It is designed for API responses, logs, configuration files, and 5MB+ JSON documents. JSON processing happens locally on your machine; the app does not upload JSON content and does not include telemetry or remote JSON processing.
+FxxkJson is built with Electron, React, Vite, and Monaco Editor. It is designed for API responses, logs, configuration files, and 5MB+ JSON documents, with a responsive two-pane workspace, a resizable splitter, and seven persistent accent themes. JSON processing happens locally on your machine; the app does not upload JSON content and does not include telemetry or remote JSON processing.
 
 ## Project Evolution
 
@@ -39,6 +39,8 @@ Current builds are unsigned, so macOS Gatekeeper or Windows SmartScreen may show
 
 ## Screenshots
 
+These screenshots are generated and verified against the real Electron app. The Chinese and English README files intentionally show their corresponding UI languages.
+
 ### Main Window
 
 ![FxxkJson main window](docs/assets/main-window-en.png)
@@ -64,8 +66,11 @@ Current builds are unsigned, so macOS Gatekeeper or Windows SmartScreen may show
 - Search, fold, copy values, and copy JSON Path from the formatted result.
 - Edit the current node, delete nodes, and rename keys.
 - Manage multiple tabs and compare JSON differences between two tabs.
+- Work with many tabs through a fixed add button, scroll controls, and keyboard navigation.
+- Choose Emerald, Mist Blue, Graphite, Obsidian, Blue, Indigo, or Violet; the preference is stored locally and works in dark mode.
+- Use responsive toolbars, menus, and dialogs in narrow windows, and drag the center splitter to resize either pane.
 - Browse 5MB+ JSON files with a virtualized large-file viewer.
-- Optionally map right-side clicks back to the raw JSON for large files.
+- Optionally map right-side clicks back to the raw JSON for large files; compact indexes and incremental node edits keep folding, locating, and editing efficient.
 - Use performance details and diagnostics logs to troubleshoot large-file workflows.
 
 ## Privacy
@@ -83,6 +88,7 @@ npm run typecheck  # type-check renderer and Electron sources
 npm test           # run Vitest tests
 npm run build      # build renderer and Electron output
 npm run check      # text check + typecheck + test + smoke + build
+npm run docs:screenshots # launch Electron and regenerate bilingual README screenshots
 npm start          # run the built desktop app after npm run build
 ```
 

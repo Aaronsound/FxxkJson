@@ -2,11 +2,19 @@
 
 ## Unreleased
 
+## v1.0.33 - 2026-08-28
+
 - Documented the project evolution from HanJson to HanJson-vite and FxxkJson in the Chinese and English README files.
 - Fixed bundle size reporting on Windows workspaces whose paths contain spaces.
 - Added repository line-ending defaults for consistent local formatting on Windows and CI.
 - Added an npm override for the transitive `tmp` dependency advisory pulled in by Electron packaging.
 - Moved desktop release notes into a shared Markdown file so the release workflow does not duplicate the same body text.
+- Reduced large-file edit overhead with incremental text patches, reusable worker artifacts, tighter cache lifecycle management, and fewer full-document scans.
+- Expanded 5MB/20MB performance coverage, multi-tab memory checks, packaged-app smoke tests, and cross-platform release validation.
+- Refined the responsive desktop workspace with a draggable splitter, compact overflow navigation, fixed tab controls, consistent dialogs, contextual search, focus feedback, and accessible context menus.
+- Added seven persistent accent themes with coordinated light/dark variants and normalized component spacing, colors, checkbox alignment, and interaction states.
+- Completed English propagation for pane headers and large-file context menus.
+- Added deterministic Electron automation for separate Chinese and English documentation screenshots and refreshed every README image.
 
 ## v1.0.25
 

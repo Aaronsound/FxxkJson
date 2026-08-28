@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
+import { createTranslator } from '../utils/i18n';
 import type { LeftPaneProps, RightPaneProps } from './JsonEditorPanes';
 import JsonEditorPanes from './JsonEditorPanes';
 
@@ -119,5 +120,18 @@ describe('JsonEditorPanes', () => {
     expect(screen.getByText('直接输入或粘贴 JSON（⌘V / Ctrl+V），也可以把 JSON 文件拖到窗口中。')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '导入文件' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '粘贴 JSON' })).not.toBeInTheDocument();
+
+    rerender(
+      <JsonEditorPanes
+        isDarkMode={false}
+        leftPaneProps={leftPaneProps}
+        rightPaneProps={rightPaneProps}
+        t={createTranslator('en')}
+      />
+    );
+    expect(screen.getByText('Raw JSON')).toBeInTheDocument();
+    expect(screen.getAllByText('Formatted result')).toHaveLength(2);
+    expect(screen.getByPlaceholderText('Search raw JSON')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search formatted result')).toBeInTheDocument();
   });
 });
