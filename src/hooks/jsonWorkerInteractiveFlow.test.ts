@@ -170,7 +170,7 @@ describe('createJsonWorkerInteractiveFlow', () => {
     await expect(edit).resolves.toBe('"{\\"ok\\":true}"');
   });
 
-  it('transfers large replace-all source text while keeping other edit requests inline', () => {
+  it('reuses cached large originals and retries with a transfer when the worker cache is stale', async () => {
     const { flow, requests, transfers } = createFlow();
 
     void flow.requestEditJson({
@@ -183,6 +183,16 @@ describe('createJsonWorkerInteractiveFlow', () => {
       replacement: 'value',
     });
     void flow.requestEditJson({ tabId: 'tab-a', operation: 'escape-json', text: '{"ok":true}' });
+    const save = flow.requestEditJsonResult({
+      tabId: 'tab-a',
+      operation: 'save-node',
+      text: 'true',
+      originalText: '{"large":true}',
+      originalTextByteLength: LARGE_FILE_THRESHOLD,
+      rawRevision: 4,
+      reuseOriginalText: true,
+      path: ['large'],
+    });
 
     expect(requests[0]).toMatchObject({ type: 'edit-json', operation: 'replace-text' });
     expect('text' in requests[0]).toBe(false);
@@ -190,6 +200,38 @@ describe('createJsonWorkerInteractiveFlow', () => {
     expect(transfers[0]).toEqual(['textBuffer' in requests[0] ? requests[0].textBuffer : undefined]);
     expect(requests[1]).toMatchObject({ type: 'edit-json', operation: 'escape-json', text: '{"ok":true}' });
     expect(transfers[1]).toEqual([]);
+    expect(requests[2]).toMatchObject({ type: 'edit-json', operation: 'save-node', text: 'true' });
+    expect(requests[2]).toMatchObject({ rawRevision: 4 });
+    expect('originalText' in requests[2]).toBe(false);
+    expect('originalTextBuffer' in requests[2]).toBe(false);
+    expect(transfers[2]).toEqual([]);
+
+    const firstSaveRequestId = 'requestId' in requests[2] ? requests[2].requestId : -1;
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: firstSaveRequestId,
+        tabId: 'tab-a',
+        success: false,
+        requiresOriginalText: true,
+      })
+    );
+
+    expect(requests[3]).toMatchObject({ type: 'edit-json', operation: 'save-node', rawRevision: 4 });
+    expect('originalTextBuffer' in requests[3] && requests[3].originalTextBuffer).toBeInstanceOf(ArrayBuffer);
+    expect(transfers[3]).toEqual(['originalTextBuffer' in requests[3] ? requests[3].originalTextBuffer : undefined]);
+
+    const retryRequestId = 'requestId' in requests[3] ? requests[3].requestId : -1;
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: retryRequestId,
+        tabId: 'tab-a',
+        success: true,
+        rawPatch: { sourceLength: 14, startOffset: 9, endOffset: 13, text: 'false' },
+      })
+    );
+    await expect(save).resolves.toMatchObject({ success: true });
   });
 
   it('decodes transferable raw and formatted node-save text results', async () => {
@@ -213,5 +255,24 @@ describe('createJsonWorkerInteractiveFlow', () => {
       data: '{"ok":true}',
       formattedText: '{\n  "ok": true\n}',
     });
+  });
+
+  it('resolves node-save patch results without requiring full text payloads', async () => {
+    const { flow, requests } = createFlow();
+    const edit = flow.requestEditJsonResult({ tabId: 'tab-a', operation: 'save-node', text: 'true' });
+    const editRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
+    const rawPatch = { sourceLength: 12, startOffset: 6, endOffset: 11, text: 'true' };
+
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: editRequestId,
+        tabId: 'tab-a',
+        success: true,
+        rawPatch,
+      })
+    );
+
+    await expect(edit).resolves.toMatchObject({ rawPatch });
   });
 });

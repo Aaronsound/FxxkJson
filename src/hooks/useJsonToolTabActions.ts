@@ -16,6 +16,7 @@ interface UseJsonToolTabActionsArgs {
   leftSearchWorkerRevisionRef: MutableRefObject<Record<string, number>>;
   leftViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
+  rawRevisionByTabRef: MutableRefObject<Record<string, number>>;
   removeTabArtifacts: (tabId: string) => void;
   removeTabArtifactsState: (tabId: string) => void;
   rightEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
@@ -43,6 +44,7 @@ export function useJsonToolTabActions({
   leftSearchWorkerRevisionRef,
   leftViewStateByTabRef,
   rawTextByTabRef,
+  rawRevisionByTabRef,
   removeTabArtifacts,
   removeTabArtifactsState,
   rightEditorRef,
@@ -66,6 +68,7 @@ export function useJsonToolTabActions({
     }
 
     rawTextByTabRef.current[nextId] = '';
+    rawRevisionByTabRef.current[nextId] = 0;
     formattedTextByTabRef.current[nextId] = '';
     initializeTabState(nextId);
     setPerformanceByTab((current) => ({ ...current, [nextId]: null }));

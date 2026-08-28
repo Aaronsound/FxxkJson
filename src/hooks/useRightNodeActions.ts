@@ -1,16 +1,24 @@
 import { useCallback } from 'react';
-import type { EditJsonWorkerRequest, JsonEditPath } from '../types/jsonTool';
+import type { EditJsonWorkerRequest, JsonEditPath, WorkerMessage } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
 import { writeTextToClipboard } from '../utils/clipboard';
 import { getJsonLiteralDetails, type EditableNodePayload } from '../utils/jsonEditNodePayload';
-import type { JsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
+import { type JsonDocumentMetrics, shouldUseLargeModeForMetrics } from '../utils/jsonDocumentMetrics';
+import { applyJsonTextPatch } from '../utils/jsonTextPatch';
 
 type CopyNodeDetailMode = 'path' | 'key' | 'compact-json' | 'formatted-json';
 type RightNodeMutationOperation = 'delete-node' | 'rename-node-key';
 
 interface UseRightNodeActionsArgs {
+  applyNodeMutationArtifacts: (
+    tabId: string,
+    result: WorkerMessage,
+    largeMode: boolean,
+    rawByteLength: number
+  ) => boolean;
   applyRawUpdate: (tabId: string, updated: string) => JsonDocumentMetrics;
   getTabContent: (tabId: string) => string;
+  getRawRevision: (tabId: string) => number;
   logEvent: (event: string, payload?: Record<string, unknown>) => void;
   queueFormatAfterEditSave: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   readEditableNodeAtOffset: (
@@ -19,9 +27,9 @@ interface UseRightNodeActionsArgs {
     preferCachedText: boolean,
     invalidMessage: string
   ) => Promise<EditableNodePayload>;
-  requestWorkerEditJson: (
+  requestWorkerEditJsonResult: (
     request: EditJsonWorkerRequest & { operation: RightNodeMutationOperation }
-  ) => Promise<string>;
+  ) => Promise<WorkerMessage>;
   requestDeleteConfirmation: (path: JsonEditPath, preview: string) => Promise<boolean>;
   requestRenameKey: (path: JsonEditPath, currentKey: string) => Promise<string | null>;
   resetSearchState: () => void;
@@ -41,12 +49,14 @@ export function getJsonValueClipboardText(jsonLiteral: string) {
 }
 
 export function useRightNodeActions({
+  applyNodeMutationArtifacts,
   applyRawUpdate,
   getTabContent,
+  getRawRevision,
   logEvent,
   queueFormatAfterEditSave,
   readEditableNodeAtOffset,
-  requestWorkerEditJson,
+  requestWorkerEditJsonResult,
   requestDeleteConfirmation,
   requestRenameKey,
   resetSearchState,
@@ -167,17 +177,34 @@ export function useRightNodeActions({
         }
 
         const original = getTabContent(tabId);
-        const updated = await requestWorkerEditJson({
+        const mutationResult = await requestWorkerEditJsonResult({
           tabId,
           operation,
           text: workerText,
           originalText: original,
+          rawRevision: getRawRevision(tabId),
+          reuseOriginalText: true,
           path: parsed.path,
         });
+        const updated =
+          typeof mutationResult.data === 'string'
+            ? mutationResult.data
+            : applyJsonTextPatch(original, mutationResult.rawPatch);
+        if (typeof updated !== 'string') {
+          throw new Error('JSON worker returned an empty result');
+        }
 
         const metrics = applyRawUpdate(tabId, updated);
         resetSearchState();
-        queueFormatAfterEditSave(tabId, updated, metrics);
+        const usedPatchedArtifacts = applyNodeMutationArtifacts(
+          tabId,
+          mutationResult,
+          shouldUseLargeModeForMetrics(metrics),
+          metrics.textByteLength
+        );
+        if (!usedPatchedArtifacts) {
+          queueFormatAfterEditSave(tabId, updated, metrics);
+        }
         setTabError(tabId, null);
         logEvent('right-node-mutation-success', {
           tabId,
@@ -202,11 +229,12 @@ export function useRightNodeActions({
     },
     [
       applyRawUpdate,
+      applyNodeMutationArtifacts,
       getTabContent,
       logEvent,
       queueFormatAfterEditSave,
       readEditableNodeAtOffset,
-      requestWorkerEditJson,
+      requestWorkerEditJsonResult,
       requestDeleteConfirmation,
       requestRenameKey,
       resetSearchState,

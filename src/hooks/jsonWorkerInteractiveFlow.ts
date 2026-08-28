@@ -78,6 +78,8 @@ export function createJsonWorkerInteractiveFlow({
     number,
     {
       reject: (error: Error) => void;
+      request: EditJsonWorkerRequest;
+      retriedWithOriginalText: boolean;
       resolve: (value: WorkerMessage) => void;
     }
   > = {};
@@ -160,47 +162,69 @@ export function createJsonWorkerInteractiveFlow({
     );
   };
 
-  const requestEditJsonResult = ({
-    tabId,
-    operation,
-    text,
-    textByteLength,
-    originalText,
-    path,
-    offset,
-    searchTerm,
-    searchOptions,
-    replacement,
-  }: EditJsonWorkerRequest) =>
-    new Promise<WorkerMessage>((resolve, reject) => {
-      if (!workerRef.current) {
-        reject(new Error('JSON worker is not ready'));
-        return;
-      }
+  const sendEditJsonRequest = (
+    request: EditJsonWorkerRequest,
+    retriedWithOriginalText: boolean,
+    resolve: (value: WorkerMessage) => void,
+    reject: (error: Error) => void
+  ) => {
+    const {
+      tabId,
+      operation,
+      text,
+      textByteLength,
+      originalText,
+      originalTextByteLength,
+      rawRevision,
+      reuseOriginalText,
+      path,
+      offset,
+      searchTerm,
+      searchOptions,
+      replacement,
+    } = request;
+    if (!workerRef.current) {
+      reject(new Error('JSON worker is not ready'));
+      return;
+    }
 
-      const requestId = ++locateRequestCounter;
-      pendingEditJsonRequests[requestId] = { reject, resolve };
-      const textPayload =
-        operation === 'replace-text'
-          ? createWorkerTextPayload(text, textByteLength)
-          : { message: { text }, transfer: [] };
-      postWorkerRequest(
-        {
-          type: 'edit-json',
-          requestId,
-          tabId,
-          operation,
-          ...textPayload.message,
-          textByteLength,
-          originalText,
-          path,
-          offset,
-          searchTerm,
-          searchOptions,
-          replacement,
-        },
-        textPayload.transfer
-      );
+    const requestId = ++locateRequestCounter;
+    pendingEditJsonRequests[requestId] = { reject, request, resolve, retriedWithOriginalText };
+    const textPayload = createWorkerTextPayload(text, textByteLength);
+    const shouldIncludeOriginalText = !reuseOriginalText || retriedWithOriginalText;
+    const originalTextPayload =
+      shouldIncludeOriginalText && typeof originalText === 'string'
+        ? createWorkerTextPayload(originalText, originalTextByteLength)
+        : null;
+    const originalMessage = originalTextPayload
+      ? 'textBuffer' in originalTextPayload.message
+        ? { originalTextBuffer: originalTextPayload.message.textBuffer }
+        : { originalText: originalTextPayload.message.text }
+      : {};
+    postWorkerRequest(
+      {
+        type: 'edit-json',
+        requestId,
+        tabId,
+        operation,
+        ...textPayload.message,
+        textByteLength,
+        ...originalMessage,
+        originalTextByteLength,
+        rawRevision,
+        path,
+        offset,
+        searchTerm,
+        searchOptions,
+        replacement,
+      },
+      [...textPayload.transfer, ...(originalTextPayload?.transfer ?? [])]
+    );
+  };
+
+  const requestEditJsonResult = (request: EditJsonWorkerRequest) =>
+    new Promise<WorkerMessage>((resolve, reject) => {
+      sendEditJsonRequest(request, false, resolve, reject);
     });
 
   const requestEditJson = (request: EditJsonWorkerRequest) =>
@@ -311,10 +335,17 @@ export function createJsonWorkerInteractiveFlow({
         delete pendingEditJsonRequests[message.requestId];
         const data = readWorkerTextField(message, 'data', 'dataBuffer');
         const formattedText = readWorkerTextField(message, 'formattedText', 'formattedTextBuffer');
-        if (message.success && typeof data === 'string') {
+        if (
+          !message.success &&
+          message.requiresOriginalText &&
+          !pending.retriedWithOriginalText &&
+          typeof pending.request.originalText === 'string'
+        ) {
+          sendEditJsonRequest(pending.request, true, pending.resolve, pending.reject);
+        } else if (message.success && (typeof data === 'string' || message.rawPatch)) {
           pending.resolve({
             ...message,
-            data,
+            data: data ?? message.data,
             formattedText: formattedText ?? message.formattedText,
           });
         } else {

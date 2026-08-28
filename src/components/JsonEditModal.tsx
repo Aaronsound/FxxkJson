@@ -1,19 +1,11 @@
-import type React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import JsonMonacoEditor from './JsonMonacoEditor';
-import PaneFindWidget from './PaneFindWidget';
-import { useJsonEditFolding } from '../hooks/useJsonEditFolding';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditModalSearch } from '../hooks/useEditModalSearch';
+import { useJsonEditFolding } from '../hooks/useJsonEditFolding';
 import { writeTextToClipboard } from '../utils/clipboard';
-import {
-  getJsonEditSelectionContext,
-  hasJsonEditSelection,
-  replaceJsonEditDocument,
-  replaceJsonEditSelection,
-  runWritableEditorEdit,
-} from '../utils/jsonEditModalTransforms';
+import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 import {
   enableLargeEditModelFolding,
@@ -22,6 +14,17 @@ import {
   prepareLargeEditModel,
   refreshEditFoldingControls,
 } from '../utils/jsonEditFolding';
+import {
+  getJsonEditSelectionContext,
+  hasJsonEditSelection,
+  replaceJsonEditDocument,
+  replaceJsonEditSelection,
+  runWritableEditorEdit,
+} from '../utils/jsonEditModalTransforms';
+import JsonMonacoEditor from './JsonMonacoEditor';
+import OperationNotice from './OperationNotice';
+import PaneFindWidget from './PaneFindWidget';
+import ContextMenuSurface from './ContextMenuSurface';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 
@@ -89,7 +92,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   const onCloseRef = useRef(onClose);
   const closeFindRef = useRef<() => void>(() => undefined);
   const [transformError, setTransformError] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    hasSelection: boolean;
+  } | null>(null);
   const editSearch = useEditModalSearch({
     editorRef,
     searchBatchSize: EDIT_MODAL_SEARCH_BATCH_SIZE,
@@ -384,18 +391,18 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       return;
     }
 
+    const position = getViewportContextMenuPosition(event.clientX, event.clientY, 4);
     setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
+      ...position,
       hasSelection: hasJsonEditSelection(editorRef.current),
     });
   };
 
   return (
-    <div className="modal-overlay" ref={modalRef}>
+    <div className="modal-overlay" ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="json-edit-title">
       <div className={isDarkMode ? 'modal-card modal-card-dark' : 'modal-card'}>
         <div className="modal-header">
-          <h3>{title}</h3>
+          <h3 id="json-edit-title">{title}</h3>
           {pathText && (
             <div className="modal-path" title={pathText}>
               {pathText}
@@ -419,6 +426,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
               onPrev={editSearch.goToPreviousMatch}
               onNext={editSearch.goToNextMatch}
               onClose={editSearch.closeFind}
+              t={t}
             />
           )}
           <JsonMonacoEditor
@@ -457,44 +465,57 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             ))}
           </div>
           {contextMenu && (
-            <div
-              className={`large-json-context-menu ${isDarkMode ? 'dark' : ''}`}
+            <ContextMenuSurface
+              ariaLabel={t('editorContext.menuLabel')}
+              isDarkMode={isDarkMode}
+              onClose={() => setContextMenu(null)}
               style={{ left: contextMenu.x, top: contextMenu.y }}
-              onContextMenu={(event) => event.preventDefault()}
-              onPointerDown={(event) => event.stopPropagation()}
             >
-              <button
-                type="button"
-                className="large-json-context-menu-item"
-                onClick={() => runContextAction(() => handleTransformContent(onEscapeContent))}
-              >
-                {contextMenu.hasSelection ? t('edit.contextEscapeSelection') : t('edit.contextEscapeDocument')}
-              </button>
-              <button
-                type="button"
-                className="large-json-context-menu-item"
-                onClick={() => runContextAction(() => handleTransformContent(onUnescapeContent))}
-              >
-                {contextMenu.hasSelection ? t('edit.contextUnescapeSelection') : t('edit.contextUnescapeDocument')}
-              </button>
-              <button
-                type="button"
-                className="large-json-context-menu-item"
-                disabled={!contextMenu.hasSelection}
-                onClick={() => runContextAction(handleCopySelection)}
-              >
-                {t('editorContext.copy')}
-              </button>
-              <button
-                type="button"
-                className="large-json-context-menu-item"
-                onClick={() => runContextAction(onCopyLiteral)}
-              >
-                {t('edit.copyLiteral')}
-              </button>
-            </div>
+              <div className="large-json-context-menu-group" role="group" aria-label={t('context.editGroup')}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="large-json-context-menu-item"
+                  onClick={() => runContextAction(() => handleTransformContent(onEscapeContent))}
+                >
+                  {contextMenu.hasSelection ? t('edit.contextEscapeSelection') : t('edit.contextEscapeDocument')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="large-json-context-menu-item"
+                  onClick={() => runContextAction(() => handleTransformContent(onUnescapeContent))}
+                >
+                  {contextMenu.hasSelection ? t('edit.contextUnescapeSelection') : t('edit.contextUnescapeDocument')}
+                </button>
+              </div>
+              <div className="large-json-context-menu-group" role="group" aria-label={t('context.copyGroup')}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="large-json-context-menu-item"
+                  disabled={!contextMenu.hasSelection}
+                  onClick={() => runContextAction(handleCopySelection)}
+                >
+                  {t('editorContext.copy')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="large-json-context-menu-item"
+                  onClick={() => runContextAction(onCopyLiteral)}
+                >
+                  {t('edit.copyLiteral')}
+                </button>
+              </div>
+            </ContextMenuSurface>
           )}
         </div>
+
+        {busyLabel && <div className="modal-error">{busyLabel}</div>}
+        {error && <div className="modal-error">{error}</div>}
+        {transformError && <div className="modal-error">{transformError}</div>}
+        {hasCopiedLiteral && <OperationNotice>{t('edit.copiedLiteral')}</OperationNotice>}
 
         <div className="modal-actions">
           <button type="button" onClick={onSave} disabled={isBusy}>
@@ -504,11 +525,6 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             {t('edit.cancel')}
           </button>
         </div>
-
-        {busyLabel && <div className="modal-error">{busyLabel}</div>}
-        {error && <div className="modal-error">{error}</div>}
-        {transformError && <div className="modal-error">{transformError}</div>}
-        {hasCopiedLiteral && <div className="modal-copy-hint">{t('edit.copiedLiteral')}</div>}
       </div>
     </div>
   );

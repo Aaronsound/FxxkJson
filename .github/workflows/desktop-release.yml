@@ -129,6 +129,9 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Smoke test packaged app launch
+        run: npm run smoke:packaged
+
       - name: List packaged output
         if: always()
         shell: pwsh

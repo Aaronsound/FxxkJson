@@ -13,6 +13,9 @@ export function useJsonToolRefs(initialTabId: string) {
   const rawTextByTabRef = useRef<Record<string, string>>({
     [initialTabId]: '',
   });
+  const rawRevisionByTabRef = useRef<Record<string, number>>({
+    [initialTabId]: 0,
+  });
   const formattedTextByTabRef = useRef<Record<string, string>>({
     [initialTabId]: '',
   });
@@ -50,6 +53,7 @@ export function useJsonToolRefs(initialTabId: string) {
     leftViewStateByTabRef,
     previousActiveTabIdRef,
     rawTextByTabRef,
+    rawRevisionByTabRef,
     rightContextMenuOffsetByTabRef,
     rightDecorationIdsRef,
     rightEditorRef,
@@ -65,12 +69,14 @@ type PreserveActiveTabViewStateOptions = Pick<
   'leftEditorRef' | 'leftViewStateByTabRef' | 'previousActiveTabIdRef' | 'rightEditorRef' | 'rightViewStateByTabRef'
 > & {
   activeTabId: string;
+  onDeactivateTab?: (tabId: string) => void;
 };
 
 export function usePreserveActiveTabViewState({
   activeTabId,
   leftEditorRef,
   leftViewStateByTabRef,
+  onDeactivateTab,
   previousActiveTabIdRef,
   rightEditorRef,
   rightViewStateByTabRef,
@@ -81,6 +87,7 @@ export function usePreserveActiveTabViewState({
     if (previousTabId && previousTabId !== activeTabId) {
       leftViewStateByTabRef.current[previousTabId] = leftEditorRef.current?.saveViewState() ?? null;
       rightViewStateByTabRef.current[previousTabId] = rightEditorRef.current?.saveViewState() ?? null;
+      onDeactivateTab?.(previousTabId);
     }
 
     previousActiveTabIdRef.current = activeTabId;
@@ -88,6 +95,7 @@ export function usePreserveActiveTabViewState({
     activeTabId,
     leftEditorRef,
     leftViewStateByTabRef,
+    onDeactivateTab,
     previousActiveTabIdRef,
     rightEditorRef,
     rightViewStateByTabRef,

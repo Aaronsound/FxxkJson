@@ -17,6 +17,7 @@ interface CreateJsonWorkerTabArtifactActionsArgs {
   leftViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
   postWorkerRequest: (message: WorkerRequestMessage, transfer?: Transferable[]) => void;
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
+  rawRevisionByTabRef: MutableRefObject<Record<string, number>>;
   rightViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
   structureStatusRef: MutableRefObject<Record<string, 'ready' | 'building' | 'disabled'>>;
   workerStructureEnabledRef: MutableRefObject<Record<string, boolean>>;
@@ -35,6 +36,7 @@ export function createJsonWorkerTabArtifactActions({
   leftViewStateByTabRef,
   postWorkerRequest,
   rawTextByTabRef,
+  rawRevisionByTabRef,
   rightViewStateByTabRef,
   structureStatusRef,
   workerStructureEnabledRef,
@@ -78,6 +80,7 @@ export function createJsonWorkerTabArtifactActions({
     callbacksRef.current.setProcessingStage(tabId, 'idle');
     callbacksRef.current.setLocateFeedback(tabId, null);
     delete rawTextByTabRef.current[tabId];
+    delete rawRevisionByTabRef.current[tabId];
     delete formattedTextByTabRef.current[tabId];
     delete leftViewStateByTabRef.current[tabId];
     delete rightViewStateByTabRef.current[tabId];

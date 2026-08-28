@@ -24,8 +24,13 @@ interface ViewerSearchCacheEntry {
 }
 
 interface JsonWorkerSearchOperationsArgs {
+  editJsonCache?: Map<string, { originalText?: string }>;
   latestSearchRequestByKey: Map<string, number>;
   rawSearchCache: Map<string, RawSearchCacheEntry>;
+  structureCache?: Map<
+    string,
+    { directLocateMode?: 'identity' | 'token-search'; formattedText?: string; rawText?: string }
+  >;
   viewerCache: Map<string, ViewerSearchCacheEntry>;
 }
 
@@ -34,10 +39,29 @@ export function getSearchRequestKey(tabId: string, target: SearchTarget) {
 }
 
 export function createJsonWorkerSearchOperations({
+  editJsonCache,
   latestSearchRequestByKey,
   rawSearchCache,
+  structureCache,
   viewerCache,
 }: JsonWorkerSearchOperationsArgs) {
+  function reuseCachedRawText(tabId: string, incomingText: string) {
+    const structure = structureCache?.get(tabId);
+    const candidates = [
+      structure?.rawText,
+      structure?.directLocateMode === 'identity' ? structure.formattedText : undefined,
+      editJsonCache?.get(tabId)?.originalText,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.length === incomingText.length && candidate === incomingText) {
+        return candidate;
+      }
+    }
+
+    return incomingText;
+  }
+
   function isLatestSearchRequest(tabId: string, target: SearchTarget, requestId: number) {
     return latestSearchRequestByKey.get(getSearchRequestKey(tabId, target)) === requestId;
   }
@@ -83,8 +107,9 @@ export function createJsonWorkerSearchOperations({
 
     if (target === 'left') {
       if (typeof message.text === 'string' || message.textBuffer instanceof ArrayBuffer) {
+        const incomingText = readMessageText(message);
         rawSearchCache.set(tabId, {
-          rawText: readMessageText(message),
+          rawText: reuseCachedRawText(tabId, incomingText),
           rawRevision: message.rawRevision ?? null,
           lineStarts: null,
         });

@@ -1,5 +1,4 @@
 @import "./styles/base.css";
-@import "./styles/toolbar-legacy.css";
 @import "./styles/editor-viewers.css";
 @import "./styles/large-json-viewer.css";
 @import "./styles/raw-json-viewer.css";
@@ -10,4 +9,3 @@
 @import "./styles/diagnostics-dialog.css";
 @import "./styles/json-compare-dialog.css";
 @import "./styles/about-dialog.css";
-@import "./styles/tabs-overrides.css";

@@ -1,16 +1,17 @@
-import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
-import type JsonToolWorkspace from '../components/JsonToolWorkspace';
+import type React from 'react';
 import type JsonEditorPanes from '../components/JsonEditorPanes';
+import type JsonPerformancePanel from '../components/JsonPerformancePanel';
 import type JsonToolContextMenus from '../components/JsonToolContextMenus';
 import type JsonToolOverlayLayer from '../components/JsonToolOverlayLayer';
 import type JsonToolTabBar from '../components/JsonToolTabBar';
 import type JsonToolToolbar from '../components/JsonToolToolbar';
-import type JsonPerformancePanel from '../components/JsonPerformancePanel';
+import type JsonToolWorkspace from '../components/JsonToolWorkspace';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
 import type { LargeJsonFoldState, Tab } from '../types/jsonTool';
-import { createJsonToolContextMenusProps, createJsonToolPanesProps } from './jsonToolPaneMenuProps';
+import type { AppAccentTheme } from '../utils/accentTheme';
 import { createJsonToolOverlayProps, createJsonToolToolbarProps } from './jsonToolOverlayToolbarProps';
+import { createJsonToolContextMenusProps, createJsonToolPanesProps } from './jsonToolPaneMenuProps';
 
 type JsonToolWorkspaceProps = React.ComponentProps<typeof JsonToolWorkspace>;
 type JsonEditorPanesProps = React.ComponentProps<typeof JsonEditorPanes>;
@@ -75,6 +76,7 @@ type JsonToolOverlayInput = {
 };
 
 type JsonToolToolbarInput = {
+  accentTheme: AppAccentTheme;
   canCompareJson: JsonToolToolbarProps['canCompareJson'];
   canControlRightPaneFolding: JsonToolToolbarProps['canControlRightPaneFolding'];
   canEditJson: JsonToolToolbarProps['canEditJson'];
@@ -100,6 +102,7 @@ type JsonToolToolbarInput = {
   processingStageText: JsonToolToolbarProps['processingStageText'];
   rightEditorRef: RightEditorRef;
   setLanguage: JsonToolToolbarProps['onLanguageChange'];
+  setAccentTheme: JsonToolToolbarProps['onAccentThemeChange'];
   setShowPerformancePanel: JsonToolToolbarProps['onShowPerformancePanelChange'];
   setWrapLongLines: JsonToolToolbarProps['onWrapLongLinesChange'];
   shouldUseDedicatedRightViewer: boolean;
@@ -229,6 +232,8 @@ export function createJsonToolWorkspaceProps(
       snapshot: input.activePerformanceSnapshot,
       history: input.performanceHistory,
       isDarkMode: input.isDarkMode,
+      language: input.language,
+      t: input.t,
     },
     tabBarProps: {
       tabs: input.tabs,
@@ -241,6 +246,7 @@ export function createJsonToolWorkspaceProps(
       onCancelRenaming: input.cancelRenaming,
       onCloseTab: input.closeTab,
       onAddTab: input.addTab,
+      t: input.t,
     },
     toolbarProps: createJsonToolToolbarProps(input),
   };

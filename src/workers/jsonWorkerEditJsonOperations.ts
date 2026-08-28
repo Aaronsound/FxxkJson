@@ -4,9 +4,17 @@ import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
 import { parseJsonForFormatting } from '../utils/jsonFormat';
 import type { JsonValue } from '../utils/preserveJsonFormat';
 import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
+import { canInlineJsonTextPatch } from '../utils/jsonTextPatch';
 import { replaceTextSearchMatches } from '../utils/searchText';
+import { MissingOriginalJsonTextError } from './jsonNodeEditOperations';
 import type { SaveNodeEditResult } from './jsonNodeEditOperations';
-import { postNodeSaveResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import {
+  postNodePatchResult,
+  postNodeSaveResult,
+  postTextResult,
+  readMessageText,
+  readNamedMessageText,
+} from './jsonWorkerTextPayload';
 
 interface EditJsonCacheEntry {
   originalText: string;
@@ -14,19 +22,26 @@ interface EditJsonCacheEntry {
 }
 
 interface JsonNodeEditOperations {
-  deleteJsonNodeForEdit: (tabId: string, originalText: string | undefined, path: JsonEditPath | undefined) => string;
+  deleteJsonNodeForEdit: (
+    tabId: string,
+    originalText: string | undefined,
+    path: JsonEditPath | undefined,
+    rawRevision?: number
+  ) => SaveNodeEditResult;
   readJsonNodeForEdit: (tabId: string, text: string | undefined, offset: number | undefined) => string;
   renameJsonNodeKeyForEdit: (
     tabId: string,
     text: string,
     originalText: string | undefined,
-    path: JsonEditPath | undefined
-  ) => string;
+    path: JsonEditPath | undefined,
+    rawRevision?: number
+  ) => SaveNodeEditResult;
   saveJsonNodeForEdit: (
     tabId: string,
     text: string,
     originalText: string | undefined,
-    path: JsonEditPath | undefined
+    path: JsonEditPath | undefined,
+    rawRevision?: number
   ) => SaveNodeEditResult;
 }
 
@@ -39,6 +54,7 @@ type EditJsonWorkerRequestMessage = Omit<EditJsonWorkerRequest, 'text'> & {
   requestId: number;
   text?: string;
   textBuffer?: ArrayBuffer;
+  originalTextBuffer?: ArrayBuffer;
   type?: 'edit-json';
 };
 
@@ -99,13 +115,52 @@ function transformJsonEscape(operation: EditJsonWorkerOperation, text: string) {
   return result.text;
 }
 
+function postNodeMutationResult(
+  result: SaveNodeEditResult,
+  requestId: number,
+  tabId: string,
+  operation: EditJsonWorkerOperation
+) {
+  const payload = {
+    type: 'edit-json-result' as const,
+    requestId,
+    tabId,
+    operation,
+    success: true,
+    structureWarming: result.structureWarming,
+    rawViewerData: result.rawViewerData,
+    viewerData: result.viewerData,
+    viewerIndexMs: result.viewerIndexMs,
+    viewerPatchApplied: result.viewerPatchApplied,
+    rawMetrics: result.rawMetrics,
+    formattedMetrics: result.formattedMetrics ?? undefined,
+  };
+  const canUsePatchResponse =
+    canInlineJsonTextPatch(result.rawPatch) &&
+    (result.formattedPatch === null || canInlineJsonTextPatch(result.formattedPatch));
+
+  if (canUsePatchResponse) {
+    postNodePatchResult(payload, result.rawPatch, result.formattedPatch);
+    return;
+  }
+
+  postNodeSaveResult(
+    payload,
+    result.rawText,
+    result.formattedText,
+    result.rawMetrics.textByteLength,
+    result.formattedMetrics?.textByteLength
+  );
+}
+
 export function createJsonWorkerEditJsonOperations({
   editJsonCache,
   jsonNodeEditOperations,
 }: JsonWorkerEditJsonOperationsArgs) {
   function handleEditJsonMessage(message: EditJsonWorkerRequestMessage) {
-    const { requestId, tabId, operation, originalText, path, offset, replacement, searchOptions, searchTerm } = message;
+    const { requestId, tabId, operation, path, offset, rawRevision, replacement, searchOptions, searchTerm } = message;
     const text = readMessageText(message);
+    const originalText = readNamedMessageText(message, 'originalText', 'originalTextBuffer');
 
     try {
       const data = (() => {
@@ -131,37 +186,21 @@ export function createJsonWorkerEditJsonOperations({
         }
 
         if (operation === 'save-node') {
-          const result = jsonNodeEditOperations.saveJsonNodeForEdit(tabId, text, originalText, path);
-
-          const resultMessage: WorkerMessage = {
-            type: 'edit-json-result',
-            requestId,
-            tabId,
-            operation,
-            success: true,
-            structureWarming: result.structureWarming,
-            rawViewerData: result.rawViewerData,
-            viewerData: result.viewerData,
-            viewerIndexMs: result.viewerIndexMs,
-            rawMetrics: result.rawMetrics,
-            formattedMetrics: result.formattedMetrics ?? undefined,
-          };
-          postNodeSaveResult(
-            resultMessage,
-            result.rawText,
-            result.formattedText,
-            result.rawMetrics.textByteLength,
-            result.formattedMetrics?.textByteLength
-          );
+          const result = jsonNodeEditOperations.saveJsonNodeForEdit(tabId, text, originalText, path, rawRevision);
+          postNodeMutationResult(result, requestId, tabId, operation);
           return null;
         }
 
         if (operation === 'delete-node') {
-          return jsonNodeEditOperations.deleteJsonNodeForEdit(tabId, originalText, path);
+          const result = jsonNodeEditOperations.deleteJsonNodeForEdit(tabId, originalText, path, rawRevision);
+          postNodeMutationResult(result, requestId, tabId, operation);
+          return null;
         }
 
         if (operation === 'rename-node-key') {
-          return jsonNodeEditOperations.renameJsonNodeKeyForEdit(tabId, text, originalText, path);
+          const result = jsonNodeEditOperations.renameJsonNodeKeyForEdit(tabId, text, originalText, path, rawRevision);
+          postNodeMutationResult(result, requestId, tabId, operation);
+          return null;
         }
 
         if (operation === 'save') {
@@ -204,6 +243,7 @@ export function createJsonWorkerEditJsonOperations({
         tabId,
         operation,
         success: false,
+        requiresOriginalText: err instanceof MissingOriginalJsonTextError,
         error: err instanceof Error ? err.message : 'JSON 处理失败',
       });
     }

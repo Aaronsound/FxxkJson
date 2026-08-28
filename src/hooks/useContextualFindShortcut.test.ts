@@ -12,7 +12,16 @@ describe('useContextualFindShortcut', () => {
     const openLeftFind = vi.fn();
     const openRightFind = vi.fn();
 
-    renderHook(() => useContextualFindShortcut({ openLeftFind, openRightFind }));
+    renderHook(() =>
+      useContextualFindShortcut({
+        closeLeftFind: vi.fn(),
+        closeRightFind: vi.fn(),
+        isLeftFindOpen: false,
+        isRightFindOpen: false,
+        openLeftFind,
+        openRightFind,
+      })
+    );
 
     document.body.innerHTML = '<section class="left-editor-pane"><button>raw</button></section>';
     document.querySelector('button')?.focus();
@@ -37,6 +46,58 @@ describe('useContextualFindShortcut', () => {
     expect(openLeftFind).toHaveBeenCalledTimes(2);
   });
 
+  it('closes the search belonging to the active pane when both searches are open', () => {
+    const closeLeftFind = vi.fn();
+    const closeRightFind = vi.fn();
+
+    renderHook(() =>
+      useContextualFindShortcut({
+        closeLeftFind,
+        closeRightFind,
+        isLeftFindOpen: true,
+        isRightFindOpen: true,
+        openLeftFind: vi.fn(),
+        openRightFind: vi.fn(),
+      })
+    );
+
+    document.body.innerHTML = `
+      <section class="left-editor-pane"><button id="left">raw</button></section>
+      <section class="right-editor-pane"><button id="right">formatted</button></section>
+    `;
+
+    document.querySelector<HTMLElement>('#left')?.focus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(closeLeftFind).toHaveBeenCalledTimes(1);
+    expect(closeRightFind).not.toHaveBeenCalled();
+
+    document.querySelector<HTMLElement>('#right')?.focus();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(closeRightFind).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves Escape inside the search widget to its local handler', () => {
+    const closeLeftFind = vi.fn();
+    document.body.innerHTML =
+      '<section class="left-editor-pane"><div class="pane-find-widget"><input /></div></section>';
+
+    renderHook(() =>
+      useContextualFindShortcut({
+        closeLeftFind,
+        closeRightFind: vi.fn(),
+        isLeftFindOpen: true,
+        isRightFindOpen: false,
+        openLeftFind: vi.fn(),
+        openRightFind: vi.fn(),
+      })
+    );
+
+    const input = document.querySelector('input');
+    input?.focus();
+    fireEvent.keyDown(input ?? window, { key: 'Escape' });
+    expect(closeLeftFind).not.toHaveBeenCalled();
+  });
+
   it('subscribes desktop find shortcuts to the focused pane handler', () => {
     const openLeftFind = vi.fn();
     const openRightFind = vi.fn();
@@ -55,7 +116,16 @@ describe('useContextualFindShortcut', () => {
       }),
     };
 
-    const { unmount } = renderHook(() => useContextualFindShortcut({ openLeftFind, openRightFind }));
+    const { unmount } = renderHook(() =>
+      useContextualFindShortcut({
+        closeLeftFind: vi.fn(),
+        closeRightFind: vi.fn(),
+        isLeftFindOpen: false,
+        isRightFindOpen: false,
+        openLeftFind,
+        openRightFind,
+      })
+    );
 
     findShortcut?.();
     expect(openRightFind).toHaveBeenCalledTimes(1);

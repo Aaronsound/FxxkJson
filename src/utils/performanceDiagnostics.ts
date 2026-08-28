@@ -1,4 +1,8 @@
 import type { PerformanceSnapshot } from '../types/jsonTool';
+import { createTranslator, type I18nKey } from './i18n';
+
+type Translator = (key: I18nKey, params?: Record<string, string | number>) => string;
+const defaultT = createTranslator('zh');
 
 export type PerformanceStageKey =
   | 'readFileMs'
@@ -9,14 +13,14 @@ export type PerformanceStageKey =
   | 'viewerIndexMs'
   | 'structureIndexMs';
 
-export const performanceStageLabels: Array<{ key: PerformanceStageKey; label: string }> = [
-  { key: 'readFileMs', label: '读取文件' },
-  { key: 'leftModelSyncMs', label: '左侧渲染' },
-  { key: 'formatQueueMs', label: '排队等待' },
-  { key: 'formatWorkerMs', label: 'Worker 格式化' },
-  { key: 'rightModelSyncMs', label: '右侧渲染' },
-  { key: 'viewerIndexMs', label: 'Viewer 索引' },
-  { key: 'structureIndexMs', label: '定位索引' },
+export const performanceStageLabels: Array<{ key: PerformanceStageKey; labelKey: I18nKey }> = [
+  { key: 'readFileMs', labelKey: 'performance.stageRead' },
+  { key: 'leftModelSyncMs', labelKey: 'performance.stageLeft' },
+  { key: 'formatQueueMs', labelKey: 'performance.stageQueue' },
+  { key: 'formatWorkerMs', labelKey: 'performance.stageWorker' },
+  { key: 'rightModelSyncMs', labelKey: 'performance.stageRight' },
+  { key: 'viewerIndexMs', labelKey: 'performance.stageViewer' },
+  { key: 'structureIndexMs', labelKey: 'performance.stageStructure' },
 ];
 
 export function formatPerformanceDuration(value: number | null) {
@@ -44,26 +48,26 @@ export function formatPerformanceBytes(value: number | null) {
   return `${size.toFixed(size >= 100 ? 0 : size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
 }
 
-export function getPerformanceTriggerLabel(trigger: PerformanceSnapshot['trigger']) {
+export function getPerformanceTriggerLabel(trigger: PerformanceSnapshot['trigger'], t: Translator = defaultT) {
   switch (trigger) {
     case 'import':
-      return '导入后自动格式化';
+      return t('performance.triggerImport');
     case 'manual-format':
-      return '手动格式化';
+      return t('performance.triggerManual');
     case 'repair':
-      return '手动修复';
+      return t('performance.triggerRepair');
     case 'edit-save':
-      return '编辑保存后格式化';
+      return t('performance.triggerEditSave');
     case 'paste':
-      return '粘贴后自动格式化';
+      return t('performance.triggerPaste');
     default:
       return trigger;
   }
 }
 
-export function getPerformanceBottleneck(snapshot: PerformanceSnapshot) {
+export function getPerformanceBottleneck(snapshot: PerformanceSnapshot, t: Translator = defaultT) {
   const topStage = performanceStageLabels
-    .map((stage) => ({ key: stage.key, label: stage.label, value: snapshot[stage.key] }))
+    .map((stage) => ({ key: stage.key, label: t(stage.labelKey), value: snapshot[stage.key] }))
     .filter((stage) => typeof stage.value === 'number')
     .sort((a, b) => (b.value as number) - (a.value as number))[0];
 
@@ -82,41 +86,45 @@ export function getPerformanceBottleneck(snapshot: PerformanceSnapshot) {
   };
 }
 
-export function getPerformanceDiagnosis(snapshot: PerformanceSnapshot) {
+export function getPerformanceDiagnosis(snapshot: PerformanceSnapshot, t: Translator = defaultT) {
   if (snapshot.status === 'failed') {
-    return '处理失败，请打开诊断日志查看错误详情。';
+    return t('performance.diagnosisFailed');
   }
 
   if (snapshot.status === 'running') {
-    return '正在采集性能数据，完成后会显示主要耗时位置。';
+    return t('performance.diagnosisRunning');
   }
 
-  const bottleneck = getPerformanceBottleneck(snapshot);
+  const bottleneck = getPerformanceBottleneck(snapshot, t);
 
   switch (bottleneck.key) {
     case 'rightModelSyncMs':
-      return '当前慢在右侧渲染，不是 JSON 格式化。高行数内容会优先使用轻量折叠模式。';
+      return t('performance.diagnosisRight');
     case 'structureIndexMs':
-      return '当前慢在定位索引；不需要右侧定位时关闭定位可以提升速度。';
+      return t('performance.diagnosisStructure');
     case 'leftModelSyncMs':
-      return '当前慢在左侧原文渲染，通常是原始 JSON 单行过长或体积较大。';
+      return t('performance.diagnosisLeft');
     case 'formatWorkerMs':
-      return '当前慢在 Worker 格式化，说明 JSON 解析和 stringify 本身占主要耗时。';
+      return t('performance.diagnosisWorker');
     case 'viewerIndexMs':
-      return '当前慢在轻量 viewer 索引，通常是行数或可折叠区域非常多。';
+      return t('performance.diagnosisViewer');
     case 'readFileMs':
-      return '当前慢在文件读取，可能和磁盘、网络盘或系统文件权限有关。';
+      return t('performance.diagnosisRead');
     case 'formatQueueMs':
-      return '当前慢在排队等待，可能是上一次格式化或编辑保存还没完成。';
+      return t('performance.diagnosisQueue');
     default:
-      return '当前没有明显瓶颈。';
+      return t('performance.diagnosisNone');
   }
 }
 
-export function buildPerformanceDiagnosticsSummary(snapshot: PerformanceSnapshot, history: PerformanceSnapshot[] = []) {
-  const bottleneck = getPerformanceBottleneck(snapshot);
+export function buildPerformanceDiagnosticsSummary(
+  snapshot: PerformanceSnapshot,
+  history: PerformanceSnapshot[] = [],
+  t: Translator = defaultT
+) {
+  const bottleneck = getPerformanceBottleneck(snapshot, t);
   const stageLines = performanceStageLabels.map(
-    (stage) => `- ${stage.label}: ${formatPerformanceDuration(snapshot[stage.key])}`
+    (stage) => `- ${t(stage.labelKey)}: ${formatPerformanceDuration(snapshot[stage.key])}`
   );
   const historyLines = history
     .slice(0, 3)
@@ -128,7 +136,7 @@ export function buildPerformanceDiagnosticsSummary(snapshot: PerformanceSnapshot
   return [
     'FxxkJson performance diagnostics',
     `source=${snapshot.sourceLabel}`,
-    `trigger=${getPerformanceTriggerLabel(snapshot.trigger)}`,
+    `trigger=${getPerformanceTriggerLabel(snapshot.trigger, t)}`,
     `status=${snapshot.status}`,
     `raw=${formatPerformanceBytes(snapshot.rawBytes)}`,
     `formatted=${formatPerformanceBytes(snapshot.formattedBytes)}`,
@@ -138,7 +146,7 @@ export function buildPerformanceDiagnosticsSummary(snapshot: PerformanceSnapshot
     `total=${formatPerformanceDuration(snapshot.totalToFormattedMs)}`,
     `viewer=${formatPerformanceDuration(snapshot.totalToViewerReadyMs)}`,
     `bottleneck=${bottleneck.label} ${bottleneck.duration}`,
-    `diagnosis=${getPerformanceDiagnosis(snapshot)}`,
+    `diagnosis=${getPerformanceDiagnosis(snapshot, t)}`,
     '[stages]',
     ...stageLines,
     ...(historyLines.length > 0 ? ['[recent]', ...historyLines] : []),

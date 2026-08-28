@@ -11,7 +11,7 @@
   </p>
 </div>
 
-FxxkJson 基于 Electron、React、Vite 和 Monaco Editor 构建，适合处理接口响应、日志、配置文件和 5MB+ 的大 JSON。所有 JSON 处理都在本机完成，不上传数据，不包含遥测或远程 JSON 处理逻辑。
+FxxkJson 基于 Electron、React、Vite 和 Monaco Editor 构建，适合处理接口响应、日志、配置文件和 5MB+ 的大 JSON。它提供响应式双栏工作区、可拖动分隔线和 7 种可持久化强调色；所有 JSON 处理都在本机完成，不上传数据，不包含遥测或远程 JSON 处理逻辑。
 
 ## 项目演进
 
@@ -39,6 +39,8 @@ Monaco Editor 是编辑器内核，Vite 是构建工具；二者在当前架构�
 
 ## 截图
 
+以下截图由真实 Electron 应用自动生成并校验。中文 README 使用中文界面，英文 README 使用英文界面。
+
 ### 主界面
 
 ![FxxkJson 主界面](docs/assets/main-window.png)
@@ -64,8 +66,11 @@ Monaco Editor 是编辑器内核，Vite 是构建工具；二者在当前架构�
 - 在右侧格式化结果中搜索、折叠、复制值、复制 JSON Path。
 - 编辑当前节点、删除节点、重命名 key。
 - 多标签管理不同 JSON，并对比两个标签中的 JSON 差异。
+- 使用固定新增入口、标签滚动按钮和键盘操作管理多个标签。
+- 在翡翠绿、雾霾蓝、石墨灰、经典黑、蓝色、靛蓝和紫色之间切换，设置会在本机保存，并兼容深色模式。
+- 在窄窗口中使用响应式工具栏、菜单和弹窗；双栏分隔线可以左右拖动。
 - 查看 5MB+ 大文件，使用虚拟滚动保持界面响应。
-- 可选开启大文件右侧点击定位，帮助从格式化视图定位回原始 JSON。
+- 可选开启大文件右侧点击定位，帮助从格式化视图定位回原始 JSON；折叠、定位和节点编辑使用紧凑索引及增量更新降低开销。
 - 查看性能面板和诊断日志，排查大文件导入、格式化、搜索和定位问题。
 
 ## 隐私
@@ -88,6 +93,7 @@ npm run smoke        # 运行核心 JSON 流程 smoke 测试
 npm run build        # 构建 renderer 和 Electron 输出
 npm run bundle:size  # 输出构建产物体积
 npm run check        # 文本检查 + 格式化 + lint + 类型检查 + 覆盖率 + smoke + 构建 + 包体积
+npm run docs:screenshots # 启动 Electron 并重新生成中英文 README 截图
 npm start            # npm run build 后运行桌面应用
 ```
 

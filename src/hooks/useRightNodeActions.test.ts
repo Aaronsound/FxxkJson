@@ -1,12 +1,24 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
+import { createJsonTextPatch } from '../utils/jsonTextPatch';
 import { getJsonValueClipboardText, useRightNodeActions } from './useRightNodeActions';
 
 function createArgs() {
+  const mutationResult = {
+    type: 'edit-json-result' as const,
+    requestId: 1,
+    tabId: 'tab-a',
+    operation: 'delete-node' as const,
+    success: true as const,
+    data: '{"nextName":"alpha"}',
+    formattedData: '{\n  "nextName": "alpha"\n}',
+  };
   return {
+    applyNodeMutationArtifacts: vi.fn(() => true),
     applyRawUpdate: vi.fn((_tabId: string, updated: string) => measureJsonDocument(updated)),
     getTabContent: vi.fn(() => '{"name":"old"}'),
+    getRawRevision: vi.fn(() => 3),
     logEvent: vi.fn(),
     queueFormatAfterEditSave: vi.fn(),
     readEditableNodeAtOffset: vi.fn().mockResolvedValue({
@@ -15,7 +27,7 @@ function createArgs() {
     }),
     requestDeleteConfirmation: vi.fn().mockResolvedValue(true),
     requestRenameKey: vi.fn().mockResolvedValue('nextName'),
-    requestWorkerEditJson: vi.fn().mockResolvedValue('{"nextName":"alpha"}'),
+    requestWorkerEditJsonResult: vi.fn().mockResolvedValue(mutationResult),
     resetSearchState: vi.fn(),
     setEditJsonBusyLabel: vi.fn(),
     setTabError: vi.fn(),
@@ -106,24 +118,47 @@ describe('getJsonValueClipboardText', () => {
     });
 
     expect(args.requestDeleteConfirmation).toHaveBeenCalledWith(['name'], '"alpha"');
-    expect(args.requestWorkerEditJson).toHaveBeenCalledWith(
+    expect(args.requestWorkerEditJsonResult).toHaveBeenCalledWith(
       expect.objectContaining({ operation: 'delete-node', originalText: '{"name":"old"}', path: ['name'] })
     );
     expect(args.applyRawUpdate).toHaveBeenCalledWith('tab-a', '{"nextName":"alpha"}');
-    expect(args.queueFormatAfterEditSave).toHaveBeenCalledWith(
+    expect(args.applyNodeMutationArtifacts).toHaveBeenCalledWith(
       'tab-a',
-      '{"nextName":"alpha"}',
-      measureJsonDocument('{"nextName":"alpha"}')
+      expect.objectContaining({ data: '{"nextName":"alpha"}' }),
+      false,
+      measureJsonDocument('{"nextName":"alpha"}').textByteLength
     );
+    expect(args.queueFormatAfterEditSave).not.toHaveBeenCalled();
 
     await act(async () => {
       await result.current.applyRightNodeMutationAtOffset('tab-a', 4, false, 'rename-node-key');
     });
 
     expect(args.requestRenameKey).toHaveBeenCalledWith(['name'], 'name');
-    expect(args.requestWorkerEditJson).toHaveBeenCalledWith(
+    expect(args.requestWorkerEditJsonResult).toHaveBeenCalledWith(
       expect.objectContaining({ operation: 'rename-node-key', text: 'nextName' })
     );
     expect(args.setEditJsonBusyLabel).toHaveBeenLastCalledWith(null);
+  });
+
+  it('applies a validated raw patch when the worker omits the full document', async () => {
+    const args = createArgs();
+    const original = '{"name":"old"}';
+    const updated = '{"nextName":"old"}';
+    args.requestWorkerEditJsonResult.mockResolvedValueOnce({
+      type: 'edit-json-result',
+      requestId: 2,
+      tabId: 'tab-a',
+      operation: 'rename-node-key',
+      success: true,
+      rawPatch: createJsonTextPatch(original, updated),
+    });
+    const { result } = renderHook(() => useRightNodeActions(args));
+
+    await act(async () => {
+      await result.current.applyRightNodeMutationAtOffset('tab-a', 4, false, 'rename-node-key');
+    });
+
+    expect(args.applyRawUpdate).toHaveBeenCalledWith('tab-a', updated);
   });
 });

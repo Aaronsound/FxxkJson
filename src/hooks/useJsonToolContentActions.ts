@@ -1,6 +1,12 @@
 import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import type { EditJsonWorkerOperation, EditJsonWorkerRequest, StructureStatus, Tab } from '../types/jsonTool';
+import type {
+  EditJsonWorkerOperation,
+  EditJsonWorkerRequest,
+  StructureStatus,
+  Tab,
+  TabDocumentMeta,
+} from '../types/jsonTool';
 import { DEFAULT_TAB_TITLE } from '../types/jsonTool';
 import {
   type JsonDocumentMetrics,
@@ -12,6 +18,7 @@ type EscapeOperation = Extract<EditJsonWorkerOperation, 'escape-json' | 'unescap
 
 interface UseJsonToolContentActionsArgs {
   activeTab: Tab | null;
+  activeDocumentMeta: TabDocumentMeta;
   beginPerformanceSession: (
     tabId: string,
     trigger: 'manual-format' | 'repair',
@@ -23,6 +30,7 @@ interface UseJsonToolContentActionsArgs {
   clearPerformanceState: (tabId: string) => void;
   clearTabStructure: (tabId: string, status?: StructureStatus) => void;
   getTabContent: (tabId: string) => string;
+  getFormattedContent: (tabId: string) => string;
   leftEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   leftSearchWorkerRevisionRef: MutableRefObject<Record<string, number>>;
   largeModeRef: MutableRefObject<Record<string, boolean>>;
@@ -43,10 +51,12 @@ interface UseJsonToolContentActionsArgs {
 
 export function useJsonToolContentActions({
   activeTab,
+  activeDocumentMeta,
   beginPerformanceSession,
   clearPerformanceState,
   clearTabStructure,
   getTabContent,
+  getFormattedContent,
   leftEditorRef,
   leftSearchWorkerRevisionRef,
   largeModeRef,
@@ -164,6 +174,11 @@ export function useJsonToolContentActions({
     setEditJsonBusyLabel('正在准备编辑内容...');
     try {
       const raw = getTabContent(activeTab.id);
+      const cachedFormatted = getFormattedContent(activeTab.id);
+      if (cachedFormatted && activeDocumentMeta.formattedRawRevision === activeDocumentMeta.rawRevision) {
+        openDocumentEditSession(cachedFormatted);
+        return;
+      }
       const formatted = await requestWorkerEditJson({ tabId: activeTab.id, operation: 'format', text: raw });
       openDocumentEditSession(formatted);
     } catch (error) {

@@ -76,6 +76,7 @@ export function createJsonToolOverlayProps(input: JsonToolWorkspaceInput) {
 
 export function createJsonToolToolbarProps(input: JsonToolWorkspaceInput) {
   const {
+    accentTheme,
     canCompareJson,
     canControlRightPaneFolding,
     canEditJson,
@@ -102,6 +103,7 @@ export function createJsonToolToolbarProps(input: JsonToolWorkspaceInput) {
     largeViewerRef,
     processingStageText,
     setLanguage,
+    setAccentTheme,
     setShowPerformancePanel,
     setWrapLongLines,
     shouldUseDedicatedRightViewer,
@@ -112,6 +114,7 @@ export function createJsonToolToolbarProps(input: JsonToolWorkspaceInput) {
   } = input;
 
   return {
+    accentTheme,
     onImport: handleImport,
     onFormat: handleFormat,
     onRepairJson: handleRepairJson,
@@ -156,6 +159,7 @@ export function createJsonToolToolbarProps(input: JsonToolWorkspaceInput) {
     currentError,
     language,
     onLanguageChange: setLanguage,
+    onAccentThemeChange: setAccentTheme,
     t,
   };
 }

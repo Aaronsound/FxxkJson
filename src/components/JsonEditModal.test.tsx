@@ -539,9 +539,9 @@ describe('JsonEditModal search position', () => {
 
     openEditorContextMenu(container);
 
-    expect(screen.getByRole('button', { name: '整段转成 JSON 字符串' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '还原整段转义内容' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '复制 JSON 字符串字面量' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '整段转成 JSON 字符串' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '还原整段转义内容' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '复制 JSON 字符串字面量' })).toBeInTheDocument();
   });
 
   it('keeps the cursor near its previous offset after escaping the full document', async () => {
@@ -553,7 +553,7 @@ describe('JsonEditModal search position', () => {
     const previousOffset = editor?.model.getOffsetAt({ lineNumber: 2, column: 5 });
 
     openEditorContextMenu(container);
-    fireEvent.click(screen.getByRole('button', { name: '整段转成 JSON 字符串' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '整段转成 JSON 字符串' }));
 
     await act(async () => {
       await Promise.resolve();
@@ -575,7 +575,7 @@ describe('JsonEditModal search position', () => {
     editor?.updateOptions({ readOnly: true });
 
     openEditorContextMenu(container);
-    fireEvent.click(screen.getByRole('button', { name: '整段转成 JSON 字符串' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '整段转成 JSON 字符串' }));
 
     await act(async () => {
       await Promise.resolve();
@@ -622,7 +622,7 @@ describe('JsonEditModal search position', () => {
     });
 
     openEditorContextMenu(container);
-    fireEvent.click(screen.getByRole('button', { name: '选中内容转成 JSON 字符串' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '选中内容转成 JSON 字符串' }));
 
     await act(async () => {
       await Promise.resolve();
@@ -672,7 +672,7 @@ describe('JsonEditModal search position', () => {
     });
 
     openEditorContextMenu(container);
-    fireEvent.click(screen.getByRole('button', { name: '还原选中转义内容' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '还原选中转义内容' }));
 
     await act(async () => {
       await Promise.resolve();
@@ -926,10 +926,10 @@ describe('JsonEditModal search position', () => {
 
     openEditorContextMenu(container);
 
-    expect(screen.getByRole('button', { name: '选中内容转成 JSON 字符串' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '还原选中转义内容' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '选中内容转成 JSON 字符串' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '还原选中转义内容' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '复制' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '复制' }));
 
     await act(async () => {
       await Promise.resolve();
@@ -946,7 +946,7 @@ describe('JsonEditModal search position', () => {
     const { container } = renderModal('{"name":"first"}', { onEscapeContent });
 
     openEditorContextMenu(container);
-    fireEvent.click(screen.getByRole('button', { name: '整段转成 JSON 字符串' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: '整段转成 JSON 字符串' }));
 
     await act(async () => {
       await Promise.resolve();

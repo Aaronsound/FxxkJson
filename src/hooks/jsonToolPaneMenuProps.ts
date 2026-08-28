@@ -1,5 +1,5 @@
-import type { JsonToolWorkspaceInput } from './createJsonToolWorkspaceProps';
 import type { LargeJsonFoldState } from '../types/jsonTool';
+import type { JsonToolWorkspaceInput } from './createJsonToolWorkspaceProps';
 
 export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
   const {
@@ -81,6 +81,7 @@ export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
 
   return {
     isDarkMode,
+    t,
     leftPaneProps: {
       activeLargeRawViewerData,
       activeLeftMatchCount,

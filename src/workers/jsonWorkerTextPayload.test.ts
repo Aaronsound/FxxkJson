@@ -10,6 +10,7 @@ import {
   postRepairResult,
   postTextResult,
   readMessageText,
+  readNamedMessageText,
 } from './jsonWorkerTextPayload';
 
 describe('jsonWorkerTextPayload', () => {
@@ -19,6 +20,15 @@ describe('jsonWorkerTextPayload', () => {
     expect(readMessageText({ text: '{"ok":true}' })).toBe('{"ok":true}');
     expect(readMessageText({ textBuffer: encoded.buffer })).toBe('{"ok":true}');
     expect(readMessageText({})).toBe('');
+    expect(readNamedMessageText({ originalText: '[]' }, 'originalText', 'originalTextBuffer')).toBe('[]');
+    expect(
+      readNamedMessageText(
+        { originalTextBuffer: new TextEncoder().encode('[1]').buffer },
+        'originalText',
+        'originalTextBuffer'
+      )
+    ).toBe('[1]');
+    expect(readNamedMessageText({}, 'originalText', 'originalTextBuffer')).toBeUndefined();
   });
 
   it('measures UTF-8 byte length', () => {

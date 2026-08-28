@@ -122,8 +122,10 @@ const App: React.FC = () => {
     setLeftReplaceText,
   } = useJsonToolViewerState();
   const {
+    accentTheme,
     isDarkMode,
     language,
+    setAccentTheme,
     setIsDarkMode,
     setLanguage,
     setShowPerformancePanel,
@@ -175,6 +177,7 @@ const App: React.FC = () => {
     leftViewStateByTabRef,
     previousActiveTabIdRef,
     rawTextByTabRef,
+    rawRevisionByTabRef,
     rightContextMenuOffsetByTabRef,
     rightDecorationIdsRef,
     rightEditorRef,
@@ -320,6 +323,8 @@ const App: React.FC = () => {
   });
 
   const {
+    getFormattedContent,
+    getRawRevision,
     getTabContent,
     resetSearchState,
     setLargeFileLocateEnabled,
@@ -337,7 +342,14 @@ const App: React.FC = () => {
   } = useJsonToolStateSetters({
     activeTabIdRef,
     ...{ clearLeftHighlights, clearRightHighlights },
-    ...{ formattedTextByTabRef, largeFileLocateEnabledRef, largeModeRef, largeViewerMatches, rawTextByTabRef },
+    ...{
+      formattedTextByTabRef,
+      largeFileLocateEnabledRef,
+      largeModeRef,
+      largeViewerMatches,
+      rawRevisionByTabRef,
+      rawTextByTabRef,
+    },
     ...{ resetLeftSearchState, resetRightSearchPaging, resetRightSearchState },
     ...{ setDocumentMeta, setIsRightSearchLoadingMore, setLargeFileLocateEnabledState },
     ...{ setLargeRawViewerDataByTab, setLargeRawViewerMatches, setLargeViewerFoldStateByTab },
@@ -354,6 +366,7 @@ const App: React.FC = () => {
     queueFormat,
     queueRepair,
     queueFormatAfterEditSave,
+    releaseTransientWorkerCaches,
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,
@@ -361,8 +374,21 @@ const App: React.FC = () => {
     requestWorkerEditJsonResult,
     resetTabArtifacts,
   } = useJsonFormattingWorker({
-    ...{ activeTabIdRef, largeModeRef, largeFileLocateEnabledRef, leftViewStateByTabRef, rightViewStateByTabRef },
-    ...{ structureStatusRef, workerStructureEnabledRef, rawTextByTabRef, formattedTextByTabRef },
+    ...{
+      activeTabIdRef,
+      largeModeRef,
+      largeFileLocateEnabledRef,
+      leftSearchWorkerRevisionRef,
+      leftViewStateByTabRef,
+      rightViewStateByTabRef,
+    },
+    ...{
+      structureStatusRef,
+      workerStructureEnabledRef,
+      rawRevisionByTabRef,
+      rawTextByTabRef,
+      formattedTextByTabRef,
+    },
     ...{ performanceSessionsRef, beginPerformanceSession, clearPerformanceState },
     ...{ logEvent, mutatePerformanceSession, syncPerformanceSnapshot },
     ...{ renameTab, removeTabState, setTabError, setTabImporting, setTabFormatting },
@@ -393,10 +419,16 @@ const App: React.FC = () => {
     activeTabId,
     leftEditorRef,
     leftViewStateByTabRef,
+    onDeactivateTab: releaseTransientWorkerCaches,
     previousActiveTabIdRef,
     rightEditorRef,
     rightViewStateByTabRef,
   });
+
+  const closeEditJsonWithCacheRelease = () => {
+    releaseTransientWorkerCaches(activeTabIdRef.current);
+    closeEditJson();
+  };
 
   useJsonEditorRuntimeEffects({
     ...{ activeDocumentMeta, activeLargeViewerData, activeLargeViewerStatus, activeTab, activeTabId, activeTabIdRef },
@@ -499,7 +531,8 @@ const App: React.FC = () => {
     handleRepairJson,
     handleUnescapeJson,
   } = useJsonToolContentActions({
-    ...{ activeTab, beginPerformanceSession, clearPerformanceState, clearTabStructure, getTabContent },
+    ...{ activeDocumentMeta, activeTab, beginPerformanceSession, clearPerformanceState, clearTabStructure },
+    ...{ getFormattedContent, getTabContent },
     ...{ largeModeRef, leftEditorRef, leftSearchWorkerRevisionRef, openDocumentEditSession },
     ...{ queueFormat, queueRepair, renameTab, requestWorkerEditJson },
     ...{ resetSearchState, resetTabArtifacts, setEditJsonBusyLabel },
@@ -515,29 +548,47 @@ const App: React.FC = () => {
       setTabError,
     });
 
+  const {
+    applyNodeMutationArtifacts,
+    handleCopyEscapedJson,
+    handleEscapeEditJsonContent,
+    handleSaveEditJson,
+    handleUnescapeEditJsonContent,
+  } = useJsonEditActions({
+    activeTab,
+    beginPerformanceSession,
+    closeEditJson: closeEditJsonWithCacheRelease,
+    editJsonSession,
+    editJsonValueRef,
+    ...{ getFormattedContent, getRawRevision, getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
+    getLargeViewerData: (tabId) => largeViewerDataByTab[tabId] ?? null,
+    ...{ requestWorkerEditJson, requestWorkerEditJsonResult, resetSearchState },
+    ...{ setEditJsonBusyLabel, setEditJsonError, setLargeRawViewerData, setLargeViewerData },
+    ...{ setLargeViewerStatus, setProcessingStage, setStructureStatus },
+    ...{ setTabFormatting, setTabLargeMode, showCopyLiteralNotice },
+    ...{ updateFormattedContent, updateTabContent, workerStructureEnabledRef },
+  });
+
   const { applyRightNodeMutationAtOffset, copyNodeDetailAtOffset, copyValueAtOffset } = useRightNodeActions({
+    applyNodeMutationArtifacts,
     applyRawUpdate,
-    ...{ getTabContent, logEvent, queueFormatAfterEditSave, readEditableNodeAtOffset, requestWorkerEditJson },
+    ...{
+      getRawRevision,
+      getTabContent,
+      logEvent,
+      queueFormatAfterEditSave,
+      readEditableNodeAtOffset,
+      requestWorkerEditJsonResult,
+    },
     requestDeleteConfirmation: requestDeleteNode,
     requestRenameKey,
     ...{ resetSearchState, setEditJsonBusyLabel, setTabError },
   });
 
-  const { handleCopyEscapedJson, handleEscapeEditJsonContent, handleSaveEditJson, handleUnescapeEditJsonContent } =
-    useJsonEditActions({
-      ...{ activeTab, beginPerformanceSession, closeEditJson, editJsonSession, editJsonValueRef },
-      ...{ getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
-      ...{ requestWorkerEditJson, requestWorkerEditJsonResult, resetSearchState },
-      ...{ setEditJsonBusyLabel, setEditJsonError, setLargeRawViewerData, setLargeViewerData },
-      ...{ setLargeViewerStatus, setProcessingStage, setStructureStatus },
-      ...{ setTabFormatting, setTabLargeMode, showCopyLiteralNotice },
-      ...{ updateFormattedContent, updateTabContent, workerStructureEnabledRef },
-    });
-
   const { addTab, closeTab } = useJsonToolTabActions({
     ...{ activeTabId, activeTabIdRef, formattedTextByTabRef, handleClear },
     ...{ initializeTabArtifacts, initializeTabState, largeFileLocateEnabledRef, largeModeRef },
-    ...{ leftEditorRef, leftSearchWorkerRevisionRef, leftViewStateByTabRef, rawTextByTabRef },
+    ...{ leftEditorRef, leftSearchWorkerRevisionRef, leftViewStateByTabRef, rawRevisionByTabRef, rawTextByTabRef },
     ...{ removeTabArtifacts, removeTabArtifactsState, rightEditorRef, rightViewStateByTabRef },
     ...{ setActiveTabId, setPerformanceByTab, setTabs, structureStatusRef, tabs, workerStructureEnabledRef },
   });
@@ -551,6 +602,10 @@ const App: React.FC = () => {
   });
 
   useContextualFindShortcut({
+    closeLeftFind,
+    closeRightFind,
+    isLeftFindOpen,
+    isRightFindOpen,
     openLeftFind,
     openRightFind,
   });
@@ -595,13 +650,15 @@ const App: React.FC = () => {
   const workspaceProps = createJsonToolWorkspaceProps({
     ...{ activeDocumentMeta, activeLargeRawViewerData, activeLargeViewerFoldState, activeLargeViewerData },
     ...{ activeLeftMatchCount, activePerformanceSnapshot, activeRawText, activeRightMatchCount },
+    accentTheme,
     ...{ activeRightPinnedPathItems, activeRightSelectedRange },
     activeTab,
     activeTabId,
     ...{ addTab, applyRightNodeMutationAtOffset },
     canCompareJson: tabs.length >= 2,
     ...{ canControlRightPaneFolding, canEditJson, canEnableLargeFileLocate },
-    ...{ cancelMutationDialog, cancelRenaming, closeEditJson, closeLeftFind, closeRightFind, closeTab },
+    ...{ cancelMutationDialog, cancelRenaming, closeLeftFind, closeRightFind, closeTab },
+    closeEditJson: closeEditJsonWithCacheRelease,
     ...{ confirmDeleteDialog, confirmRenameDialog },
     ...{ copyLeftEditorSelection, copyNodeDetailAtOffset, copyValueAtOffset, cutLeftEditorSelection },
     ...{ currentError, currentStructureStatus, diagnosticsContext },
@@ -633,7 +690,7 @@ const App: React.FC = () => {
     ...{ rightRecentSearches, rightSearchHasMore, rightSearchOptions, rightSearchTerm, runtimeInfo },
     ...{ selectAllLeftEditorText, selectRightPinnedPath },
     ...{ setActiveTabId, setIsAboutOpen, setIsArchitectureWarningDismissed, setIsCompareOpen },
-    ...{ setIsDiagnosticsLogOpen, setIsRightFindOpen, setLanguage, setLargeViewerFoldStateByTab },
+    ...{ setAccentTheme, setIsDiagnosticsLogOpen, setIsRightFindOpen, setLanguage, setLargeViewerFoldStateByTab },
     ...{ setLargeViewerMatchCount, setLeftEditorContextMenu, setLeftReplaceText, setRightEditorContextMenu },
     ...{ setRightMatchIndex, setRightSearchTerm, setShowPerformancePanel, setWrapLongLines },
     ...{ shouldEnableRightPaneFolding, shouldUseDedicatedLeftViewer, shouldUseDedicatedRightViewer },

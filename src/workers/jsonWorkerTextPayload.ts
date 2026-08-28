@@ -1,8 +1,15 @@
-import type { LargeJsonLineIndex, LargeJsonViewerData, LargeRawViewerData, WorkerMessage } from '../types/jsonTool';
+import type {
+  JsonTextPatch,
+  LargeJsonLineIndex,
+  LargeJsonViewerData,
+  LargeRawViewerData,
+  WorkerMessage,
+} from '../types/jsonTool';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
 type TextPayloadMessage = { text?: string; textBuffer?: ArrayBuffer };
+type NamedTextPayloadMessage = Record<string, unknown>;
 type MutableWorkerTextMessage = Record<string, unknown>;
 type WorkerPostMessageScope = {
   postMessage(message: unknown, transfer: Transferable[]): void;
@@ -41,6 +48,24 @@ export function readMessageText(message: TextPayloadMessage) {
   }
 
   return '';
+}
+
+export function readNamedMessageText(
+  message: NamedTextPayloadMessage,
+  stringKey: string,
+  bufferKey: string
+): string | undefined {
+  const text = message[stringKey];
+  if (typeof text === 'string') {
+    return text;
+  }
+
+  const buffer = message[bufferKey];
+  if (buffer && typeof buffer === 'object' && 'byteLength' in buffer && typeof buffer.byteLength === 'number') {
+    return getTextDecoder().decode(new Uint8Array(buffer as ArrayBuffer));
+  }
+
+  return undefined;
 }
 
 export function appendTextPayload(
@@ -134,5 +159,22 @@ export function postNodeSaveResult(
   }
   transfer.push(...getRawViewerTransferables(payload.rawViewerData));
   transfer.push(...getLargeViewerTransferables(payload.viewerData));
+  (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
+}
+
+export function postNodePatchResult(
+  payload: Partial<WorkerMessage>,
+  rawPatch: JsonTextPatch,
+  formattedPatch: JsonTextPatch | null
+) {
+  const message = {
+    ...payload,
+    rawPatch,
+    formattedPatch: formattedPatch ?? undefined,
+  };
+  const transfer = [
+    ...getRawViewerTransferables(payload.rawViewerData),
+    ...getLargeViewerTransferables(payload.viewerData),
+  ];
   (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
 }

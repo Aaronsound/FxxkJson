@@ -24,10 +24,12 @@ export interface UseJsonFormattingWorkerArgs {
   largeModeRef: MutableRefObject<Record<string, boolean>>;
   largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
   leftViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
+  leftSearchWorkerRevisionRef: MutableRefObject<Record<string, number>>;
   rightViewStateByTabRef: MutableRefObject<Record<string, monaco.editor.ICodeEditorViewState | null>>;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
   workerStructureEnabledRef: MutableRefObject<Record<string, boolean>>;
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
+  rawRevisionByTabRef: MutableRefObject<Record<string, number>>;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
   beginPerformanceSession: (
@@ -88,10 +90,12 @@ export function useJsonFormattingWorker({
   largeModeRef,
   largeFileLocateEnabledRef,
   leftViewStateByTabRef,
+  leftSearchWorkerRevisionRef,
   rightViewStateByTabRef,
   structureStatusRef,
   workerStructureEnabledRef,
   rawTextByTabRef,
+  rawRevisionByTabRef,
   formattedTextByTabRef,
   performanceSessionsRef,
   beginPerformanceSession,
@@ -201,6 +205,18 @@ export function useJsonFormattingWorker({
     callbacksRef.current.setProcessingStage(tabId, 'idle');
   };
 
+  const releaseTransientWorkerCaches = useCallback(
+    (tabId: string) => {
+      interactiveFlow.cancelRequests(tabId);
+      delete leftSearchWorkerRevisionRef.current[tabId];
+      postWorkerRequest({
+        type: 'release-transient-cache',
+        tabId,
+      });
+    },
+    [interactiveFlow, leftSearchWorkerRevisionRef, postWorkerRequest]
+  );
+
   const requestWorkerLocate = interactiveFlow.requestLocate;
   const requestWorkerSearch = interactiveFlow.requestSearch;
   const requestWorkerEditJson = interactiveFlow.requestEditJson;
@@ -220,6 +236,7 @@ export function useJsonFormattingWorker({
     latestRequestRef,
     postWorkerRequest,
     requestCounterRef,
+    rawRevisionByTabRef,
     workerStructureEnabledRef,
   });
 
@@ -236,6 +253,7 @@ export function useJsonFormattingWorker({
     leftViewStateByTabRef,
     postWorkerRequest,
     rawTextByTabRef,
+    rawRevisionByTabRef,
     rightViewStateByTabRef,
     structureStatusRef,
     workerStructureEnabledRef,
@@ -280,6 +298,7 @@ export function useJsonFormattingWorker({
     queueFormat,
     queueRepair,
     queueFormatAfterEditSave,
+    releaseTransientWorkerCaches,
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,

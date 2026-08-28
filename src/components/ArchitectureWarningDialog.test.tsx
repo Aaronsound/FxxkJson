@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ArchitectureWarningDialog from './ArchitectureWarningDialog';
+import { createTranslator } from '../utils/i18n';
 
 describe('ArchitectureWarningDialog', () => {
   afterEach(() => {
@@ -21,5 +22,20 @@ describe('ArchitectureWarningDialog', () => {
 
     expect(onOpenAbout).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the architecture notice in English', () => {
+    render(
+      <ArchitectureWarningDialog
+        isDarkMode={false}
+        onClose={vi.fn()}
+        onOpenAbout={vi.fn()}
+        t={createTranslator('en')}
+      />
+    );
+
+    expect(screen.getByRole('dialog', { name: 'x64 build detected under translation' })).toBeInTheDocument();
+    expect(screen.getByText(/Apple Silicon Mac/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Got it' })).toBeInTheDocument();
   });
 });

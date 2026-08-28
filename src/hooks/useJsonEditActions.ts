@@ -17,6 +17,8 @@ import {
 } from '../utils/jsonDocumentMetrics';
 import type { EditJsonSession } from './useJsonEditSession';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
+import { applyJsonNodeMutationArtifacts } from './applyJsonNodeMutationArtifacts';
+import { applyJsonTextPatch } from '../utils/jsonTextPatch';
 
 type EditJsonTransformOperation = Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>;
 
@@ -34,6 +36,9 @@ interface UseJsonEditActionsArgs {
   editJsonSession: EditJsonSession | null;
   editJsonValueRef: MutableRefObject<string>;
   getTabContent: (tabId: string) => string;
+  getFormattedContent: (tabId: string) => string;
+  getLargeViewerData: (tabId: string) => LargeJsonViewerData | null;
+  getRawRevision: (tabId: string) => number;
   mutatePerformanceSession: (tabId: string, mutate: (session: PerformanceSession) => void, shouldLog?: boolean) => void;
   queueFormatAfterEditSave: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   requestWorkerEditJson: (request: EditJsonWorkerRequest) => Promise<string>;
@@ -67,6 +72,9 @@ export function useJsonEditActions({
   editJsonSession,
   editJsonValueRef,
   getTabContent,
+  getFormattedContent,
+  getLargeViewerData,
+  getRawRevision,
   mutatePerformanceSession,
   queueFormatAfterEditSave,
   requestWorkerEditJson,
@@ -86,57 +94,29 @@ export function useJsonEditActions({
   updateTabContent,
   workerStructureEnabledRef,
 }: UseJsonEditActionsArgs) {
-  const applyNodeSaveArtifacts = (
+  const applyNodeMutationArtifactsForTab = (
     tabId: string,
-    saveResult: WorkerMessage,
+    result: WorkerMessage,
     largeMode: boolean,
     rawByteLength: number
-  ) => {
-    if (typeof saveResult.formattedText !== 'string') {
-      return false;
-    }
-
-    const formattedMetrics = resolveJsonDocumentMetrics(saveResult.formattedText, saveResult.formattedMetrics);
-    const rightModelStartedAt = performance.now();
-    updateFormattedContent(tabId, saveResult.formattedText, true, formattedMetrics.textByteLength, rawByteLength);
-    const rightModelCompletedAt = performance.now();
-    setLargeRawViewerData(tabId, saveResult.rawViewerData ?? null);
-    setLargeViewerData(tabId, saveResult.viewerData ?? null);
-    setLargeViewerStatus(tabId, saveResult.viewerData ? 'ready' : 'idle');
-    setStructureStatus(
+  ) =>
+    applyJsonNodeMutationArtifacts({
+      formattedText: getFormattedContent(tabId),
+      largeViewerData: getLargeViewerData(tabId),
+      largeMode,
+      mutatePerformanceSession,
+      rawByteLength,
+      result,
+      setLargeRawViewerData,
+      setLargeViewerData,
+      setLargeViewerStatus,
+      setProcessingStage,
+      setStructureStatus,
+      setTabFormatting,
       tabId,
-      saveResult.structureWarming
-        ? 'building'
-        : workerStructureEnabledRef.current[tabId]
-          ? 'ready'
-          : largeMode
-            ? 'disabled'
-            : 'ready'
-    );
-    setProcessingStage(tabId, saveResult.structureWarming ? 'building-index' : 'idle');
-    setTabFormatting(tabId, false);
-    mutatePerformanceSession(
-      tabId,
-      (session) => {
-        session.pendingFormat = false;
-        session.requestId = null;
-        session.formatQueuedAt = rightModelStartedAt;
-        session.formatStartedAt = rightModelStartedAt;
-        session.formatCompletedAt = rightModelStartedAt;
-        session.rightModelStartedAt = rightModelStartedAt;
-        session.rightModelCompletedAt = rightModelCompletedAt;
-        session.formattedBytes = formattedMetrics.textByteLength;
-        session.viewerIndexMs = typeof saveResult.viewerIndexMs === 'number' ? saveResult.viewerIndexMs : null;
-        session.viewerReadyAt = rightModelCompletedAt;
-        session.structureCompletedAt = rightModelCompletedAt;
-        session.structureEnabled = Boolean(workerStructureEnabledRef.current[tabId]);
-        session.status = 'ready';
-        session.error = null;
-      },
-      true
-    );
-    return true;
-  };
+      updateFormattedContent,
+      workerStructureEnabledRef,
+    });
 
   const handleSaveEditJson = async () => {
     if (!activeTab) {
@@ -154,9 +134,12 @@ export function useJsonEditActions({
         operation: isNodeEdit ? 'save-node' : 'save',
         text: editJsonValueRef.current,
         originalText: original,
+        rawRevision: getRawRevision(currentTabId),
+        reuseOriginalText: isNodeEdit,
         path: editJsonSession?.path,
       });
-      const updated = saveResult.data;
+      const updated =
+        typeof saveResult.data === 'string' ? saveResult.data : applyJsonTextPatch(original, saveResult.rawPatch);
       if (typeof updated !== 'string') {
         throw new Error('JSON worker returned an empty result');
       }
@@ -177,7 +160,9 @@ export function useJsonEditActions({
       closeEditJson();
       resetSearchState();
 
-      if (!isNodeEdit || !applyNodeSaveArtifacts(currentTabId, saveResult, largeMode, metrics.textByteLength)) {
+      const usedPatchedArtifacts =
+        isNodeEdit && applyNodeMutationArtifactsForTab(currentTabId, saveResult, largeMode, metrics.textByteLength);
+      if (!usedPatchedArtifacts) {
         queueFormatAfterEditSave(currentTabId, updated, metrics);
       }
     } catch (error) {
@@ -243,6 +228,7 @@ export function useJsonEditActions({
   };
 
   return {
+    applyNodeMutationArtifacts: applyNodeMutationArtifactsForTab,
     handleCopyEscapedJson,
     handleEscapeEditJsonContent,
     handleSaveEditJson,

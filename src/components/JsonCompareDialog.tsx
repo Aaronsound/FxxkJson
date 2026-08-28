@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useModalFocusManagement } from '../hooks/useModalFocusManagement';
 import type { Tab } from '../types/jsonTool';
 import { compareJsonTexts, type JsonDiffEntry, type JsonDiffResult, type JsonDiffType } from '../utils/jsonDiff';
 import { createTranslator, type I18nKey } from '../utils/i18n';
@@ -44,6 +45,8 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
   const [leftTabId, setLeftTabId] = useState(activeTabId);
   const [rightTabId, setRightTabId] = useState(() => getDefaultRightTabId(tabs, activeTabId));
   const [result, setResult] = useState<JsonDiffResult | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocusManagement(dialogRef, onClose);
 
   const canCompare = tabs.length >= 2 && leftTabId !== rightTabId;
   const selectedLeftTitle = tabs.find((tab) => tab.id === leftTabId)?.title ?? t('compare.left');
@@ -56,7 +59,11 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="json-compare-title">
-      <div className={isDarkMode ? 'modal-card modal-card-dark json-compare-card' : 'modal-card json-compare-card'}>
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        className={isDarkMode ? 'modal-card modal-card-dark json-compare-card' : 'modal-card json-compare-card'}
+      >
         <div className="modal-header">
           <h3 id="json-compare-title">{t('compare.title')}</h3>
           <button type="button" className="about-dialog-close" onClick={onClose} aria-label={t('compare.closeLabel')}>

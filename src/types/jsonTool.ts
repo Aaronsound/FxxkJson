@@ -9,6 +9,7 @@ export interface TabDocumentMeta {
   formattedLength: number;
   rawRevision: number;
   formattedRevision: number;
+  formattedRawRevision: number;
 }
 
 export interface RenamingTabState {
@@ -49,6 +50,9 @@ export interface EditJsonWorkerRequest {
   text: string;
   textByteLength?: number;
   originalText?: string;
+  originalTextByteLength?: number;
+  rawRevision?: number;
+  reuseOriginalText?: boolean;
   path?: JsonEditPath;
   offset?: number;
   searchTerm?: string;
@@ -58,8 +62,9 @@ export interface EditJsonWorkerRequest {
 
 export type WorkerRequestMessage =
   | { type: 'clear-structure'; tabId: string }
-  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format' })
-  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'repair' })
+  | { type: 'release-transient-cache'; tabId: string }
+  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format'; rawRevision?: number })
+  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'repair'; rawRevision?: number })
   | (WorkerRequestBase & {
       type: 'search';
       target: SearchTarget;
@@ -81,6 +86,9 @@ export type WorkerRequestMessage =
       textBuffer?: ArrayBuffer;
       textByteLength?: EditJsonWorkerRequest['textByteLength'];
       originalText?: EditJsonWorkerRequest['originalText'];
+      originalTextBuffer?: ArrayBuffer;
+      originalTextByteLength?: EditJsonWorkerRequest['originalTextByteLength'];
+      rawRevision?: EditJsonWorkerRequest['rawRevision'];
       path?: EditJsonWorkerRequest['path'];
       offset?: EditJsonWorkerRequest['offset'];
       searchTerm?: EditJsonWorkerRequest['searchTerm'];
@@ -110,6 +118,10 @@ export interface WorkerMessage {
   repairedTextBuffer?: ArrayBuffer;
   formattedText?: string;
   formattedTextBuffer?: ArrayBuffer;
+  rawPatch?: JsonTextPatch;
+  formattedPatch?: JsonTextPatch;
+  viewerPatchApplied?: boolean;
+  requiresOriginalText?: boolean;
   rawMetrics?: JsonDocumentMetrics;
   formattedMetrics?: JsonDocumentMetrics;
   structureWarming?: boolean;
@@ -134,6 +146,12 @@ export interface WorkerMessage {
 }
 
 export type JsonEditPath = Array<string | number>;
+export interface JsonTextPatch {
+  sourceLength: number;
+  startOffset: number;
+  endOffset: number;
+  text: string;
+}
 export type EditJsonWorkerOperation =
   | 'format'
   | 'save'
@@ -284,4 +302,5 @@ export const EMPTY_DOCUMENT_META: TabDocumentMeta = {
   formattedLength: 0,
   rawRevision: 0,
   formattedRevision: 0,
+  formattedRawRevision: 0,
 };

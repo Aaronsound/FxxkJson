@@ -11,6 +11,7 @@ const JSON_WORKER_REQUEST_TYPES = new Set<WorkerRequestMessage['type']>([
   'format',
   'locate',
   'locate-right-direct',
+  'release-transient-cache',
   'repair',
   'search',
 ]);
@@ -29,7 +30,11 @@ export function isJsonWorkerRequestMessage(value: unknown): value is WorkerReque
     return false;
   }
 
-  return message.type === 'clear-structure' || typeof (message as { requestId?: unknown }).requestId === 'number';
+  return (
+    message.type === 'clear-structure' ||
+    message.type === 'release-transient-cache' ||
+    typeof (message as { requestId?: unknown }).requestId === 'number'
+  );
 }
 
 export function getJsonWorkerMessageHandler(handlers: JsonWorkerMessageHandlerMap, message: WorkerRequestMessage) {

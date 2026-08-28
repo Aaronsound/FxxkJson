@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import DiagnosticsLogPanel from './DiagnosticsLogPanel';
+import { createTranslator } from '../utils/i18n';
 
 describe('DiagnosticsLogPanel', () => {
   afterEach(() => {
@@ -124,6 +125,17 @@ describe('DiagnosticsLogPanel', () => {
     });
     await waitFor(() => {
       expect(screen.getByDisplayValue('暂无日志')).toBeInTheDocument();
+    });
+  });
+
+  it('renders diagnostics controls and empty states in English', async () => {
+    render(<DiagnosticsLogPanel isDarkMode={false} onClose={vi.fn()} t={createTranslator('en')} />);
+
+    expect(screen.getByRole('dialog', { name: 'Diagnostics log' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Log filter')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/desktop logging interface is unavailable/)).toBeInTheDocument();
     });
   });
 });

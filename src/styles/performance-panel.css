@@ -1,86 +1,97 @@
 .performance-panel {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 30;
-  width: min(420px, calc(100vw - 32px));
-  border: 1px solid rgba(120, 96, 58, 0.2);
-  border-radius: 14px;
-  background: rgba(250, 247, 239, 0.96);
-  color: #3d3422;
-  box-shadow: 0 20px 44px rgba(31, 23, 12, 0.18);
-  backdrop-filter: blur(10px);
-  padding: 10px 12px;
+  position: relative;
+  z-index: 25;
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 -8px 24px rgba(31, 23, 12, 0.06);
 }
 
 .performance-panel-dark {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(34, 30, 24, 0.94);
-  color: #f1e7d1;
-  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.35);
-}
-
-.performance-panel-collapsed {
-  width: min(360px, calc(100vw - 32px));
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .performance-panel-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: grab;
-  touch-action: none;
+  min-height: 38px;
+  box-sizing: border-box;
+  gap: 14px;
+  padding: 5px 12px;
+}
+
+.performance-panel-title-block,
+.performance-panel-status,
+.performance-panel-compact {
+  display: flex;
+  align-items: center;
 }
 
 .performance-panel-title-block {
-  display: flex;
-  align-items: center;
+  flex: 0 0 auto;
   gap: 8px;
 }
 
 .performance-panel-status-chip {
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(61, 52, 34, 0.1);
-  font-size: 12px;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+  font-size: 11px;
   font-weight: 600;
 }
 
 .performance-panel-dark .performance-panel-status-chip {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.performance-toggle-button {
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
+  background: var(--app-accent-soft);
 }
 
 .performance-panel-compact {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin-top: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px 16px;
+  overflow: hidden;
   font-size: 12px;
-  opacity: 0.86;
+  opacity: 0.82;
+  white-space: nowrap;
 }
 
-.performance-panel-dragging {
-  user-select: none;
+.performance-panel-compact span {
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.performance-panel-dragging .performance-panel-topbar {
-  cursor: grabbing;
+.performance-toggle-button,
+.performance-copy-button {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
-.performance-panel-expanded .performance-panel-header {
+.performance-panel-body {
+  max-height: min(38vh, 380px);
+  overflow: auto;
+  padding: 4px 12px 12px;
+  border-top: 1px solid var(--app-border);
+}
+
+.performance-panel-dark .performance-panel-body {
+  border-top-color: var(--app-border);
+}
+
+.performance-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin: 8px 0 10px;
 }
 
 .performance-panel-subtitle {
@@ -89,63 +100,63 @@
 }
 
 .performance-panel-status {
-  display: flex;
-  align-items: center;
   gap: 10px;
   font-size: 12px;
   opacity: 0.82;
 }
 
-.performance-copy-button {
-  padding: 3px 8px;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 .performance-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.performance-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-raised);
+}
+
+.performance-panel-dark .performance-card {
+  background: var(--app-surface-raised);
+}
+
+.performance-card-label {
+  font-size: 11px;
+  opacity: 0.76;
+}
+
+.performance-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .performance-diagnosis {
   padding: 8px 10px;
   margin-bottom: 10px;
-  border-radius: 6px;
-  background: rgba(73, 104, 150, 0.1);
-  color: #3d3422;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-accent-soft);
+  color: var(--app-text);
   font-size: 12px;
   line-height: 1.5;
 }
 
 .performance-panel-dark .performance-diagnosis {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f1e7d1;
-}
-
-.performance-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.55);
-}
-
-.performance-panel-dark .performance-card {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.performance-card-label {
-  font-size: 12px;
-  opacity: 0.8;
+  background: var(--app-accent-soft);
+  color: var(--app-text);
 }
 
 .performance-stage-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px 10px;
   margin-bottom: 10px;
 }
 
@@ -153,15 +164,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.35);
-  font-size: 13px;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-muted);
+  font-size: 12px;
 }
 
 .performance-panel-dark .performance-stage-row {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--app-surface-muted);
 }
 
 .performance-history {
@@ -169,13 +180,13 @@
   gap: 6px;
   margin-bottom: 10px;
   padding: 8px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.3);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-muted);
   font-size: 12px;
 }
 
 .performance-panel-dark .performance-history {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--app-surface-muted);
 }
 
 .performance-history-title {
@@ -215,84 +226,23 @@
   color: #ff8f7b;
 }
 
-/* ============================================= */
-/*              响应式：中等屏（≤1200px）           */
-/* ============================================= */
-@media (max-width: 1200px) {
-  .toolbar {
-    font-size: 13px;
-  }
-  button {
-    padding: 3px 10px;
-    font-size: 13px;
-  }
-  .toolbar-input {
-    width: 160px;
-    font-size: 13px;
-  }
-
+@media (max-width: 1100px) {
   .performance-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .performance-stage-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-/* ============================================= */
-/*              响应式：窄屏（≤800px）            */
-/* ============================================= */
-@media (max-width: 800px) {
-  .toolbar {
-    font-size: 12px;
-  }
-  button {
-    padding: 2px 8px;
-    font-size: 12px;
-  }
-  .toolbar-input {
-    width: 120px;
-    font-size: 12px;
-  }
-
-  .performance-panel-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .performance-panel {
-    right: 12px;
-    bottom: 12px;
-    width: calc(100vw - 24px);
+@media (max-width: 760px) {
+  .performance-panel-compact span:nth-of-type(n + 3) {
+    display: none;
   }
 
   .performance-summary-grid,
   .performance-stage-grid {
-    grid-template-columns: 1fr;
-  }
-
-  /* 隐藏自动换行 + 深色切换 */
-  .toolbar-options {
-    display: none;
-  }
-
-  /* 显示“更多”下拉 */
-  .toolbar-more {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .toolbar-more select {
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--input-border);
-    background-color: var(--input-bg);
-    color: var(--input-text);
-    font-size: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-
-/* ============================================= */
-/* 深色模式下工具栏控件配色优化                  */
-/* ============================================= */

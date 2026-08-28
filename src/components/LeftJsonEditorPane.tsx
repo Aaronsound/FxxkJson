@@ -1,10 +1,11 @@
-import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
-import JsonMonacoEditor from './JsonMonacoEditor';
-import LargeRawReadonlyViewer, { type LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
-import PaneFindWidget from './PaneFindWidget';
+import type React from 'react';
 import type { JsonSearchOptions, LargeRawViewerData } from '../types/jsonTool';
 import { createTranslator, type I18nKey } from '../utils/i18n';
+import JsonMonacoEditor from './JsonMonacoEditor';
+import LargeRawReadonlyViewer, { type LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
+import PaneProcessingStatus from './PaneProcessingStatus';
+import PaneFindWidget from './PaneFindWidget';
 
 interface LeftJsonEditorPaneProps {
   activeLeftMatchCount: number;
@@ -78,7 +79,8 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
   <div
     className="editor-pane left-editor-pane"
     style={{
-      flex: 1,
+      flex: '0 1 auto',
+      minWidth: 0,
       display: 'flex',
       flexDirection: 'column',
       borderRight: isDarkMode ? '1px solid #444' : '1px solid #ddd',
@@ -86,8 +88,9 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
       overscrollBehavior: 'contain',
     }}
   >
-    <div className={`editor-pane-header editor-pane-header-subtle ${isDarkMode ? 'dark' : ''}`}>
-      <span className="editor-pane-header-text">{leftPaneMetaText}</span>
+    <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
+      <strong className="editor-pane-header-title">{t('pane.rawTitle')}</strong>
+      <span className={`editor-pane-header-meta ${isDarkMode ? 'dark' : ''}`}>{leftPaneMetaText}</span>
     </div>
     <div className={`editor-pane-body ${isLeftFindOpen ? 'pane-find-open' : ''}`}>
       {isLeftFindOpen && (
@@ -111,6 +114,7 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           onPrev={onPrevLeft}
           onNext={onNextLeft}
           onClose={onCloseLeftFind}
+          t={t}
         />
       )}
       <div className="editor-pane-content">
@@ -133,8 +137,16 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           />
         )}
       </div>
-      {shouldShowLeftPlaceholder && <div className="editor-center-placeholder">{t('pane.rawPlaceholder')}</div>}
-      {processingStageText && <div className="editor-loading-overlay">{processingStageText}</div>}
+      {shouldShowLeftPlaceholder && (
+        <div className="editor-empty-state">
+          <div className="editor-empty-state-mark" aria-hidden="true">
+            {'{ }'}
+          </div>
+          <strong>{t('pane.rawEmptyTitle')}</strong>
+          <span>{t('pane.rawEmptyHint')}</span>
+        </div>
+      )}
+      {processingStageText && <PaneProcessingStatus message={processingStageText} />}
     </div>
   </div>
 );

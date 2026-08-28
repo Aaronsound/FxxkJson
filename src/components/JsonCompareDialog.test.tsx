@@ -63,4 +63,14 @@ describe('JsonCompareDialog', () => {
       within(screen.getByText(/左侧解析失败/).closest('.modal-error') as HTMLElement).getByText(/左侧解析失败/)
     ).toBeInTheDocument();
   });
+
+  it('closes consistently when Escape is pressed', () => {
+    const onClose = vi.fn();
+    render(
+      <JsonCompareDialog tabs={tabs} activeTabId="left" isDarkMode={false} getTabText={() => '{}'} onClose={onClose} />
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

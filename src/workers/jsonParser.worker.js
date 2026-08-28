@@ -6,6 +6,7 @@ import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWor
 import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';
 import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations.ts';
 import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
+import { releaseJsonWorkerTransientCaches } from './jsonWorkerCacheLifecycle.ts';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -13,6 +14,7 @@ const deferredStructureWarmupTimers = new Map();
 const editJsonCache = new Map();
 const nodeEditCache = new Map();
 const rawSearchCache = new Map();
+const rawDocumentCache = new Map();
 const latestFormatRequestByTab = new Map();
 const latestSearchRequestByKey = new Map();
 const latestLocateRequestByTab = new Map();
@@ -33,6 +35,7 @@ const jsonNodeEditOperations = createJsonNodeEditOperations({
   getStructureWarmupDelayForByteLength,
   latestFormatRequestByTab,
   nodeEditCache,
+  rawDocumentCache,
   scheduleDeferredStructureWarmup,
   structureCache,
   viewerCache,
@@ -43,8 +46,10 @@ const jsonWorkerEditJsonOperations = createJsonWorkerEditJsonOperations({
   jsonNodeEditOperations,
 });
 const jsonWorkerSearchOperations = createJsonWorkerSearchOperations({
+  editJsonCache,
   latestSearchRequestByKey,
   rawSearchCache,
+  structureCache,
   viewerCache,
 });
 const jsonWorkerLocateOperations = createJsonWorkerLocateOperations({
@@ -60,6 +65,7 @@ const jsonWorkerFormatOperations = createJsonWorkerFormatOperations({
   ensureStructureTrees,
   latestFormatRequestByTab,
   nodeEditCache,
+  rawDocumentCache,
   scheduleDeferredStructureWarmup,
   structureCache,
   viewerCache,
@@ -78,8 +84,19 @@ function handleClearStructureMessage(message) {
   editJsonCache.delete(message.tabId);
   nodeEditCache.delete(message.tabId);
   rawSearchCache.delete(message.tabId);
+  rawDocumentCache.delete(message.tabId);
   latestFormatRequestByTab.delete(message.tabId);
   cancelInteractiveRequests(message.tabId);
+}
+
+function handleReleaseTransientCacheMessage(message) {
+  releaseJsonWorkerTransientCaches(message.tabId, {
+    cancelInteractiveRequests,
+    editJsonCache,
+    nodeEditCache,
+    rawDocumentCache,
+    rawSearchCache,
+  });
 }
 
 const workerMessageHandlers = {
@@ -88,6 +105,7 @@ const workerMessageHandlers = {
   format: jsonWorkerFormatOperations.handleFormatMessage,
   locate: jsonWorkerLocateOperations.handleLocateMessage,
   'locate-right-direct': jsonWorkerLocateOperations.handleLocateRightDirectMessage,
+  'release-transient-cache': handleReleaseTransientCacheMessage,
   repair: jsonWorkerFormatOperations.handleRepairMessage,
   search: jsonWorkerSearchOperations.handleSearchMessage,
 };

@@ -1,18 +1,18 @@
 ## 本次更新
 
-- 统一 JSON 编辑器字体、字号、行高和语法配色配置，避免小 JSON 与大 JSON 视图样式来回漂移。
-- 恢复 Windows 上更清晰的 Consolas / 14px / 19px 编辑器基线，改善格式化结果的可读性。
-- 将大文件只读视图、原始大文件视图和原生 JSON 视图统一改为消费同一组编辑器 CSS 变量。
-- 增强 typography 测试，确保 Monaco 配置和 CSS 变量都从 `jsonEditorTypography` 获取。
-- 修正发布说明中的下载说明标题，避免把 Windows 下载项放在 macOS 小节下。
+- 全面整理桌面界面：响应式工具栏、固定的标签新增与滚动入口、可拖动双栏分隔线，以及统一的编辑、对比、诊断和关于弹窗。
+- 新增翡翠绿、雾霾蓝、石墨灰、经典黑、蓝色、靛蓝和紫色 7 种强调色，选择会在本机保存，并适配浅色与深色模式。
+- 改善键盘、焦点、搜索和右键菜单交互，在窄窗口以及 macOS / Windows 上保持更一致的布局和反馈。
+- 优化大文件节点编辑与 worker 生命周期：使用增量文本更新、复用解析产物并减少全文扫描，降低多标签和 20MB JSON 场景的内存与耗时。
+- 补齐英文界面的面板标题与大文件右键菜单，并用真实 Electron 应用重新生成、校验独立的中英文项目截图。
 
 ## What's New
 
-- Unified JSON editor font, size, line-height, and syntax color settings to prevent small-file and large-file views from drifting apart.
-- Restored the clearer Windows editor baseline with Consolas / 14px / 19px for better formatted-result readability.
-- Updated large readonly, large raw, and native JSON viewers to consume the same editor CSS variables.
-- Strengthened typography tests so Monaco options and CSS variables both come from `jsonEditorTypography`.
-- Fixed the release download notes heading so Windows downloads are no longer listed under a macOS-only section.
+- Refined the desktop UI with a responsive toolbar, fixed tab add/scroll controls, a draggable two-pane splitter, and consistent edit, compare, diagnostics, and about dialogs.
+- Added seven persistent accent themes—Emerald, Mist Blue, Graphite, Obsidian, Blue, Indigo, and Violet—with coordinated light and dark variants.
+- Improved keyboard, focus, search, and context-menu behavior for more consistent feedback in narrow windows and across macOS and Windows.
+- Reduced large-file node-edit and worker overhead through incremental text updates, reusable parser artifacts, fewer full scans, and stronger multi-tab/20MB regression coverage.
+- Completed English pane and large-file context-menu localization, then regenerated and verified separate Chinese and English screenshots against the real Electron app.
 
 ## 下载说明
 
