@@ -18,6 +18,7 @@ import {
 import type { EditJsonSession } from './useJsonEditSession';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { applyJsonNodeMutationArtifacts } from './applyJsonNodeMutationArtifacts';
+import { applyJsonTextPatch } from '../utils/jsonTextPatch';
 
 type EditJsonTransformOperation = Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>;
 
@@ -35,6 +36,8 @@ interface UseJsonEditActionsArgs {
   editJsonSession: EditJsonSession | null;
   editJsonValueRef: MutableRefObject<string>;
   getTabContent: (tabId: string) => string;
+  getFormattedContent: (tabId: string) => string;
+  getLargeViewerData: (tabId: string) => LargeJsonViewerData | null;
   mutatePerformanceSession: (tabId: string, mutate: (session: PerformanceSession) => void, shouldLog?: boolean) => void;
   queueFormatAfterEditSave: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   requestWorkerEditJson: (request: EditJsonWorkerRequest) => Promise<string>;
@@ -68,6 +71,8 @@ export function useJsonEditActions({
   editJsonSession,
   editJsonValueRef,
   getTabContent,
+  getFormattedContent,
+  getLargeViewerData,
   mutatePerformanceSession,
   queueFormatAfterEditSave,
   requestWorkerEditJson,
@@ -94,6 +99,8 @@ export function useJsonEditActions({
     rawByteLength: number
   ) =>
     applyJsonNodeMutationArtifacts({
+      formattedText: getFormattedContent(tabId),
+      largeViewerData: getLargeViewerData(tabId),
       largeMode,
       mutatePerformanceSession,
       rawByteLength,
@@ -127,7 +134,8 @@ export function useJsonEditActions({
         originalText: original,
         path: editJsonSession?.path,
       });
-      const updated = saveResult.data;
+      const updated =
+        typeof saveResult.data === 'string' ? saveResult.data : applyJsonTextPatch(original, saveResult.rawPatch);
       if (typeof updated !== 'string') {
         throw new Error('JSON worker returned an empty result');
       }

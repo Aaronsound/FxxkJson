@@ -320,6 +320,7 @@ const App: React.FC = () => {
   });
 
   const {
+    getFormattedContent,
     getTabContent,
     resetSearchState,
     setLargeFileLocateEnabled,
@@ -513,7 +514,8 @@ const App: React.FC = () => {
     handleRepairJson,
     handleUnescapeJson,
   } = useJsonToolContentActions({
-    ...{ activeTab, beginPerformanceSession, clearPerformanceState, clearTabStructure, getTabContent },
+    ...{ activeDocumentMeta, activeTab, beginPerformanceSession, clearPerformanceState, clearTabStructure },
+    ...{ getFormattedContent, getTabContent },
     ...{ largeModeRef, leftEditorRef, leftSearchWorkerRevisionRef, openDocumentEditSession },
     ...{ queueFormat, queueRepair, renameTab, requestWorkerEditJson },
     ...{ resetSearchState, resetTabArtifacts, setEditJsonBusyLabel },
@@ -541,7 +543,8 @@ const App: React.FC = () => {
     closeEditJson: closeEditJsonWithCacheRelease,
     editJsonSession,
     editJsonValueRef,
-    ...{ getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
+    ...{ getFormattedContent, getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
+    getLargeViewerData: (tabId) => largeViewerDataByTab[tabId] ?? null,
     ...{ requestWorkerEditJson, requestWorkerEditJsonResult, resetSearchState },
     ...{ setEditJsonBusyLabel, setEditJsonError, setLargeRawViewerData, setLargeViewerData },
     ...{ setLargeViewerStatus, setProcessingStage, setStructureStatus },

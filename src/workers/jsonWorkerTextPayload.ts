@@ -1,4 +1,10 @@
-import type { LargeJsonLineIndex, LargeJsonViewerData, LargeRawViewerData, WorkerMessage } from '../types/jsonTool';
+import type {
+  JsonTextPatch,
+  LargeJsonLineIndex,
+  LargeJsonViewerData,
+  LargeRawViewerData,
+  WorkerMessage,
+} from '../types/jsonTool';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
@@ -153,5 +159,22 @@ export function postNodeSaveResult(
   }
   transfer.push(...getRawViewerTransferables(payload.rawViewerData));
   transfer.push(...getLargeViewerTransferables(payload.viewerData));
+  (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
+}
+
+export function postNodePatchResult(
+  payload: Partial<WorkerMessage>,
+  rawPatch: JsonTextPatch,
+  formattedPatch: JsonTextPatch | null
+) {
+  const message = {
+    ...payload,
+    rawPatch,
+    formattedPatch: formattedPatch ?? undefined,
+  };
+  const transfer = [
+    ...getRawViewerTransferables(payload.rawViewerData),
+    ...getLargeViewerTransferables(payload.viewerData),
+  ];
   (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
 }

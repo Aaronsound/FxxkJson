@@ -317,10 +317,10 @@ export function createJsonWorkerInteractiveFlow({
         delete pendingEditJsonRequests[message.requestId];
         const data = readWorkerTextField(message, 'data', 'dataBuffer');
         const formattedText = readWorkerTextField(message, 'formattedText', 'formattedTextBuffer');
-        if (message.success && typeof data === 'string') {
+        if (message.success && (typeof data === 'string' || message.rawPatch)) {
           pending.resolve({
             ...message,
-            data,
+            data: data ?? message.data,
             formattedText: formattedText ?? message.formattedText,
           });
         } else {

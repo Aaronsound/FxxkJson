@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
+import { createJsonTextPatch } from '../utils/jsonTextPatch';
 import { getJsonValueClipboardText, useRightNodeActions } from './useRightNodeActions';
 
 function createArgs() {
@@ -137,5 +138,26 @@ describe('getJsonValueClipboardText', () => {
       expect.objectContaining({ operation: 'rename-node-key', text: 'nextName' })
     );
     expect(args.setEditJsonBusyLabel).toHaveBeenLastCalledWith(null);
+  });
+
+  it('applies a validated raw patch when the worker omits the full document', async () => {
+    const args = createArgs();
+    const original = '{"name":"old"}';
+    const updated = '{"nextName":"old"}';
+    args.requestWorkerEditJsonResult.mockResolvedValueOnce({
+      type: 'edit-json-result',
+      requestId: 2,
+      tabId: 'tab-a',
+      operation: 'rename-node-key',
+      success: true,
+      rawPatch: createJsonTextPatch(original, updated),
+    });
+    const { result } = renderHook(() => useRightNodeActions(args));
+
+    await act(async () => {
+      await result.current.applyRightNodeMutationAtOffset('tab-a', 4, false, 'rename-node-key');
+    });
+
+    expect(args.applyRawUpdate).toHaveBeenCalledWith('tab-a', updated);
   });
 });

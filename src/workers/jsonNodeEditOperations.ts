@@ -4,6 +4,7 @@ import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../
 import type {
   JsonDocumentMetrics,
   JsonEditPath,
+  JsonTextPatch,
   LargeJsonLineIndex,
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -11,6 +12,7 @@ import type {
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
+import { createJsonTextPatch, patchLargeJsonLineIndex } from '../utils/jsonTextPatch';
 import { getJsonOffsetLocateResult, getJsonPathLocateRange } from '../utils/jsonPathLocate';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
 import {
@@ -40,22 +42,27 @@ interface NodeEditViewerCacheEntry {
 }
 
 interface SaveNodeEditResult {
+  formattedPatch: JsonTextPatch | null;
   formattedText: string | null;
   formattedMetrics: JsonDocumentMetrics | null;
+  rawPatch: JsonTextPatch;
   rawText: string;
   rawMetrics: JsonDocumentMetrics;
   rawViewerData: LargeRawViewerData | null;
   structureWarming: boolean;
   viewerData: LargeJsonViewerData | null;
   viewerIndexMs: number | null;
+  viewerPatchApplied: boolean;
 }
 
 interface PatchCachedFormattedNodeResult {
+  formattedPatch: JsonTextPatch | null;
   formattedText: string | null;
   formattedMetrics: JsonDocumentMetrics | null;
   structureWarming: boolean;
   viewerData: LargeJsonViewerData | null;
   viewerIndexMs: number | null;
+  viewerPatchApplied: boolean;
 }
 
 interface JsonNodeEditOperationsArgs {
@@ -161,27 +168,41 @@ export function createJsonNodeEditOperations({
 
   function rebuildCachedFormattedArtifacts(
     tabId: string,
+    formattedText: string,
     nextFormattedText: string,
     rawText: string,
-    rawMetrics: JsonDocumentMetrics
+    rawMetrics: JsonDocumentMetrics,
+    allowIncrementalViewerPatch: boolean
   ): PatchCachedFormattedNodeResult {
     const formattedMetrics = measureJsonDocument(nextFormattedText);
+    const formattedPatch = createJsonTextPatch(formattedText, nextFormattedText);
     const previousViewerData = viewerCache.get(tabId)?.viewerData ?? structureCache.get(tabId)?.viewerData;
+    const viewerIndexStartedAt = performance.now();
+    const viewerPatchApplied = Boolean(
+      allowIncrementalViewerPatch &&
+        previousViewerData &&
+        !formattedPatch.text.includes('\n') &&
+        !formattedPatch.text.includes('\r') &&
+        !formattedText.slice(formattedPatch.startOffset, formattedPatch.endOffset).includes('\n') &&
+        !formattedText.slice(formattedPatch.startOffset, formattedPatch.endOffset).includes('\r')
+    );
+    const workerViewerData = viewerPatchApplied ? patchLargeJsonLineIndex(previousViewerData!, formattedPatch) : null;
     const lineCapacityHint = previousViewerData
       ? Math.min(previousViewerData.lineCount, nextFormattedText.length + 1)
       : undefined;
-    const viewerIndexStartedAt = performance.now();
-    const viewerData = buildLargeViewerData(nextFormattedText, DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, lineCapacityHint);
+    const viewerData = viewerPatchApplied
+      ? null
+      : buildLargeViewerData(nextFormattedText, DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, lineCapacityHint);
     const viewerIndexMs = performance.now() - viewerIndexStartedAt;
-    const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
+    const nextWorkerViewerData = workerViewerData ?? (viewerData ? copyLargeViewerLineIndex(viewerData) : null);
     const requestId = latestFormatRequestByTab.get(tabId) ?? 0;
     let structureWarming = false;
 
-    if (viewerData) {
+    if (nextWorkerViewerData) {
       viewerCache.set(tabId, {
         requestId,
         formattedText: nextFormattedText,
-        viewerData: workerViewerData!,
+        viewerData: nextWorkerViewerData,
       });
     } else {
       viewerCache.delete(tabId);
@@ -192,7 +213,7 @@ export function createJsonNodeEditOperations({
     const cachedStructure = structureCache.get(tabId);
     if (cachedStructure) {
       if (cachedStructure.directLocate) {
-        if (viewerData) {
+        if (nextWorkerViewerData) {
           const isIdentityFormat = rawText === nextFormattedText;
           structureCache.set(tabId, {
             requestId,
@@ -200,7 +221,7 @@ export function createJsonNodeEditOperations({
             directLocateMode: isIdentityFormat ? 'identity' : 'token-search',
             rawText: isIdentityFormat ? undefined : rawText,
             formattedText: nextFormattedText,
-            viewerData: workerViewerData!,
+            viewerData: nextWorkerViewerData,
             tokenLocateCache: { tokenOffsetsByToken: new Map() },
           });
         } else {
@@ -227,35 +248,54 @@ export function createJsonNodeEditOperations({
     }
 
     return {
+      formattedPatch,
       formattedText: nextFormattedText,
       formattedMetrics,
       structureWarming,
       viewerData,
       viewerIndexMs,
+      viewerPatchApplied,
     };
   }
 
   function getMissingFormattedPatch(): PatchCachedFormattedNodeResult {
     return {
+      formattedPatch: null,
       formattedText: null,
       formattedMetrics: null,
       structureWarming: false,
       viewerData: null,
       viewerIndexMs: null,
+      viewerPatchApplied: false,
     };
   }
 
-  function finishNodeMutation(tabId: string, rawText: string, nextFormattedText: string | null): SaveNodeEditResult {
+  function finishNodeMutation(
+    tabId: string,
+    originalRawText: string,
+    rawText: string,
+    formattedText: string | null,
+    nextFormattedText: string | null,
+    allowIncrementalViewerPatch: boolean
+  ): SaveNodeEditResult {
     const rawMetrics = measureJsonDocument(rawText);
     const rawViewerData = rawMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
     const formattedPatch =
-      typeof nextFormattedText === 'string'
-        ? rebuildCachedFormattedArtifacts(tabId, nextFormattedText, rawText, rawMetrics)
+      typeof formattedText === 'string' && typeof nextFormattedText === 'string'
+        ? rebuildCachedFormattedArtifacts(
+            tabId,
+            formattedText,
+            nextFormattedText,
+            rawText,
+            rawMetrics,
+            allowIncrementalViewerPatch
+          )
         : getMissingFormattedPatch();
 
     nodeEditCache.delete(tabId);
 
     return {
+      rawPatch: createJsonTextPatch(originalRawText, rawText),
       rawText,
       rawMetrics,
       rawViewerData,
@@ -284,8 +324,17 @@ export function createJsonNodeEditOperations({
             range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText),
           })
         : null;
+    const editedValue = JSON.parse(text) as unknown;
+    const allowIncrementalViewerPatch = editedValue === null || typeof editedValue !== 'object';
 
-    return finishNodeMutation(tabId, rawText, nextFormattedText);
+    return finishNodeMutation(
+      tabId,
+      originalText,
+      rawText,
+      formattedText ?? null,
+      nextFormattedText,
+      allowIncrementalViewerPatch
+    );
   }
 
   function deleteJsonNodeForEdit(tabId: string, originalText: string | undefined, path: JsonEditPath | undefined) {
@@ -303,7 +352,7 @@ export function createJsonNodeEditOperations({
           : deleteJsonNodePreservingOriginalFormat(formattedText, path)
         : null;
 
-    return finishNodeMutation(tabId, rawText, nextFormattedText);
+    return finishNodeMutation(tabId, originalText, rawText, formattedText ?? null, nextFormattedText, false);
   }
 
   function renameJsonNodeKeyForEdit(
@@ -326,7 +375,7 @@ export function createJsonNodeEditOperations({
           : renameJsonObjectKeyPreservingOriginalFormat(formattedText, path, text)
         : null;
 
-    return finishNodeMutation(tabId, rawText, nextFormattedText);
+    return finishNodeMutation(tabId, originalText, rawText, formattedText ?? null, nextFormattedText, true);
   }
 
   return {

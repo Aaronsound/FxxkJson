@@ -133,6 +133,34 @@ describe('jsonNodeEditOperations', () => {
     expect(getStructureWarmupDelayForByteLength).toHaveBeenCalledWith(33, 150);
   });
 
+  it('patches an existing viewer line index for same-line scalar edits', () => {
+    const { operations, structureCache, viewerCache } = createHarness();
+    const rawText = '{"name":"old","count":1}';
+    const formattedText = '{\n  "name": "old",\n  "count": 1\n}';
+    viewerCache.set('tab-a', {
+      requestId: 4,
+      formattedText,
+      viewerData: { lineCount: 4, lineStarts: Uint32Array.from([0, 2, 19, 32]) },
+    });
+    structureCache.set('tab-a', {
+      directLocate: true,
+      directLocateMode: 'token-search',
+      requestId: 4,
+      rawText,
+      formattedText,
+      viewerData: viewerCache.get('tab-a')!.viewerData,
+    });
+
+    operations.readJsonNodeForEdit('tab-a', formattedText, formattedText.indexOf('"old"'));
+    const result = operations.saveJsonNodeForEdit('tab-a', '"updated"', rawText, ['name']);
+
+    expect(result.viewerPatchApplied).toBe(true);
+    expect(result.viewerData).toBeNull();
+    expect(result.formattedPatch).not.toBeNull();
+    expect(Array.from(viewerCache.get('tab-a')!.viewerData.lineStarts)).toEqual([0, 2, 23, 36]);
+    expect(structureCache.get('tab-a')?.viewerData).toBe(viewerCache.get('tab-a')?.viewerData);
+  });
+
   it('deletes nodes and renames object keys through preserve-format helpers', () => {
     const { operations, structureCache } = createHarness();
     const rawText = '{"name":"old","count":1}';

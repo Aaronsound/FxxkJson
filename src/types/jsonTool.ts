@@ -9,6 +9,7 @@ export interface TabDocumentMeta {
   formattedLength: number;
   rawRevision: number;
   formattedRevision: number;
+  formattedRawRevision: number;
 }
 
 export interface RenamingTabState {
@@ -114,6 +115,9 @@ export interface WorkerMessage {
   repairedTextBuffer?: ArrayBuffer;
   formattedText?: string;
   formattedTextBuffer?: ArrayBuffer;
+  rawPatch?: JsonTextPatch;
+  formattedPatch?: JsonTextPatch;
+  viewerPatchApplied?: boolean;
   rawMetrics?: JsonDocumentMetrics;
   formattedMetrics?: JsonDocumentMetrics;
   structureWarming?: boolean;
@@ -138,6 +142,12 @@ export interface WorkerMessage {
 }
 
 export type JsonEditPath = Array<string | number>;
+export interface JsonTextPatch {
+  sourceLength: number;
+  startOffset: number;
+  endOffset: number;
+  text: string;
+}
 export type EditJsonWorkerOperation =
   | 'format'
   | 'save'
@@ -288,4 +298,5 @@ export const EMPTY_DOCUMENT_META: TabDocumentMeta = {
   formattedLength: 0,
   rawRevision: 0,
   formattedRevision: 0,
+  formattedRawRevision: 0,
 };

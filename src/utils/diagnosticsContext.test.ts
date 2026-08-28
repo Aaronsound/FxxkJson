@@ -5,7 +5,13 @@ describe('buildDiagnosticsContext', () => {
   it('returns no context without an active tab', () => {
     expect(
       buildDiagnosticsContext({
-        activeDocumentMeta: { rawLength: 0, formattedLength: 0, rawRevision: 0, formattedRevision: 0 },
+        activeDocumentMeta: {
+          rawLength: 0,
+          formattedLength: 0,
+          rawRevision: 0,
+          formattedRevision: 0,
+          formattedRawRevision: 0,
+        },
         activeLeftMatchCount: 0,
         activePerformanceSnapshot: null,
         activeProcessingStage: 'idle',
@@ -33,7 +39,13 @@ describe('buildDiagnosticsContext', () => {
 
   it('summarizes search counts and selected paths', () => {
     const context = buildDiagnosticsContext({
-      activeDocumentMeta: { rawLength: 12, formattedLength: 20, rawRevision: 1, formattedRevision: 2 },
+      activeDocumentMeta: {
+        rawLength: 12,
+        formattedLength: 20,
+        rawRevision: 1,
+        formattedRevision: 2,
+        formattedRawRevision: 1,
+      },
       activeLeftMatchCount: 3,
       activePerformanceSnapshot: null,
       activeProcessingStage: 'formatting',

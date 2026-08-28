@@ -7,9 +7,12 @@ import type {
   WorkerMessage,
 } from '../types/jsonTool';
 import { resolveJsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
+import { applyJsonTextPatch, patchLargeJsonViewerData } from '../utils/jsonTextPatch';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
 interface ApplyJsonNodeMutationArtifactsArgs {
+  formattedText: string;
+  largeViewerData: LargeJsonViewerData | null;
   largeMode: boolean;
   mutatePerformanceSession: (tabId: string, mutate: (session: PerformanceSession) => void, shouldLog?: boolean) => void;
   rawByteLength: number;
@@ -32,6 +35,8 @@ interface ApplyJsonNodeMutationArtifactsArgs {
 }
 
 export function applyJsonNodeMutationArtifacts({
+  formattedText,
+  largeViewerData,
   largeMode,
   mutatePerformanceSession,
   rawByteLength,
@@ -46,17 +51,27 @@ export function applyJsonNodeMutationArtifacts({
   updateFormattedContent,
   workerStructureEnabledRef,
 }: ApplyJsonNodeMutationArtifactsArgs) {
-  if (typeof result.formattedText !== 'string') {
+  const nextFormattedText =
+    typeof result.formattedText === 'string'
+      ? result.formattedText
+      : applyJsonTextPatch(formattedText, result.formattedPatch);
+  const nextViewerData = result.viewerPatchApplied
+    ? result.formattedPatch && largeViewerData
+      ? patchLargeJsonViewerData(largeViewerData, result.formattedPatch)
+      : null
+    : (result.viewerData ?? null);
+
+  if (typeof nextFormattedText !== 'string' || (result.viewerPatchApplied && !nextViewerData)) {
     return false;
   }
 
-  const formattedMetrics = resolveJsonDocumentMetrics(result.formattedText, result.formattedMetrics);
+  const formattedMetrics = resolveJsonDocumentMetrics(nextFormattedText, result.formattedMetrics);
   const rightModelStartedAt = performance.now();
-  updateFormattedContent(tabId, result.formattedText, true, formattedMetrics.textByteLength, rawByteLength);
+  updateFormattedContent(tabId, nextFormattedText, true, formattedMetrics.textByteLength, rawByteLength);
   const rightModelCompletedAt = performance.now();
   setLargeRawViewerData(tabId, result.rawViewerData ?? null);
-  setLargeViewerData(tabId, result.viewerData ?? null);
-  setLargeViewerStatus(tabId, result.viewerData ? 'ready' : 'idle');
+  setLargeViewerData(tabId, nextViewerData);
+  setLargeViewerStatus(tabId, nextViewerData ? 'ready' : 'idle');
   setStructureStatus(
     tabId,
     result.structureWarming

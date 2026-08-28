@@ -226,4 +226,23 @@ describe('createJsonWorkerInteractiveFlow', () => {
       formattedText: '{\n  "ok": true\n}',
     });
   });
+
+  it('resolves node-save patch results without requiring full text payloads', async () => {
+    const { flow, requests } = createFlow();
+    const edit = flow.requestEditJsonResult({ tabId: 'tab-a', operation: 'save-node', text: 'true' });
+    const editRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
+    const rawPatch = { sourceLength: 12, startOffset: 6, endOffset: 11, text: 'true' };
+
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: editRequestId,
+        tabId: 'tab-a',
+        success: true,
+        rawPatch,
+      })
+    );
+
+    await expect(edit).resolves.toMatchObject({ rawPatch });
+  });
 });

@@ -12,14 +12,17 @@ afterEach(() => {
 describe('createJsonWorkerEditJsonOperations', () => {
   function createNodeMutationResult(rawText = '{}') {
     return {
+      formattedPatch: { sourceLength: 2, startOffset: 1, endOffset: 1, text: '\n' },
       formattedText: '{\n}',
       formattedMetrics: measureJsonDocument('{\n}'),
+      rawPatch: { sourceLength: 2, startOffset: 1, endOffset: 1, text: '' },
       rawText,
       rawMetrics: measureJsonDocument(rawText),
       rawViewerData: null,
       structureWarming: false,
       viewerData: null,
       viewerIndexMs: 0,
+      viewerPatchApplied: false,
     };
   }
 
@@ -96,8 +99,8 @@ describe('createJsonWorkerEditJsonOperations', () => {
       expect.objectContaining({
         type: 'edit-json-result',
         requestId: 8,
-        data: '{"kept":true}',
-        formattedText: '{\n}',
+        rawPatch: expect.any(Object),
+        formattedPatch: expect.any(Object),
       }),
       []
     );

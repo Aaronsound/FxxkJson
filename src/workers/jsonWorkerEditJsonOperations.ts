@@ -4,9 +4,16 @@ import { escapeJsonText, unescapeJsonText } from '../utils/jsonEscape';
 import { parseJsonForFormatting } from '../utils/jsonFormat';
 import type { JsonValue } from '../utils/preserveJsonFormat';
 import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
+import { canInlineJsonTextPatch } from '../utils/jsonTextPatch';
 import { replaceTextSearchMatches } from '../utils/searchText';
 import type { SaveNodeEditResult } from './jsonNodeEditOperations';
-import { postNodeSaveResult, postTextResult, readMessageText, readNamedMessageText } from './jsonWorkerTextPayload';
+import {
+  postNodePatchResult,
+  postNodeSaveResult,
+  postTextResult,
+  readMessageText,
+  readNamedMessageText,
+} from './jsonWorkerTextPayload';
 
 interface EditJsonCacheEntry {
   originalText: string;
@@ -110,20 +117,31 @@ function postNodeMutationResult(
   tabId: string,
   operation: EditJsonWorkerOperation
 ) {
+  const payload = {
+    type: 'edit-json-result' as const,
+    requestId,
+    tabId,
+    operation,
+    success: true,
+    structureWarming: result.structureWarming,
+    rawViewerData: result.rawViewerData,
+    viewerData: result.viewerData,
+    viewerIndexMs: result.viewerIndexMs,
+    viewerPatchApplied: result.viewerPatchApplied,
+    rawMetrics: result.rawMetrics,
+    formattedMetrics: result.formattedMetrics ?? undefined,
+  };
+  const canUsePatchResponse =
+    canInlineJsonTextPatch(result.rawPatch) &&
+    (result.formattedPatch === null || canInlineJsonTextPatch(result.formattedPatch));
+
+  if (canUsePatchResponse) {
+    postNodePatchResult(payload, result.rawPatch, result.formattedPatch);
+    return;
+  }
+
   postNodeSaveResult(
-    {
-      type: 'edit-json-result',
-      requestId,
-      tabId,
-      operation,
-      success: true,
-      structureWarming: result.structureWarming,
-      rawViewerData: result.rawViewerData,
-      viewerData: result.viewerData,
-      viewerIndexMs: result.viewerIndexMs,
-      rawMetrics: result.rawMetrics,
-      formattedMetrics: result.formattedMetrics ?? undefined,
-    },
+    payload,
     result.rawText,
     result.formattedText,
     result.rawMetrics.textByteLength,

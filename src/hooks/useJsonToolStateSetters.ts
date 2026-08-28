@@ -166,6 +166,7 @@ export function useJsonToolStateSetters({
   };
 
   const getTabContent = (tabId: string) => rawTextByTabRef.current[tabId] ?? '';
+  const getFormattedContent = (tabId: string) => formattedTextByTabRef.current[tabId] ?? '';
 
   const updateTabContent = (tabId: string, content: string, syncModel = false, knownByteLength?: number) => {
     const byteLength = knownByteLength ?? getUtf8ByteLength(content);
@@ -197,6 +198,7 @@ export function useJsonToolStateSetters({
       ...current,
       formattedLength: byteLength,
       formattedRevision: current.formattedRevision + 1,
+      formattedRawRevision: current.rawRevision,
     }));
 
     if (syncModel) {
@@ -205,6 +207,7 @@ export function useJsonToolStateSetters({
   };
 
   return {
+    getFormattedContent,
     getTabContent,
     resetSearchState,
     setLargeFileLocateEnabled,

@@ -4,6 +4,7 @@ import { formatJsonPath } from '../utils/jsonPath';
 import { writeTextToClipboard } from '../utils/clipboard';
 import { getJsonLiteralDetails, type EditableNodePayload } from '../utils/jsonEditNodePayload';
 import { type JsonDocumentMetrics, shouldUseLargeModeForMetrics } from '../utils/jsonDocumentMetrics';
+import { applyJsonTextPatch } from '../utils/jsonTextPatch';
 
 type CopyNodeDetailMode = 'path' | 'key' | 'compact-json' | 'formatted-json';
 type RightNodeMutationOperation = 'delete-node' | 'rename-node-key';
@@ -181,7 +182,10 @@ export function useRightNodeActions({
           originalText: original,
           path: parsed.path,
         });
-        const updated = mutationResult.data;
+        const updated =
+          typeof mutationResult.data === 'string'
+            ? mutationResult.data
+            : applyJsonTextPatch(original, mutationResult.rawPatch);
         if (typeof updated !== 'string') {
           throw new Error('JSON worker returned an empty result');
         }

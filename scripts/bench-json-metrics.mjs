@@ -48,6 +48,52 @@ export function measureRepeated(label, iterations, fn) {
   return { ...result, ms: result.ms / iterations };
 }
 
+export function createTextPatch(source, updated) {
+  const maximumPrefixLength = Math.min(source.length, updated.length);
+  let startOffset = 0;
+  while (startOffset < maximumPrefixLength && source.charCodeAt(startOffset) === updated.charCodeAt(startOffset)) {
+    startOffset += 1;
+  }
+
+  let sourceEndOffset = source.length;
+  let updatedEndOffset = updated.length;
+  while (
+    sourceEndOffset > startOffset &&
+    updatedEndOffset > startOffset &&
+    source.charCodeAt(sourceEndOffset - 1) === updated.charCodeAt(updatedEndOffset - 1)
+  ) {
+    sourceEndOffset -= 1;
+    updatedEndOffset -= 1;
+  }
+
+  return {
+    sourceLength: source.length,
+    startOffset,
+    endOffset: sourceEndOffset,
+    text: updated.slice(startOffset, updatedEndOffset),
+  };
+}
+
+export function patchLineStarts(lineStarts, patch) {
+  const nextLineStarts = lineStarts.slice();
+  const offsetDelta = patch.text.length - (patch.endOffset - patch.startOffset);
+  let low = 0;
+  let high = nextLineStarts.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (nextLineStarts[middle] < patch.endOffset) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  for (let index = low; index < nextLineStarts.length; index += 1) {
+    nextLineStarts[index] += offsetDelta;
+  }
+  return nextLineStarts;
+}
+
 function growTypedBuffer(buffer, minimumCapacity) {
   let capacity = Math.max(1, buffer.length);
   while (capacity < minimumCapacity) {

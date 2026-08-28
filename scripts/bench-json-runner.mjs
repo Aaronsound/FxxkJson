@@ -9,6 +9,7 @@ import {
   buildViewerDataStats,
   buildWrapLayoutStats,
   countTextLines,
+  createTextPatch,
   findCaseInsensitiveSearchBatch,
   findLegacyLineAwareLiteralBatch,
   findLiteralSearchBatch,
@@ -17,6 +18,7 @@ import {
   measure,
   measureDocumentMetrics,
   measureRepeated,
+  patchLineStarts,
   readFirstRequestValue,
   readFirstRequestValueStreaming,
   rebuildFoldedWrapLayoutStats,
@@ -179,6 +181,18 @@ export async function benchFile(filePath) {
       ? buildViewerDataStats(nodeEditPatchResult.value, viewerResult.value.lineCount)
       : { buildWorkingBytes: 0 }
   );
+  const rawNodeRange = streamingNodeReadResult.value?.rawRange;
+  const nextLiteral = JSON.stringify('req-benchmark-updated');
+  const rawNodeEditText = rawNodeRange
+    ? `${rawText.slice(0, rawNodeRange.startOffset)}${nextLiteral}${rawText.slice(rawNodeRange.endOffset)}`
+    : rawText;
+  const rawNodeEditPatch = createTextPatch(rawText, rawNodeEditText);
+  const formattedNodeEditPatch = createTextPatch(formattedText, nodeEditPatchResult.value ?? formattedText);
+  const incrementalNodeEditViewerResult = measureRepeated('nodeEditIncrementalViewerIndex', 10, () =>
+    patchLineStarts(viewerResult.value.lineStarts, formattedNodeEditPatch)
+  );
+  const nodeSavePatchTransferBytes =
+    Buffer.byteLength(rawNodeEditPatch.text, 'utf8') + Buffer.byteLength(formattedNodeEditPatch.text, 'utf8');
 
   return {
     filePath: absolutePath,
@@ -260,8 +274,10 @@ export async function benchFile(filePath) {
     streamingNodeReadMs: streamingNodeReadResult.ms,
     nodeEditPatchMs: nodeEditPatchResult.ms,
     nodeEditViewerIndexMs: nodeEditViewerResult.ms,
+    nodeEditIncrementalViewerIndexMs: incrementalNodeEditViewerResult.ms,
     nodeEditViewerWorkingBytes: nodeEditViewerResult.value.buildWorkingBytes,
     nodeSaveTransferBytes: rawBytes + formattedBytes,
+    nodeSavePatchTransferBytes,
     nodeWarmupMetricRescanAvoidedMs: uiMetricRescanResult.value.rawMs + uiMetricRescanResult.value.formattedMs,
     identityComparisonAvoidedMs: identityComparisonResult.ms,
     uiMetricRescanAvoidedMs: uiMetricRescanResult.ms,
