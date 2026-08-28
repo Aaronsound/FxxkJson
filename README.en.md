@@ -13,6 +13,8 @@
 
 FxxkJson is built with Electron, React, Vite, and Monaco Editor. It is designed for API responses, logs, configuration files, and 5MB+ JSON documents, with a responsive two-pane workspace, a resizable splitter, and seven persistent accent themes. JSON processing happens locally on your machine; the app does not upload JSON content and does not include telemetry or remote JSON processing.
 
+**Quick links:** [English User Guide](docs/USER_GUIDE.en.md) · [中文使用指南](docs/USER_GUIDE.md) · [Download the latest release](https://github.com/Aaronsound/FxxkJson/releases/latest)
+
 ## Project Evolution
 
 FxxkJson is a refactor and hardening of [HanJson](https://github.com/Aaronsound/HanJson). It is not a completely separate rewrite; it continues the same desktop JSON formatting tool lineage:
