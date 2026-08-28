@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fbf9" />
+      <stop offset="0.52" stop-color="#edf7f2" />
+      <stop offset="1" stop-color="#dcefe5" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#238b59" />
+      <stop offset="1" stop-color="#45ad78" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#173c2b" flood-opacity="0.2" />
+    </filter>
+    <clipPath id="screenshot-clip">
+      <rect x="680" y="76" width="548" height="488" rx="24" />
+    </clipPath>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#background)" />
+  <circle cx="1160" cy="-30" r="250" fill="#8fd5ae" opacity="0.22" />
+  <circle cx="65" cy="650" r="235" fill="#238b59" opacity="0.09" />
+  <path d="M0 604 C250 536 410 676 650 590 C890 504 1050 620 1280 548 L1280 640 L0 640 Z" fill="#238b59" opacity="0.07" />
+
+  <g transform="translate(72 70)">
+    <rect width="92" height="92" rx="24" fill="#ffffff" filter="url(#shadow)" />
+    <image href="fxxkjson-icon.png" x="8" y="8" width="76" height="76" />
+  </g>
+
+  <text x="184" y="129" fill="#17231d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="54" font-weight="750">FxxkJson</text>
+  <text x="72" y="232" fill="#17231d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="43" font-weight="700">Large JSON, minus the pain.</text>
+  <text x="72" y="287" fill="#4d6358" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24">Format · Repair · Search · Edit · Compare</text>
+
+  <g transform="translate(72 342)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="19" font-weight="650">
+    <rect width="178" height="48" rx="24" fill="url(#accent)" />
+    <text x="89" y="31" text-anchor="middle" fill="#ffffff">5MB+ optimized</text>
+    <rect x="194" width="150" height="48" rx="24" fill="#ffffff" stroke="#bad8c8" />
+    <text x="269" y="31" text-anchor="middle" fill="#2c5942">Local-only</text>
+    <rect x="360" width="210" height="48" rx="24" fill="#ffffff" stroke="#bad8c8" />
+    <text x="465" y="31" text-anchor="middle" fill="#2c5942">macOS + Windows</text>
+  </g>
+
+  <text x="72" y="470" fill="#456054" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21">A private, cross-platform desktop workspace</text>
+  <text x="72" y="503" fill="#456054" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21">for JSON that outgrows browser formatters.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="680" y="76" width="548" height="488" rx="24" fill="#ffffff" />
+    <image href="main-window-en.png" x="680" y="76" width="774" height="488" preserveAspectRatio="xMinYMid slice" clip-path="url(#screenshot-clip)" />
+    <rect x="680" y="76" width="548" height="488" rx="24" fill="none" stroke="#ffffff" stroke-width="4" opacity="0.92" />
+  </g>
+
+  <rect x="72" y="558" width="350" height="5" rx="2.5" fill="url(#accent)" />
+  <text x="72" y="598" fill="#60766b" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">github.com/Aaronsound/FxxkJson</text>
+</svg>

@@ -2,6 +2,18 @@
 
 ## 未发布 / Unreleased
 
+### 中文
+
+- 重构中英文 README 首屏，突出大文件、本地处理、跨平台下载和 30 秒上手流程。
+- 新增由真实 Electron 截图合成的中英文动态演示，以及用于 GitHub 分享卡片的 Social Preview 封面。
+- 增加可重复执行的动态演示生成脚本，并将其接入文档截图流程。
+
+### English
+
+- Reworked the Chinese and English README landing sections around large files, local processing, cross-platform downloads, and a 30-second quick start.
+- Added bilingual animated demos assembled from real Electron screenshots and a Social Preview image for GitHub link cards.
+- Added a reproducible animated-demo generator and connected it to the documentation screenshot workflow.
+
 ## v1.0.33 - 2026-08-28
 
 ### 中文
