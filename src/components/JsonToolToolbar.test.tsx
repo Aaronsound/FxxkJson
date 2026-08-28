@@ -36,6 +36,8 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
     currentStructureStatus: 'ready',
     processingStageText: null,
     currentError: null,
+    accentTheme: 'emerald',
+    onAccentThemeChange: vi.fn(),
     language: 'zh',
     onLanguageChange: vi.fn(),
     ...overrides,
@@ -128,6 +130,29 @@ describe('JsonToolToolbar', () => {
     expect(screen.getByRole('radio', { name: 'English' })).toBeChecked();
   });
 
+  it('offers seven named accent themes and marks the current theme', () => {
+    const { props, rerender } = renderToolbar();
+
+    fireEvent.click(screen.getByText('更多'));
+    fireEvent.click(screen.getByText('主题色'));
+    const themeOptions = document.querySelector('.toolbar-theme-options');
+    expect(themeOptions).not.toBeNull();
+    if (!themeOptions) throw new Error('主题色选项未渲染');
+    expect(within(themeOptions as HTMLElement).getAllByRole('radio')).toHaveLength(7);
+    expect(screen.getByRole('radio', { name: '翡翠绿' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '雾蓝' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: '石墨灰' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: '曜石黑' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: '靛青' })).not.toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: '雾蓝' }));
+    expect(props.onAccentThemeChange).toHaveBeenCalledWith('mist');
+
+    rerender(<JsonToolToolbar {...props} accentTheme="graphite" />);
+    fireEvent.click(screen.getByText('更多'));
+    fireEvent.click(screen.getByText('主题色'));
+    expect(screen.getByRole('radio', { name: '石墨灰' })).toBeChecked();
+  });
+
   it('closes the more menu on Escape and outside pointer interaction', () => {
     renderToolbar();
     const trigger = screen.getByText('更多');
@@ -167,6 +192,22 @@ describe('JsonToolToolbar', () => {
     expect(editButton).not.toBeDisabled();
     fireEvent.click(editButton);
     expect(props.onEditJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates compact actions when a window resize arrives without a media-query change event', () => {
+    const mediaQuery = {
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue(mediaQuery));
+    renderToolbar();
+
+    expect(document.querySelector('.toolbar-more-compact-actions')).toBeNull();
+    mediaQuery.matches = true;
+    fireEvent.resize(window);
+
+    expect(document.querySelector('.toolbar-more-compact-actions')).not.toBeNull();
   });
 
   it('shows processing and large-file guidance in a readable status region', () => {

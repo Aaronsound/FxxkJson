@@ -9,6 +9,7 @@ import type JsonToolToolbar from '../components/JsonToolToolbar';
 import type JsonToolWorkspace from '../components/JsonToolWorkspace';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
 import type { LargeJsonFoldState, Tab } from '../types/jsonTool';
+import type { AppAccentTheme } from '../utils/accentTheme';
 import { createJsonToolOverlayProps, createJsonToolToolbarProps } from './jsonToolOverlayToolbarProps';
 import { createJsonToolContextMenusProps, createJsonToolPanesProps } from './jsonToolPaneMenuProps';
 
@@ -75,6 +76,7 @@ type JsonToolOverlayInput = {
 };
 
 type JsonToolToolbarInput = {
+  accentTheme: AppAccentTheme;
   canCompareJson: JsonToolToolbarProps['canCompareJson'];
   canControlRightPaneFolding: JsonToolToolbarProps['canControlRightPaneFolding'];
   canEditJson: JsonToolToolbarProps['canEditJson'];
@@ -100,6 +102,7 @@ type JsonToolToolbarInput = {
   processingStageText: JsonToolToolbarProps['processingStageText'];
   rightEditorRef: RightEditorRef;
   setLanguage: JsonToolToolbarProps['onLanguageChange'];
+  setAccentTheme: JsonToolToolbarProps['onAccentThemeChange'];
   setShowPerformancePanel: JsonToolToolbarProps['onShowPerformancePanelChange'];
   setWrapLongLines: JsonToolToolbarProps['onWrapLongLinesChange'];
   shouldUseDedicatedRightViewer: boolean;

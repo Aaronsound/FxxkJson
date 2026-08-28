@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StructureStatus } from '../types/jsonTool';
+import type { AppAccentTheme } from '../utils/accentTheme';
 import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 
 interface JsonToolToolbarProps {
@@ -34,12 +35,23 @@ interface JsonToolToolbarProps {
   currentStructureStatus: StructureStatus;
   processingStageText: string | null;
   currentError: string | null;
+  accentTheme?: AppAccentTheme;
+  onAccentThemeChange?: (theme: AppAccentTheme) => void;
   language?: AppLanguage;
   onLanguageChange?: (language: AppLanguage) => void;
   t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
 
 const defaultT = createTranslator('zh');
+const accentThemeOptions: Array<{ color: string; labelKey: I18nKey; value: AppAccentTheme }> = [
+  { value: 'emerald', labelKey: 'toolbar.themeEmerald', color: '#238b59' },
+  { value: 'mist', labelKey: 'toolbar.themeMist', color: '#507a89' },
+  { value: 'graphite', labelKey: 'toolbar.themeGraphite', color: '#66717c' },
+  { value: 'obsidian', labelKey: 'toolbar.themeObsidian', color: '#252b31' },
+  { value: 'blue', labelKey: 'toolbar.themeBlue', color: '#2563eb' },
+  { value: 'indigo', labelKey: 'toolbar.themeIndigo', color: '#4f46e5' },
+  { value: 'violet', labelKey: 'toolbar.themeViolet', color: '#7c3aed' },
+];
 
 function getToolbarHintMessage({
   importingFileName,
@@ -138,16 +150,20 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   currentStructureStatus,
   processingStageText,
   currentError,
+  accentTheme = 'emerald',
+  onAccentThemeChange,
   language = 'zh',
   onLanguageChange,
   t = defaultT,
 }) => {
   const moreMenuRef = useRef<HTMLDetailsElement | null>(null);
+  const accentThemeMenuRef = useRef<HTMLDetailsElement | null>(null);
   const languageMenuRef = useRef<HTMLDetailsElement | null>(null);
   const [isCompactToolbar, setIsCompactToolbar] = useState(
     () => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 860px)').matches
   );
   const closeMoreMenu = useCallback(() => {
+    accentThemeMenuRef.current?.removeAttribute('open');
     languageMenuRef.current?.removeAttribute('open');
     moreMenuRef.current?.removeAttribute('open');
   }, []);
@@ -182,7 +198,11 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
     const updateCompactToolbar = () => setIsCompactToolbar(query.matches);
     updateCompactToolbar();
     query.addEventListener('change', updateCompactToolbar);
-    return () => query.removeEventListener('change', updateCompactToolbar);
+    window.addEventListener('resize', updateCompactToolbar);
+    return () => {
+      query.removeEventListener('change', updateCompactToolbar);
+      window.removeEventListener('resize', updateCompactToolbar);
+    };
   }, []);
   const hintMessage = getToolbarHintMessage({
     importingFileName,
@@ -367,7 +387,54 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                     >
                       {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
                     </button>
-                    <details ref={languageMenuRef} className="toolbar-language-menu">
+                    <details
+                      ref={accentThemeMenuRef}
+                      className="toolbar-language-menu toolbar-theme-menu"
+                      onToggle={(event) => {
+                        if (event.currentTarget.open) languageMenuRef.current?.removeAttribute('open');
+                      }}
+                    >
+                      <summary className="toolbar-language-trigger">{t('toolbar.themeColor')}</summary>
+                      <div
+                        className="toolbar-language-options toolbar-theme-options"
+                        role="radiogroup"
+                        aria-label={t('toolbar.themeColor')}
+                      >
+                        {accentThemeOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={accentTheme === option.value}
+                            className={`toolbar-language-option toolbar-theme-option ${
+                              accentTheme === option.value ? 'is-selected' : ''
+                            }`}
+                            data-accent-theme-option={option.value}
+                            onClick={() => {
+                              closeMoreMenu();
+                              if (accentTheme !== option.value) onAccentThemeChange?.(option.value);
+                            }}
+                          >
+                            <span className="toolbar-language-check" aria-hidden="true">
+                              {accentTheme === option.value ? '✓' : ''}
+                            </span>
+                            <span
+                              className="toolbar-theme-swatch"
+                              style={{ backgroundColor: option.color }}
+                              aria-hidden="true"
+                            />
+                            {t(option.labelKey)}
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                    <details
+                      ref={languageMenuRef}
+                      className="toolbar-language-menu"
+                      onToggle={(event) => {
+                        if (event.currentTarget.open) accentThemeMenuRef.current?.removeAttribute('open');
+                      }}
+                    >
                       <summary className="toolbar-language-trigger">{t('toolbar.language')}</summary>
                       <div className="toolbar-language-options" role="radiogroup" aria-label={t('toolbar.language')}>
                         <button

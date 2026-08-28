@@ -122,8 +122,10 @@ const App: React.FC = () => {
     setLeftReplaceText,
   } = useJsonToolViewerState();
   const {
+    accentTheme,
     isDarkMode,
     language,
+    setAccentTheme,
     setIsDarkMode,
     setLanguage,
     setShowPerformancePanel,
@@ -648,6 +650,7 @@ const App: React.FC = () => {
   const workspaceProps = createJsonToolWorkspaceProps({
     ...{ activeDocumentMeta, activeLargeRawViewerData, activeLargeViewerFoldState, activeLargeViewerData },
     ...{ activeLeftMatchCount, activePerformanceSnapshot, activeRawText, activeRightMatchCount },
+    accentTheme,
     ...{ activeRightPinnedPathItems, activeRightSelectedRange },
     activeTab,
     activeTabId,
@@ -687,7 +690,7 @@ const App: React.FC = () => {
     ...{ rightRecentSearches, rightSearchHasMore, rightSearchOptions, rightSearchTerm, runtimeInfo },
     ...{ selectAllLeftEditorText, selectRightPinnedPath },
     ...{ setActiveTabId, setIsAboutOpen, setIsArchitectureWarningDismissed, setIsCompareOpen },
-    ...{ setIsDiagnosticsLogOpen, setIsRightFindOpen, setLanguage, setLargeViewerFoldStateByTab },
+    ...{ setAccentTheme, setIsDiagnosticsLogOpen, setIsRightFindOpen, setLanguage, setLargeViewerFoldStateByTab },
     ...{ setLargeViewerMatchCount, setLeftEditorContextMenu, setLeftReplaceText, setRightEditorContextMenu },
     ...{ setRightMatchIndex, setRightSearchTerm, setShowPerformancePanel, setWrapLongLines },
     ...{ shouldEnableRightPaneFolding, shouldUseDedicatedLeftViewer, shouldUseDedicatedRightViewer },

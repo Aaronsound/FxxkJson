@@ -40,7 +40,8 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
     {
       step: 'toolbar UI',
-      detail: 'menus stay bounded, status text remains readable, and English labels are complete',
+      detail:
+        'menus stay bounded, accent themes persist, status text remains readable, and English labels are complete',
     },
     { step: 'pane focus', detail: 'the active raw or formatted pane has a visible header accent' },
     { step: 'split resize', detail: 'center gutter resizes both editor panes' },
@@ -60,6 +61,29 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
 }
 
 async function assertToolbarUi(cdp) {
+  const checkboxAlignment = await evaluate(
+    cdp,
+    `(() => {
+      const labels = Array.from(document.querySelectorAll('.toolbar-checkbox'));
+      return labels.map((label) => {
+        const input = label.querySelector('input');
+        const textNode = Array.from(label.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+        if (!(input instanceof HTMLInputElement) || !textNode) return null;
+        const textRange = document.createRange();
+        textRange.selectNodeContents(textNode);
+        const inputRect = input.getBoundingClientRect();
+        const textRect = textRange.getBoundingClientRect();
+        return Math.abs(inputRect.top + inputRect.height / 2 - (textRect.top + textRect.height / 2));
+      });
+    })()`
+  );
+  if (
+    !Array.isArray(checkboxAlignment) ||
+    checkboxAlignment.some((offset) => typeof offset !== 'number' || offset > 1.5)
+  ) {
+    throw new Error(`Toolbar checkbox labels were not vertically aligned: ${JSON.stringify(checkboxAlignment)}`);
+  }
+
   const openMore = () =>
     evaluate(
       cdp,
@@ -86,6 +110,176 @@ async function assertToolbarUi(cdp) {
   );
 
   await openMore();
+  const selectedTheme = await evaluate(
+    cdp,
+    `(() => {
+      document.querySelector('.toolbar-theme-menu > .toolbar-language-trigger')?.click();
+      const options = document.querySelectorAll('[data-accent-theme-option]');
+      const option = document.querySelector('[data-accent-theme-option="mist"]');
+      if (options.length !== 7 || !(option instanceof HTMLElement)) return false;
+      option.click();
+      return true;
+    })()`
+  );
+  if (!selectedTheme) throw new Error('The seven accent theme options or Mist blue were unavailable');
+  await waitFor(
+    () => evaluate(cdp, `document.documentElement.dataset.accentTheme === 'mist'`),
+    'accent theme switches to mist blue'
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `getComputedStyle(document.querySelector('.toolbar-button-primary')).backgroundColor === 'rgb(80, 122, 137)'`
+      ),
+    'accent theme transition completes'
+  );
+  const accentThemeMetrics = await evaluate(
+    cdp,
+    `(() => {
+      const button = document.querySelector('.toolbar-button-primary');
+      if (!(button instanceof HTMLElement)) return null;
+      return {
+        accent: getComputedStyle(document.querySelector('.app-container')).getPropertyValue('--app-accent').trim(),
+        buttonBackground: getComputedStyle(button).backgroundColor,
+        danger: getComputedStyle(document.querySelector('.app-container')).getPropertyValue('--app-danger').trim(),
+        stored: localStorage.getItem('fxxkjson.accentTheme'),
+      };
+    })()`
+  );
+  if (
+    accentThemeMetrics?.accent !== '#507a89' ||
+    accentThemeMetrics.buttonBackground !== 'rgb(80, 122, 137)' ||
+    accentThemeMetrics.danger !== '#c62828' ||
+    accentThemeMetrics.stored !== 'mist'
+  ) {
+    throw new Error(`Accent theme did not update its CSS variables: ${JSON.stringify(accentThemeMetrics)}`);
+  }
+
+  await openMore();
+  await clickButtonByText(cdp, '深色模式');
+  await waitFor(
+    () => evaluate(cdp, `document.querySelector('.app-container')?.classList.contains('dark-mode')`),
+    'dark mode'
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `getComputedStyle(document.querySelector('.toolbar-button-primary')).backgroundColor === 'rgb(137, 181, 195)'`
+      ),
+    'dark accent theme transition completes'
+  );
+  const darkThemeContrast = await evaluate(
+    cdp,
+    `(() => {
+      const button = document.querySelector('.toolbar-button-primary');
+      if (!(button instanceof HTMLElement)) return null;
+      const parseRgb = (value) => (value.match(/[\\d.]+/g) ?? []).slice(0, 3).map(Number);
+      const luminance = (value) => {
+        const channels = parseRgb(value).map((channel) => {
+          const normalized = channel / 255;
+          return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+        });
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      };
+      const style = getComputedStyle(button);
+      const foreground = luminance(style.color);
+      const background = luminance(style.backgroundColor);
+      return {
+        accent: getComputedStyle(document.querySelector('.app-container')).getPropertyValue('--app-accent').trim(),
+        contrast: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      };
+    })()`
+  );
+  if (darkThemeContrast?.accent !== '#89b5c3' || darkThemeContrast.contrast < 4.5) {
+    throw new Error(`Dark accent theme contrast was insufficient: ${JSON.stringify(darkThemeContrast)}`);
+  }
+  await openMore();
+  await clickButtonByText(cdp, '浅色模式');
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.app-container')?.classList.contains('dark-mode')`),
+    'light mode restores after accent check'
+  );
+
+  await openMore();
+  await evaluate(
+    cdp,
+    `(() => {
+      document.querySelector('.toolbar-theme-menu > .toolbar-language-trigger')?.click();
+      const option = document.querySelector('[data-accent-theme-option="graphite"]');
+      if (!(option instanceof HTMLElement)) return false;
+      option.click();
+      return true;
+    })()`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `document.documentElement.dataset.accentTheme === 'graphite' && getComputedStyle(document.querySelector('.toolbar-button-primary')).backgroundColor === 'rgb(102, 113, 124)'`
+      ),
+    'graphite accent theme transition completes'
+  );
+
+  await openMore();
+  await evaluate(
+    cdp,
+    `(() => {
+      document.querySelector('.toolbar-theme-menu > .toolbar-language-trigger')?.click();
+      const option = document.querySelector('[data-accent-theme-option="obsidian"]');
+      if (!(option instanceof HTMLElement)) return false;
+      option.click();
+      return true;
+    })()`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `document.documentElement.dataset.accentTheme === 'obsidian' && getComputedStyle(document.querySelector('.toolbar-button-primary')).backgroundColor === 'rgb(37, 43, 49)'`
+      ),
+    'obsidian accent theme transition completes'
+  );
+  await openMore();
+  await clickButtonByText(cdp, '深色模式');
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const button = document.querySelector('.toolbar-button-primary');
+          if (!(button instanceof HTMLElement)) return false;
+          const style = getComputedStyle(button);
+          return document.querySelector('.app-container')?.classList.contains('dark-mode') && style.backgroundColor === 'rgb(215, 220, 225)' && style.color === 'rgb(24, 27, 31)';
+        })()`
+      ),
+    'obsidian theme switches to silver in dark mode'
+  );
+  await openMore();
+  await clickButtonByText(cdp, '浅色模式');
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.app-container')?.classList.contains('dark-mode')`),
+    'light mode restores after obsidian check'
+  );
+
+  await openMore();
+  await evaluate(
+    cdp,
+    `(() => {
+      document.querySelector('.toolbar-theme-menu > .toolbar-language-trigger')?.click();
+      const option = document.querySelector('[data-accent-theme-option="emerald"]');
+      if (!(option instanceof HTMLElement)) return false;
+      option.click();
+      return true;
+    })()`
+  );
+  await waitFor(
+    () => evaluate(cdp, `document.documentElement.dataset.accentTheme === 'emerald'`),
+    'accent theme restores to emerald'
+  );
+
+  await openMore();
   await evaluate(cdp, `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
   await waitFor(
     () => evaluate(cdp, `!document.querySelector('.toolbar-more-menu')?.hasAttribute('open')`),
@@ -96,7 +290,7 @@ async function assertToolbarUi(cdp) {
   await evaluate(
     cdp,
     `(() => {
-      document.querySelector('.toolbar-language-trigger')?.click();
+      document.querySelector('.toolbar-language-menu:not(.toolbar-theme-menu) > .toolbar-language-trigger')?.click();
       const option = Array.from(document.querySelectorAll('.toolbar-language-option'))
         .find((element) => element.textContent?.trim().endsWith('English'));
       if (!(option instanceof HTMLElement)) return false;

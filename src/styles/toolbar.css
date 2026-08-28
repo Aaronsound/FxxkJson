@@ -74,7 +74,7 @@
 .toolbar-button-primary {
   border-color: var(--app-accent-border);
   background: var(--app-accent);
-  color: #ffffff;
+  color: var(--app-accent-contrast);
   box-shadow: none;
 }
 
@@ -113,6 +113,9 @@
 }
 
 .toolbar-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 26px;
   box-sizing: border-box;
   padding: 2px 7px;
@@ -120,10 +123,12 @@
   border-radius: var(--app-radius-sm);
   background: var(--app-surface-muted);
   font-size: 12px;
+  line-height: 16px;
   white-space: nowrap;
 }
 
 .toolbar-checkbox input {
+  flex: 0 0 auto;
   width: 14px;
   height: 14px;
   margin: 0;
@@ -168,7 +173,7 @@
   place-items: center;
   border-radius: 50%;
   background: var(--app-accent);
-  color: #ffffff;
+  color: var(--app-accent-contrast);
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
@@ -284,6 +289,20 @@
   flex: 0 0 15px;
   width: 15px;
   font-weight: 700;
+}
+
+.toolbar-theme-option {
+  gap: 6px;
+}
+
+.toolbar-theme-swatch {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-surface-raised) 72%, transparent);
 }
 
 .toolbar-more-trigger::after {

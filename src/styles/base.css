@@ -139,6 +139,8 @@ body {
   --app-accent-hover: #1c7a4d;
   --app-accent-soft: rgba(35, 139, 89, 0.1);
   --app-accent-border: rgba(35, 139, 89, 0.24);
+  --app-accent-text: #238b59;
+  --app-accent-contrast: #ffffff;
   --app-surface: #f4f5f3;
   --app-surface-raised: #ffffff;
   --app-surface-muted: #eef1ee;
@@ -170,6 +172,8 @@ body {
   --app-accent-hover: #6bc892;
   --app-accent-soft: rgba(88, 185, 130, 0.14);
   --app-accent-border: rgba(88, 185, 130, 0.28);
+  --app-accent-text: #72cf99;
+  --app-accent-contrast: #102419;
   --app-surface: #292d2a;
   --app-surface-raised: #323733;
   --app-surface-muted: #383e39;
@@ -187,6 +191,114 @@ body {
   --input-focus-border: var(--app-accent);
   --json-fold-icon-color: rgba(224, 214, 194, 0.8);
   --json-fold-hover-bg: rgba(141, 180, 255, 0.16);
+}
+
+:root[data-accent-theme="blue"] {
+  --app-accent: #2563eb;
+  --app-accent-hover: #1d4ed8;
+  --app-accent-soft: rgba(37, 99, 235, 0.1);
+  --app-accent-border: rgba(37, 99, 235, 0.24);
+  --app-accent-text: #2563eb;
+  --app-accent-contrast: #ffffff;
+}
+
+:root[data-accent-theme="mist"] {
+  --app-accent: #507a89;
+  --app-accent-hover: #466d7b;
+  --app-accent-soft: rgba(80, 122, 137, 0.11);
+  --app-accent-border: rgba(80, 122, 137, 0.26);
+  --app-accent-text: #507a89;
+  --app-accent-contrast: #ffffff;
+}
+
+:root[data-accent-theme="graphite"] {
+  --app-accent: #66717c;
+  --app-accent-hover: #59646f;
+  --app-accent-soft: rgba(102, 113, 124, 0.11);
+  --app-accent-border: rgba(102, 113, 124, 0.25);
+  --app-accent-text: #66717c;
+  --app-accent-contrast: #ffffff;
+}
+
+:root[data-accent-theme="obsidian"] {
+  --app-accent: #252b31;
+  --app-accent-hover: #171c20;
+  --app-accent-soft: rgba(37, 43, 49, 0.1);
+  --app-accent-border: rgba(37, 43, 49, 0.25);
+  --app-accent-text: #343b42;
+  --app-accent-contrast: #ffffff;
+}
+
+:root[data-accent-theme="indigo"] {
+  --app-accent: #4f46e5;
+  --app-accent-hover: #4338ca;
+  --app-accent-soft: rgba(79, 70, 229, 0.11);
+  --app-accent-border: rgba(79, 70, 229, 0.25);
+  --app-accent-text: #4f46e5;
+  --app-accent-contrast: #ffffff;
+}
+
+:root[data-accent-theme="violet"] {
+  --app-accent: #7c3aed;
+  --app-accent-hover: #6d28d9;
+  --app-accent-soft: rgba(124, 58, 237, 0.1);
+  --app-accent-border: rgba(124, 58, 237, 0.24);
+  --app-accent-text: #7c3aed;
+  --app-accent-contrast: #ffffff;
+}
+
+:root[data-accent-theme="blue"] .app-container.dark-mode {
+  --app-accent: #60a5fa;
+  --app-accent-hover: #7db7fb;
+  --app-accent-soft: rgba(96, 165, 250, 0.14);
+  --app-accent-border: rgba(96, 165, 250, 0.29);
+  --app-accent-text: #78b5fb;
+  --app-accent-contrast: #0b1f36;
+}
+
+:root[data-accent-theme="mist"] .app-container.dark-mode {
+  --app-accent: #89b5c3;
+  --app-accent-hover: #9ac2ce;
+  --app-accent-soft: rgba(137, 181, 195, 0.15);
+  --app-accent-border: rgba(137, 181, 195, 0.3);
+  --app-accent-text: #9ac2ce;
+  --app-accent-contrast: #10242c;
+}
+
+:root[data-accent-theme="graphite"] .app-container.dark-mode {
+  --app-accent: #aab3bc;
+  --app-accent-hover: #bbc3ca;
+  --app-accent-soft: rgba(170, 179, 188, 0.14);
+  --app-accent-border: rgba(170, 179, 188, 0.29);
+  --app-accent-text: #bbc3ca;
+  --app-accent-contrast: #182027;
+}
+
+:root[data-accent-theme="obsidian"] .app-container.dark-mode {
+  --app-accent: #d7dce1;
+  --app-accent-hover: #e4e7ea;
+  --app-accent-soft: rgba(215, 220, 225, 0.14);
+  --app-accent-border: rgba(215, 220, 225, 0.29);
+  --app-accent-text: #e4e7ea;
+  --app-accent-contrast: #181b1f;
+}
+
+:root[data-accent-theme="indigo"] .app-container.dark-mode {
+  --app-accent: #818cf8;
+  --app-accent-hover: #9aa2fa;
+  --app-accent-soft: rgba(129, 140, 248, 0.15);
+  --app-accent-border: rgba(129, 140, 248, 0.3);
+  --app-accent-text: #9aa2fa;
+  --app-accent-contrast: #141633;
+}
+
+:root[data-accent-theme="violet"] .app-container.dark-mode {
+  --app-accent: #c084fc;
+  --app-accent-hover: #cda0fd;
+  --app-accent-soft: rgba(192, 132, 252, 0.14);
+  --app-accent-border: rgba(192, 132, 252, 0.29);
+  --app-accent-text: #cda0fd;
+  --app-accent-contrast: #271037;
 }
 
 button {
