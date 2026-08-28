@@ -50,6 +50,7 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
 describe('JsonToolToolbar', () => {
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it('calls JSON escape transform actions', () => {
@@ -125,6 +126,43 @@ describe('JsonToolToolbar', () => {
     fireEvent.click(screen.getByText('Language'));
     expect(screen.getByRole('radio', { name: 'Chinese (简体中文)' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'English' })).toBeChecked();
+  });
+
+  it('closes the more menu on Escape and outside pointer interaction', () => {
+    renderToolbar();
+    const trigger = screen.getByText('更多');
+    const menu = trigger.closest('details');
+
+    fireEvent.click(trigger);
+    expect(menu).toHaveAttribute('open');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(menu).not.toHaveAttribute('open');
+    expect(trigger.closest('summary')).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(menu).not.toHaveAttribute('open');
+  });
+
+  it('moves secondary and document actions into More on compact windows', () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })
+    );
+    const { props } = renderToolbar();
+
+    fireEvent.click(screen.getByText('更多'));
+    const compactActions = document.querySelector('.toolbar-more-compact-actions');
+    expect(compactActions).not.toBeNull();
+    if (!compactActions) throw new Error('窄窗口操作区未渲染');
+    const editButton = within(compactActions as HTMLElement).getByRole('button', { name: '编辑 JSON' });
+    expect(editButton).not.toBeDisabled();
+    fireEvent.click(editButton);
+    expect(props.onEditJson).toHaveBeenCalledTimes(1);
   });
 
   it('opens JSON compare from the toolbar', () => {

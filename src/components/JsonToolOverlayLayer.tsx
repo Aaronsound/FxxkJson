@@ -92,7 +92,11 @@ const JsonToolOverlayLayer: React.FC<JsonToolOverlayLayerProps> = ({
       <ArchitectureWarningDialog
         isDarkMode={isDarkMode}
         onClose={onDismissArchitectureWarning}
-        onOpenAbout={onOpenAbout}
+        onOpenAbout={() => {
+          onDismissArchitectureWarning();
+          onOpenAbout();
+        }}
+        t={t}
       />
     )}
 
@@ -129,7 +133,7 @@ const JsonToolOverlayLayer: React.FC<JsonToolOverlayLayerProps> = ({
     )}
 
     {isDiagnosticsLogOpen && (
-      <DiagnosticsLogPanel isDarkMode={isDarkMode} context={diagnosticsContext} onClose={onCloseDiagnosticsLog} />
+      <DiagnosticsLogPanel isDarkMode={isDarkMode} context={diagnosticsContext} onClose={onCloseDiagnosticsLog} t={t} />
     )}
 
     {isCompareOpen && (

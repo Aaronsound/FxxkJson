@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useModalFocusManagement } from '../hooks/useModalFocusManagement';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 export type RightNodeMutationDialogState =
@@ -34,24 +35,12 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
   t = defaultT,
 }) => {
   const [nextKey, setNextKey] = useState(state.mode === 'rename' ? state.currentKey : '');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocusManagement(dialogRef, onCancel);
 
   useEffect(() => {
     setNextKey(state.mode === 'rename' ? state.currentKey : '');
   }, [state]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCancel();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onCancel]);
 
   const isRename = state.mode === 'rename';
   const title = isRename ? t('mutation.renameTitle') : t('mutation.deleteTitle');
@@ -69,12 +58,17 @@ const RightNodeMutationDialog: React.FC<RightNodeMutationDialogProps> = ({
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="right-node-mutation-title">
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         className={
           isDarkMode ? 'modal-card modal-card-dark right-node-mutation-card' : 'modal-card right-node-mutation-card'
         }
       >
         <div className="modal-header">
           <h3 id="right-node-mutation-title">{title}</h3>
+          <button type="button" className="about-dialog-close" onClick={onCancel} aria-label={t('mutation.cancel')}>
+            ×
+          </button>
         </div>
 
         <div className="right-node-mutation-body">

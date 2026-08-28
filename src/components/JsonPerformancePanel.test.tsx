@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import JsonPerformancePanel from './JsonPerformancePanel';
 import type { PerformanceSnapshot } from '../types/jsonTool';
+import { createTranslator } from '../utils/i18n';
 
 function buildSnapshot(overrides: Partial<PerformanceSnapshot> = {}): PerformanceSnapshot {
   return {
@@ -73,5 +74,24 @@ describe('JsonPerformancePanel', () => {
     });
     expect(writeClipboardText).toHaveBeenCalledWith(expect.stringContaining('bottleneck=右侧渲染'));
     window.electronAPI = undefined;
+  });
+
+  it('renders the complete performance interface in English', () => {
+    render(
+      <JsonPerformancePanel
+        snapshot={buildSnapshot()}
+        history={[]}
+        isDarkMode={false}
+        language="en"
+        t={createTranslator('en')}
+      />
+    );
+
+    expect(screen.getByText('Performance')).toBeInTheDocument();
+    expect(screen.getByText('Bottleneck Render right pane')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
+    expect(screen.getByText(/formatted pane is the current bottleneck/)).toBeInTheDocument();
+    expect(screen.getByText('Raw size')).toBeInTheDocument();
+    expect(screen.queryByText('性能分析')).not.toBeInTheDocument();
   });
 });

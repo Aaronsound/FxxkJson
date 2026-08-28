@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import type { PerformanceSnapshot } from '../types/jsonTool';
+import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 import { writeTextToClipboard } from '../utils/clipboard';
 import {
   buildPerformanceDiagnosticsSummary,
@@ -17,32 +18,45 @@ interface JsonPerformancePanelProps {
   snapshot: PerformanceSnapshot | null;
   history?: PerformanceSnapshot[];
   isDarkMode: boolean;
+  language?: AppLanguage;
+  t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
 
-function getStatusLabel(snapshot: PerformanceSnapshot) {
+const defaultT = createTranslator('zh');
+
+function getStatusLabel(
+  snapshot: PerformanceSnapshot,
+  t: (key: I18nKey, params?: Record<string, string | number>) => string
+) {
   if (snapshot.status === 'failed') {
-    return '失败';
+    return t('performance.statusFailed');
   }
 
   if (snapshot.status === 'running') {
-    return '采集中';
+    return t('performance.statusRunning');
   }
 
-  return '完成';
+  return t('performance.statusReady');
 }
 
-const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, history = [], isDarkMode }) => {
+const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
+  snapshot,
+  history = [],
+  isDarkMode,
+  language = 'zh',
+  t = defaultT,
+}) => {
   const [expanded, setExpanded] = useState(false);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
 
   const bottleneck = useMemo(
-    () => (snapshot ? getPerformanceBottleneck(snapshot) : { key: null, label: '--', duration: '--' }),
-    [snapshot]
+    () => (snapshot ? getPerformanceBottleneck(snapshot, t) : { key: null, label: '--', duration: '--' }),
+    [snapshot, t]
   );
-  const diagnosis = useMemo(() => (snapshot ? getPerformanceDiagnosis(snapshot) : ''), [snapshot]);
+  const diagnosis = useMemo(() => (snapshot ? getPerformanceDiagnosis(snapshot, t) : ''), [snapshot, t]);
   const diagnosticsSummary = useMemo(
-    () => (snapshot ? buildPerformanceDiagnosticsSummary(snapshot, history) : ''),
-    [history, snapshot]
+    () => (snapshot ? buildPerformanceDiagnosticsSummary(snapshot, history, t) : ''),
+    [history, snapshot, t]
   );
 
   return (
@@ -57,19 +71,21 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
     >
       <div className="performance-panel-topbar">
         <div className="performance-panel-title-block">
-          <strong>性能分析</strong>
-          <span className="performance-panel-status-chip">{snapshot ? getStatusLabel(snapshot) : '等待数据'}</span>
+          <strong>{t('performance.title')}</strong>
+          <span className="performance-panel-status-chip">
+            {snapshot ? getStatusLabel(snapshot, t) : t('performance.waiting')}
+          </span>
         </div>
         <div className="performance-panel-compact">
           {snapshot ? (
             <>
-              <span>{getPerformanceTriggerLabel(snapshot.trigger)}</span>
+              <span>{getPerformanceTriggerLabel(snapshot.trigger, t)}</span>
               <span>Viewer {formatPerformanceDuration(snapshot.totalToViewerReadyMs)}</span>
-              <span>总耗时 {formatPerformanceDuration(snapshot.totalToFormattedMs)}</span>
-              <span>瓶颈 {bottleneck.label}</span>
+              <span>{t('performance.total', { value: formatPerformanceDuration(snapshot.totalToFormattedMs) })}</span>
+              <span>{t('performance.bottleneck', { value: bottleneck.label })}</span>
             </>
           ) : (
-            <span>导入、粘贴或格式化 JSON 后显示性能数据。</span>
+            <span>{t('performance.waitingHint')}</span>
           )}
         </div>
         <button
@@ -78,7 +94,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
         >
-          {expanded ? '收起' : '展开'}
+          {expanded ? t('performance.collapse') : t('performance.expand')}
         </button>
       </div>
 
@@ -90,7 +106,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
             </div>
             <div className="performance-panel-status">
               <span>
-                {new Date(snapshot.updatedAt).toLocaleTimeString('zh-CN', {
+                {new Date(snapshot.updatedAt).toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US', {
                   hour12: false,
                 })}
               </span>
@@ -99,26 +115,26 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
                 className="performance-copy-button"
                 onClick={async () => {
                   await writeTextToClipboard(diagnosticsSummary);
-                  setCopyNotice('已复制摘要');
+                  setCopyNotice(t('performance.copiedSummary'));
                   window.setTimeout(() => setCopyNotice(null), 1600);
                 }}
               >
-                复制摘要
+                {t('performance.copySummary')}
               </button>
             </div>
           </div>
 
           <div className="performance-summary-grid">
             <div className="performance-card">
-              <span className="performance-card-label">原始大小</span>
+              <span className="performance-card-label">{t('performance.rawSize')}</span>
               <strong>{formatPerformanceBytes(snapshot.rawBytes)}</strong>
             </div>
             <div className="performance-card">
-              <span className="performance-card-label">格式化后</span>
+              <span className="performance-card-label">{t('performance.formattedSize')}</span>
               <strong>{formatPerformanceBytes(snapshot.formattedBytes)}</strong>
             </div>
             <div className="performance-card">
-              <span className="performance-card-label">总耗时</span>
+              <span className="performance-card-label">{t('performance.totalTime')}</span>
               <strong>{formatPerformanceDuration(snapshot.totalToFormattedMs)}</strong>
             </div>
             <div className="performance-card">
@@ -126,7 +142,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
               <strong>{formatPerformanceDuration(snapshot.totalToViewerReadyMs)}</strong>
             </div>
             <div className="performance-card">
-              <span className="performance-card-label">主要瓶颈</span>
+              <span className="performance-card-label">{t('performance.primaryBottleneck')}</span>
               <strong>{`${bottleneck.label} (${bottleneck.duration})`}</strong>
             </div>
           </div>
@@ -136,7 +152,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
           <div className="performance-stage-grid">
             {performanceStageLabels.map((stage) => (
               <div key={stage.key} className="performance-stage-row">
-                <span>{stage.label}</span>
+                <span>{t(stage.labelKey)}</span>
                 <strong>{formatPerformanceDuration(snapshot[stage.key])}</strong>
               </div>
             ))}
@@ -144,7 +160,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
 
           {history.length > 0 && (
             <div className="performance-history">
-              <div className="performance-history-title">最近记录</div>
+              <div className="performance-history-title">{t('performance.recent')}</div>
               {history.slice(0, 6).map((item) => (
                 <div key={item.runId} className="performance-history-row">
                   <span>{item.sourceLabel}</span>
@@ -158,11 +174,18 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
 
           <div className="performance-meta-row">
             <span>
-              文件大小：
-              {snapshot.fileSizeBytes ? formatPerformanceBytes(snapshot.fileSizeBytes) : '--'}
+              {t('performance.fileSize', {
+                value: snapshot.fileSizeBytes ? formatPerformanceBytes(snapshot.fileSizeBytes) : '--',
+              })}
             </span>
-            <span>大文件模式：{snapshot.largeMode ? '开启' : '关闭'}</span>
-            <span>定位索引：{snapshot.structureEnabled ? '启用' : '未启用'}</span>
+            <span>
+              {t('performance.largeMode', { value: t(snapshot.largeMode ? 'performance.on' : 'performance.off') })}
+            </span>
+            <span>
+              {t('performance.structureIndex', {
+                value: t(snapshot.structureEnabled ? 'performance.enabled' : 'performance.disabled'),
+              })}
+            </span>
             {copyNotice && <OperationNotice>{copyNotice}</OperationNotice>}
           </div>
 

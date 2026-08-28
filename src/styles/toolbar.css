@@ -292,6 +292,14 @@
   background: var(--app-accent-soft);
 }
 
+.toolbar-more-compact-actions {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 3px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--app-border);
+}
+
 .toolbar-more-popover .toolbar-more-about {
   margin-top: 3px;
   padding-top: 7px;
@@ -349,15 +357,25 @@
 }
 
 @media (max-width: 860px) {
+  .toolbar-command-row {
+    flex-wrap: nowrap;
+  }
+
   .toolbar-command-divider {
     display: none;
   }
 
   .toolbar-command-group-secondary {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
-    padding-top: 2px;
+    display: none;
+  }
+
+  .toolbar-document-action {
+    display: none;
+  }
+
+  .toolbar-command-spacer {
+    display: block;
+    flex: 1 1 auto;
   }
 
   .toolbar-view-row {

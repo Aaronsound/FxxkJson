@@ -229,6 +229,8 @@ export function createJsonToolWorkspaceProps(
       snapshot: input.activePerformanceSnapshot,
       history: input.performanceHistory,
       isDarkMode: input.isDarkMode,
+      language: input.language,
+      t: input.t,
     },
     tabBarProps: {
       tabs: input.tabs,

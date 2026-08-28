@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StructureStatus } from '../types/jsonTool';
 import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 
@@ -143,6 +143,47 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   t = defaultT,
 }) => {
   const moreMenuRef = useRef<HTMLDetailsElement | null>(null);
+  const languageMenuRef = useRef<HTMLDetailsElement | null>(null);
+  const [isCompactToolbar, setIsCompactToolbar] = useState(
+    () => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 860px)').matches
+  );
+  const closeMoreMenu = () => {
+    languageMenuRef.current?.removeAttribute('open');
+    moreMenuRef.current?.removeAttribute('open');
+  };
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const menu = moreMenuRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
+        closeMoreMenu();
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      const menu = moreMenuRef.current;
+      if (event.key !== 'Escape' || !menu?.open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeMoreMenu();
+      menu.querySelector<HTMLElement>('.toolbar-more-trigger')?.focus();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('keydown', handleEscape, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('keydown', handleEscape, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(max-width: 860px)');
+    const updateCompactToolbar = () => setIsCompactToolbar(query.matches);
+    updateCompactToolbar();
+    query.addEventListener('change', updateCompactToolbar);
+    return () => query.removeEventListener('change', updateCompactToolbar);
+  }, []);
   const hintMessage = getToolbarHintMessage({
     importingFileName,
     isLargeFileMode,
@@ -196,7 +237,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
           <div className="toolbar-command-group toolbar-command-group-document">
             <button
               type="button"
-              className="toolbar-button-quiet"
+              className="toolbar-button-quiet toolbar-document-action"
               onClick={onFoldAll}
               disabled={!canControlRightPaneFolding}
             >
@@ -204,23 +245,102 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
             </button>
             <button
               type="button"
-              className="toolbar-button-quiet"
+              className="toolbar-button-quiet toolbar-document-action"
               onClick={onUnfoldAll}
               disabled={!canControlRightPaneFolding}
             >
               {t('toolbar.unfoldAll')}
             </button>
-            <button type="button" className="toolbar-button-quiet" onClick={onClear}>
+            <button type="button" className="toolbar-button-quiet toolbar-document-action" onClick={onClear}>
               {t('toolbar.clear')}
             </button>
 
-            <details ref={moreMenuRef} className="toolbar-more-menu">
+            <details
+              ref={moreMenuRef}
+              className="toolbar-more-menu"
+              onToggle={(event) => {
+                if (!event.currentTarget.open) languageMenuRef.current?.removeAttribute('open');
+              }}
+            >
               <summary className="toolbar-more-trigger">{t('toolbar.more')}</summary>
               <div className="toolbar-more-popover">
+                {isCompactToolbar && (
+                  <div className="toolbar-more-compact-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onUnescapeJson();
+                      }}
+                      disabled={!canEditJson}
+                    >
+                      {t('toolbar.unescape')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onEscapeJson();
+                      }}
+                      disabled={!canEditJson}
+                    >
+                      {t('toolbar.escape')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onEditJson();
+                      }}
+                      disabled={!canEditJson}
+                    >
+                      {t('toolbar.editJson')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onOpenCompare();
+                      }}
+                      disabled={!canCompareJson}
+                    >
+                      {t('toolbar.compareJson')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onFoldAll();
+                      }}
+                      disabled={!canControlRightPaneFolding}
+                    >
+                      {t('toolbar.foldAll')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onUnfoldAll();
+                      }}
+                      disabled={!canControlRightPaneFolding}
+                    >
+                      {t('toolbar.unfoldAll')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMoreMenu();
+                        onClear();
+                      }}
+                    >
+                      {t('toolbar.clear')}
+                    </button>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => {
-                    moreMenuRef.current?.removeAttribute('open');
+                    closeMoreMenu();
                     onOpenDiagnosticsLog();
                   }}
                 >
@@ -229,13 +349,13 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    moreMenuRef.current?.removeAttribute('open');
+                    closeMoreMenu();
                     onToggleDarkMode();
                   }}
                 >
                   {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
                 </button>
-                <details className="toolbar-language-menu">
+                <details ref={languageMenuRef} className="toolbar-language-menu">
                   <summary className="toolbar-language-trigger">{t('toolbar.language')}</summary>
                   <div className="toolbar-language-options" role="radiogroup" aria-label={t('toolbar.language')}>
                     <button
@@ -244,7 +364,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                       aria-checked={language === 'zh'}
                       className={language === 'zh' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'}
                       onClick={() => {
-                        moreMenuRef.current?.removeAttribute('open');
+                        closeMoreMenu();
                         if (language !== 'zh') onLanguageChange?.('zh');
                       }}
                     >
@@ -259,7 +379,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                       aria-checked={language === 'en'}
                       className={language === 'en' ? 'toolbar-language-option is-selected' : 'toolbar-language-option'}
                       onClick={() => {
-                        moreMenuRef.current?.removeAttribute('open');
+                        closeMoreMenu();
                         if (language !== 'en') onLanguageChange?.('en');
                       }}
                     >
@@ -274,7 +394,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                   type="button"
                   className="toolbar-more-about"
                   onClick={() => {
-                    moreMenuRef.current?.removeAttribute('open');
+                    closeMoreMenu();
                     onOpenAbout();
                   }}
                 >

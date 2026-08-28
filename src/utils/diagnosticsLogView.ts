@@ -1,4 +1,8 @@
 import { getDiagnosticsLogLineCategory } from './diagnosticsLogLevel';
+import { createTranslator, type I18nKey } from './i18n';
+
+type Translator = (key: I18nKey, params?: Record<string, string | number>) => string;
+const defaultT = createTranslator('zh');
 
 export type DiagnosticsLogFilter = 'all' | 'error' | 'warn' | 'performance';
 
@@ -61,7 +65,7 @@ export function buildDiagnosticsIssueSummary(
   ].join('\n');
 }
 
-export function getDiagnosticsContextSummary(context: DiagnosticsContextItem[]) {
+export function getDiagnosticsContextSummary(context: DiagnosticsContextItem[], t: Translator = defaultT) {
   if (context.length === 0) {
     return null;
   }
@@ -71,9 +75,9 @@ export function getDiagnosticsContextSummary(context: DiagnosticsContextItem[]) 
   const status = context.find((item) => item.label === 'performanceStatus')?.value;
 
   return [
-    tabTitle ? `标签 ${tabTitle}` : null,
-    typeof rawBytes === 'number' ? `原始 ${rawBytes.toLocaleString()} bytes` : null,
-    status ? `状态 ${status}` : null,
+    tabTitle ? t('diagnostics.contextTab', { value: String(tabTitle) }) : null,
+    typeof rawBytes === 'number' ? t('diagnostics.contextRaw', { value: rawBytes.toLocaleString() }) : null,
+    status ? t('diagnostics.contextStatus', { value: String(status) }) : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -83,47 +87,50 @@ export function countDiagnosticsLogLines(content: string) {
   return content ? content.split('\n').length : 0;
 }
 
-export function getDiagnosticsEmptyFilterText(filter: DiagnosticsLogFilter) {
+export function getDiagnosticsEmptyFilterText(filter: DiagnosticsLogFilter, t: Translator = defaultT) {
   if (filter === 'error') {
-    return '没有匹配到错误日志';
+    return t('diagnostics.emptyError');
   }
 
   if (filter === 'warn') {
-    return '没有匹配到警告日志';
+    return t('diagnostics.emptyWarn');
   }
 
   if (filter === 'performance') {
-    return '没有匹配到性能日志';
+    return t('diagnostics.emptyPerformance');
   }
 
-  return '暂无日志';
+  return t('diagnostics.emptyAll');
 }
 
-export function buildDiagnosticsLogViewState({
-  context = [],
-  filter,
-  isLoading,
-  logContent,
-  snapshot,
-}: {
-  context?: DiagnosticsContextItem[];
-  filter: DiagnosticsLogFilter;
-  isLoading: boolean;
-  logContent: string;
-  snapshot: RuntimeLogSnapshot | null;
-}): DiagnosticsLogViewState {
+export function buildDiagnosticsLogViewState(
+  {
+    context = [],
+    filter,
+    isLoading,
+    logContent,
+    snapshot,
+  }: {
+    context?: DiagnosticsContextItem[];
+    filter: DiagnosticsLogFilter;
+    isLoading: boolean;
+    logContent: string;
+    snapshot: RuntimeLogSnapshot | null;
+  },
+  t: Translator = defaultT
+): DiagnosticsLogViewState {
   const errorLogContent = getFilteredDiagnosticsLogLines(logContent, 'error');
   const warnLogContent = getFilteredDiagnosticsLogLines(logContent, 'warn');
   const performanceLogContent = getFilteredDiagnosticsLogLines(logContent, 'performance');
   const displayContent = getFilteredDiagnosticsLogLines(logContent, filter);
-  const emptyFilterText = getDiagnosticsEmptyFilterText(filter);
-  const contextSummary = getDiagnosticsContextSummary(context);
+  const emptyFilterText = getDiagnosticsEmptyFilterText(filter, t);
+  const contextSummary = getDiagnosticsContextSummary(context, t);
   const metaText = [
-    snapshot?.truncated ? '显示最近日志片段' : '显示完整日志',
-    `日志行 ${countDiagnosticsLogLines(logContent)}`,
-    `错误 ${countDiagnosticsLogLines(errorLogContent)}`,
-    `警告 ${countDiagnosticsLogLines(warnLogContent)}`,
-    `性能 ${countDiagnosticsLogLines(performanceLogContent)}`,
+    snapshot?.truncated ? t('diagnostics.metaRecent') : t('diagnostics.metaFull'),
+    t('diagnostics.metaLines', { count: countDiagnosticsLogLines(logContent) }),
+    t('diagnostics.metaErrors', { count: countDiagnosticsLogLines(errorLogContent) }),
+    t('diagnostics.metaWarnings', { count: countDiagnosticsLogLines(warnLogContent) }),
+    t('diagnostics.metaPerformance', { count: countDiagnosticsLogLines(performanceLogContent) }),
     contextSummary,
   ]
     .filter(Boolean)
@@ -135,7 +142,7 @@ export function buildDiagnosticsLogViewState({
     errorLogContent,
     metaText,
     performanceLogContent,
-    previewText: isLoading ? '正在读取日志...' : displayContent || emptyFilterText,
+    previewText: isLoading ? t('diagnostics.loading') : displayContent || emptyFilterText,
     warnLogContent,
   };
 }

@@ -214,7 +214,7 @@ button:focus-visible {
 }
 
 button:disabled {
-  opacity: 0.48;
+  opacity: 0.62;
   cursor: not-allowed;
 }
 

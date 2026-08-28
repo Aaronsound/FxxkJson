@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useEffect } from 'react';
+import { useRef } from 'react';
+import { useModalFocusManagement } from '../hooks/useModalFocusManagement';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface AboutDialogProps {
@@ -26,23 +27,16 @@ const AboutDialog: React.FC<AboutDialogProps> = ({
   onClose,
   t = defaultT,
 }) => {
-  useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleEscape, true);
-    return () => {
-      window.removeEventListener('keydown', handleEscape, true);
-    };
-  }, [onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocusManagement(dialogRef, onClose);
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="about-dialog-title">
-      <div className={isDarkMode ? 'modal-card modal-card-dark about-dialog-card' : 'modal-card about-dialog-card'}>
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        className={isDarkMode ? 'modal-card modal-card-dark about-dialog-card' : 'modal-card about-dialog-card'}
+      >
         <div className="modal-header about-dialog-header">
           <h3 id="about-dialog-title">{t('about.title')}</h3>
           <button type="button" className="about-dialog-close" onClick={onClose} aria-label={t('about.closeLabel')}>

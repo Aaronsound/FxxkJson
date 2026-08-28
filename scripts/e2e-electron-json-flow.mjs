@@ -38,6 +38,10 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
       detail: `${multiTabMemory.expanded.totalWorkingSetMb.toFixed(1)} MB with auxiliary tabs, ${multiTabMemory.afterClose.totalWorkingSetMb.toFixed(1)} MB after close`,
     },
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
+    {
+      step: 'toolbar UI',
+      detail: 'menus dismiss consistently and English diagnostics/performance labels are complete',
+    },
     { step: 'split resize', detail: 'center gutter resizes both editor panes' },
     { step: 'dual find escape', detail: 'Escape closes the search belonging to the active pane' },
     { step: 'large folding', detail: 'fold-all stays compact while root and nested nodes preserve expand semantics' },
@@ -52,6 +56,144 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
     { step: 'context paste', detail: 'left editor context menu paste inserts desktop clipboard text' },
     { step: 'compare invalid', detail: 'JSON compare reports parse errors for invalid input' },
   ]);
+}
+
+async function assertToolbarUi(cdp) {
+  const openMore = () =>
+    evaluate(
+      cdp,
+      `(() => {
+        const summary = document.querySelector('.toolbar-more-trigger');
+        if (!(summary instanceof HTMLElement)) return false;
+        summary.click();
+        return true;
+      })()`
+    );
+
+  if (!(await openMore())) throw new Error('More menu trigger was unavailable');
+  await evaluate(cdp, `document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.toolbar-more-menu')?.hasAttribute('open')`),
+    'outside pointer closes More menu'
+  );
+
+  await openMore();
+  await evaluate(cdp, `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.toolbar-more-menu')?.hasAttribute('open')`),
+    'Escape closes More menu'
+  );
+
+  await openMore();
+  await evaluate(
+    cdp,
+    `(() => {
+      document.querySelector('.toolbar-language-trigger')?.click();
+      const option = Array.from(document.querySelectorAll('.toolbar-language-option'))
+        .find((element) => element.textContent?.trim().endsWith('English'));
+      if (!(option instanceof HTMLElement)) return false;
+      option.click();
+      return true;
+    })()`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.trim() === 'Import JSON')`
+      ),
+    'toolbar switches to English'
+  );
+
+  await evaluate(
+    cdp,
+    `(() => {
+      const label = Array.from(document.querySelectorAll('.toolbar-checkbox'))
+        .find((element) => element.textContent?.includes('Show performance'));
+      const input = label?.querySelector('input[type="checkbox"]');
+      if (!(input instanceof HTMLInputElement)) return false;
+      if (!input.checked) input.click();
+      return true;
+    })()`
+  );
+  await waitFor(
+    () => evaluate(cdp, `document.querySelector('.performance-panel')?.textContent?.includes('Performance')`),
+    'performance panel renders in English'
+  );
+
+  await openMore();
+  await clickButtonByText(cdp, 'Diagnostics');
+  await waitFor(
+    () => evaluate(cdp, `document.querySelector('[role="dialog"]')?.textContent?.includes('Diagnostics log')`),
+    'diagnostics dialog renders in English'
+  );
+  await evaluate(cdp, `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await waitFor(() => evaluate(cdp, `!document.querySelector('[role="dialog"]')`), 'Escape closes diagnostics dialog');
+
+  await openMore();
+  await evaluate(
+    cdp,
+    `(() => {
+      document.querySelector('.toolbar-language-trigger')?.click();
+      const option = Array.from(document.querySelectorAll('.toolbar-language-option'))
+        .find((element) => element.textContent?.includes('Chinese'));
+      if (!(option instanceof HTMLElement)) return false;
+      option.click();
+      return true;
+    })()`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Array.from(document.querySelectorAll('button')).some((button) => button.textContent?.trim() === '导入 JSON')`
+      ),
+    'toolbar switches back to Chinese'
+  );
+
+  await evaluate(cdp, `window.resizeTo(480, 700)`);
+  await waitFor(() => evaluate(cdp, `window.innerWidth <= 860`), 'window enters compact toolbar breakpoint');
+  await waitFor(
+    () => evaluate(cdp, `Boolean(document.querySelector('.toolbar-more-compact-actions'))`),
+    'compact actions move into More menu'
+  );
+  const compactMetrics = await evaluate(
+    cdp,
+    `(() => {
+      const row = document.querySelector('.toolbar-command-row');
+      const secondary = document.querySelector('.toolbar-command-group-secondary');
+      const more = document.querySelector('.toolbar-more-trigger');
+      const compact = document.querySelector('.toolbar-more-compact-actions');
+      if (!(row instanceof HTMLElement) || !(secondary instanceof HTMLElement) || !(more instanceof HTMLElement)) return null;
+      const moreRect = more.getBoundingClientRect();
+      return {
+        rowHeight: row.getBoundingClientRect().height,
+        secondaryDisplay: getComputedStyle(secondary).display,
+        moreLeft: moreRect.left,
+        moreRight: moreRect.right,
+        compactActionCount: compact?.querySelectorAll('button').length ?? 0,
+        viewportWidth: window.innerWidth,
+      };
+    })()`
+  );
+  if (
+    !compactMetrics ||
+    compactMetrics.rowHeight > 40 ||
+    compactMetrics.secondaryDisplay !== 'none' ||
+    compactMetrics.moreLeft < 0 ||
+    compactMetrics.moreRight > compactMetrics.viewportWidth ||
+    compactMetrics.compactActionCount !== 7
+  ) {
+    throw new Error(`Compact toolbar did not keep More visible: ${JSON.stringify(compactMetrics)}`);
+  }
+  await openMore();
+  await waitFor(
+    () => evaluate(cdp, `document.querySelector('.toolbar-more-compact-actions')?.getBoundingClientRect().height > 0`),
+    'compact actions are visible inside More menu'
+  );
+  await evaluate(cdp, `window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await evaluate(cdp, `window.resizeTo(1200, 800)`);
+  await waitFor(() => evaluate(cdp, `window.innerWidth >= 1100`), 'window restores desktop toolbar width');
 }
 
 async function assertSplitResize(cdp) {
@@ -283,6 +425,7 @@ async function run() {
     getStderr = electronApp.getStderr;
 
     cdp = await connectAndPrepareElectronPage(port);
+    await assertToolbarUi(cdp);
     await assertSplitResize(cdp);
     await assertDualPaneFindEscape(cdp);
     await runEditTransformScenario(cdp);
