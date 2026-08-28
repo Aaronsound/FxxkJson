@@ -1,6 +1,7 @@
 import type React from 'react';
+import { useRef } from 'react';
 import type { StructureStatus } from '../types/jsonTool';
-import { createTranslator, type AppLanguage, type I18nKey } from '../utils/i18n';
+import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 
 interface JsonToolToolbarProps {
   onImport: () => void;
@@ -141,6 +142,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onLanguageChange,
   t = defaultT,
 }) => {
+  const moreMenuRef = useRef<HTMLDetailsElement | null>(null);
   const hintMessage = getToolbarHintMessage({
     importingFileName,
     isLargeFileMode,
@@ -154,128 +156,152 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   return (
     <div className="toolbar">
       <div className="toolbar-layout">
-        <div className="toolbar-top-row">
-          <section className="toolbar-section toolbar-section-actions">
-            <span className="toolbar-section-label">{t('toolbar.actions')}</span>
-            <div className="toolbar-section-body toolbar-actions-layout">
-              <div className="toolbar-actions-primary">
-                <button type="button" className="toolbar-button-primary" onClick={onImport}>
-                  {t('toolbar.import')}
-                </button>
-                <button type="button" className="toolbar-button-primary" onClick={onFormat}>
-                  {t('toolbar.format')}
-                </button>
-                <button type="button" className="toolbar-button-primary" onClick={onRepairJson} disabled={!canEditJson}>
-                  {t('toolbar.repair')}
-                </button>
-              </div>
-              <div className="toolbar-actions-secondary">
+        <div className="toolbar-command-row" aria-label={t('toolbar.actions')}>
+          <div className="toolbar-command-group toolbar-command-group-primary">
+            <button type="button" className="toolbar-button-primary" onClick={onImport}>
+              {t('toolbar.import')}
+            </button>
+            <button type="button" className="toolbar-button-primary" onClick={onFormat}>
+              {t('toolbar.format')}
+            </button>
+            <button type="button" className="toolbar-button-primary" onClick={onRepairJson} disabled={!canEditJson}>
+              {t('toolbar.repair')}
+            </button>
+          </div>
+
+          <div className="toolbar-command-divider" aria-hidden="true" />
+
+          <div className="toolbar-command-group toolbar-command-group-secondary">
+            <button type="button" className="toolbar-button-secondary" onClick={onUnescapeJson} disabled={!canEditJson}>
+              {t('toolbar.unescape')}
+            </button>
+            <button type="button" className="toolbar-button-secondary" onClick={onEscapeJson} disabled={!canEditJson}>
+              {t('toolbar.escape')}
+            </button>
+            <button type="button" className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
+              {t('toolbar.editJson')}
+            </button>
+            <button
+              type="button"
+              className="toolbar-button-secondary"
+              onClick={onOpenCompare}
+              disabled={!canCompareJson}
+            >
+              {t('toolbar.compareJson')}
+            </button>
+          </div>
+
+          <div className="toolbar-command-spacer" />
+
+          <div className="toolbar-command-group toolbar-command-group-document">
+            <button
+              type="button"
+              className="toolbar-button-quiet"
+              onClick={onFoldAll}
+              disabled={!canControlRightPaneFolding}
+            >
+              {t('toolbar.foldAll')}
+            </button>
+            <button
+              type="button"
+              className="toolbar-button-quiet"
+              onClick={onUnfoldAll}
+              disabled={!canControlRightPaneFolding}
+            >
+              {t('toolbar.unfoldAll')}
+            </button>
+            <button type="button" className="toolbar-button-quiet" onClick={onClear}>
+              {t('toolbar.clear')}
+            </button>
+
+            <details ref={moreMenuRef} className="toolbar-more-menu">
+              <summary className="toolbar-more-trigger">{t('toolbar.more')}</summary>
+              <div className="toolbar-more-popover">
                 <button
                   type="button"
-                  className="toolbar-button-secondary"
-                  onClick={onUnescapeJson}
-                  disabled={!canEditJson}
+                  onClick={() => {
+                    moreMenuRef.current?.removeAttribute('open');
+                    onOpenDiagnosticsLog();
+                  }}
                 >
-                  {t('toolbar.unescape')}
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-button-secondary"
-                  onClick={onEscapeJson}
-                  disabled={!canEditJson}
-                >
-                  {t('toolbar.escape')}
-                </button>
-                <button type="button" className="toolbar-button-secondary" onClick={onEditJson} disabled={!canEditJson}>
-                  {t('toolbar.editJson')}
-                </button>
-                <button
-                  type="button"
-                  className="toolbar-button-secondary"
-                  onClick={onOpenCompare}
-                  disabled={!canCompareJson}
-                >
-                  {t('toolbar.compareJson')}
-                </button>
-                <button type="button" className="toolbar-button-secondary" onClick={onOpenDiagnosticsLog}>
                   {t('toolbar.diagnostics')}
                 </button>
-                <button type="button" className="toolbar-button-secondary" onClick={onOpenAbout}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    moreMenuRef.current?.removeAttribute('open');
+                    onOpenAbout();
+                  }}
+                >
                   {t('toolbar.about')}
                 </button>
-                <button type="button" onClick={onClear}>
-                  {t('toolbar.clear')}
+                <button
+                  type="button"
+                  onClick={() => {
+                    moreMenuRef.current?.removeAttribute('open');
+                    onToggleDarkMode();
+                  }}
+                >
+                  {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
                 </button>
-                <button type="button" onClick={onFoldAll} disabled={!canControlRightPaneFolding}>
-                  {t('toolbar.foldAll')}
-                </button>
-                <button type="button" onClick={onUnfoldAll} disabled={!canControlRightPaneFolding}>
-                  {t('toolbar.unfoldAll')}
+                <button
+                  type="button"
+                  onClick={() => {
+                    moreMenuRef.current?.removeAttribute('open');
+                    onLanguageChange?.(language === 'zh' ? 'en' : 'zh');
+                  }}
+                  aria-label={t('toolbar.language')}
+                >
+                  {t('toolbar.languageToggle')}
                 </button>
               </div>
-            </div>
-          </section>
+            </details>
+          </div>
         </div>
 
-        <div className="toolbar-bottom-row">
-          <section className="toolbar-section toolbar-section-view">
-            <span className="toolbar-section-label">{t('toolbar.view')}</span>
-            <div className="toolbar-section-body toolbar-view-row">
-              <label className="toolbar-checkbox" title={t('toolbar.wrapHint')}>
-                <input
-                  type="checkbox"
-                  checked={wrapLongLines}
-                  onChange={(event) => onWrapLongLinesChange(event.target.checked)}
-                />
-                {t('toolbar.wrap')}
-              </label>
-              <label className="toolbar-checkbox">
-                <input
-                  type="checkbox"
-                  checked={isLargeFileLocateEnabled}
-                  disabled={isLargeFileMode && !canEnableLargeFileLocate}
-                  onChange={(event) => onLargeFileLocateToggle(event.target.checked)}
-                />
-                {t('toolbar.largeLocate')}
-              </label>
-              <label className="toolbar-checkbox">
-                <input
-                  type="checkbox"
-                  checked={showPerformancePanel}
-                  onChange={(event) => onShowPerformancePanelChange(event.target.checked)}
-                />
-                {t('toolbar.performance')}
-              </label>
-              <button type="button" className="toolbar-button-secondary" onClick={onToggleDarkMode}>
-                {isDarkMode ? t('toolbar.lightMode') : t('toolbar.darkMode')}
-              </button>
-              <button
-                type="button"
-                className="toolbar-button-secondary"
-                onClick={() => onLanguageChange?.(language === 'zh' ? 'en' : 'zh')}
-                aria-label={t('toolbar.language')}
-              >
-                {t('toolbar.languageToggle')}
-              </button>
-            </div>
-          </section>
-        </div>
-      </div>
+        <div className="toolbar-view-row" aria-label={t('toolbar.view')}>
+          <div className="toolbar-view-controls">
+            <label className="toolbar-checkbox" title={t('toolbar.wrapHint')}>
+              <input
+                type="checkbox"
+                checked={wrapLongLines}
+                onChange={(event) => onWrapLongLinesChange(event.target.checked)}
+              />
+              {t('toolbar.wrap')}
+            </label>
+            <label className="toolbar-checkbox">
+              <input
+                type="checkbox"
+                checked={isLargeFileLocateEnabled}
+                disabled={isLargeFileMode && !canEnableLargeFileLocate}
+                onChange={(event) => onLargeFileLocateToggle(event.target.checked)}
+              />
+              {t('toolbar.largeLocate')}
+            </label>
+            <label className="toolbar-checkbox">
+              <input
+                type="checkbox"
+                checked={showPerformancePanel}
+                onChange={(event) => onShowPerformancePanelChange(event.target.checked)}
+              />
+              {t('toolbar.performance')}
+            </label>
+          </div>
 
-      {(processingStageText || hintMessage || currentError) && (
-        <div className="toolbar-feedback">
-          {processingStageText && <span className="toolbar-hint">{processingStageText}</span>}
-          {hintMessage && <span className="toolbar-hint">{hintMessage}</span>}
-          {currentError && (
-            <>
-              <span className="toolbar-error">{currentError}</span>
-              <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
-                {t('toolbar.diagnostics')}
-              </button>
-            </>
+          {(processingStageText || hintMessage || currentError) && (
+            <div className="toolbar-feedback" aria-live="polite">
+              {processingStageText && <span className="toolbar-hint">{processingStageText}</span>}
+              {hintMessage && <span className="toolbar-hint">{hintMessage}</span>}
+              {currentError && <span className="toolbar-error">{currentError}</span>}
+              {currentError && (
+                <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
+                  {t('toolbar.diagnostics')}
+                </button>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

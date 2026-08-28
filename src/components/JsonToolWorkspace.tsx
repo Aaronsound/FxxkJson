@@ -68,9 +68,9 @@ const JsonToolWorkspace: React.FC<JsonToolWorkspaceProps> = ({
 
       <JsonToolOverlayLayer {...overlayProps} />
       <JsonToolToolbar {...toolbarProps} />
-      {shouldShowPerformancePanel && <JsonPerformancePanel {...performancePanelProps} />}
       <JsonToolTabBar {...tabBarProps} />
       <JsonEditorPanes {...panesProps} />
+      {shouldShowPerformancePanel && <JsonPerformancePanel {...performancePanelProps} />}
       <JsonToolContextMenus {...contextMenusProps} />
     </div>
   );

@@ -37,7 +37,7 @@ export async function runRightNodeScenario(cdp) {
 
   await evaluate(
     cdp,
-    `document.querySelector('.toolbar-section-label')
+    `document.querySelector('.toolbar-command-row')
       ?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`
   );
   await waitFor(

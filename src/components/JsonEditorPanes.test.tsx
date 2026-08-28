@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import JsonEditorPanes from './JsonEditorPanes';
@@ -11,6 +11,8 @@ vi.mock('@monaco-editor/react', () => ({
 describe('JsonEditorPanes', () => {
   it('keeps pane search widgets in the layout above editor content', () => {
     const noOp = vi.fn();
+    const importJson = vi.fn();
+    const pasteJson = vi.fn();
     const leftPaneProps: LeftPaneProps = {
       activeLargeRawViewerData: null,
       activeLeftMatchCount: 0,
@@ -41,6 +43,8 @@ describe('JsonEditorPanes', () => {
       onLeftSearchTermChange: noOp,
       onLoadMoreLeftSearch: noOp,
       onNextLeft: noOp,
+      onImportJson: importJson,
+      onPasteJson: pasteJson,
       onPrevLeft: noOp,
     };
     const rightPaneProps: RightPaneProps = {
@@ -95,11 +99,28 @@ describe('JsonEditorPanes', () => {
       onUnescapeRightValue: noOp,
     };
 
-    render(<JsonEditorPanes isDarkMode={false} leftPaneProps={leftPaneProps} rightPaneProps={rightPaneProps} />);
+    const { rerender } = render(
+      <JsonEditorPanes isDarkMode={false} leftPaneProps={leftPaneProps} rightPaneProps={rightPaneProps} />
+    );
 
+    expect(screen.getByText('原始 JSON')).toBeInTheDocument();
+    expect(screen.getAllByText('格式化结果')).toHaveLength(2);
     expect(screen.getByPlaceholderText('搜索原始 JSON')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('替换为')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('搜索原始 JSON').closest('.editor-pane-body')).toHaveClass('pane-find-open');
     expect(screen.getByPlaceholderText('搜索格式化结果').closest('.editor-pane-body')).toHaveClass('pane-find-open');
+
+    rerender(
+      <JsonEditorPanes
+        isDarkMode={false}
+        leftPaneProps={{ ...leftPaneProps, activeRawText: '', isLeftFindOpen: false, shouldShowLeftPlaceholder: true }}
+        rightPaneProps={{ ...rightPaneProps, isRightFindOpen: false }}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: '导入文件' }));
+    fireEvent.click(screen.getByRole('button', { name: '粘贴 JSON' }));
+
+    expect(importJson).toHaveBeenCalledTimes(1);
+    expect(pasteJson).toHaveBeenCalledTimes(1);
   });
 });

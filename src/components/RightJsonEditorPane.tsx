@@ -1,9 +1,5 @@
-import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
-import JsonMonacoEditor from './JsonMonacoEditor';
-import LargeJsonReadonlyViewer, { type LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
-import type { PaneFindPathItem } from './PaneFindWidget';
-import PaneFindWidget from './PaneFindWidget';
+import type React from 'react';
 import type {
   JsonSearchOptions,
   LargeJsonFoldState,
@@ -11,6 +7,10 @@ import type {
   LargeJsonViewerData,
 } from '../types/jsonTool';
 import { createTranslator, type I18nKey } from '../utils/i18n';
+import JsonMonacoEditor from './JsonMonacoEditor';
+import LargeJsonReadonlyViewer, { type LargeJsonReadonlyViewerHandle } from './LargeJsonReadonlyViewer';
+import type { PaneFindPathItem } from './PaneFindWidget';
+import PaneFindWidget from './PaneFindWidget';
 
 interface RightJsonEditorPaneProps {
   activeLargeViewerFoldState: LargeJsonFoldState;
@@ -130,7 +130,8 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
     }}
   >
     <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
-      <span className="editor-pane-header-text">{rightPaneMetaText}</span>
+      <strong className="editor-pane-header-title">{t('pane.formattedTitle')}</strong>
+      <span className={`editor-pane-header-meta ${isDarkMode ? 'dark' : ''}`}>{rightPaneMetaText}</span>
       <div className="editor-pane-header-flags">
         <span
           className={`editor-pane-header-flag ${shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer ? 'visible' : ''}`}
@@ -207,8 +208,14 @@ const RightJsonEditorPane: React.FC<RightJsonEditorPaneProps> = ({
         ) : null}
       </div>
       {!formattedValue && !isImportingActiveTab && !isBuildingDedicatedRightViewer && (
-        <div className="editor-center-placeholder">
-          {processingStageText ?? (isFormattingActiveTab ? t('pane.formatting') : t('pane.formattedPlaceholder'))}
+        <div className="editor-empty-state editor-empty-state-secondary">
+          <div className="editor-empty-state-mark" aria-hidden="true">
+            {'[ ]'}
+          </div>
+          <strong>
+            {processingStageText ?? (isFormattingActiveTab ? t('pane.formatting') : t('pane.formattedPlaceholder'))}
+          </strong>
+          {!processingStageText && !isFormattingActiveTab && <span>{t('pane.formattedEmptyHint')}</span>}
         </div>
       )}
       {isBuildingDedicatedRightViewer && !isImportingActiveTab && (

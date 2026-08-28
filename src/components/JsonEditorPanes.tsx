@@ -1,8 +1,8 @@
 import type React from 'react';
 import Split from 'react-split';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 import LeftJsonEditorPane from './LeftJsonEditorPane';
 import RightJsonEditorPane from './RightJsonEditorPane';
-import { createTranslator, type I18nKey } from '../utils/i18n';
 
 type LeftPaneProps = React.ComponentProps<typeof LeftJsonEditorPane>;
 type RightPaneProps = React.ComponentProps<typeof RightJsonEditorPane>;
@@ -23,6 +23,7 @@ const JsonEditorPanes: React.FC<JsonEditorPanesProps> = ({
   t = defaultT,
 }) => (
   <Split
+    className="editor-split"
     sizes={[50, 50]}
     minSize={200}
     gutterSize={6}

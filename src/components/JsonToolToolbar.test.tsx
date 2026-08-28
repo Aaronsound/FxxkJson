@@ -1,5 +1,5 @@
-import type React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import JsonToolToolbar from './JsonToolToolbar';
 
@@ -35,6 +35,8 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
     currentStructureStatus: 'ready',
     processingStageText: null,
     currentError: null,
+    language: 'zh',
+    onLanguageChange: vi.fn(),
     ...overrides,
   };
 
@@ -77,9 +79,23 @@ describe('JsonToolToolbar', () => {
   it('opens the about dialog from the toolbar', () => {
     const { props } = renderToolbar();
 
+    fireEvent.click(screen.getByText('更多'));
     fireEvent.click(screen.getByRole('button', { name: '关于' }));
 
     expect(props.onOpenAbout).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps low-frequency appearance actions in the more menu', () => {
+    const { props } = renderToolbar();
+
+    expect(screen.getByText('更多')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('更多'));
+    fireEvent.click(screen.getByRole('button', { name: '深色模式' }));
+    fireEvent.click(screen.getByText('更多'));
+    fireEvent.click(screen.getByRole('button', { name: '语言' }));
+
+    expect(props.onToggleDarkMode).toHaveBeenCalledTimes(1);
+    expect(props.onLanguageChange).toHaveBeenCalledWith('en');
   });
 
   it('opens JSON compare from the toolbar', () => {
@@ -96,7 +112,12 @@ describe('JsonToolToolbar', () => {
     expect(screen.getByText('JSON worker 加载失败')).toBeInTheDocument();
 
     const diagnosticsButtons = screen.getAllByRole('button', { name: '诊断日志' });
-    fireEvent.click(diagnosticsButtons.at(-1)!);
+    const diagnosticsButton = diagnosticsButtons.at(-1);
+    expect(diagnosticsButton).toBeDefined();
+    if (!diagnosticsButton) {
+      throw new Error('诊断日志按钮未渲染');
+    }
+    fireEvent.click(diagnosticsButton);
 
     expect(props.onOpenDiagnosticsLog).toHaveBeenCalledTimes(1);
   });

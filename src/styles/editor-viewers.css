@@ -33,10 +33,11 @@
 .editor-pane-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 32px;
-  padding: 8px 12px 6px;
+  gap: 10px;
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(92, 76, 52, 0.1);
   color: rgba(92, 76, 52, 0.72);
   font-size: 12px;
   font-weight: 500;
@@ -44,7 +45,32 @@
 }
 
 .editor-pane-header.dark {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
   color: rgba(212, 212, 212, 0.62);
+}
+
+.editor-pane-header-title {
+  flex: 0 0 auto;
+  color: rgba(49, 42, 31, 0.88);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.editor-pane-header.dark .editor-pane-header-title {
+  color: rgba(245, 239, 228, 0.9);
+}
+
+.editor-pane-header-meta {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: rgba(120, 120, 120, 0.72);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-pane-header-meta.dark {
+  color: rgba(190, 190, 190, 0.5);
 }
 
 .editor-pane-header-subtle {
@@ -68,6 +94,112 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.editor-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--json-editor-background);
+}
+
+.editor-empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  width: min(330px, calc(100% - 48px));
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  color: rgba(74, 68, 58, 0.8);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.editor-empty-state-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(73, 104, 150, 0.18);
+  border-radius: 12px;
+  background: rgba(73, 104, 150, 0.08);
+  color: rgba(59, 87, 128, 0.82);
+  font-family: var(--json-editor-font-family);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.editor-empty-state strong {
+  color: rgba(49, 42, 31, 0.9);
+  font-size: 15px;
+}
+
+.editor-empty-state span {
+  max-width: 300px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.editor-empty-state-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  pointer-events: auto;
+}
+
+.editor-empty-state-actions button {
+  min-height: 30px;
+  padding: 4px 11px;
+  border: 1px solid rgba(73, 104, 150, 0.14);
+  border-radius: 6px;
+}
+
+.editor-empty-state-actions .editor-empty-state-primary {
+  border-color: rgba(21, 128, 76, 0.2);
+  background: #238b59;
+  color: #ffffff;
+}
+
+.editor-empty-state-actions .editor-empty-state-primary:hover {
+  background: #1c7a4d;
+}
+
+.editor-empty-state-secondary {
+  opacity: 0.78;
+}
+
+.app-container.dark-mode .editor-empty-state {
+  color: rgba(220, 214, 204, 0.72);
+}
+
+.app-container.dark-mode .editor-empty-state-mark {
+  border-color: rgba(141, 180, 255, 0.14);
+  background: rgba(141, 180, 255, 0.08);
+  color: rgba(180, 204, 255, 0.88);
+}
+
+.app-container.dark-mode .editor-empty-state strong {
+  color: rgba(245, 239, 228, 0.9);
+}
+
+@media (max-height: 640px) {
+  .editor-empty-state {
+    gap: 6px;
+    padding: 12px;
+  }
+
+  .editor-empty-state-mark {
+    width: 34px;
+    height: 34px;
+  }
 }
 
 .editor-pane-header-flag {

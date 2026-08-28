@@ -1,7 +1,6 @@
 import type React from 'react';
 import { useMemo, useState } from 'react';
 import type { PerformanceSnapshot } from '../types/jsonTool';
-import { useFloatingPanelPosition } from '../hooks/useFloatingPanelPosition';
 import { writeTextToClipboard } from '../utils/clipboard';
 import {
   buildPerformanceDiagnosticsSummary,
@@ -34,7 +33,6 @@ function getStatusLabel(snapshot: PerformanceSnapshot) {
 const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, history = [], isDarkMode }) => {
   const [expanded, setExpanded] = useState(false);
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
-  const { isDragging, panelRef, panelStyle, startDragging } = useFloatingPanelPosition(expanded);
 
   const bottleneck = useMemo(
     () => (snapshot ? getPerformanceBottleneck(snapshot) : { key: null, label: '--', duration: '--' }),
@@ -48,43 +46,43 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
 
   return (
     <aside
-      ref={panelRef}
-      style={panelStyle}
       className={[
         'performance-panel',
         isDarkMode ? 'performance-panel-dark' : '',
         expanded ? 'performance-panel-expanded' : 'performance-panel-collapsed',
-        isDragging ? 'performance-panel-dragging' : '',
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      <div className="performance-panel-topbar" onPointerDown={startDragging}>
+      <div className="performance-panel-topbar">
         <div className="performance-panel-title-block">
           <strong>性能分析</strong>
           <span className="performance-panel-status-chip">{snapshot ? getStatusLabel(snapshot) : '等待数据'}</span>
         </div>
-        <button type="button" className="performance-toggle-button" onClick={() => setExpanded((current) => !current)}>
+        <div className="performance-panel-compact">
+          {snapshot ? (
+            <>
+              <span>{getPerformanceTriggerLabel(snapshot.trigger)}</span>
+              <span>Viewer {formatPerformanceDuration(snapshot.totalToViewerReadyMs)}</span>
+              <span>总耗时 {formatPerformanceDuration(snapshot.totalToFormattedMs)}</span>
+              <span>瓶颈 {bottleneck.label}</span>
+            </>
+          ) : (
+            <span>导入、粘贴或格式化 JSON 后显示性能数据。</span>
+          )}
+        </div>
+        <button
+          type="button"
+          className="performance-toggle-button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
           {expanded ? '收起' : '展开'}
         </button>
       </div>
 
-      <div className="performance-panel-compact">
-        {snapshot ? (
-          <>
-            <span>{getPerformanceTriggerLabel(snapshot.trigger)}</span>
-            <span>Viewer {formatPerformanceDuration(snapshot.totalToViewerReadyMs)}</span>
-            <span>总耗时 {formatPerformanceDuration(snapshot.totalToFormattedMs)}</span>
-            <span>瓶颈 {bottleneck.label}</span>
-            <span>{diagnosis}</span>
-          </>
-        ) : (
-          <span>导入、粘贴或格式化 JSON 后显示性能数据。</span>
-        )}
-      </div>
-
       {expanded && snapshot && (
-        <>
+        <div className="performance-panel-body">
           <div className="performance-panel-header">
             <div>
               <span className="performance-panel-subtitle">{snapshot.sourceLabel}</span>
@@ -161,7 +159,7 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({ snapshot, h
           </div>
 
           {snapshot.error && <div className="performance-error">{snapshot.error}</div>}
-        </>
+        </div>
       )}
     </aside>
   );

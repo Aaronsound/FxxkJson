@@ -111,6 +111,8 @@ export function createJsonToolPanesProps(input: JsonToolWorkspaceInput) {
       onLeftSearchTermChange: handleLeftSearchTermChange,
       onLoadMoreLeftSearch: loadMoreLeftSearch,
       onNextLeft: gotoNextLeft,
+      onImportJson: input.handleImport,
+      onPasteJson: input.pasteIntoLeftEditor,
       onPrevLeft: gotoPrevLeft,
       t,
     },

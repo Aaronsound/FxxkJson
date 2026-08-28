@@ -1,10 +1,10 @@
-import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
+import type React from 'react';
+import type { JsonSearchOptions, LargeRawViewerData } from '../types/jsonTool';
+import { createTranslator, type I18nKey } from '../utils/i18n';
 import JsonMonacoEditor from './JsonMonacoEditor';
 import LargeRawReadonlyViewer, { type LargeRawReadonlyViewerHandle } from './LargeRawReadonlyViewer';
 import PaneFindWidget from './PaneFindWidget';
-import type { JsonSearchOptions, LargeRawViewerData } from '../types/jsonTool';
-import { createTranslator, type I18nKey } from '../utils/i18n';
 
 interface LeftJsonEditorPaneProps {
   activeLeftMatchCount: number;
@@ -36,6 +36,8 @@ interface LeftJsonEditorPaneProps {
   onLeftSearchTermChange: (value: string) => void;
   onLoadMoreLeftSearch: () => void;
   onNextLeft: () => void;
+  onImportJson: () => void;
+  onPasteJson: () => void | Promise<void>;
   onPrevLeft: () => void;
   t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
@@ -72,6 +74,8 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
   onLeftSearchTermChange,
   onLoadMoreLeftSearch,
   onNextLeft,
+  onImportJson,
+  onPasteJson,
   onPrevLeft,
   t = defaultT,
 }) => (
@@ -86,8 +90,9 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
       overscrollBehavior: 'contain',
     }}
   >
-    <div className={`editor-pane-header editor-pane-header-subtle ${isDarkMode ? 'dark' : ''}`}>
-      <span className="editor-pane-header-text">{leftPaneMetaText}</span>
+    <div className={`editor-pane-header ${isDarkMode ? 'dark' : ''}`}>
+      <strong className="editor-pane-header-title">{t('pane.rawTitle')}</strong>
+      <span className={`editor-pane-header-meta ${isDarkMode ? 'dark' : ''}`}>{leftPaneMetaText}</span>
     </div>
     <div className={`editor-pane-body ${isLeftFindOpen ? 'pane-find-open' : ''}`}>
       {isLeftFindOpen && (
@@ -133,7 +138,23 @@ const LeftJsonEditorPane: React.FC<LeftJsonEditorPaneProps> = ({
           />
         )}
       </div>
-      {shouldShowLeftPlaceholder && <div className="editor-center-placeholder">{t('pane.rawPlaceholder')}</div>}
+      {shouldShowLeftPlaceholder && (
+        <div className="editor-empty-state">
+          <div className="editor-empty-state-mark" aria-hidden="true">
+            {'{ }'}
+          </div>
+          <strong>{t('pane.rawEmptyTitle')}</strong>
+          <span>{t('pane.rawEmptyHint')}</span>
+          <div className="editor-empty-state-actions">
+            <button type="button" className="editor-empty-state-primary" onClick={onImportJson}>
+              {t('pane.rawEmptyImport')}
+            </button>
+            <button type="button" onClick={onPasteJson}>
+              {t('pane.rawEmptyPaste')}
+            </button>
+          </div>
+        </div>
+      )}
       {processingStageText && <div className="editor-loading-overlay">{processingStageText}</div>}
     </div>
   </div>
