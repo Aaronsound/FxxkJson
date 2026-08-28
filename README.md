@@ -13,6 +13,8 @@
 
 FxxkJson 基于 Electron、React、Vite 和 Monaco Editor 构建，适合处理接口响应、日志、配置文件和 5MB+ 的大 JSON。它提供响应式双栏工作区、可拖动分隔线和 7 种可持久化强调色；所有 JSON 处理都在本机完成，不上传数据，不包含遥测或远程 JSON 处理逻辑。
 
+**快速入口：** [中文使用指南](docs/USER_GUIDE.md) · [English User Guide](docs/USER_GUIDE.en.md) · [下载最新版](https://github.com/Aaronsound/FxxkJson/releases/latest)
+
 ## 项目演进
 
 FxxkJson 是 [HanJson](https://github.com/Aaronsound/HanJson) 的重构优化版。它不是从零开始的新工具，而是在原有 JSON 格式化工具经验上继续演进：
