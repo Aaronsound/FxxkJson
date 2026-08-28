@@ -159,29 +159,12 @@ export function createJsonNodeEditOperations({
     throw new Error('当前节点无法编辑');
   }
 
-  function patchCachedFormattedNode(
+  function rebuildCachedFormattedArtifacts(
     tabId: string,
-    text: string,
-    path: JsonEditPath,
+    nextFormattedText: string,
     rawText: string,
     rawMetrics: JsonDocumentMetrics
   ): PatchCachedFormattedNodeResult {
-    const formattedText =
-      getCachedFormattedText(tabId, structureCache, viewerCache) ?? nodeEditCache.get(tabId)?.formattedText;
-
-    if (typeof formattedText !== 'string') {
-      return {
-        formattedText: null,
-        formattedMetrics: null,
-        structureWarming: false,
-        viewerData: null,
-        viewerIndexMs: null,
-      };
-    }
-
-    const nextFormattedText = saveJsonNodePreservingOriginalFormat(formattedText, path, text, {
-      range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText),
-    });
     const formattedMetrics = measureJsonDocument(nextFormattedText);
     const previousViewerData = viewerCache.get(tabId)?.viewerData ?? structureCache.get(tabId)?.viewerData;
     const lineCapacityHint = previousViewerData
@@ -252,6 +235,34 @@ export function createJsonNodeEditOperations({
     };
   }
 
+  function getMissingFormattedPatch(): PatchCachedFormattedNodeResult {
+    return {
+      formattedText: null,
+      formattedMetrics: null,
+      structureWarming: false,
+      viewerData: null,
+      viewerIndexMs: null,
+    };
+  }
+
+  function finishNodeMutation(tabId: string, rawText: string, nextFormattedText: string | null): SaveNodeEditResult {
+    const rawMetrics = measureJsonDocument(rawText);
+    const rawViewerData = rawMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
+    const formattedPatch =
+      typeof nextFormattedText === 'string'
+        ? rebuildCachedFormattedArtifacts(tabId, nextFormattedText, rawText, rawMetrics)
+        : getMissingFormattedPatch();
+
+    nodeEditCache.delete(tabId);
+
+    return {
+      rawText,
+      rawMetrics,
+      rawViewerData,
+      ...formattedPatch,
+    };
+  }
+
   function saveJsonNodeForEdit(
     tabId: string,
     text: string,
@@ -265,18 +276,16 @@ export function createJsonNodeEditOperations({
     const rawText = saveJsonNodePreservingOriginalFormat(originalText, path, text, {
       range: getCachedNodeRange(nodeEditCache, tabId, path, 'raw', originalText),
     });
-    const rawMetrics = measureJsonDocument(rawText);
-    const rawViewerData = rawMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(rawText) : null;
-    const formattedPatch = patchCachedFormattedNode(tabId, text, path, rawText, rawMetrics);
+    const formattedText =
+      getCachedFormattedText(tabId, structureCache, viewerCache) ?? nodeEditCache.get(tabId)?.formattedText;
+    const nextFormattedText =
+      typeof formattedText === 'string'
+        ? saveJsonNodePreservingOriginalFormat(formattedText, path, text, {
+            range: getCachedNodeRange(nodeEditCache, tabId, path, 'formatted', formattedText),
+          })
+        : null;
 
-    nodeEditCache.delete(tabId);
-
-    return {
-      rawText,
-      rawMetrics,
-      rawViewerData,
-      ...formattedPatch,
-    };
+    return finishNodeMutation(tabId, rawText, nextFormattedText);
   }
 
   function deleteJsonNodeForEdit(tabId: string, originalText: string | undefined, path: JsonEditPath | undefined) {
@@ -284,8 +293,17 @@ export function createJsonNodeEditOperations({
       throw new Error('当前节点无法删除');
     }
 
-    nodeEditCache.delete(tabId);
-    return deleteJsonNodePreservingOriginalFormat(originalText, path);
+    const formattedText =
+      getCachedFormattedText(tabId, structureCache, viewerCache) ?? nodeEditCache.get(tabId)?.formattedText;
+    const rawText = deleteJsonNodePreservingOriginalFormat(originalText, path);
+    const nextFormattedText =
+      typeof formattedText === 'string'
+        ? formattedText === originalText
+          ? rawText
+          : deleteJsonNodePreservingOriginalFormat(formattedText, path)
+        : null;
+
+    return finishNodeMutation(tabId, rawText, nextFormattedText);
   }
 
   function renameJsonNodeKeyForEdit(
@@ -298,8 +316,17 @@ export function createJsonNodeEditOperations({
       throw new Error('当前 key 无法重命名');
     }
 
-    nodeEditCache.delete(tabId);
-    return renameJsonObjectKeyPreservingOriginalFormat(originalText, path, text);
+    const formattedText =
+      getCachedFormattedText(tabId, structureCache, viewerCache) ?? nodeEditCache.get(tabId)?.formattedText;
+    const rawText = renameJsonObjectKeyPreservingOriginalFormat(originalText, path, text);
+    const nextFormattedText =
+      typeof formattedText === 'string'
+        ? formattedText === originalText
+          ? rawText
+          : renameJsonObjectKeyPreservingOriginalFormat(formattedText, path, text)
+        : null;
+
+    return finishNodeMutation(tabId, rawText, nextFormattedText);
   }
 
   return {

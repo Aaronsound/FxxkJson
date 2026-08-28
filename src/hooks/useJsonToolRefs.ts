@@ -65,12 +65,14 @@ type PreserveActiveTabViewStateOptions = Pick<
   'leftEditorRef' | 'leftViewStateByTabRef' | 'previousActiveTabIdRef' | 'rightEditorRef' | 'rightViewStateByTabRef'
 > & {
   activeTabId: string;
+  onDeactivateTab?: (tabId: string) => void;
 };
 
 export function usePreserveActiveTabViewState({
   activeTabId,
   leftEditorRef,
   leftViewStateByTabRef,
+  onDeactivateTab,
   previousActiveTabIdRef,
   rightEditorRef,
   rightViewStateByTabRef,
@@ -81,6 +83,7 @@ export function usePreserveActiveTabViewState({
     if (previousTabId && previousTabId !== activeTabId) {
       leftViewStateByTabRef.current[previousTabId] = leftEditorRef.current?.saveViewState() ?? null;
       rightViewStateByTabRef.current[previousTabId] = rightEditorRef.current?.saveViewState() ?? null;
+      onDeactivateTab?.(previousTabId);
     }
 
     previousActiveTabIdRef.current = activeTabId;
@@ -88,6 +91,7 @@ export function usePreserveActiveTabViewState({
     activeTabId,
     leftEditorRef,
     leftViewStateByTabRef,
+    onDeactivateTab,
     previousActiveTabIdRef,
     rightEditorRef,
     rightViewStateByTabRef,

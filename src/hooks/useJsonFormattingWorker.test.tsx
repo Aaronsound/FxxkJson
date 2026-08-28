@@ -38,6 +38,7 @@ function createArgs(): Parameters<typeof useJsonFormattingWorker>[0] {
     formattedTextByTabRef,
     largeFileLocateEnabledRef: ref<Record<string, boolean>>({}),
     largeModeRef: ref<Record<string, boolean>>({}),
+    leftSearchWorkerRevisionRef: ref<Record<string, number>>({}),
     leftViewStateByTabRef: ref({}),
     logEvent: vi.fn(),
     mutatePerformanceSession: vi.fn(),
@@ -189,6 +190,31 @@ describe('useJsonFormattingWorker', () => {
     expect(args.setTabFormatting).toHaveBeenLastCalledWith('tab-a', false);
     expect(args.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'idle');
     expect(args.setTabError).toHaveBeenLastCalledWith('tab-a', 'JSON worker 消息传输失败，请重试或重新导入文件');
+
+    unmount();
+  });
+
+  it('releases inactive-tab transient worker state without clearing its structure', () => {
+    vi.stubGlobal('Worker', WorkerMock);
+    const args = createArgs();
+    args.leftSearchWorkerRevisionRef.current['tab-a'] = 7;
+    const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+
+    act(() => {
+      result.current.releaseTransientWorkerCaches('tab-a');
+    });
+
+    expect(args.leftSearchWorkerRevisionRef.current['tab-a']).toBeUndefined();
+    expect(WorkerMock.instances[0].postMessage).toHaveBeenCalledWith(
+      {
+        type: 'release-transient-cache',
+        tabId: 'tab-a',
+      },
+      []
+    );
+    expect(WorkerMock.instances[0].postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'clear-structure', tabId: 'tab-a' })
+    );
 
     unmount();
   });

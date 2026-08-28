@@ -170,7 +170,7 @@ describe('createJsonWorkerInteractiveFlow', () => {
     await expect(edit).resolves.toBe('"{\\"ok\\":true}"');
   });
 
-  it('transfers large replace-all source text while keeping other edit requests inline', () => {
+  it('transfers every large edit source while keeping small edit requests inline', () => {
     const { flow, requests, transfers } = createFlow();
 
     void flow.requestEditJson({
@@ -183,6 +183,14 @@ describe('createJsonWorkerInteractiveFlow', () => {
       replacement: 'value',
     });
     void flow.requestEditJson({ tabId: 'tab-a', operation: 'escape-json', text: '{"ok":true}' });
+    void flow.requestEditJson({
+      tabId: 'tab-a',
+      operation: 'save-node',
+      text: 'true',
+      originalText: '{"large":true}',
+      originalTextByteLength: LARGE_FILE_THRESHOLD,
+      path: ['large'],
+    });
 
     expect(requests[0]).toMatchObject({ type: 'edit-json', operation: 'replace-text' });
     expect('text' in requests[0]).toBe(false);
@@ -190,6 +198,10 @@ describe('createJsonWorkerInteractiveFlow', () => {
     expect(transfers[0]).toEqual(['textBuffer' in requests[0] ? requests[0].textBuffer : undefined]);
     expect(requests[1]).toMatchObject({ type: 'edit-json', operation: 'escape-json', text: '{"ok":true}' });
     expect(transfers[1]).toEqual([]);
+    expect(requests[2]).toMatchObject({ type: 'edit-json', operation: 'save-node', text: 'true' });
+    expect('originalText' in requests[2]).toBe(false);
+    expect('originalTextBuffer' in requests[2] && requests[2].originalTextBuffer).toBeInstanceOf(ArrayBuffer);
+    expect(transfers[2]).toEqual(['originalTextBuffer' in requests[2] ? requests[2].originalTextBuffer : undefined]);
   });
 
   it('decodes transferable raw and formatted node-save text results', async () => {

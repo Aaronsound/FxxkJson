@@ -354,6 +354,7 @@ const App: React.FC = () => {
     queueFormat,
     queueRepair,
     queueFormatAfterEditSave,
+    releaseTransientWorkerCaches,
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,
@@ -361,7 +362,14 @@ const App: React.FC = () => {
     requestWorkerEditJsonResult,
     resetTabArtifacts,
   } = useJsonFormattingWorker({
-    ...{ activeTabIdRef, largeModeRef, largeFileLocateEnabledRef, leftViewStateByTabRef, rightViewStateByTabRef },
+    ...{
+      activeTabIdRef,
+      largeModeRef,
+      largeFileLocateEnabledRef,
+      leftSearchWorkerRevisionRef,
+      leftViewStateByTabRef,
+      rightViewStateByTabRef,
+    },
     ...{ structureStatusRef, workerStructureEnabledRef, rawTextByTabRef, formattedTextByTabRef },
     ...{ performanceSessionsRef, beginPerformanceSession, clearPerformanceState },
     ...{ logEvent, mutatePerformanceSession, syncPerformanceSnapshot },
@@ -393,10 +401,16 @@ const App: React.FC = () => {
     activeTabId,
     leftEditorRef,
     leftViewStateByTabRef,
+    onDeactivateTab: releaseTransientWorkerCaches,
     previousActiveTabIdRef,
     rightEditorRef,
     rightViewStateByTabRef,
   });
+
+  const closeEditJsonWithCacheRelease = () => {
+    releaseTransientWorkerCaches(activeTabIdRef.current);
+    closeEditJson();
+  };
 
   useJsonEditorRuntimeEffects({
     ...{ activeDocumentMeta, activeLargeViewerData, activeLargeViewerStatus, activeTab, activeTabId, activeTabIdRef },
@@ -515,24 +529,34 @@ const App: React.FC = () => {
       setTabError,
     });
 
+  const {
+    applyNodeMutationArtifacts,
+    handleCopyEscapedJson,
+    handleEscapeEditJsonContent,
+    handleSaveEditJson,
+    handleUnescapeEditJsonContent,
+  } = useJsonEditActions({
+    activeTab,
+    beginPerformanceSession,
+    closeEditJson: closeEditJsonWithCacheRelease,
+    editJsonSession,
+    editJsonValueRef,
+    ...{ getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
+    ...{ requestWorkerEditJson, requestWorkerEditJsonResult, resetSearchState },
+    ...{ setEditJsonBusyLabel, setEditJsonError, setLargeRawViewerData, setLargeViewerData },
+    ...{ setLargeViewerStatus, setProcessingStage, setStructureStatus },
+    ...{ setTabFormatting, setTabLargeMode, showCopyLiteralNotice },
+    ...{ updateFormattedContent, updateTabContent, workerStructureEnabledRef },
+  });
+
   const { applyRightNodeMutationAtOffset, copyNodeDetailAtOffset, copyValueAtOffset } = useRightNodeActions({
+    applyNodeMutationArtifacts,
     applyRawUpdate,
-    ...{ getTabContent, logEvent, queueFormatAfterEditSave, readEditableNodeAtOffset, requestWorkerEditJson },
+    ...{ getTabContent, logEvent, queueFormatAfterEditSave, readEditableNodeAtOffset, requestWorkerEditJsonResult },
     requestDeleteConfirmation: requestDeleteNode,
     requestRenameKey,
     ...{ resetSearchState, setEditJsonBusyLabel, setTabError },
   });
-
-  const { handleCopyEscapedJson, handleEscapeEditJsonContent, handleSaveEditJson, handleUnescapeEditJsonContent } =
-    useJsonEditActions({
-      ...{ activeTab, beginPerformanceSession, closeEditJson, editJsonSession, editJsonValueRef },
-      ...{ getTabContent, mutatePerformanceSession, queueFormatAfterEditSave },
-      ...{ requestWorkerEditJson, requestWorkerEditJsonResult, resetSearchState },
-      ...{ setEditJsonBusyLabel, setEditJsonError, setLargeRawViewerData, setLargeViewerData },
-      ...{ setLargeViewerStatus, setProcessingStage, setStructureStatus },
-      ...{ setTabFormatting, setTabLargeMode, showCopyLiteralNotice },
-      ...{ updateFormattedContent, updateTabContent, workerStructureEnabledRef },
-    });
 
   const { addTab, closeTab } = useJsonToolTabActions({
     ...{ activeTabId, activeTabIdRef, formattedTextByTabRef, handleClear },
@@ -601,7 +625,8 @@ const App: React.FC = () => {
     ...{ addTab, applyRightNodeMutationAtOffset },
     canCompareJson: tabs.length >= 2,
     ...{ canControlRightPaneFolding, canEditJson, canEnableLargeFileLocate },
-    ...{ cancelMutationDialog, cancelRenaming, closeEditJson, closeLeftFind, closeRightFind, closeTab },
+    ...{ cancelMutationDialog, cancelRenaming, closeLeftFind, closeRightFind, closeTab },
+    closeEditJson: closeEditJsonWithCacheRelease,
     ...{ confirmDeleteDialog, confirmRenameDialog },
     ...{ copyLeftEditorSelection, copyNodeDetailAtOffset, copyValueAtOffset, cutLeftEditorSelection },
     ...{ currentError, currentStructureStatus, diagnosticsContext },

@@ -15,6 +15,7 @@ import {
 import { importSampleThroughNativeFileFlow, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
 import { runRepeatedEditFoldingScenario } from './e2e-json-edit-folding-scenario.mjs';
 import { runEditTransformScenario } from './e2e-json-edit-transform-scenario.mjs';
+import { runMultiTabMemoryScenario } from './e2e-json-multi-tab-memory-scenario.mjs';
 import {
   runClipboardAndCompareScenario,
   runRightNodeScenario,
@@ -23,7 +24,7 @@ import {
 
 const require = createRequire(import.meta.url);
 
-function printSuccessSummary(sizeMb, samplePath, memorySnapshot) {
+function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory) {
   console.log('FxxkJson Electron E2E passed');
   console.table([
     { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
@@ -31,6 +32,10 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot) {
     {
       step: 'memory',
       detail: `${memorySnapshot.totalWorkingSetMb.toFixed(1)} MB working set, ${memorySnapshot.totalPeakWorkingSetMb.toFixed(1)} MB peak, ${memorySnapshot.rendererHeapMb.toFixed(1)} MB renderer heap`,
+    },
+    {
+      step: 'multi-tab cleanup',
+      detail: `${multiTabMemory.expanded.totalWorkingSetMb.toFixed(1)} MB with auxiliary tabs, ${multiTabMemory.afterClose.totalWorkingSetMb.toFixed(1)} MB after close`,
     },
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
     { step: 'large folding', detail: 'fold-all stays compact while root and nested nodes preserve expand semantics' },
@@ -202,12 +207,13 @@ async function run() {
     await assertLargeViewerFoldAllSemantics(cdp);
     const memorySnapshot = await readElectronMemorySnapshot(cdp);
     assertElectronMemoryBudget(memorySnapshot, sizeMb);
+    const multiTabMemory = await runMultiTabMemoryScenario(cdp, tempDir, sizeMb);
 
     await runRepeatedEditFoldingScenario(cdp);
     await runSearchReplaceScenario(cdp);
     await runRightNodeScenario(cdp);
     await runClipboardAndCompareScenario(cdp);
-    printSuccessSummary(sizeMb, samplePath, memorySnapshot);
+    printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory);
   } catch (error) {
     const stderr = getStderr();
     await collectFailureArtifacts({ cdp, stderr });

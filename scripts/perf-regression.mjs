@@ -5,7 +5,8 @@ import { benchFile, formatBytes, formatDuration } from './bench-json.mjs';
 
 const DEFAULT_SAMPLE_FILES = ['json/sample-5mb.json', 'json/sample-20mb.json'];
 const DEFAULT_BASELINE_PATH = 'scripts/perf-baseline.json';
-const DEFAULT_TOLERANCE = 0.35;
+const DEFAULT_RUNS = 3;
+const DEFAULT_TOLERANCE = 0.25;
 const COMPARED_METRICS = [
   'totalFormatMs',
   'viewerIndexMs',
@@ -32,6 +33,7 @@ function parseArgs(args) {
   let baselinePath = null;
   let writeBaselinePath = null;
   let tolerance = DEFAULT_TOLERANCE;
+  let runs = DEFAULT_RUNS;
   let outputJson = false;
 
   for (let index = 0; index < args.length; index += 1) {
@@ -58,6 +60,15 @@ function parseArgs(args) {
       continue;
     }
 
+    if (arg === '--runs') {
+      runs = Number(args[index + 1]);
+      if (!Number.isInteger(runs) || runs < 1) {
+        throw new Error('--runs requires a positive integer');
+      }
+      index += 1;
+      continue;
+    }
+
     if (arg === '--json') {
       outputJson = true;
       continue;
@@ -72,6 +83,7 @@ function parseArgs(args) {
     baselinePath,
     files,
     outputJson,
+    runs,
     tolerance,
     writeBaselinePath,
   };
@@ -107,9 +119,10 @@ async function getDefaultBaselinePath(explicitBaselinePath, writeBaselinePath) {
   }
 }
 
-function toBaseline(results) {
+function toBaseline(results, runs) {
   return {
     createdAt: new Date().toISOString(),
+    aggregation: `median of ${runs} run${runs === 1 ? '' : 's'}`,
     metrics: Object.fromEntries(
       results.map((result) => [
         result.fileName,
@@ -117,6 +130,24 @@ function toBaseline(results) {
       ])
     ),
   };
+}
+
+function median(values) {
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+}
+
+function aggregateResults(results) {
+  const representative = { ...results[results.length - 1] };
+  const keys = new Set(results.flatMap((result) => Object.keys(result)));
+  for (const key of keys) {
+    const values = results.map((result) => result[key]);
+    if (values.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+      representative[key] = median(values);
+    }
+  }
+  return representative;
 }
 
 async function readBaseline(filePath) {
@@ -164,7 +195,8 @@ function compareResults(results, baseline, tolerance) {
   return failures;
 }
 
-function printResults(results, failures, baselinePath) {
+function printResults(results, failures, baselinePath, runs) {
+  console.log(`Benchmark aggregation: median of ${runs} run${runs === 1 ? '' : 's'} per sample`);
   console.table(
     results.map((result) => ({
       file: result.fileName,
@@ -260,7 +292,7 @@ function printResults(results, failures, baselinePath) {
 }
 
 async function main() {
-  const { baselinePath, files, outputJson, tolerance, writeBaselinePath } = parseArgs(process.argv.slice(2));
+  const { baselinePath, files, outputJson, runs, tolerance, writeBaselinePath } = parseArgs(process.argv.slice(2));
   const filesToBench = files.length > 0 ? files : await getExistingDefaultSamples();
   const effectiveBaselinePath = await getDefaultBaselinePath(baselinePath, writeBaselinePath);
 
@@ -271,12 +303,16 @@ async function main() {
 
   const results = [];
   for (const filePath of filesToBench) {
-    results.push(await benchFile(filePath));
+    const samples = [];
+    for (let run = 0; run < runs; run += 1) {
+      samples.push(await benchFile(filePath));
+    }
+    results.push(aggregateResults(samples));
   }
 
   if (writeBaselinePath) {
     await fs.mkdir(path.dirname(writeBaselinePath), { recursive: true });
-    await fs.writeFile(writeBaselinePath, `${JSON.stringify(toBaseline(results), null, 2)}\n`, 'utf8');
+    await fs.writeFile(writeBaselinePath, `${JSON.stringify(toBaseline(results, runs), null, 2)}\n`, 'utf8');
   }
 
   const baseline = await readBaseline(effectiveBaselinePath);
@@ -289,6 +325,7 @@ async function main() {
           baselinePath: effectiveBaselinePath,
           failures,
           results,
+          runs,
           tolerance,
           writeBaselinePath,
         },
@@ -297,7 +334,7 @@ async function main() {
       )
     );
   } else {
-    printResults(results, failures, effectiveBaselinePath);
+    printResults(results, failures, effectiveBaselinePath, runs);
     if (writeBaselinePath) {
       console.log(`\nBaseline written to ${writeBaselinePath}`);
     }

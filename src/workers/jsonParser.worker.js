@@ -6,6 +6,7 @@ import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWor
 import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';
 import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations.ts';
 import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
+import { releaseJsonWorkerTransientCaches } from './jsonWorkerCacheLifecycle.ts';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -43,8 +44,10 @@ const jsonWorkerEditJsonOperations = createJsonWorkerEditJsonOperations({
   jsonNodeEditOperations,
 });
 const jsonWorkerSearchOperations = createJsonWorkerSearchOperations({
+  editJsonCache,
   latestSearchRequestByKey,
   rawSearchCache,
+  structureCache,
   viewerCache,
 });
 const jsonWorkerLocateOperations = createJsonWorkerLocateOperations({
@@ -82,12 +85,22 @@ function handleClearStructureMessage(message) {
   cancelInteractiveRequests(message.tabId);
 }
 
+function handleReleaseTransientCacheMessage(message) {
+  releaseJsonWorkerTransientCaches(message.tabId, {
+    cancelInteractiveRequests,
+    editJsonCache,
+    nodeEditCache,
+    rawSearchCache,
+  });
+}
+
 const workerMessageHandlers = {
   'clear-structure': handleClearStructureMessage,
   'edit-json': jsonWorkerEditJsonOperations.handleEditJsonMessage,
   format: jsonWorkerFormatOperations.handleFormatMessage,
   locate: jsonWorkerLocateOperations.handleLocateMessage,
   'locate-right-direct': jsonWorkerLocateOperations.handleLocateRightDirectMessage,
+  'release-transient-cache': handleReleaseTransientCacheMessage,
   repair: jsonWorkerFormatOperations.handleRepairMessage,
   search: jsonWorkerSearchOperations.handleSearchMessage,
 };

@@ -6,7 +6,7 @@ import type { JsonValue } from '../utils/preserveJsonFormat';
 import { saveJsonPreservingOriginalFormat } from '../utils/preserveJsonFormat';
 import { replaceTextSearchMatches } from '../utils/searchText';
 import type { SaveNodeEditResult } from './jsonNodeEditOperations';
-import { postNodeSaveResult, postTextResult, readMessageText } from './jsonWorkerTextPayload';
+import { postNodeSaveResult, postTextResult, readMessageText, readNamedMessageText } from './jsonWorkerTextPayload';
 
 interface EditJsonCacheEntry {
   originalText: string;
@@ -14,14 +14,18 @@ interface EditJsonCacheEntry {
 }
 
 interface JsonNodeEditOperations {
-  deleteJsonNodeForEdit: (tabId: string, originalText: string | undefined, path: JsonEditPath | undefined) => string;
+  deleteJsonNodeForEdit: (
+    tabId: string,
+    originalText: string | undefined,
+    path: JsonEditPath | undefined
+  ) => SaveNodeEditResult;
   readJsonNodeForEdit: (tabId: string, text: string | undefined, offset: number | undefined) => string;
   renameJsonNodeKeyForEdit: (
     tabId: string,
     text: string,
     originalText: string | undefined,
     path: JsonEditPath | undefined
-  ) => string;
+  ) => SaveNodeEditResult;
   saveJsonNodeForEdit: (
     tabId: string,
     text: string,
@@ -39,6 +43,7 @@ type EditJsonWorkerRequestMessage = Omit<EditJsonWorkerRequest, 'text'> & {
   requestId: number;
   text?: string;
   textBuffer?: ArrayBuffer;
+  originalTextBuffer?: ArrayBuffer;
   type?: 'edit-json';
 };
 
@@ -99,13 +104,41 @@ function transformJsonEscape(operation: EditJsonWorkerOperation, text: string) {
   return result.text;
 }
 
+function postNodeMutationResult(
+  result: SaveNodeEditResult,
+  requestId: number,
+  tabId: string,
+  operation: EditJsonWorkerOperation
+) {
+  postNodeSaveResult(
+    {
+      type: 'edit-json-result',
+      requestId,
+      tabId,
+      operation,
+      success: true,
+      structureWarming: result.structureWarming,
+      rawViewerData: result.rawViewerData,
+      viewerData: result.viewerData,
+      viewerIndexMs: result.viewerIndexMs,
+      rawMetrics: result.rawMetrics,
+      formattedMetrics: result.formattedMetrics ?? undefined,
+    },
+    result.rawText,
+    result.formattedText,
+    result.rawMetrics.textByteLength,
+    result.formattedMetrics?.textByteLength
+  );
+}
+
 export function createJsonWorkerEditJsonOperations({
   editJsonCache,
   jsonNodeEditOperations,
 }: JsonWorkerEditJsonOperationsArgs) {
   function handleEditJsonMessage(message: EditJsonWorkerRequestMessage) {
-    const { requestId, tabId, operation, originalText, path, offset, replacement, searchOptions, searchTerm } = message;
+    const { requestId, tabId, operation, path, offset, replacement, searchOptions, searchTerm } = message;
     const text = readMessageText(message);
+    const originalText = readNamedMessageText(message, 'originalText', 'originalTextBuffer');
 
     try {
       const data = (() => {
@@ -132,36 +165,20 @@ export function createJsonWorkerEditJsonOperations({
 
         if (operation === 'save-node') {
           const result = jsonNodeEditOperations.saveJsonNodeForEdit(tabId, text, originalText, path);
-
-          const resultMessage: WorkerMessage = {
-            type: 'edit-json-result',
-            requestId,
-            tabId,
-            operation,
-            success: true,
-            structureWarming: result.structureWarming,
-            rawViewerData: result.rawViewerData,
-            viewerData: result.viewerData,
-            viewerIndexMs: result.viewerIndexMs,
-            rawMetrics: result.rawMetrics,
-            formattedMetrics: result.formattedMetrics ?? undefined,
-          };
-          postNodeSaveResult(
-            resultMessage,
-            result.rawText,
-            result.formattedText,
-            result.rawMetrics.textByteLength,
-            result.formattedMetrics?.textByteLength
-          );
+          postNodeMutationResult(result, requestId, tabId, operation);
           return null;
         }
 
         if (operation === 'delete-node') {
-          return jsonNodeEditOperations.deleteJsonNodeForEdit(tabId, originalText, path);
+          const result = jsonNodeEditOperations.deleteJsonNodeForEdit(tabId, originalText, path);
+          postNodeMutationResult(result, requestId, tabId, operation);
+          return null;
         }
 
         if (operation === 'rename-node-key') {
-          return jsonNodeEditOperations.renameJsonNodeKeyForEdit(tabId, text, originalText, path);
+          const result = jsonNodeEditOperations.renameJsonNodeKeyForEdit(tabId, text, originalText, path);
+          postNodeMutationResult(result, requestId, tabId, operation);
+          return null;
         }
 
         if (operation === 'save') {

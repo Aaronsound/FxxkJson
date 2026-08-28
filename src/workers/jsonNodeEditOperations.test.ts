@@ -134,13 +134,29 @@ describe('jsonNodeEditOperations', () => {
   });
 
   it('deletes nodes and renames object keys through preserve-format helpers', () => {
-    const { operations } = createHarness();
+    const { operations, structureCache } = createHarness();
     const rawText = '{"name":"old","count":1}';
+    const formattedText = '{\n  "name": "old",\n  "count": 1\n}';
+    structureCache.set('tab-a', {
+      requestId: 1,
+      rawText,
+      formattedText,
+    });
 
-    expect(operations.deleteJsonNodeForEdit('tab-a', rawText, ['count'])).toBe('{"name":"old"}');
-    expect(JSON.parse(operations.renameJsonNodeKeyForEdit('tab-a', 'title', rawText, ['name']))).toEqual({
+    const deleted = operations.deleteJsonNodeForEdit('tab-a', rawText, ['count']);
+    expect(deleted.rawText).toBe('{"name":"old"}');
+    expect(deleted.formattedText).toBe('{\n  "name": "old"\n}');
+
+    structureCache.set('tab-a', {
+      requestId: 2,
+      rawText,
+      formattedText,
+    });
+    const renamed = operations.renameJsonNodeKeyForEdit('tab-a', 'title', rawText, ['name']);
+    expect(JSON.parse(renamed.rawText)).toEqual({
       count: 1,
       title: 'old',
     });
+    expect(renamed.formattedText).toContain('"title": "old"');
   });
 });

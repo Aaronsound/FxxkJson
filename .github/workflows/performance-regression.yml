@@ -1,12 +1,23 @@
 name: Performance Regression
 
 on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'src/**'
+      - 'scripts/bench-json.mjs'
+      - 'scripts/perf-*.mjs'
+      - 'scripts/perf-baseline.json'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
     inputs:
       tolerance:
-        description: 'Allowed slowdown versus scripts/perf-baseline.json, for example 0.75 = 75%'
+        description: 'Allowed slowdown versus scripts/perf-baseline.json, for example 0.35 = 35%'
         required: false
-        default: '0.75'
+        default: '0.35'
         type: string
   schedule:
     - cron: '0 20 * * 0'
@@ -24,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      PERF_TOLERANCE: ${{ github.event_name == 'workflow_dispatch' && inputs.tolerance || '0.75' }}
+      PERF_TOLERANCE: ${{ github.event_name == 'workflow_dispatch' && inputs.tolerance || '0.35' }}
 
     steps:
       - name: Checkout

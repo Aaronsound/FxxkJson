@@ -49,6 +49,7 @@ export interface EditJsonWorkerRequest {
   text: string;
   textByteLength?: number;
   originalText?: string;
+  originalTextByteLength?: number;
   path?: JsonEditPath;
   offset?: number;
   searchTerm?: string;
@@ -58,6 +59,7 @@ export interface EditJsonWorkerRequest {
 
 export type WorkerRequestMessage =
   | { type: 'clear-structure'; tabId: string }
+  | { type: 'release-transient-cache'; tabId: string }
   | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format' })
   | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'repair' })
   | (WorkerRequestBase & {
@@ -81,6 +83,8 @@ export type WorkerRequestMessage =
       textBuffer?: ArrayBuffer;
       textByteLength?: EditJsonWorkerRequest['textByteLength'];
       originalText?: EditJsonWorkerRequest['originalText'];
+      originalTextBuffer?: ArrayBuffer;
+      originalTextByteLength?: EditJsonWorkerRequest['originalTextByteLength'];
       path?: EditJsonWorkerRequest['path'];
       offset?: EditJsonWorkerRequest['offset'];
       searchTerm?: EditJsonWorkerRequest['searchTerm'];

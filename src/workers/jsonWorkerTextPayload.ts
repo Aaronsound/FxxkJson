@@ -3,6 +3,7 @@ import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { getUtf8ByteLength } from '../utils/jsonDocumentMetrics';
 
 type TextPayloadMessage = { text?: string; textBuffer?: ArrayBuffer };
+type NamedTextPayloadMessage = Record<string, unknown>;
 type MutableWorkerTextMessage = Record<string, unknown>;
 type WorkerPostMessageScope = {
   postMessage(message: unknown, transfer: Transferable[]): void;
@@ -41,6 +42,24 @@ export function readMessageText(message: TextPayloadMessage) {
   }
 
   return '';
+}
+
+export function readNamedMessageText(
+  message: NamedTextPayloadMessage,
+  stringKey: string,
+  bufferKey: string
+): string | undefined {
+  const text = message[stringKey];
+  if (typeof text === 'string') {
+    return text;
+  }
+
+  const buffer = message[bufferKey];
+  if (buffer && typeof buffer === 'object' && 'byteLength' in buffer && typeof buffer.byteLength === 'number') {
+    return getTextDecoder().decode(new Uint8Array(buffer as ArrayBuffer));
+  }
+
+  return undefined;
 }
 
 export function appendTextPayload(
