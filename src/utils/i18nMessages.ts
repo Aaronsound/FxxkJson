@@ -63,6 +63,12 @@ export const messages = {
     'pane.statusLocateReady': '定位已启用',
     'pane.statusLightLocateReady': '轻量定位已启用',
 
+    'tabs.listLabel': 'JSON 标签页',
+    'tabs.add': '新建标签',
+    'tabs.close': '关闭 {title}',
+    'tabs.scrollLeft': '向左滚动标签',
+    'tabs.scrollRight': '向右滚动标签',
+
     'context.toggleCurrentFold': '展开/收缩当前节点',
     'context.toggleParentFold': '展开/收缩所属层级',
     'context.expandCurrentFold': '展开当前节点',
@@ -221,6 +227,12 @@ export const messages = {
     'pane.statusLightLocateBuilding': 'Preparing light locate',
     'pane.statusLocateReady': 'Locate ready',
     'pane.statusLightLocateReady': 'Light locate ready',
+
+    'tabs.listLabel': 'JSON tabs',
+    'tabs.add': 'New tab',
+    'tabs.close': 'Close {title}',
+    'tabs.scrollLeft': 'Scroll tabs left',
+    'tabs.scrollRight': 'Scroll tabs right',
 
     'context.toggleCurrentFold': 'Toggle current node',
     'context.toggleParentFold': 'Toggle parent level',

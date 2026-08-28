@@ -48,7 +48,7 @@
   width: 1px;
   min-height: 22px;
   margin: 3px 3px;
-  background: rgba(97, 83, 52, 0.16);
+  background: var(--app-border);
 }
 
 .toolbar button,
@@ -57,7 +57,7 @@
   box-sizing: border-box;
   padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--app-radius-sm);
   font-size: 13px;
   line-height: 28px;
 }
@@ -65,28 +65,28 @@
 .toolbar button:focus-visible,
 .toolbar-more-trigger:focus-visible,
 .toolbar-checkbox:has(input:focus-visible) {
-  outline: 2px solid rgba(0, 120, 212, 0.72);
+  outline: 2px solid var(--app-accent);
   outline-offset: 1px;
 }
 
 .toolbar-button-primary {
-  border-color: rgba(21, 128, 76, 0.2);
-  background: #238b59;
+  border-color: var(--app-accent-border);
+  background: var(--app-accent);
   color: #ffffff;
   box-shadow: none;
 }
 
 .toolbar-button-primary:hover:not(:disabled) {
-  background: #1c7a4d;
+  background: var(--app-accent-hover);
 }
 
 .toolbar-button-secondary {
-  border-color: rgba(73, 104, 150, 0.12);
-  background: rgba(73, 104, 150, 0.1);
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
 }
 
 .toolbar-button-secondary:hover:not(:disabled) {
-  background: rgba(73, 104, 150, 0.18);
+  background: color-mix(in srgb, var(--app-accent-soft) 70%, var(--app-accent) 30%);
 }
 
 .toolbar-button-quiet {
@@ -95,8 +95,8 @@
 }
 
 .toolbar-button-quiet:hover:not(:disabled) {
-  border-color: rgba(97, 83, 52, 0.12);
-  background: rgba(97, 83, 52, 0.08);
+  border-color: var(--app-border);
+  background: var(--app-surface-muted);
 }
 
 .toolbar-view-row {
@@ -114,9 +114,9 @@
   min-height: 26px;
   box-sizing: border-box;
   padding: 2px 7px;
-  border: 1px solid rgba(97, 83, 52, 0.12);
-  border-radius: 6px;
-  background: rgba(97, 83, 52, 0.045);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-muted);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -125,7 +125,7 @@
   width: 14px;
   height: 14px;
   margin: 0;
-  accent-color: #238b59;
+  accent-color: var(--app-accent);
 }
 
 .toolbar-feedback {
@@ -143,6 +143,15 @@
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.toolbar-hint {
+  color: #8a5a00;
+}
+
+.toolbar-error {
+  color: #b91c1c;
+  font-weight: 600;
 }
 
 .toolbar-feedback-action {
@@ -201,8 +210,8 @@
   gap: 3px;
   padding: 6px;
   border: 1px solid rgba(97, 83, 52, 0.18);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.98);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-raised);
   box-shadow: 0 12px 28px rgba(31, 23, 12, 0.18);
 }
 
@@ -215,38 +224,42 @@
 }
 
 .toolbar-more-popover button:hover {
-  background: rgba(73, 104, 150, 0.12);
-}
-
-.app-container.dark-mode .toolbar-command-divider {
-  background: rgba(217, 193, 140, 0.16);
+  background: var(--app-accent-soft);
 }
 
 .app-container.dark-mode .toolbar-button-secondary {
-  border-color: rgba(141, 180, 255, 0.1);
-  background: rgba(141, 180, 255, 0.1);
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
 }
 
 .app-container.dark-mode .toolbar-button-secondary:hover:not(:disabled) {
-  background: rgba(141, 180, 255, 0.18);
+  background: color-mix(in srgb, var(--app-accent-soft) 70%, var(--app-accent) 30%);
 }
 
 .app-container.dark-mode .toolbar-button-quiet:hover:not(:disabled),
 .app-container.dark-mode .toolbar-more-trigger:hover,
 .app-container.dark-mode .toolbar-more-menu[open] .toolbar-more-trigger {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--app-border);
+  background: var(--app-surface-muted);
 }
 
 .app-container.dark-mode .toolbar-checkbox {
-  border-color: rgba(217, 193, 140, 0.14);
-  background: rgba(217, 193, 140, 0.06);
+  border-color: var(--app-border);
+  background: var(--app-surface-muted);
 }
 
 .app-container.dark-mode .toolbar-more-popover {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(38, 38, 40, 0.98);
+  border-color: var(--app-border);
+  background: var(--app-surface-raised);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.app-container.dark-mode .toolbar-hint {
+  color: #f0c36d;
+}
+
+.app-container.dark-mode .toolbar-error {
+  color: #ff9b91;
 }
 
 @media (max-width: 1180px) {

@@ -1,19 +1,10 @@
-import type React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import JsonMonacoEditor from './JsonMonacoEditor';
-import PaneFindWidget from './PaneFindWidget';
-import { useJsonEditFolding } from '../hooks/useJsonEditFolding';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditModalSearch } from '../hooks/useEditModalSearch';
+import { useJsonEditFolding } from '../hooks/useJsonEditFolding';
 import { writeTextToClipboard } from '../utils/clipboard';
-import {
-  getJsonEditSelectionContext,
-  hasJsonEditSelection,
-  replaceJsonEditDocument,
-  replaceJsonEditSelection,
-  runWritableEditorEdit,
-} from '../utils/jsonEditModalTransforms';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 import {
   enableLargeEditModelFolding,
@@ -22,6 +13,15 @@ import {
   prepareLargeEditModel,
   refreshEditFoldingControls,
 } from '../utils/jsonEditFolding';
+import {
+  getJsonEditSelectionContext,
+  hasJsonEditSelection,
+  replaceJsonEditDocument,
+  replaceJsonEditSelection,
+  runWritableEditorEdit,
+} from '../utils/jsonEditModalTransforms';
+import JsonMonacoEditor from './JsonMonacoEditor';
+import PaneFindWidget from './PaneFindWidget';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 
@@ -392,10 +392,10 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   };
 
   return (
-    <div className="modal-overlay" ref={modalRef}>
+    <div className="modal-overlay" ref={modalRef} role="dialog" aria-modal="true" aria-labelledby="json-edit-title">
       <div className={isDarkMode ? 'modal-card modal-card-dark' : 'modal-card'}>
         <div className="modal-header">
-          <h3>{title}</h3>
+          <h3 id="json-edit-title">{title}</h3>
           {pathText && (
             <div className="modal-path" title={pathText}>
               {pathText}
@@ -496,6 +496,11 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
           )}
         </div>
 
+        {busyLabel && <div className="modal-error">{busyLabel}</div>}
+        {error && <div className="modal-error">{error}</div>}
+        {transformError && <div className="modal-error">{transformError}</div>}
+        {hasCopiedLiteral && <div className="modal-copy-hint">{t('edit.copiedLiteral')}</div>}
+
         <div className="modal-actions">
           <button type="button" onClick={onSave} disabled={isBusy}>
             {saveLabel}
@@ -504,11 +509,6 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             {t('edit.cancel')}
           </button>
         </div>
-
-        {busyLabel && <div className="modal-error">{busyLabel}</div>}
-        {error && <div className="modal-error">{error}</div>}
-        {transformError && <div className="modal-error">{transformError}</div>}
-        {hasCopiedLiteral && <div className="modal-copy-hint">{t('edit.copiedLiteral')}</div>}
       </div>
     </div>
   );

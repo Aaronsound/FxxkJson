@@ -1,6 +1,6 @@
 .json-compare-card {
   width: min(1040px, calc(100vw - 48px));
-  max-height: min(760px, calc(100vh - 48px));
+  max-height: min(840px, calc(100dvh - 32px));
 }
 
 .json-compare-selectors {
@@ -81,7 +81,8 @@
 }
 
 .json-compare-list {
-  max-height: 430px;
+  min-height: 160px;
+  max-height: min(48dvh, 520px);
   overflow: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -174,4 +175,19 @@
 .modal-card-dark .json-compare-type-changed {
   background: rgba(146, 64, 14, 0.38);
   color: #fde68a;
+}
+
+@media (max-width: 720px) {
+  .json-compare-card {
+    width: 100%;
+  }
+
+  .json-compare-selectors {
+    grid-template-columns: 1fr;
+  }
+
+  .json-compare-list-header,
+  .json-compare-row {
+    grid-template-columns: 64px minmax(140px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr);
+  }
 }

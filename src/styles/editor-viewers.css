@@ -37,40 +37,40 @@
   min-height: 34px;
   box-sizing: border-box;
   padding: 6px 10px;
-  border-bottom: 1px solid rgba(92, 76, 52, 0.1);
-  color: rgba(92, 76, 52, 0.72);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text-muted);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
 }
 
 .editor-pane-header.dark {
-  border-bottom-color: rgba(255, 255, 255, 0.06);
-  color: rgba(212, 212, 212, 0.62);
+  border-bottom-color: var(--app-border);
+  color: var(--app-text-muted);
 }
 
 .editor-pane-header-title {
   flex: 0 0 auto;
-  color: rgba(49, 42, 31, 0.88);
+  color: var(--app-text);
   font-size: 12px;
   font-weight: 700;
 }
 
 .editor-pane-header.dark .editor-pane-header-title {
-  color: rgba(245, 239, 228, 0.9);
+  color: var(--app-text);
 }
 
 .editor-pane-header-meta {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: rgba(120, 120, 120, 0.72);
+  color: var(--app-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .editor-pane-header-meta.dark {
-  color: rgba(190, 190, 190, 0.5);
+  color: var(--app-text-muted);
 }
 
 .editor-pane-header-subtle {
@@ -115,7 +115,7 @@
   align-items: center;
   gap: 8px;
   padding: 20px;
-  color: rgba(74, 68, 58, 0.8);
+  color: var(--app-text-muted);
   opacity: 0.78;
   text-align: center;
   transform: translate(-50%, -50%);
@@ -127,17 +127,17 @@
   width: 42px;
   height: 42px;
   place-items: center;
-  border: 1px solid rgba(73, 104, 150, 0.18);
-  border-radius: 12px;
-  background: rgba(73, 104, 150, 0.08);
-  color: rgba(59, 87, 128, 0.82);
+  border: 1px solid var(--app-accent-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
   font-family: var(--json-editor-font-family);
   font-size: 15px;
   font-weight: 700;
 }
 
 .editor-empty-state strong {
-  color: rgba(49, 42, 31, 0.9);
+  color: var(--app-text);
   font-size: 15px;
 }
 
@@ -148,17 +148,17 @@
 }
 
 .app-container.dark-mode .editor-empty-state {
-  color: rgba(220, 214, 204, 0.72);
+  color: var(--app-text-muted);
 }
 
 .app-container.dark-mode .editor-empty-state-mark {
-  border-color: rgba(141, 180, 255, 0.14);
-  background: rgba(141, 180, 255, 0.08);
-  color: rgba(180, 204, 255, 0.88);
+  border-color: var(--app-accent-border);
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
 }
 
 .app-container.dark-mode .editor-empty-state strong {
-  color: rgba(245, 239, 228, 0.9);
+  color: var(--app-text);
 }
 
 @media (max-height: 640px) {

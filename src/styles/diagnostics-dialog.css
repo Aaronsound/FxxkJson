@@ -64,7 +64,9 @@
 }
 
 .diagnostics-log-output {
-  min-height: min(56vh, 520px);
+  height: clamp(220px, 56dvh, 520px);
+  min-height: 160px;
+  box-sizing: border-box;
   resize: vertical;
   padding: 10px;
   border: 1px solid rgba(120, 96, 58, 0.24);
@@ -79,6 +81,12 @@
     monospace;
   outline: none;
   white-space: pre;
+}
+
+@media (max-height: 640px) {
+  .diagnostics-log-output {
+    height: clamp(180px, 46dvh, 300px);
+  }
 }
 
 .modal-card-dark .diagnostics-log-output {

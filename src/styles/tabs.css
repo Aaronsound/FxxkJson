@@ -1,77 +1,166 @@
-/* —— 多标签页栏 —— */
 .tab-bar {
+  --tab-width: 128px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--toolbar-border);
-  background: var(--toolbar-bg);
-  padding: 4px 12px;
+  min-width: 0;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
 
-  /* 新增：横向滚动，不折行 */
+.tab-list {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  gap: 6px;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
   white-space: nowrap;
 }
 
+.tab-list::-webkit-scrollbar {
+  display: none;
+}
+
 .tab-bar .tab {
-  flex: 0 0 auto; /* 不缩放 */
-  margin-right: 8px;
-  padding: 6px 12px;
+  position: relative;
+  display: inline-flex;
+  width: var(--tab-width);
+  min-width: var(--tab-width);
+  max-width: var(--tab-width);
+  flex: 0 0 var(--tab-width);
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 7px 10px 8px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--app-radius-sm) var(--app-radius-sm) 0 0;
+  color: var(--app-text-muted);
   cursor: pointer;
   user-select: none;
-  border-radius: 4px 4px 0 0;
-  transition:
-    background-color 0.2s,
-    color 0.2s;
-  color: var(--input-text);
-  background: transparent;
 }
 
-/* hover 提示 */
 .tab-bar .tab:not(.active):hover {
-  background-color: var(--btn-hover-bg);
+  background: var(--app-surface-muted);
+  color: var(--app-text);
 }
 
-/* 激活态突出（带背景、阴影、边框） */
 .tab-bar .tab.active {
-  position: relative;
-  /* 背景色 */
-  background-color: var(--tab-active-bg, #f2faff);
-  /* 文字色 */
-  color: var(--tab-active-color, #000000);
-  font-weight: bold;
-
-  /* 内阴影：按下去的感觉 */
-  box-shadow: inset 0 -3px 5px rgba(0, 0, 0, 0.1);
-
-  /* 整体描边，高亮区分 */
-  border: 1px solid var(--accent-color, #0078d4);
-  border-bottom: none; /* 与内容区域连在一起 */
-  border-radius: 4px 4px 0 0;
+  border-color: var(--app-accent-border);
+  background: var(--app-surface-raised);
+  color: var(--app-text);
+  font-weight: 700;
 }
 
-/* 底部高亮条 */
 .tab-bar .tab.active::after {
   content: "";
   position: absolute;
+  right: 10px;
   bottom: 0;
-  left: 10%;
-  width: 80%;
+  left: 10px;
   height: 3px;
-  background-color: var(--accent-color, #0078d4);
-  border-radius: 2px 2px 0 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--app-accent);
 }
 
-/* 关闭按钮只在 hover 或激活态显现 */
+.tab-bar .tab:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--app-accent);
+  outline-offset: -2px;
+}
 
-/* “＋” 按钮紧跟最后一个 tab */
+.tab-title {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: inherit;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close,
+.tab-scroll-button,
 .tab-bar .add-tab {
-  flex: 0 0 auto;
-  margin-left: 8px;
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
   background: transparent;
-  border: none;
-  cursor: pointer;
+  color: var(--app-text-muted);
 }
+
+.tab-close {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 999px;
+  opacity: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tab-bar .tab:hover .tab-close,
+.tab-bar .tab.active .tab-close,
+.tab-close:focus-visible {
+  opacity: 1;
+}
+
+.tab-close:hover,
+.tab-scroll-button:hover:not(:disabled),
 .tab-bar .add-tab:hover {
-  background-color: var(--btn-hover-bg);
+  border-color: var(--app-border);
+  background: var(--app-accent-soft);
+  color: var(--app-text);
+}
+
+.tab-rename-input {
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.tab-scroll-button,
+.tab-bar .add-tab {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-self: center;
+  border-radius: var(--app-radius-sm);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.tab-scroll-button[hidden] {
+  display: none;
+}
+
+.tab-bar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding-left: 5px;
+  border-left: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+@media (max-width: 640px) {
+  .tab-bar {
+    --tab-width: 116px;
+    padding-inline: 5px;
+  }
 }

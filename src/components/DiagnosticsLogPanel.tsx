@@ -120,12 +120,12 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
   });
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="diagnostics-log-title">
       <div
         className={isDarkMode ? 'modal-card modal-card-dark diagnostics-log-card' : 'modal-card diagnostics-log-card'}
       >
         <div className="modal-header diagnostics-log-header">
-          <h3>诊断日志</h3>
+          <h3 id="diagnostics-log-title">诊断日志</h3>
           <span className="diagnostics-log-path">{snapshot?.path ?? 'runtime.log'}</span>
         </div>
 
@@ -147,6 +147,8 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
         </div>
 
         <textarea className="diagnostics-log-output" readOnly value={previewText} spellCheck={false} />
+
+        {error && <div className="modal-error">{error}</div>}
 
         <div className="modal-actions">
           <button type="button" onClick={loadLog} disabled={isLoading}>
@@ -173,8 +175,6 @@ const DiagnosticsLogPanel: React.FC<DiagnosticsLogPanelProps> = ({ isDarkMode, c
           </button>
           {copyNotice && <span className="modal-copy-hint">{copyNotice}</span>}
         </div>
-
-        {error && <div className="modal-error">{error}</div>}
       </div>
     </div>
   );
