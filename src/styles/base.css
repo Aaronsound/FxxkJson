@@ -135,11 +135,11 @@ body {
 /*           深色/浅色模式配色变量定义          */
 /* ============================================= */
 :root {
-  --app-accent: #238b59;
-  --app-accent-hover: #1c7a4d;
-  --app-accent-soft: rgba(35, 139, 89, 0.1);
-  --app-accent-border: rgba(35, 139, 89, 0.24);
-  --app-accent-text: #238b59;
+  --app-accent: #359461;
+  --app-accent-hover: #2b8656;
+  --app-accent-soft: rgba(53, 148, 97, 0.1);
+  --app-accent-border: rgba(53, 148, 97, 0.24);
+  --app-accent-text: #2f895a;
   --app-accent-contrast: #ffffff;
   --app-surface: #f4f5f3;
   --app-surface-raised: #ffffff;
@@ -168,11 +168,11 @@ body {
   --json-fold-hover-bg: rgba(73, 104, 150, 0.14);
 }
 .app-container.dark-mode {
-  --app-accent: #58b982;
-  --app-accent-hover: #6bc892;
-  --app-accent-soft: rgba(88, 185, 130, 0.14);
-  --app-accent-border: rgba(88, 185, 130, 0.28);
-  --app-accent-text: #72cf99;
+  --app-accent: #64bd8b;
+  --app-accent-hover: #76c99a;
+  --app-accent-soft: rgba(100, 189, 139, 0.14);
+  --app-accent-border: rgba(100, 189, 139, 0.28);
+  --app-accent-text: #7dce9f;
   --app-accent-contrast: #102419;
   --app-surface: #292d2a;
   --app-surface-raised: #323733;

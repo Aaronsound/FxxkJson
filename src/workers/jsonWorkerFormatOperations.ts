@@ -1,14 +1,15 @@
-import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { LargeJsonLineIndex, WorkerRequestMessage } from '../types/jsonTool';
+import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import {
   type JsonDocumentMetrics,
   measureJsonDocument,
   shouldUseDedicatedRightViewerForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
-import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
+import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
+import type { RawDocumentCacheEntry } from './jsonNodeEditOperations';
 import {
   copyLargeViewerLineIndex,
   getLargeViewerTransferables,
@@ -16,7 +17,6 @@ import {
   postTextResult,
   readMessageText,
 } from './jsonWorkerTextPayload';
-import type { RawDocumentCacheEntry } from './jsonNodeEditOperations';
 
 type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
 
@@ -128,11 +128,11 @@ export function createJsonWorkerFormatOperations({
         }
 
         const viewerIndexStartedAt = performance.now();
-        const viewerData = buildLargeViewerData(
-          formatted,
-          DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
-          formattedMetrics.lineCount
-        );
+        // Reaching this branch already means the caller selected the dedicated
+        // viewer by byte size, line count, or an explicit processing plan. A
+        // large document with only a few extremely long lines still needs the
+        // virtual viewer, so do not apply the line-count gate a second time.
+        const viewerData = buildLargeViewerData(formatted, 0, formattedMetrics.lineCount);
         const viewerIndexMs = performance.now() - viewerIndexStartedAt;
         const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
         const isIdentityFormat =
@@ -141,19 +141,19 @@ export function createJsonWorkerFormatOperations({
           enableDirectLocate &&
           !normalizedNestedString &&
           sourceText === formatted;
-        if (viewerData) {
+        if (viewerData && workerViewerData) {
           viewerCache.set(tabId, {
             requestId,
             formattedText: formatted,
             formattedMetrics,
-            viewerData: workerViewerData!,
+            viewerData: workerViewerData,
           });
         } else {
           viewerCache.delete(tabId);
         }
 
         if (!enableStructure && enableDirectLocate && !normalizedNestedString) {
-          if (viewerData) {
+          if (viewerData && workerViewerData) {
             structureCache.set(tabId, {
               requestId,
               directLocate: true,
@@ -162,7 +162,7 @@ export function createJsonWorkerFormatOperations({
               rawMetrics: sourceMetrics,
               formattedText: formatted,
               formattedMetrics,
-              viewerData: workerViewerData!,
+              viewerData: workerViewerData,
               tokenLocateCache: { tokenOffsetsByToken: new Map() },
             });
             postWorkerMessage({
@@ -257,6 +257,10 @@ export function createJsonWorkerFormatOperations({
     }
 
     setTimeout(() => {
+      if (latestFormatRequestByTab.get(tabId) !== requestId) {
+        return;
+      }
+
       const current = structureCache.get(tabId);
       if (!current || current.requestId !== requestId) {
         return;

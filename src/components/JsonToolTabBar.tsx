@@ -259,7 +259,9 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
           ›
         </button>
         <button type="button" className="add-tab" aria-label={t('tabs.add')} title={t('tabs.add')} onClick={onAddTab}>
-          +
+          <span className="add-tab-plus" aria-hidden="true">
+            +
+          </span>
         </button>
       </div>
     </div>

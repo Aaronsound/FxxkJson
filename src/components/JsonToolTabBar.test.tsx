@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createTranslator } from '../utils/i18n';
 import JsonToolTabBar from './JsonToolTabBar';
 
 function renderTabBar(overrides: Partial<React.ComponentProps<typeof JsonToolTabBar>> = {}) {
@@ -62,9 +63,18 @@ describe('JsonToolTabBar', () => {
     const addButton = screen.getByRole('button', { name: '新建标签' });
     expect(tabList.contains(addButton)).toBe(false);
     expect(container.querySelector('.tab-bar-actions')?.contains(addButton)).toBe(true);
+    expect(addButton.querySelector('.add-tab-plus')).toHaveTextContent('+');
 
     fireEvent.click(addButton);
     expect(props.onAddTab).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the compact icon understandable in English', () => {
+    renderTabBar({ t: createTranslator('en') });
+
+    const addButton = screen.getByRole('button', { name: 'New tab' });
+    expect(addButton).toHaveAttribute('title', 'New tab');
+    expect(addButton.querySelector('.add-tab-plus')).toHaveTextContent('+');
   });
 
   it('switches tabs with arrow, Home and End keys', () => {

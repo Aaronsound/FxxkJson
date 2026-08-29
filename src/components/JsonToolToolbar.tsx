@@ -498,6 +498,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 checked={wrapLongLines}
                 onChange={(event) => onWrapLongLinesChange(event.target.checked)}
               />
+              <span className="toolbar-checkbox-control" aria-hidden="true" />
               {t('toolbar.wrap')}
             </label>
             <label className="toolbar-checkbox">
@@ -507,6 +508,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 disabled={isLargeFileMode && !canEnableLargeFileLocate}
                 onChange={(event) => onLargeFileLocateToggle(event.target.checked)}
               />
+              <span className="toolbar-checkbox-control" aria-hidden="true" />
               {t('toolbar.largeLocate')}
             </label>
             <label className="toolbar-checkbox">
@@ -515,6 +517,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
                 checked={showPerformancePanel}
                 onChange={(event) => onShowPerformancePanelChange(event.target.checked)}
               />
+              <span className="toolbar-checkbox-control" aria-hidden="true" />
               {t('toolbar.performance')}
             </label>
           </div>

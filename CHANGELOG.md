@@ -10,6 +10,12 @@
 - 将完整 Electron E2E 扩展到 Linux、macOS 和 Windows，并在发布前为每个目标执行 20MB 场景。
 - 将全部 renderer 源码纳入覆盖率基线，补齐内容操作和 worker 编辑流程的关键分支测试。
 - 固定生产依赖安全审计使用 npm 官方接口，并加入面向 `dev` 的 Dependabot 小版本自动维护。
+- 降低 Electron 原生大文件导入的临时字符串占用，并兼容读取期间文件大小变化。
+- 修复少行超长 JSON 未进入虚拟查看器及过期结构任务仍可能回传结果的问题。
+- 补齐格式化 Worker、标签状态和左右搜索编排的防回归测试与覆盖率门槛。
+- 在保留原有绿色辨识度的基础上适度淡化默认主题，并同步浅色和深色交互状态。
+- 统一工具栏复选框的选中与未选中尺寸和基线，避免 macOS、Windows 原生控件绘制差异造成错位。
+- 适度强化固定在标签栏右侧的新建加号，并保留中英文悬浮提示。
 
 ### English
 
@@ -19,6 +25,12 @@
 - Expanded the full Electron E2E suite to Linux, macOS, and Windows, with a 20MB scenario on every release target before packaging.
 - Included every renderer source file in the coverage baseline and added focused branch coverage for content actions and worker edits.
 - Pinned production security audits to the official npm endpoint and added Dependabot minor/patch maintenance targeting `dev`.
+- Reduced temporary string allocations during native Electron imports while tolerating files that change size during reading.
+- Fixed byte-large, low-line-count JSON bypassing the virtual viewer and stale structure work potentially publishing results.
+- Added regression tests and coverage gates for format workers, tab state, and dual-pane search orchestration.
+- Gently softened the default theme while preserving its original green character across light and dark interaction states.
+- Unified toolbar checkbox sizing and baselines across checked and unchecked states to avoid native macOS and Windows rendering drift.
+- Gave the fixed new-tab plus a subtle visual emphasis while retaining bilingual tooltips.
 
 ## v1.0.33 - 2026-08-28
 

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { NativeJsonFileBuffer } from './nativeJsonFileBuffer';
 
 interface NativeJsonFileMetadata {
   path: string;
@@ -16,20 +17,30 @@ type NativeJsonFileStreamMessage =
 function openJsonFile() {
   return new Promise<(NativeJsonFileMetadata & { content: string }) | null>((resolve, reject) => {
     const channel = new MessageChannel();
-    const decoder = new TextDecoder();
-    const textChunks: string[] = [];
+    let fileBuffer: NativeJsonFileBuffer | null = null;
     let metadata: NativeJsonFileMetadata | null = null;
 
-    const finish = () => channel.port1.close();
+    const finish = () => {
+      fileBuffer?.release();
+      fileBuffer = null;
+      channel.port1.close();
+    };
     channel.port1.onmessage = (event: MessageEvent<NativeJsonFileStreamMessage>) => {
       const message = event.data;
       if (message.type === 'selected') {
         metadata = { name: message.name, path: message.path, size: message.size };
+        fileBuffer = new NativeJsonFileBuffer(message.size);
         return;
       }
 
       if (message.type === 'chunk') {
-        textChunks.push(decoder.decode(message.chunk, { stream: true }));
+        if (!fileBuffer) {
+          finish();
+          reject(new Error('JSON file metadata was not received before its content'));
+          return;
+        }
+
+        fileBuffer.append(message.chunk);
         channel.port1.postMessage({ type: 'chunk-ack' });
         return;
       }
@@ -46,15 +57,16 @@ function openJsonFile() {
         return;
       }
 
-      if (!metadata) {
+      if (!metadata || !fileBuffer) {
         finish();
         reject(new Error('JSON file metadata was not received'));
         return;
       }
 
-      textChunks.push(decoder.decode());
-      finish();
-      resolve({ ...metadata, content: textChunks.join('') });
+      const content = fileBuffer.finish();
+      fileBuffer = null;
+      channel.port1.close();
+      resolve({ ...metadata, content });
     };
     channel.port1.start();
     ipcRenderer.postMessage('file:openJsonStream', null, [channel.port2]);

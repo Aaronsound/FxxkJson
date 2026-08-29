@@ -22,7 +22,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'electron/**/*.test.ts'],
     coverage: {
       enabled: false,
       provider: 'v8',
@@ -67,11 +67,29 @@ export default defineConfig({
           lines: 97,
           statements: 97,
         },
+        'src/hooks/useJsonToolSearchEffects.ts': {
+          branches: 86,
+          functions: 92,
+          lines: 95,
+          statements: 95,
+        },
+        'src/hooks/useJsonToolTabsState.ts': {
+          branches: 60,
+          functions: 100,
+          lines: 98,
+          statements: 98,
+        },
         'src/workers/jsonWorkerEditJsonOperations.ts': {
           branches: 83,
           functions: 100,
           lines: 95,
           statements: 95,
+        },
+        'src/workers/jsonWorkerFormatOperations.ts': {
+          branches: 76,
+          functions: 100,
+          lines: 84,
+          statements: 84,
         },
       },
     },

@@ -115,8 +115,7 @@
 }
 
 .tab-close:hover,
-.tab-scroll-button:hover:not(:disabled),
-.tab-bar .add-tab:hover {
+.tab-scroll-button:hover:not(:disabled) {
   border-color: var(--app-border);
   background: var(--app-accent-soft);
   color: var(--app-text);
@@ -133,8 +132,7 @@
   font: inherit;
 }
 
-.tab-scroll-button,
-.tab-bar .add-tab {
+.tab-scroll-button {
   width: 30px;
   height: 30px;
   flex: 0 0 30px;
@@ -156,6 +154,33 @@
   padding-left: 5px;
   border-left: 1px solid var(--app-border);
   background: var(--app-surface);
+}
+
+.tab-bar .add-tab {
+  width: 32px;
+  min-width: 32px;
+  height: 30px;
+  flex: 0 0 32px;
+  align-self: center;
+  padding: 0;
+  border-color: transparent;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--app-accent-text);
+}
+
+.add-tab-plus {
+  display: block;
+  transform: translateY(-1px);
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.tab-bar .add-tab:hover {
+  border-color: var(--app-accent);
+  background: var(--app-accent-soft);
+  color: var(--app-accent-hover);
 }
 
 @media (max-width: 640px) {
