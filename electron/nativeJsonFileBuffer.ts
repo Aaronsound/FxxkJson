@@ -41,10 +41,12 @@ export class NativeJsonFileBuffer {
   }
 
   finish() {
-    const completedBytes = this.bytes.subarray(0, this.byteLength);
+    const completedBytes =
+      this.byteLength === this.bytes.byteLength ? this.bytes : this.bytes.slice(0, this.byteLength);
     const text = new TextDecoder().decode(completedBytes);
+    const buffer = completedBytes.buffer as ArrayBuffer;
     this.release();
-    return text;
+    return { buffer, text };
   }
 
   release() {

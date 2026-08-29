@@ -37,6 +37,7 @@ export async function startElectronApp({ appMain, cwd, electronCli, extraEnviron
       ...(isLinuxCi ? { ELECTRON_DISABLE_SANDBOX: '1' } : {}),
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
       ELECTRON_OPEN_DEVTOOLS: '0',
+      HANJSON_E2E_HIDDEN: '1',
       ...extraEnvironment,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -74,15 +75,21 @@ export async function readElectronMemorySnapshot(cdp) {
 
   return {
     processCount: metrics.length,
+    processes: metrics.map((metric) => ({
+      name: metric.name,
+      peakWorkingSetMb: (metric.memory?.peakWorkingSetSize ?? 0) / 1024,
+      type: metric.type,
+      workingSetMb: (metric.memory?.workingSetSize ?? 0) / 1024,
+    })),
     rendererHeapMb: rendererHeapBytes / (1024 * 1024),
     totalPeakWorkingSetMb,
     totalWorkingSetMb,
   };
 }
 
-export function assertElectronMemoryBudget(snapshot, sizeMb) {
+export function assertElectronMemoryBudget(snapshot, sizeMb, { peakSizeMb = sizeMb } = {}) {
   const totalWorkingSetBudgetMb = 700 + sizeMb * 20;
-  const totalPeakWorkingSetBudgetMb = 950 + sizeMb * 24;
+  const totalPeakWorkingSetBudgetMb = 950 + peakSizeMb * 24;
   const rendererHeapBudgetMb = 96 + sizeMb * 8;
   const failures = [];
 

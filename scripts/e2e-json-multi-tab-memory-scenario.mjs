@@ -56,7 +56,13 @@ export async function runMultiTabMemoryScenario(cdp, tempDir, primarySizeMb) {
 
   await collectRendererGarbage(cdp);
   const afterClose = await readElectronMemorySnapshot(cdp);
-  assertElectronMemoryBudget(afterClose, primarySizeMb);
+  // Peak working set is process-lifetime data and cannot shrink after the
+  // auxiliary tabs close. Keep current working-set/heap budgets tied to the
+  // primary document, but compare the historical peak against all files that
+  // were opened during this scenario.
+  assertElectronMemoryBudget(afterClose, primarySizeMb, {
+    peakSizeMb: primarySizeMb + AUXILIARY_TAB_COUNT * AUXILIARY_TAB_SIZE_MB,
+  });
 
   const workingSetSlackMb = 96;
   const rendererHeapSlackMb = 32;

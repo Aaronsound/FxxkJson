@@ -1,10 +1,10 @@
-import { memo } from 'react';
 import type { Dispatch, MouseEvent as ReactMouseEvent, ReactNode, SetStateAction } from 'react';
+import { memo } from 'react';
 import type { LargeJsonViewerData } from '../types/jsonTool';
-import { getFirstMeaningfulOffset, getLargeJsonLineTitle } from '../utils/largeJsonViewerDom';
-import { getCollapsedPreview } from '../utils/largeJsonViewerRender';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
 import { getRegionFoldTargets } from '../utils/largeJsonFoldTarget';
+import { getFirstMeaningfulOffset, getLargeJsonLineTitle } from '../utils/largeJsonViewerDom';
+import { getCollapsedPreview } from '../utils/largeJsonViewerRender';
 import type { LargeJsonContextMenuState } from './LargeJsonContextMenu';
 
 interface LocalSelectionRange {
@@ -120,7 +120,7 @@ function LargeJsonVisibleRowView({
       style={rowStyle}
     >
       <span className="large-json-line-number" style={{ width: lineNumberWidth }}>
-        {lineNumber}
+        {data.literalChunks ? (lineNumber === 1 ? 1 : '') : lineNumber}
       </span>
       <button
         type="button"

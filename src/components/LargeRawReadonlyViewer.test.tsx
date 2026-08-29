@@ -1,12 +1,13 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
+import { buildEscapedStringLiteralRawViewerData, buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import LargeRawReadonlyViewer, {
   areLargeRawReadonlyRowPropsEqual,
   type LargeRawReadonlyRowProps,
   type LargeRawReadonlyViewerHandle,
 } from './LargeRawReadonlyViewer';
-import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 describe('LargeRawReadonlyViewer', () => {
   function makeRect(left: number, right: number): DOMRect {
@@ -28,7 +29,9 @@ describe('LargeRawReadonlyViewer', () => {
       chunkEnd: 2000,
       chunkStart: 0,
       highlightRange: null,
+      lineNumber: 1,
       rowIndex: 0,
+      syntaxState: 0,
       text: 'x'.repeat(4000),
     };
 
@@ -45,7 +48,7 @@ describe('LargeRawReadonlyViewer', () => {
 
   it('reveals and highlights raw offsets without rendering one giant row', async () => {
     const ref = createRef<LargeRawReadonlyViewerHandle>();
-    const text = 'a'.repeat(4500) + '"target"' + 'b'.repeat(4500);
+    const text = `${'a'.repeat(4500)}"target"${'b'.repeat(4500)}`;
     const start = text.indexOf('"target"');
 
     render(
@@ -68,7 +71,7 @@ describe('LargeRawReadonlyViewer', () => {
 
   it('scrolls horizontally to the exact offset inside a large raw chunk', async () => {
     const ref = createRef<LargeRawReadonlyViewerHandle>();
-    const text = 'a'.repeat(3800) + '"target"' + 'b'.repeat(400);
+    const text = `${'a'.repeat(3800)}"target"${'b'.repeat(400)}`;
     const start = text.indexOf('"target"');
 
     const { container } = render(
@@ -122,6 +125,56 @@ describe('LargeRawReadonlyViewer', () => {
     expect(rowTexts.length).toBeGreaterThan(1);
     rowTexts.forEach((rowText) => {
       expect(rowText.textContent).not.toContain('\n');
+    });
+  });
+
+  it('matches Monaco syntax colors and keeps continuation chunks on the original logical line', () => {
+    const text = `{"name":"${'x'.repeat(4500)}","active":true}`;
+    const data = buildLargeRawViewerData(text);
+
+    const { container } = render(
+      <LargeRawReadonlyViewer text={text} data={data} isDarkMode={false} highlightRange={null} />
+    );
+
+    expect(container.querySelector('.large-json-token-key')?.textContent).toBe('"name"');
+    expect(container.querySelectorAll('.large-json-token-string').length).toBeGreaterThan(1);
+    expect(container.querySelectorAll('.large-json-token-literal').length).toBe(1);
+    expect(Array.from(container.querySelectorAll('.large-raw-offset')).map((node) => node.textContent)).toEqual([
+      '1',
+      '',
+      '',
+    ]);
+  });
+
+  it('renders cached literal-string rows in dark mode and exposes keyboard focus', () => {
+    const ref = createRef<LargeRawReadonlyViewerHandle>();
+    const text = JSON.stringify('escaped text');
+    const data = buildEscapedStringLiteralRawViewerData(text.length);
+    const { container } = render(
+      <LargeRawReadonlyViewer ref={ref} text={text} data={data} isDarkMode highlightRange={null} />
+    );
+
+    ref.current?.focus();
+
+    const viewer = container.querySelector('.large-raw-viewer');
+    expect(viewer).toHaveClass('dark');
+    expect(viewer).toHaveFocus();
+    expect(container.querySelector('.large-json-token-string')).toHaveTextContent(text);
+  });
+
+  it('coalesces native scroll updates into the virtual viewport frame', async () => {
+    const text = Array.from({ length: 200 }, (_, index) => `{"line":${index}}`).join('\n');
+    const { container } = render(<LargeRawReadonlyViewer text={text} isDarkMode={false} highlightRange={null} />);
+    const viewer = container.querySelector('.large-raw-viewer') as HTMLElement;
+
+    fireEvent.scroll(viewer, { target: { scrollTop: 1000 } });
+    fireEvent.scroll(viewer, { target: { scrollTop: 1200 } });
+
+    await waitFor(() => {
+      const firstVisibleRow = Math.floor(1200 / JSON_EDITOR_LINE_HEIGHT) - 20;
+      expect(container.querySelector('.large-raw-row')).toHaveStyle({
+        top: `${firstVisibleRow * JSON_EDITOR_LINE_HEIGHT}px`,
+      });
     });
   });
 });

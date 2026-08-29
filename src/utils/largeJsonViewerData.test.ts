@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import {
+  buildLargeLiteralViewerData,
   buildLargeViewerData,
   findFirstRegionIndexAtStartLine,
   findSearchMatchesBatchInLargeJson,
@@ -24,6 +25,15 @@ function buildLineRichFormattedSample(lineCount: number) {
 }
 
 describe('largeJsonViewerData', () => {
+  it('builds a virtual chunk index for huge root string values without scanning their text', () => {
+    const viewer = buildLargeLiteralViewerData(4501, 2000);
+
+    expect(viewer.literalChunks).toBe(true);
+    expect(viewer.lineCount).toBe(3);
+    expect(Array.from(viewer.lineStarts)).toEqual([0, 2000, 4000]);
+    expect(viewer.regions.startLines).toHaveLength(0);
+  });
+
   it('uses the default high-line threshold for dedicated viewer data', () => {
     const formatted = buildLineRichFormattedSample(50001);
     const viewer = buildLargeViewerData(formatted);

@@ -1,7 +1,7 @@
 import type { MutableRefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { WorkerRequestMessage } from '../types/jsonTool';
+import { FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
 import { FORMAT_WORKER_RESULT_TIMEOUT_MS } from './jsonWorkerFormatWatchdog';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
@@ -157,6 +157,8 @@ describe('createJsonWorkerFormatQueue', () => {
     });
     expect(callbacks.logEvent).toHaveBeenCalledWith('format-start', expect.objectContaining({ requestId: 1 }));
     expect(session.formatStartedAt).toBeTypeOf('number');
+    expect(callbacks.setLargeViewerData).not.toHaveBeenCalled();
+    expect(callbacks.setLargeRawViewerData).not.toHaveBeenCalled();
   });
 
   it('uses the large-file debounce for large format requests', async () => {
@@ -186,6 +188,22 @@ describe('createJsonWorkerFormatQueue', () => {
 
     await vi.advanceTimersByTimeAsync(LARGE_FILE_FORMAT_DEBOUNCE_MS - FORMAT_DEBOUNCE_MS);
     expect(requests[0]).toMatchObject({ type: 'format', text });
+  });
+
+  it('formats a worker-cached transform without cloning the large text back to the worker', () => {
+    const { queue, requests, transfers } = createQueue();
+    const metrics = {
+      exceedsDedicatedViewerLineThreshold: false,
+      lineCount: 1,
+      textByteLength: LARGE_FILE_THRESHOLD,
+    };
+
+    queue.queueFormatFromWorkerCache('tab-a', 'cached transform', metrics);
+
+    expect(requests[0]).toMatchObject({ type: 'format', rawRevision: 7, reuseText: true });
+    expect(requests[0]).not.toHaveProperty('text');
+    expect(requests[0]).not.toHaveProperty('textBuffer');
+    expect(transfers[0]).toEqual([]);
   });
 
   it('posts repair requests immediately and marks repair stage', () => {
@@ -226,6 +244,19 @@ describe('createJsonWorkerFormatQueue', () => {
 
     expect(formatTimersRef.current['tab-a']).toBeUndefined();
     expect(requests[0]).toMatchObject({ type: 'format', text: '{"a":1}' });
+  });
+
+  it('transfers native import bytes directly instead of encoding the text again', async () => {
+    const { queue, requests, transfers } = createQueue();
+    const text = '{"a":1}';
+    const textBuffer = new TextEncoder().encode(text).buffer;
+
+    queue.queueFormatAfterImport('tab-a', text, undefined, textBuffer);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(requests[0]).toMatchObject({ type: 'format', textBuffer });
+    expect(requests[0]).not.toHaveProperty('text');
+    expect(transfers[0]).toEqual([textBuffer]);
   });
 
   it('logs and surfaces a worker timeout when a format result never returns', async () => {

@@ -118,6 +118,41 @@ describe('createJsonWorkerFormatOperations', () => {
     });
   });
 
+  it('formats the matching cached raw revision without another text payload', () => {
+    const harness = createHarness();
+    const cachedText = '{"cached":true}';
+    harness.rawDocumentCache.set('tab-a', {
+      rawMetrics: measureJsonDocument(cachedText),
+      rawRevision: 5,
+      rawText: cachedText,
+    });
+
+    harness.operations.handleFormatMessage(
+      formatRequest({ rawRevision: 5, reuseText: true, text: undefined } as never)
+    );
+
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'format-result', success: true, data: '{\n  "cached": true\n}' }),
+      []
+    );
+  });
+
+  it('fails safely when a requested cached raw revision is unavailable', () => {
+    const harness = createHarness();
+
+    harness.operations.handleFormatMessage(
+      formatRequest({ rawRevision: 5, reuseText: true, text: undefined } as never)
+    );
+
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'format-result',
+        success: false,
+        error: '工作线程文本缓存不可用',
+      })
+    );
+  });
+
   it('keeps dedicated viewing enabled for byte-large JSON with few lines', async () => {
     const harness = createHarness();
     const formatted = '{\n  "payload": "value"\n}';
@@ -152,6 +187,31 @@ describe('createJsonWorkerFormatOperations', () => {
       directLocate: true,
       directLocateMode: 'identity',
     });
+  });
+
+  it('publishes raw syntax data after the formatted viewer is ready', async () => {
+    const harness = createHarness();
+    const rawMetrics = {
+      exceedsDedicatedViewerLineThreshold: false,
+      lineCount: 1,
+      textByteLength: LARGE_FILE_THRESHOLD,
+    };
+
+    harness.operations.handleFormatMessage(
+      formatRequest({ buildViewer: true, enableStructure: false, rawMetrics, text: '{"value":"text"}' }) as never
+    );
+    await vi.runAllTimersAsync();
+
+    const messageTypes = postMessage.mock.calls.map(([message]) => (message as WorkerMessage).type);
+    expect(messageTypes.indexOf('format-result')).toBeLessThan(messageTypes.indexOf('viewer-ready'));
+    expect(messageTypes.indexOf('viewer-ready')).toBeLessThan(messageTypes.indexOf('raw-viewer-ready'));
+    const rawViewerReady = postMessage.mock.calls.find(
+      ([message]) => (message as WorkerMessage).type === 'raw-viewer-ready'
+    );
+    expect(rawViewerReady).toBeDefined();
+    const rawViewerMessage = rawViewerReady?.[0] as WorkerMessage;
+    expect(rawViewerMessage).toMatchObject({ requestId: 1, tabId: 'tab-a' });
+    expect(rawViewerMessage.rawViewerData?.syntaxStates).toBeInstanceOf(Uint8Array);
   });
 
   it('ignores viewer and structure work after a newer request replaces it', async () => {

@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react';
-import { EDIT_SAVE_FORMAT_DELAY_MS, FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS } from '../types/jsonTool';
 import type { StructureStatus, WorkerRequestMessage, WorkerRequestTextPayload } from '../types/jsonTool';
+import { EDIT_SAVE_FORMAT_DELAY_MS, FORMAT_DEBOUNCE_MS, LARGE_FILE_FORMAT_DEBOUNCE_MS } from '../types/jsonTool';
 import {
   getUtf8ByteLength,
   type JsonDocumentMetrics,
@@ -8,8 +8,8 @@ import {
   shouldUseLargeModeForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { buildJsonWorkerProcessingPlan, type JsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
-import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { scheduleFormatWatchdog } from './jsonWorkerFormatWatchdog';
+import type { PerformanceSession } from './useJsonPerformanceTracking';
 
 interface JsonWorkerFormatQueueCallbacks {
   logEvent: (event: string, details?: Record<string, unknown>) => void;
@@ -102,8 +102,9 @@ export function createJsonWorkerFormatQueue({
     callbacksRef.current.setTabFormatting(tabId, true);
     callbacksRef.current.setProcessingStage(tabId, stage);
     callbacksRef.current.setLocateFeedback(tabId, null);
-    callbacksRef.current.setLargeViewerData(tabId, null);
-    callbacksRef.current.setLargeRawViewerData(tabId, null);
+    // Keep the last complete result visible while the next one is prepared.
+    // The result handler replaces it only when the new text/index is ready,
+    // avoiding a blank pane during large background work.
     callbacksRef.current.setLargeViewerStatus(tabId, plan.shouldBuildLargeViewer ? 'building' : 'idle');
     workerStructureEnabledRef.current[tabId] = plan.workerLocateEnabled;
     callbacksRef.current.setStructureStatus(
@@ -114,7 +115,15 @@ export function createJsonWorkerFormatQueue({
     return { plan, requestId };
   };
 
-  const queueFormat = (tabId: string, text: string, immediate = false, preparation?: JsonFormatPreparation) => {
+  const queueFormat = (
+    tabId: string,
+    text: string,
+    immediate = false,
+    preparation?: JsonFormatPreparation,
+    delayMs?: number,
+    reuseWorkerText = false,
+    preparedTextBuffer?: ArrayBuffer
+  ) => {
     clearPendingFormat(tabId);
     callbacksRef.current.setTabError(tabId, null);
     cancelInteractiveRequests(tabId);
@@ -195,22 +204,28 @@ export function createJsonWorkerFormatQueue({
         requestId,
         textLength: plan.textByteLength,
       });
-      const textPayload = createWorkerTextPayload(text, plan.textByteLength);
-      postWorkerRequest(
-        {
-          type: 'format',
-          requestId,
-          tabId,
-          enableStructure: plan.shouldBuildStructureIndex,
-          enableDirectLocate: plan.shouldAttemptDirectLocate,
-          deferStructure: plan.shouldDeferStructureIndex,
-          buildViewer: plan.shouldBuildLargeViewer,
-          structureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
-          rawRevision,
-          ...textPayload.message,
-        },
-        textPayload.transfer
-      );
+      const textPayload = reuseWorkerText
+        ? null
+        : preparedTextBuffer?.byteLength === plan.textByteLength
+          ? { message: { textBuffer: preparedTextBuffer }, transfer: [preparedTextBuffer] }
+          : createWorkerTextPayload(text, plan.textByteLength);
+      const request = {
+        type: 'format' as const,
+        requestId,
+        tabId,
+        enableStructure: plan.shouldBuildStructureIndex,
+        enableDirectLocate: plan.shouldAttemptDirectLocate,
+        deferStructure: plan.shouldDeferStructureIndex,
+        buildViewer: plan.shouldBuildLargeViewer,
+        structureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
+        rawMetrics: plan.rawMetrics,
+        rawRevision,
+      };
+      if (reuseWorkerText) {
+        postWorkerRequest({ ...request, reuseText: true });
+      } else if (textPayload) {
+        postWorkerRequest({ ...request, ...textPayload.message }, textPayload.transfer);
+      }
       scheduleFormatWatchdog({
         callbacksRef,
         clearFormatWatchdog,
@@ -230,7 +245,7 @@ export function createJsonWorkerFormatQueue({
 
     formatTimersRef.current[tabId] = window.setTimeout(
       run,
-      plan.largeMode ? LARGE_FILE_FORMAT_DEBOUNCE_MS : FORMAT_DEBOUNCE_MS
+      delayMs ?? (plan.largeMode ? LARGE_FILE_FORMAT_DEBOUNCE_MS : FORMAT_DEBOUNCE_MS)
     );
   };
 
@@ -289,6 +304,7 @@ export function createJsonWorkerFormatQueue({
         deferStructure: plan.shouldDeferStructureIndex,
         buildViewer: plan.shouldBuildLargeViewer,
         structureWarmupDelayMs: plan.deferredStructureWarmupDelayMs,
+        rawMetrics: plan.rawMetrics,
         rawRevision,
         ...textPayload.message,
       },
@@ -306,16 +322,25 @@ export function createJsonWorkerFormatQueue({
     });
   };
 
-  const queueFormatAfterUiUpdate = (tabId: string, text: string, delayMs = 0, preparation?: JsonFormatPreparation) => {
+  const queueFormatAfterUiUpdate = (
+    tabId: string,
+    text: string,
+    delayMs = 0,
+    preparation?: JsonFormatPreparation,
+    preparedTextBuffer?: ArrayBuffer
+  ) => {
     clearPendingFormat(tabId);
     formatTimersRef.current[tabId] = window.setTimeout(() => {
       delete formatTimersRef.current[tabId];
-      queueFormat(tabId, text, true, preparation);
+      queueFormat(tabId, text, true, preparation, undefined, false, preparedTextBuffer);
     }, delayMs);
   };
 
   return {
     queueFormat,
+    queueFormatFromWorkerCache(tabId: string, text: string, metrics: JsonDocumentMetrics) {
+      queueFormat(tabId, text, true, metrics, undefined, true);
+    },
     queueFormatAfterEditSave(tabId: string, text: string, metrics?: JsonDocumentMetrics) {
       const preparation = metrics ?? measureJsonDocument(text);
       const shouldDelay = shouldUseLargeModeForMetrics(preparation);
@@ -324,9 +349,10 @@ export function createJsonWorkerFormatQueue({
     queueFormatAfterImport(
       tabId: string,
       text: string,
-      preparedPlan?: ReturnType<typeof buildJsonWorkerProcessingPlan>
+      preparedPlan?: ReturnType<typeof buildJsonWorkerProcessingPlan>,
+      preparedTextBuffer?: ArrayBuffer
     ) {
-      queueFormatAfterUiUpdate(tabId, text, 0, preparedPlan);
+      queueFormatAfterUiUpdate(tabId, text, 0, preparedPlan, preparedTextBuffer);
     },
     queueRepair,
   };

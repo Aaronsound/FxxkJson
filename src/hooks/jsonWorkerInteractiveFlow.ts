@@ -80,6 +80,7 @@ export function createJsonWorkerInteractiveFlow({
       reject: (error: Error) => void;
       request: EditJsonWorkerRequest;
       retriedWithOriginalText: boolean;
+      retriedWithText: boolean;
       resolve: (value: WorkerMessage) => void;
     }
   > = {};
@@ -165,6 +166,7 @@ export function createJsonWorkerInteractiveFlow({
   const sendEditJsonRequest = (
     request: EditJsonWorkerRequest,
     retriedWithOriginalText: boolean,
+    retriedWithText: boolean,
     resolve: (value: WorkerMessage) => void,
     reject: (error: Error) => void
   ) => {
@@ -182,6 +184,7 @@ export function createJsonWorkerInteractiveFlow({
       searchTerm,
       searchOptions,
       replacement,
+      reuseText,
     } = request;
     if (!workerRef.current) {
       reject(new Error('JSON worker is not ready'));
@@ -189,8 +192,8 @@ export function createJsonWorkerInteractiveFlow({
     }
 
     const requestId = ++locateRequestCounter;
-    pendingEditJsonRequests[requestId] = { reject, request, resolve, retriedWithOriginalText };
-    const textPayload = createWorkerTextPayload(text, textByteLength);
+    pendingEditJsonRequests[requestId] = { reject, request, resolve, retriedWithOriginalText, retriedWithText };
+    const textPayload = !reuseText || retriedWithText ? createWorkerTextPayload(text, textByteLength) : null;
     const shouldIncludeOriginalText = !reuseOriginalText || retriedWithOriginalText;
     const originalTextPayload =
       shouldIncludeOriginalText && typeof originalText === 'string'
@@ -207,7 +210,7 @@ export function createJsonWorkerInteractiveFlow({
         requestId,
         tabId,
         operation,
-        ...textPayload.message,
+        ...textPayload?.message,
         textByteLength,
         ...originalMessage,
         originalTextByteLength,
@@ -217,14 +220,15 @@ export function createJsonWorkerInteractiveFlow({
         searchTerm,
         searchOptions,
         replacement,
+        reuseText,
       },
-      [...textPayload.transfer, ...(originalTextPayload?.transfer ?? [])]
+      [...(textPayload?.transfer ?? []), ...(originalTextPayload?.transfer ?? [])]
     );
   };
 
   const requestEditJsonResult = (request: EditJsonWorkerRequest) =>
     new Promise<WorkerMessage>((resolve, reject) => {
-      sendEditJsonRequest(request, false, resolve, reject);
+      sendEditJsonRequest(request, false, false, resolve, reject);
     });
 
   const requestEditJson = (request: EditJsonWorkerRequest) =>
@@ -341,7 +345,9 @@ export function createJsonWorkerInteractiveFlow({
           !pending.retriedWithOriginalText &&
           typeof pending.request.originalText === 'string'
         ) {
-          sendEditJsonRequest(pending.request, true, pending.resolve, pending.reject);
+          sendEditJsonRequest(pending.request, true, pending.retriedWithText, pending.resolve, pending.reject);
+        } else if (!message.success && message.requiresText && !pending.retriedWithText) {
+          sendEditJsonRequest(pending.request, pending.retriedWithOriginalText, true, pending.resolve, pending.reject);
         } else if (message.success && (typeof data === 'string' || message.rawPatch)) {
           pending.resolve({
             ...message,

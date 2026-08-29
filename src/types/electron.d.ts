@@ -12,6 +12,7 @@ declare global {
     name: string;
     size: number;
     content: string;
+    contentBuffer: ArrayBuffer;
   }
 
   interface RuntimeAppInfo {
@@ -41,7 +42,9 @@ declare global {
       writeClipboardText: (text: string) => Promise<boolean>;
       getRuntimeInfo?: () => Promise<RuntimeAppInfo>;
       getProcessMetrics?: () => Promise<RuntimeProcessMetric[]>;
-      openJsonFile: () => Promise<NativeJsonFile | null>;
+      openJsonFile: (
+        onSelected?: (metadata: Omit<NativeJsonFile, 'content' | 'contentBuffer'>) => void
+      ) => Promise<NativeJsonFile | null>;
       onFindShortcut?: (callback: () => void) => () => void;
     };
   }

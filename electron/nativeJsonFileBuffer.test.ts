@@ -12,14 +12,18 @@ describe('NativeJsonFileBuffer', () => {
     buffer.append(bytes.subarray(14, 17));
     buffer.append(bytes.subarray(17));
 
-    expect(buffer.finish()).toBe(source);
+    const result = buffer.finish();
+    expect(result.text).toBe(source);
+    expect(new Uint8Array(result.buffer)).toEqual(bytes);
   });
 
   it('uses the received byte count when the file shrinks after metadata is read', () => {
     const buffer = new NativeJsonFileBuffer(128);
     buffer.append(new TextEncoder().encode('{"ok":true}'));
 
-    expect(buffer.finish()).toBe('{"ok":true}');
+    const result = buffer.finish();
+    expect(result.text).toBe('{"ok":true}');
+    expect(result.buffer.byteLength).toBe(11);
   });
 
   it('grows safely when the file expands after metadata is read', () => {
@@ -30,7 +34,9 @@ describe('NativeJsonFileBuffer', () => {
     buffer.append(bytes.subarray(0, 128));
     buffer.append(bytes.subarray(128));
 
-    expect(buffer.finish()).toBe(source);
+    const result = buffer.finish();
+    expect(result.text).toBe(source);
+    expect(result.buffer.byteLength).toBe(bytes.byteLength);
   });
 
   it('rejects invalid file sizes', () => {

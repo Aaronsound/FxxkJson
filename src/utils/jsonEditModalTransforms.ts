@@ -19,6 +19,11 @@ function indentSelectionReplacement(context: JsonEditSelectionContext, nextValue
 
   const baseIndent = ' '.repeat(baseIndentLength);
   const lines = nextValue.split('\n');
+  const indentedLines = lines.slice(1).filter((line) => line.length > 0);
+  if (indentedLines.length > 0 && indentedLines.every((line) => line.startsWith(baseIndent))) {
+    return nextValue;
+  }
+
   return lines.map((line, index) => (index === 0 || line.length === 0 ? line : `${baseIndent}${line}`)).join('\n');
 }
 

@@ -97,8 +97,10 @@ describe('handleJsonFormattingWorkerResult', () => {
   it('applies a successful format result and clears the watchdog', () => {
     const rawViewerData = {
       lengths: new Uint16Array([2]),
+      lineNumbers: new Uint32Array([1]),
       rowCount: 1,
       starts: new Uint32Array([0]),
+      syntaxStates: new Uint8Array([0]),
     } satisfies LargeRawViewerData;
     const { callbacks, context, session } = createContext();
 
@@ -149,9 +151,27 @@ describe('handleJsonFormattingWorkerResult', () => {
       context
     );
 
-    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', true, 4_000, 11);
+    expect(callbacks.updateFormattedContent).not.toHaveBeenCalled();
     expect(callbacks.setTabLargeMode).toHaveBeenCalledWith('tab-a', true);
     expect(callbacks.setLargeViewerStatus).toHaveBeenCalledWith('tab-a', 'building');
+
+    const viewerData = {
+      lineCount: 1,
+      lineStarts: new Uint32Array([0]),
+      regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
+    } satisfies LargeJsonViewerData;
+    handleJsonFormattingWorkerResult(
+      {
+        requestId: 1,
+        tabId: 'tab-a',
+        type: 'viewer-ready',
+        viewerData,
+      },
+      context
+    );
+
+    expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', false, 4_000, 11);
+    expect(callbacks.setLargeViewerData).toHaveBeenCalledWith('tab-a', viewerData);
   });
 
   it('surfaces a failed format result', () => {
@@ -173,8 +193,10 @@ describe('handleJsonFormattingWorkerResult', () => {
   it('applies a successful repair result and resets search state', () => {
     const rawViewerData = {
       lengths: new Uint16Array([7]),
+      lineNumbers: new Uint32Array([1]),
       rowCount: 1,
       starts: new Uint32Array([0]),
+      syntaxStates: new Uint8Array([0]),
     } satisfies LargeRawViewerData;
     const { callbacks, context, session } = createContext({
       rawTextByTabRef: ref<Record<string, string>>({ 'tab-a': '{ok:true}' }),
@@ -238,6 +260,27 @@ describe('handleJsonFormattingWorkerResult', () => {
     expect(callbacks.setLargeViewerStatus).toHaveBeenCalledWith('tab-a', 'ready');
     expect(callbacks.setProcessingStage).toHaveBeenCalledWith('tab-a', 'building-index');
     expect(session.status).toBe('running');
+  });
+
+  it('applies deferred raw viewer syntax data without changing formatted state', () => {
+    const rawViewerData = {
+      lengths: new Uint16Array([2]),
+      lineNumbers: new Uint32Array([1]),
+      rowCount: 1,
+      starts: new Uint32Array([0]),
+      syntaxStates: new Uint8Array([2]),
+    } satisfies LargeRawViewerData;
+    const { callbacks, context } = createContext();
+
+    expect(
+      handleJsonFormattingWorkerResult(
+        { requestId: 1, tabId: 'tab-a', type: 'raw-viewer-ready', rawViewerData },
+        context
+      )
+    ).toBe(true);
+
+    expect(callbacks.setLargeRawViewerData).toHaveBeenCalledWith('tab-a', rawViewerData);
+    expect(callbacks.updateFormattedContent).not.toHaveBeenCalled();
   });
 
   it('marks structure ready and returns to idle when no viewer build is pending', () => {

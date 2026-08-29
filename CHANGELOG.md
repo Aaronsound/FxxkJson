@@ -16,6 +16,12 @@
 - 在保留原有绿色辨识度的基础上适度淡化默认主题，并同步浅色和深色交互状态。
 - 统一工具栏复选框的选中与未选中尺寸和基线，避免 macOS、Windows 原生控件绘制差异造成错位。
 - 适度强化固定在标签栏右侧的新建加号，并保留中英文悬浮提示。
+- 让 JSON 转义与反转义严格保留原始空格、缩进和换行，避免往返操作意外格式化左侧内容。
+- 统一大文件左侧查看器与普通编辑器的 JSON 语法颜色和逻辑行号，并通过可转移缓冲区保证 20MB 内容转义往返仍原样恢复。
+- 优化 20MB 内容的连续转义：跳过无用的重复解析，并延后可被后续操作替代的右侧大文件构建。
+- 让连续大文件转换复用 Worker 文本和语义等价的格式化结果；更深层转义会同步右侧并使用分块虚拟渲染，同时让原生文件流在开始读取前先绘制进度提示。
+- 移除格式化关键路径中的重复全文度量与语法扫描，复用单次编码结果，并将“结果可发送”耗时纳入 5MB/20MB 性能回归门槛。
+- 让 Electron 原生导入直接把已读取的文件缓冲区转交格式化 Worker，避免 20MB 文本在渲染进程重复 UTF-8 编码。
 
 ### English
 
@@ -31,6 +37,12 @@
 - Gently softened the default theme while preserving its original green character across light and dark interaction states.
 - Unified toolbar checkbox sizing and baselines across checked and unchecked states to avoid native macOS and Windows rendering drift.
 - Gave the fixed new-tab plus a subtle visual emphasis while retaining bilingual tooltips.
+- Made JSON escape and unescape preserve original whitespace, indentation, and line breaks instead of reformatting the left pane during a round trip.
+- Matched large raw-viewer syntax colors and logical line numbers to the regular editor, while using transferable buffers to preserve 20MB escape round trips exactly.
+- Sped up repeated 20MB escapes by skipping redundant reparsing and deferring right-viewer builds that a subsequent transform can supersede.
+- Reused worker text and semantically equivalent formatted results across consecutive large transforms; deeper escapes now synchronize through a chunked virtual viewer, while native streams paint progress before file reading starts.
+- Removed duplicate full-text measurement and syntax scans from the format critical path, reused one encoded result, and added result-ready time to the 5MB/20MB regression gate.
+- Passed native Electron import buffers directly to the formatting worker, avoiding a second UTF-8 encoding of 20MB text in the renderer.
 
 ## v1.0.33 - 2026-08-28
 

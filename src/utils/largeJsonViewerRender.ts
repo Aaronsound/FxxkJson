@@ -25,6 +25,11 @@ export interface JsonSyntaxToken {
   className?: string;
 }
 
+export interface JsonStringContinuation {
+  className: string;
+  escaped: boolean;
+}
+
 type JsonSyntaxTokenVisitor = (start: number, end: number, className?: string) => void;
 
 export interface HighlightedJsonLineSegment {
@@ -490,6 +495,25 @@ function getJsonStringEnd(lineText: string, start: number) {
   return lineText.length;
 }
 
+function getJsonStringContinuationEnd(lineText: string, escapedAtStart: boolean) {
+  let index = 0;
+  let escaped = escapedAtStart;
+
+  while (index < lineText.length) {
+    const char = lineText[index];
+    if (escaped) {
+      escaped = false;
+    } else if (char === '\\') {
+      escaped = true;
+    } else if (char === '"') {
+      return index + 1;
+    }
+    index += 1;
+  }
+
+  return lineText.length;
+}
+
 function getNextNonWhitespaceIndex(lineText: string, start: number) {
   let index = start;
 
@@ -590,7 +614,11 @@ function isJsonPunctuationCode(charCode: number) {
   );
 }
 
-export function visitJsonLineTokens(lineText: string, visit: JsonSyntaxTokenVisitor) {
+export function visitJsonLineTokens(
+  lineText: string,
+  visit: JsonSyntaxTokenVisitor,
+  continuation?: JsonStringContinuation
+) {
   let index = 0;
 
   const pushToken = (start: number, end: number, className?: string) => {
@@ -598,6 +626,11 @@ export function visitJsonLineTokens(lineText: string, visit: JsonSyntaxTokenVisi
       visit(start, end, className);
     }
   };
+
+  if (continuation && lineText.length > 0) {
+    index = getJsonStringContinuationEnd(lineText, continuation.escaped);
+    pushToken(0, index, continuation.className);
+  }
 
   while (index < lineText.length) {
     const char = lineText[index];
@@ -652,11 +685,15 @@ export function visitJsonLineTokens(lineText: string, visit: JsonSyntaxTokenVisi
   }
 }
 
-export function tokenizeJsonLine(lineText: string): JsonSyntaxToken[] {
+export function tokenizeJsonLine(lineText: string, continuation?: JsonStringContinuation): JsonSyntaxToken[] {
   const tokens: JsonSyntaxToken[] = [];
-  visitJsonLineTokens(lineText, (start, end, className) => {
-    tokens.push({ start, end, className });
-  });
+  visitJsonLineTokens(
+    lineText,
+    (start, end, className) => {
+      tokens.push({ start, end, className });
+    },
+    continuation
+  );
   return tokens;
 }
 

@@ -222,23 +222,24 @@ export function useJsonFormattingWorker({
   const requestWorkerEditJson = interactiveFlow.requestEditJson;
   const requestWorkerEditJsonResult = interactiveFlow.requestEditJsonResult;
 
-  const { queueFormat, queueFormatAfterEditSave, queueFormatAfterImport, queueRepair } = createJsonWorkerFormatQueue({
-    callbacksRef,
-    clearFormatWatchdog,
-    cancelInteractiveRequests,
-    clearPendingFormat,
-    clearTabStructure,
-    createWorkerTextPayload,
-    formatWatchdogTimersRef,
-    formatTimersRef,
-    largeFileLocateEnabledRef,
-    largeModeRef,
-    latestRequestRef,
-    postWorkerRequest,
-    requestCounterRef,
-    rawRevisionByTabRef,
-    workerStructureEnabledRef,
-  });
+  const { queueFormat, queueFormatAfterEditSave, queueFormatAfterImport, queueFormatFromWorkerCache, queueRepair } =
+    createJsonWorkerFormatQueue({
+      callbacksRef,
+      clearFormatWatchdog,
+      cancelInteractiveRequests,
+      clearPendingFormat,
+      clearTabStructure,
+      createWorkerTextPayload,
+      formatWatchdogTimersRef,
+      formatTimersRef,
+      largeFileLocateEnabledRef,
+      largeModeRef,
+      latestRequestRef,
+      postWorkerRequest,
+      requestCounterRef,
+      rawRevisionByTabRef,
+      workerStructureEnabledRef,
+    });
 
   const { removeTabArtifacts, resetTabArtifacts } = createJsonWorkerTabArtifactActions({
     callbacksRef,
@@ -296,6 +297,7 @@ export function useJsonFormattingWorker({
     importJsonFile,
     importJsonText,
     queueFormat,
+    queueFormatFromWorkerCache,
     queueRepair,
     queueFormatAfterEditSave,
     releaseTransientWorkerCaches,

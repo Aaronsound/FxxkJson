@@ -15,6 +15,12 @@ type WorkerPostMessageScope = {
   postMessage(message: unknown, transfer: Transferable[]): void;
 };
 
+export interface PreparedWorkerText {
+  buffer: ArrayBuffer | null;
+  byteLength: number;
+  text: string;
+}
+
 let textDecoder: TextDecoder | null = null;
 let textEncoder: TextEncoder | null = null;
 
@@ -36,6 +42,15 @@ export function getTextEncoder() {
 
 export function getTextByteLength(text: string) {
   return getUtf8ByteLength(text);
+}
+
+export function prepareWorkerText(text: string): PreparedWorkerText {
+  const bytes = getTextEncoder().encode(text);
+  return {
+    buffer: bytes.byteLength >= LARGE_FILE_THRESHOLD ? bytes.buffer : null,
+    byteLength: bytes.byteLength,
+    text,
+  };
 }
 
 export function readMessageText(message: TextPayloadMessage) {
@@ -92,9 +107,12 @@ export function getRawViewerTransferables(rawViewerData: LargeRawViewerData | nu
     return [];
   }
 
-  const buffers = [rawViewerData.starts.buffer, rawViewerData.lengths.buffer].filter(
-    (buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer
-  );
+  const buffers = [
+    rawViewerData.starts.buffer,
+    rawViewerData.lineNumbers.buffer,
+    rawViewerData.lengths.buffer,
+    rawViewerData.syntaxStates.buffer,
+  ].filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
   return Array.from(new Set(buffers));
 }
 
@@ -118,6 +136,7 @@ export function copyLargeViewerLineIndex(viewerData: LargeJsonViewerData): Large
   return {
     lineStarts: viewerData.lineStarts.slice(),
     lineCount: viewerData.lineCount,
+    literalChunks: viewerData.literalChunks,
   };
 }
 
@@ -125,6 +144,49 @@ export function postTextResult(payload: Partial<WorkerMessage>, text: string, by
   const message = { ...payload };
   const transfer: Transferable[] = [];
   appendTextPayload(message, transfer, 'data', 'dataBuffer', text, byteLength);
+  transfer.push(...getRawViewerTransferables(payload.rawViewerData));
+  transfer.push(...getLargeViewerTransferables(payload.viewerData));
+  (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
+}
+
+export function postPreparedTextResult(payload: Partial<WorkerMessage>, prepared: PreparedWorkerText) {
+  const message = { ...payload };
+  const transfer: Transferable[] = [];
+
+  if (prepared.buffer) {
+    message.dataBuffer = prepared.buffer;
+    transfer.push(prepared.buffer);
+  } else {
+    message.data = prepared.text;
+  }
+
+  transfer.push(...getRawViewerTransferables(payload.rawViewerData));
+  transfer.push(...getLargeViewerTransferables(payload.viewerData));
+  (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
+}
+
+export function postPreparedRepairResult(
+  payload: Partial<WorkerMessage>,
+  formatted: PreparedWorkerText,
+  repaired: PreparedWorkerText
+) {
+  const message = { ...payload };
+  const transfer: Transferable[] = [];
+
+  if (formatted.buffer) {
+    message.dataBuffer = formatted.buffer;
+    transfer.push(formatted.buffer);
+  } else {
+    message.data = formatted.text;
+  }
+
+  if (repaired.buffer) {
+    message.repairedTextBuffer = repaired.buffer;
+    transfer.push(repaired.buffer);
+  } else {
+    message.repairedText = repaired.text;
+  }
+
   transfer.push(...getRawViewerTransferables(payload.rawViewerData));
   (self as unknown as WorkerPostMessageScope).postMessage(message, transfer);
 }

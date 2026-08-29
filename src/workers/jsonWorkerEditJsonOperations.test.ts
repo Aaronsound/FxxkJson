@@ -213,11 +213,12 @@ describe('createJsonWorkerEditJsonOperations', () => {
   it.each([
     ['copy-literal', '{"value":1}', '"{\\"value\\":1}"'],
     ['escape-json', '{"value":1}', '"{\\"value\\":1}"'],
-    ['unescape-json', '"{\\"value\\":1}"', '{\n  "value": 1\n}'],
+    ['unescape-json', '"{\\"value\\":1}"', '{"value":1}'],
   ] as const)('handles the %s text transform', (operation, text, expected) => {
     const postMessage = vi.fn();
+    const postTransferableMessage = vi.fn();
     vi.stubGlobal('postMessage', postMessage);
-    vi.stubGlobal('self', { postMessage: vi.fn() });
+    vi.stubGlobal('self', { postMessage: postTransferableMessage });
     const operations = createJsonWorkerEditJsonOperations({
       editJsonCache: new Map(),
       jsonNodeEditOperations: {
@@ -230,7 +231,189 @@ describe('createJsonWorkerEditJsonOperations', () => {
 
     operations.handleEditJsonMessage({ requestId: 14, tabId: 'tab-transform', operation, text });
 
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ operation, success: true, data: expected }));
+    const target = operation === 'copy-literal' ? postMessage : postTransferableMessage;
+    expect(target).toHaveBeenCalledWith(
+      expect.objectContaining({ operation, success: true, data: expected }),
+      ...(operation === 'copy-literal' ? [] : [[]])
+    );
+  });
+
+  it('reuses the cached raw document for consecutive whole-document escapes', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage });
+    const source = '{"value":1}';
+    const rawDocumentCache = new Map([
+      ['tab-transform-cache', { rawMetrics: measureJsonDocument(source), rawRevision: 4, rawText: source }],
+    ]);
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+      rawDocumentCache,
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 141,
+      tabId: 'tab-transform-cache',
+      operation: 'escape-json',
+      rawRevision: 4,
+      reuseText: true,
+    });
+
+    const escaped = JSON.stringify(source);
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: escaped, rawMetrics: measureJsonDocument(escaped), success: true }),
+      []
+    );
+    expect(rawDocumentCache.get('tab-transform-cache')).toMatchObject({ rawRevision: 5, rawText: escaped });
+  });
+
+  it('unescapes a cached whole document without parsing the decoded JSON object tree', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage });
+    const decoded = `[{"message":"${'x'.repeat(4096)}"}]`;
+    const escaped = JSON.stringify(decoded);
+    const rawDocumentCache = new Map([
+      ['tab-unescape-cache', { rawMetrics: measureJsonDocument(escaped), rawRevision: 9, rawText: escaped }],
+    ]);
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+      rawDocumentCache,
+    });
+    const parseSpy = vi.spyOn(JSON, 'parse');
+
+    operations.handleEditJsonMessage({
+      requestId: 144,
+      tabId: 'tab-unescape-cache',
+      operation: 'unescape-json',
+      rawRevision: 9,
+      reuseText: true,
+    });
+
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ data: decoded, success: true }), []);
+    parseSpy.mockRestore();
+  });
+
+  it('returns and caches a virtual formatted viewer for a deeper large escape', () => {
+    const postMessage = vi.fn<(message: WorkerMessage, transfer: Transferable[]) => void>();
+    vi.stubGlobal('self', { postMessage });
+    const source = JSON.stringify('x'.repeat(LARGE_FILE_THRESHOLD));
+    const rawDocumentCache = new Map([
+      ['tab-deep-escape', { rawMetrics: measureJsonDocument(source), rawRevision: 8, rawText: source }],
+    ]);
+    const viewerCache = new Map();
+    const structureCache = new Map([['tab-deep-escape', { formattedText: '{"stale":true}' }]]);
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+      rawDocumentCache,
+      structureCache,
+      viewerCache,
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 143,
+      tabId: 'tab-deep-escape',
+      operation: 'escape-json',
+      rawRevision: 8,
+      reuseText: true,
+    });
+
+    const message = postMessage.mock.calls[0][0];
+    expect(message).toMatchObject({
+      formattedMatchesRaw: true,
+      formattedMetrics: expect.objectContaining({ lineCount: 1 }),
+      viewerData: expect.objectContaining({ literalChunks: true }),
+    });
+    expect(viewerCache.get('tab-deep-escape')).toMatchObject({
+      formattedText: JSON.stringify(source),
+      viewerData: expect.objectContaining({ literalChunks: true }),
+    });
+    expect(structureCache.has('tab-deep-escape')).toBe(false);
+  });
+
+  it('returns the virtual formatted result immediately when unescaping between string layers', () => {
+    const postMessage = vi.fn<(message: WorkerMessage, transfer: Transferable[]) => void>();
+    vi.stubGlobal('self', { postMessage });
+    const singleEscaped = JSON.stringify('x'.repeat(LARGE_FILE_THRESHOLD));
+    const doubleEscaped = JSON.stringify(singleEscaped);
+    const rawDocumentCache = new Map([
+      [
+        'tab-deep-unescape',
+        { rawMetrics: measureJsonDocument(doubleEscaped), rawRevision: 10, rawText: doubleEscaped },
+      ],
+    ]);
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+      rawDocumentCache,
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 145,
+      tabId: 'tab-deep-unescape',
+      operation: 'unescape-json',
+      rawRevision: 10,
+      reuseText: true,
+    });
+
+    expect(postMessage.mock.calls[0][0]).toMatchObject({
+      formattedMatchesRaw: true,
+      formattedMetrics: expect.objectContaining({ lineCount: 1 }),
+      rawViewerData: expect.objectContaining({ rowCount: expect.any(Number) }),
+      viewerData: expect.objectContaining({ literalChunks: true }),
+    });
+  });
+
+  it('requests the source text when a reusable transform cache is unavailable', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage });
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+      rawDocumentCache: new Map(),
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 142,
+      tabId: 'tab-transform-cache-miss',
+      operation: 'escape-json',
+      rawRevision: 4,
+      reuseText: true,
+    });
+
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 142, requiresText: true, success: false })
+    );
   });
 
   it('reads a node through the cached node operation', () => {

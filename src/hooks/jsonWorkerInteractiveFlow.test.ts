@@ -170,6 +170,51 @@ describe('createJsonWorkerInteractiveFlow', () => {
     await expect(edit).resolves.toBe('"{\\"ok\\":true}"');
   });
 
+  it('reuses cached transform text and retries with the source when the cache is stale', async () => {
+    const { flow, requests, transfers } = createFlow();
+    const source = '{"ok":true}';
+    const edit = flow.requestEditJsonResult({
+      tabId: 'tab-a',
+      operation: 'escape-json',
+      text: source,
+      textByteLength: LARGE_FILE_THRESHOLD,
+      rawRevision: 7,
+      reuseText: true,
+    });
+
+    expect(requests[0]).toMatchObject({ operation: 'escape-json', rawRevision: 7, reuseText: true });
+    expect('text' in requests[0]).toBe(false);
+    expect('textBuffer' in requests[0]).toBe(false);
+    expect(transfers[0]).toEqual([]);
+
+    const firstRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: firstRequestId,
+        tabId: 'tab-a',
+        success: false,
+        requiresText: true,
+      })
+    );
+
+    expect(requests[1]).toMatchObject({ operation: 'escape-json', rawRevision: 7, reuseText: true });
+    expect('textBuffer' in requests[1] && requests[1].textBuffer).toBeInstanceOf(ArrayBuffer);
+    expect(transfers[1]).toEqual(['textBuffer' in requests[1] ? requests[1].textBuffer : undefined]);
+
+    const retryRequestId = 'requestId' in requests[1] ? requests[1].requestId : -1;
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: retryRequestId,
+        tabId: 'tab-a',
+        success: true,
+        data: JSON.stringify(source),
+      })
+    );
+    await expect(edit).resolves.toMatchObject({ data: JSON.stringify(source), success: true });
+  });
+
   it('reuses cached large originals and retries with a transfer when the worker cache is stale', async () => {
     const { flow, requests, transfers } = createFlow();
 

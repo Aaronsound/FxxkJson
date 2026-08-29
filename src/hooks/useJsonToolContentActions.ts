@@ -1,20 +1,30 @@
-import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type { MutableRefObject } from 'react';
 import type {
   EditJsonWorkerOperation,
   EditJsonWorkerRequest,
+  LargeJsonViewerData,
+  LargeRawViewerData,
   StructureStatus,
   Tab,
   TabDocumentMeta,
+  WorkerMessage,
 } from '../types/jsonTool';
-import { DEFAULT_TAB_TITLE } from '../types/jsonTool';
+import { DEFAULT_TAB_TITLE, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import {
   type JsonDocumentMetrics,
   measureJsonDocument,
+  measureJsonDocumentWithKnownByteLength,
   shouldUseLargeModeForMetrics,
 } from '../utils/jsonDocumentMetrics';
+import { buildEscapedStringLiteralRawViewerData } from '../utils/largeRawViewerData';
 
 type EscapeOperation = Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>;
+
+function isFormattedJsonContainer(text: string) {
+  const trimmed = text.trim();
+  return (trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'));
+}
 
 interface UseJsonToolContentActionsArgs {
   activeTab: Tab | null;
@@ -35,18 +45,37 @@ interface UseJsonToolContentActionsArgs {
   leftSearchWorkerRevisionRef: MutableRefObject<Record<string, number>>;
   largeModeRef: MutableRefObject<Record<string, boolean>>;
   openDocumentEditSession: (value: string) => void;
-  queueFormat: (tabId: string, text: string, immediate?: boolean, metrics?: JsonDocumentMetrics) => void;
+  queueFormat: (
+    tabId: string,
+    text: string,
+    immediate?: boolean,
+    metrics?: JsonDocumentMetrics,
+    delayMs?: number
+  ) => void;
+  queueFormatFromWorkerCache: (tabId: string, text: string, metrics: JsonDocumentMetrics) => void;
   queueRepair: (tabId: string, text: string, metrics?: JsonDocumentMetrics) => void;
   renameTab: (tabId: string, title: string) => void;
   requestWorkerEditJson: (request: EditJsonWorkerRequest) => Promise<string>;
+  requestWorkerEditJsonResult: (request: EditJsonWorkerRequest) => Promise<WorkerMessage>;
   resetSearchState: () => void;
   resetTabArtifacts: (tabId: string) => void;
   setEditJsonBusyLabel: (label: string | null) => void;
   setLargeFileLocateEnabled: (tabId: string, enabled: boolean) => void;
+  setLargeRawViewerData: (tabId: string, data: LargeRawViewerData | null) => void;
+  setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
+  setLargeViewerStatus: (tabId: string, status: 'idle' | 'building' | 'ready') => void;
+  setProcessingStage: (tabId: string, stage: 'idle') => void;
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
   setTabError: (tabId: string, error: string | null) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   updateTabContent: (tabId: string, content: string, syncModel?: boolean, byteLength?: number) => void;
+  updateFormattedContent: (
+    tabId: string,
+    content: string,
+    syncModel?: boolean,
+    byteLength?: number,
+    rawByteLength?: number
+  ) => void;
 }
 
 export function useJsonToolContentActions({
@@ -62,25 +91,37 @@ export function useJsonToolContentActions({
   largeModeRef,
   openDocumentEditSession,
   queueFormat,
+  queueFormatFromWorkerCache,
   queueRepair,
   renameTab,
   requestWorkerEditJson,
+  requestWorkerEditJsonResult,
   resetSearchState,
   resetTabArtifacts,
   setEditJsonBusyLabel,
   setLargeFileLocateEnabled,
+  setLargeRawViewerData,
+  setLargeViewerData,
+  setLargeViewerStatus,
+  setProcessingStage,
   setStructureStatus,
   setTabError,
   setTabLargeMode,
   updateTabContent,
+  updateFormattedContent,
 }: UseJsonToolContentActionsArgs) {
+  const measureActiveRawDocument = (text: string) =>
+    activeDocumentMeta.rawLength > 0
+      ? measureJsonDocumentWithKnownByteLength(text, activeDocumentMeta.rawLength)
+      : measureJsonDocument(text);
+
   const handleFormat = () => {
     if (!activeTab) {
       return;
     }
 
     const currentText = getTabContent(activeTab.id);
-    const metrics = measureJsonDocument(currentText);
+    const metrics = measureActiveRawDocument(currentText);
     if (!currentText.trim()) {
       clearPerformanceState(activeTab.id);
       queueFormat(activeTab.id, currentText, true, metrics);
@@ -104,7 +145,7 @@ export function useJsonToolContentActions({
       return;
     }
 
-    const metrics = measureJsonDocument(currentText);
+    const metrics = measureActiveRawDocument(currentText);
     const largeMode = shouldUseLargeModeForMetrics(metrics);
     beginPerformanceSession(activeTab.id, 'repair', activeTab.title, null, metrics.textByteLength, largeMode);
     setTabLargeMode(activeTab.id, largeMode);
@@ -123,6 +164,11 @@ export function useJsonToolContentActions({
     const hasSelection = Boolean(model && selection && !selection.isEmpty());
     const sourceText =
       hasSelection && model && selection ? model.getValueInRange(selection) : getTabContent(currentTabId);
+    const currentFormatted = hasSelection ? '' : getFormattedContent(currentTabId);
+    const hasFreshFormattedContainer =
+      !hasSelection &&
+      activeDocumentMeta.formattedRawRevision === activeDocumentMeta.rawRevision &&
+      isFormattedJsonContainer(currentFormatted);
 
     if (!sourceText.trim()) {
       setTabError(currentTabId, `没有可${label}的内容`);
@@ -131,7 +177,22 @@ export function useJsonToolContentActions({
 
     setEditJsonBusyLabel(`正在${label}...`);
     try {
-      const transformed = await requestWorkerEditJson({ tabId: currentTabId, operation, text: sourceText });
+      const transformResult = hasSelection
+        ? null
+        : await requestWorkerEditJsonResult({
+            tabId: currentTabId,
+            operation,
+            rawRevision: activeDocumentMeta.rawRevision,
+            reuseText: true,
+            text: sourceText,
+            textByteLength: activeDocumentMeta.rawLength,
+          });
+      const transformed = hasSelection
+        ? await requestWorkerEditJson({ tabId: currentTabId, operation, text: sourceText })
+        : transformResult?.data;
+      if (typeof transformed !== 'string') {
+        throw new Error('JSON worker returned an empty result');
+      }
       setTabError(currentTabId, null);
 
       if (hasSelection && editor && selection) {
@@ -146,11 +207,49 @@ export function useJsonToolContentActions({
         return;
       }
 
-      const metrics = measureJsonDocument(transformed);
+      const metrics = transformResult?.rawMetrics ?? measureJsonDocument(transformed);
       setTabLargeMode(currentTabId, shouldUseLargeModeForMetrics(metrics));
       updateTabContent(currentTabId, transformed, true, metrics.textByteLength);
+      if (metrics.textByteLength >= LARGE_FILE_THRESHOLD) {
+        setLargeRawViewerData(
+          currentTabId,
+          transformResult?.rawViewerData ??
+            (operation === 'escape-json' ? buildEscapedStringLiteralRawViewerData(transformed.length) : null)
+        );
+      }
       resetSearchState();
-      queueFormat(currentTabId, transformed, true, metrics);
+      // Formatting a container and formatting its first escaped string resolve to
+      // the same canonical JSON. Reuse is safe only across that single boundary;
+      // deeper escape layers are distinct JSON string values and must update the
+      // right pane to match the transformed source.
+      const canReuseFormattedArtifacts =
+        hasFreshFormattedContainer && (isFormattedJsonContainer(sourceText) || isFormattedJsonContainer(transformed));
+      if (canReuseFormattedArtifacts) {
+        updateFormattedContent(
+          currentTabId,
+          currentFormatted,
+          false,
+          activeDocumentMeta.formattedLength,
+          metrics.textByteLength
+        );
+        return;
+      }
+      if (transformResult?.formattedMatchesRaw) {
+        const viewerData = transformResult.viewerData ?? null;
+        setLargeViewerData(currentTabId, viewerData);
+        setLargeViewerStatus(currentTabId, viewerData ? 'ready' : 'idle');
+        setProcessingStage(currentTabId, 'idle');
+        setStructureStatus(currentTabId, 'disabled');
+        updateFormattedContent(
+          currentTabId,
+          transformed,
+          !viewerData,
+          transformResult.formattedMetrics?.textByteLength ?? metrics.textByteLength,
+          metrics.textByteLength
+        );
+        return;
+      }
+      queueFormatFromWorkerCache(currentTabId, transformed, metrics);
     } catch (error) {
       setTabError(currentTabId, error instanceof Error ? `${label}失败：${error.message}` : `${label}失败`);
     } finally {
@@ -194,7 +293,7 @@ export function useJsonToolContentActions({
     }
 
     const currentText = getTabContent(activeTab.id);
-    const metrics = measureJsonDocument(currentText);
+    const metrics = measureActiveRawDocument(currentText);
     const largeMode = shouldUseLargeModeForMetrics(metrics);
     setLargeFileLocateEnabled(activeTab.id, enabled);
 

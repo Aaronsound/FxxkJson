@@ -1,8 +1,8 @@
-import { app, clipboard, dialog, ipcMain, shell } from 'electron';
-import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, MessagePortMain, OpenDialogOptions } from 'electron';
 import { createReadStream } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, MessagePortMain, OpenDialogOptions } from 'electron';
+import { app, clipboard, dialog, ipcMain, shell } from 'electron';
 import { isRunningUnderRosetta } from './rosetta';
 import {
   appendRuntimeLog,
@@ -123,14 +123,24 @@ async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: Me
 
     const stats = await fs.stat(filePath);
     const fileName = path.basename(filePath);
+    const selectionAcknowledged = waitForJsonStreamAcknowledgement(
+      port,
+      'selected-ack',
+      'JSON file stream was closed before the selection was acknowledged'
+    );
     port.postMessage({ type: 'selected', path: filePath, name: fileName, size: stats.size });
+    await selectionAcknowledged;
 
     const stream = createReadStream(filePath, { highWaterMark: JSON_FILE_STREAM_CHUNK_SIZE });
     const closeStream = () => stream.destroy();
     port.once('close', closeStream);
 
     for await (const chunk of stream) {
-      const chunkAcknowledged = waitForJsonChunkAcknowledgement(port);
+      const chunkAcknowledged = waitForJsonStreamAcknowledgement(
+        port,
+        'chunk-ack',
+        'JSON file stream was closed before the chunk was acknowledged'
+      );
       port.postMessage({ type: 'chunk', chunk });
       await chunkAcknowledged;
     }
@@ -166,10 +176,10 @@ async function selectJsonFilePath(mainWindow: BrowserWindow | null, dialogOption
   return result.canceled ? null : (result.filePaths[0] ?? null);
 }
 
-function waitForJsonChunkAcknowledgement(port: MessagePortMain) {
+function waitForJsonStreamAcknowledgement(port: MessagePortMain, type: string, closeError: string) {
   return new Promise<void>((resolve, reject) => {
     const handleMessage = (event: Electron.MessageEvent) => {
-      if ((event.data as { type?: unknown } | null)?.type !== 'chunk-ack') {
+      if ((event.data as { type?: unknown } | null)?.type !== type) {
         return;
       }
 
@@ -178,7 +188,7 @@ function waitForJsonChunkAcknowledgement(port: MessagePortMain) {
     };
     const handleClose = () => {
       cleanup();
-      reject(new Error('JSON file stream was closed before the chunk was acknowledged'));
+      reject(new Error(closeError));
     };
     const cleanup = () => {
       port.removeListener('message', handleMessage);

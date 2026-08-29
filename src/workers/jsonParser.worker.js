@@ -1,12 +1,13 @@
 /* eslint-disable no-restricted-globals */
-import { createJsonNodeEditOperations } from './jsonNodeEditOperations.ts';
-import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations.ts';
+
 import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../utils/jsonWorkerMessageRouting';
-import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations.ts';
-import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';
-import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations.ts';
-import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
+import { createJsonNodeEditOperations } from './jsonNodeEditOperations.ts';
 import { releaseJsonWorkerTransientCaches } from './jsonWorkerCacheLifecycle.ts';
+import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations.ts';
+import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
+import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';
+import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations.ts';
+import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations.ts';
 
 const structureCache = new Map();
 const viewerCache = new Map();
@@ -44,6 +45,9 @@ const jsonNodeEditOperations = createJsonNodeEditOperations({
 const jsonWorkerEditJsonOperations = createJsonWorkerEditJsonOperations({
   editJsonCache,
   jsonNodeEditOperations,
+  rawDocumentCache,
+  structureCache,
+  viewerCache,
 });
 const jsonWorkerSearchOperations = createJsonWorkerSearchOperations({
   editJsonCache,

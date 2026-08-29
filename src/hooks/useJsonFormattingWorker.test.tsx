@@ -303,7 +303,7 @@ describe('useJsonFormattingWorker', () => {
     expect(args.updateFormattedContent).toHaveBeenLastCalledWith(
       'tab-a',
       formattedJson,
-      true,
+      false,
       formattedJson.length,
       largeJson.length
     );

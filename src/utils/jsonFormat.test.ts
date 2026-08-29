@@ -26,6 +26,25 @@ describe('jsonFormat', () => {
     });
   });
 
+  it('keeps a second escape layer visible in the formatted result', () => {
+    const compact = '{"ok":true,"items":[1,2,3]}';
+    const twiceEscaped = JSON.stringify(JSON.stringify(compact));
+
+    expect(formatJsonText(twiceEscaped)).toEqual({
+      formatted: twiceEscaped,
+      normalizedNestedString: false,
+    });
+  });
+
+  it('does not unwrap repeated ordinary string literals', () => {
+    const twiceEscaped = JSON.stringify(JSON.stringify('plain text'));
+
+    expect(formatJsonText(twiceEscaped)).toEqual({
+      formatted: JSON.stringify(JSON.stringify('plain text')),
+      normalizedNestedString: false,
+    });
+  });
+
   it('keeps ordinary root strings as JSON strings', () => {
     expect(formatJsonText('"plain text"')).toEqual({
       formatted: '"plain text"',

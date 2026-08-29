@@ -79,7 +79,9 @@ describe('jsonWorkerTextPayload', () => {
     vi.stubGlobal('postMessage', postMessageSpy);
     const rawViewerData = {
       starts: Uint32Array.from([0, 20]),
+      lineNumbers: Uint32Array.from([1, 0]),
       lengths: Uint16Array.from([20, 4]),
+      syntaxStates: Uint8Array.from([0, 1]),
       rowCount: 2,
     };
 
@@ -87,18 +89,24 @@ describe('jsonWorkerTextPayload', () => {
 
     expect(getRawViewerTransferables(rawViewerData)).toEqual([
       rawViewerData.starts.buffer,
+      rawViewerData.lineNumbers.buffer,
       rawViewerData.lengths.buffer,
+      rawViewerData.syntaxStates.buffer,
     ]);
     expect(postMessageSpy).toHaveBeenCalledWith(expect.objectContaining({ rawViewerData, requestId: 3 }), [
       rawViewerData.starts.buffer,
+      rawViewerData.lineNumbers.buffer,
       rawViewerData.lengths.buffer,
+      rawViewerData.syntaxStates.buffer,
     ]);
 
-    const packedBuffer = new ArrayBuffer(12);
+    const packedBuffer = new ArrayBuffer(22);
     expect(
       getRawViewerTransferables({
         starts: new Uint32Array(packedBuffer, 0, 2),
-        lengths: new Uint16Array(packedBuffer, 8, 2),
+        lineNumbers: new Uint32Array(packedBuffer, 8, 2),
+        lengths: new Uint16Array(packedBuffer, 16, 2),
+        syntaxStates: new Uint8Array(packedBuffer, 20, 2),
         rowCount: 2,
       })
     ).toEqual([packedBuffer]);
@@ -160,7 +168,9 @@ describe('jsonWorkerTextPayload', () => {
     vi.stubGlobal('postMessage', postMessageSpy);
     const rawViewerData = {
       starts: Uint32Array.from([0]),
+      lineNumbers: Uint32Array.from([1]),
       lengths: Uint16Array.from([2]),
+      syntaxStates: Uint8Array.from([0]),
       rowCount: 1,
     };
     const regionBuffer = new ArrayBuffer(0);
@@ -193,7 +203,9 @@ describe('jsonWorkerTextPayload', () => {
       message.dataBuffer,
       message.formattedTextBuffer,
       rawViewerData.starts.buffer,
+      rawViewerData.lineNumbers.buffer,
       rawViewerData.lengths.buffer,
+      rawViewerData.syntaxStates.buffer,
       viewerData.lineStarts.buffer,
       regionBuffer,
     ]);

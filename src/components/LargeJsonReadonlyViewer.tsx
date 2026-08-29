@@ -6,34 +6,34 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useLargeJsonActiveMatchReveal } from '../hooks/useLargeJsonActiveMatchReveal';
+import { useLargeJsonContextMenu } from '../hooks/useLargeJsonContextMenu';
+import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
+import { getSearchMatchesForLine, useLargeJsonSearchMatches } from '../hooks/useLargeJsonSearchMatches';
+import { type LargeJsonLocalSelectionRange, useLargeJsonSelection } from '../hooks/useLargeJsonSelection';
+import { useLargeJsonViewport } from '../hooks/useLargeJsonViewport';
+import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
+import type { JsonSearchOptions } from '../types/jsonTool';
 import {
   DEFAULT_SEARCH_OPTIONS,
   type LargeJsonFoldState,
   type LargeJsonSearchMatch,
   type LargeJsonViewerData,
 } from '../types/jsonTool';
-import type { JsonSearchOptions } from '../types/jsonTool';
+import { createTranslator, type I18nKey } from '../utils/i18n';
+import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
+import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';
 import {
-  buildLargeJsonWrapLayout,
   buildLargeJsonLongRowIndexes,
+  buildLargeJsonWrapLayout,
   clamp,
   findCollapsedInterval,
   getLargeJsonContentHeight,
   getLargeJsonWrapColumnCount,
 } from '../utils/largeJsonViewerRender';
-import { getFirstMeaningfulOffset, getLineNumberForOffset, getTextOffsetWithin } from '../utils/largeJsonViewerDom';
 import LargeJsonContextMenu from './LargeJsonContextMenu';
 import { LargeJsonLineText } from './LargeJsonLineText';
 import { LargeJsonVisibleRows } from './LargeJsonVisibleRows';
-import { createTranslator, type I18nKey } from '../utils/i18n';
-import { useLargeJsonFolding } from '../hooks/useLargeJsonFolding';
-import { useLargeJsonVisibleWindow } from '../hooks/useLargeJsonVisibleWindow';
-import { useLargeJsonSelection, type LargeJsonLocalSelectionRange } from '../hooks/useLargeJsonSelection';
-import { useLargeJsonContextMenu } from '../hooks/useLargeJsonContextMenu';
-import { useLargeJsonViewport } from '../hooks/useLargeJsonViewport';
-import { getSearchMatchesForLine, useLargeJsonSearchMatches } from '../hooks/useLargeJsonSearchMatches';
-import { useLargeJsonActiveMatchReveal } from '../hooks/useLargeJsonActiveMatchReveal';
-import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 
 const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
 const OVERSCAN = 30;
@@ -126,7 +126,7 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       data,
       onFoldStateChange,
     });
-    const lineNumberDigits = Math.max(3, String(data.lineCount).length);
+    const lineNumberDigits = data.literalChunks ? 3 : Math.max(3, String(data.lineCount).length);
     const wrapColumnCount = getLargeJsonWrapColumnCount(viewportWidth, lineNumberDigits);
     const actualLongRowIndexes = useMemo(
       () =>
@@ -159,14 +159,16 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
       (lineNumber: number) => {
         const start = data.lineStarts[lineNumber - 1] ?? 0;
         const end =
-          lineNumber < data.lineCount ? Math.max(start, (data.lineStarts[lineNumber] ?? text.length) - 1) : text.length;
+          lineNumber < data.lineCount
+            ? Math.max(start, (data.lineStarts[lineNumber] ?? text.length) - (data.literalChunks ? 0 : 1))
+            : text.length;
         let value = text.slice(start, end);
         if (value.endsWith('\r')) {
           value = value.slice(0, -1);
         }
         return value;
       },
-      [data.lineCount, data.lineStarts, text]
+      [data.lineCount, data.lineStarts, data.literalChunks, text]
     );
 
     const {
@@ -303,18 +305,19 @@ const LargeJsonReadonlyViewer = forwardRef<LargeJsonReadonlyViewerHandle, LargeJ
             activeMatchIndex={effectiveMatchIndex}
             lineNumber={lineNumber}
             lineText={lineText}
+            literalString={data.literalChunks}
             matches={getSearchMatchesForLine(matchesByLine, lineNumber)}
             selectedLineRange={selectedLineRange}
           />
         );
       },
-      [effectiveMatchIndex, matchesByLine]
+      [data.literalChunks, effectiveMatchIndex, matchesByLine]
     );
 
     return (
       <div
         ref={containerRef}
-        className={`large-json-viewer ${isDarkMode ? 'dark' : ''}`}
+        className={`large-json-viewer ${data.literalChunks ? 'literal-chunks' : ''} ${isDarkMode ? 'dark' : ''}`}
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onPointerDown={() => {

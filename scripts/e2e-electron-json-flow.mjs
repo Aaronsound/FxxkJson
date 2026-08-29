@@ -24,11 +24,15 @@ import { runMultiTabMemoryScenario } from './e2e-json-multi-tab-memory-scenario.
 
 const require = createRequire(import.meta.url);
 
-function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory) {
+function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory, importPerformance) {
   console.log('FxxkJson Electron E2E passed');
   console.table([
     { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
     { step: 'import', detail: 'native MessagePort stream imported JSON through the desktop file flow' },
+    {
+      step: 'import performance',
+      detail: `${importPerformance.rightMeta}; visible in ${importPerformance.visibleMs.toFixed(1)} ms`,
+    },
     {
       step: 'memory',
       detail: `${memorySnapshot.totalWorkingSetMb.toFixed(1)} MB working set, ${memorySnapshot.totalPeakWorkingSetMb.toFixed(1)} MB peak, ${memorySnapshot.rendererHeapMb.toFixed(1)} MB renderer heap`,
@@ -47,6 +51,10 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
     { step: 'split resize', detail: 'center gutter resizes both editor panes' },
     { step: 'dual find escape', detail: 'Escape closes the search belonging to the active pane' },
     { step: 'large folding', detail: 'fold-all stays compact while root and nested nodes preserve expand semantics' },
+    {
+      step: 'large raw fidelity',
+      detail: 'raw colors match the editor and two rapid escape/unescape rounds restore the original fingerprint',
+    },
     { step: 'search', detail: 'right pane traceId search returned results' },
     { step: 'locate', detail: 'right node click highlighted left raw JSON' },
     { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
@@ -84,14 +92,14 @@ async function assertToolbarUi(cdp) {
     `(() => {
       const labels = Array.from(document.querySelectorAll('.toolbar-checkbox'));
       return labels.map((label) => {
-        const input = label.querySelector('input');
+        const control = label.querySelector('.toolbar-checkbox-control');
         const textNode = Array.from(label.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
-        if (!(input instanceof HTMLInputElement) || !textNode) return null;
+        if (!(control instanceof HTMLElement) || !textNode) return null;
         const textRange = document.createRange();
         textRange.selectNodeContents(textNode);
-        const inputRect = input.getBoundingClientRect();
+        const controlRect = control.getBoundingClientRect();
         const textRect = textRange.getBoundingClientRect();
-        return Math.abs(inputRect.top + inputRect.height / 2 - (textRect.top + textRect.height / 2));
+        return Math.abs(controlRect.top + controlRect.height / 2 - (textRect.top + textRect.height / 2));
       });
     })()`
   );
@@ -747,6 +755,142 @@ async function assertLargeViewerFoldAllSemantics(cdp) {
   );
 }
 
+async function assertLargeRawViewerFidelity(cdp) {
+  const hasLargeRawViewer = await evaluate(
+    cdp,
+    `Boolean(document.querySelector('.left-editor-pane .large-raw-viewer'))`
+  );
+  await waitFor(
+    async () => {
+      const formatted = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+      return formatted.length > 0 && (await evaluate(cdp, `!document.querySelector('.editor-processing-layer')`));
+    },
+    'initial formatted pane ready before escape checks',
+    90000
+  );
+
+  if (hasLargeRawViewer) {
+    const presentation = await evaluate(
+      cdp,
+      `(() => {
+        const viewer = document.querySelector('.left-editor-pane .large-raw-viewer');
+        const rows = Array.from(viewer?.querySelectorAll('.large-raw-row') ?? []);
+        const lineNumbers = rows.slice(0, 4).map((row) => row.querySelector('.large-raw-offset')?.textContent ?? '');
+        return {
+          hasKey: Boolean(viewer?.querySelector('.large-json-token-key')),
+          hasString: Boolean(viewer?.querySelector('.large-json-token-string')),
+          firstLineNumber: lineNumbers[0],
+          continuationLabels: lineNumbers.slice(1),
+        };
+      })()`
+    );
+    if (
+      !presentation?.hasKey ||
+      !presentation?.hasString ||
+      presentation.firstLineNumber !== '1' ||
+      presentation.continuationLabels.some((label) => label !== '')
+    ) {
+      throw new Error(`Large raw viewer did not match editor presentation: ${JSON.stringify(presentation)}`);
+    }
+  }
+
+  const originalFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+  const originalFormattedFingerprint = await evaluate(
+    cdp,
+    `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`
+  );
+  await clickButtonByText(cdp, '转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return current.length > originalFingerprint.length && current.hash !== originalFingerprint.hash;
+    },
+    'large raw JSON escaped without blocking the renderer',
+    90000
+  );
+  const firstEscapedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.editor-processing-layer')`),
+    'first escape reused the ready formatted result',
+    3000
+  );
+  const firstFormattedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+  if (JSON.stringify(firstFormattedFingerprint) !== JSON.stringify(originalFormattedFingerprint)) {
+    throw new Error(
+      `The first escape changed the canonical formatted JSON unexpectedly: ${JSON.stringify({ originalFormattedFingerprint, firstFormattedFingerprint })}`
+    );
+  }
+  const secondEscapeStartedAt = Date.now();
+  await clickButtonByText(cdp, '转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return current.length > firstEscapedFingerprint.length && current.hash !== firstEscapedFingerprint.hash;
+    },
+    'second large raw JSON escape completed',
+    10000
+  );
+  const secondEscapedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.editor-processing-layer')`),
+    'second escape updated the formatted result',
+    10000
+  );
+  const secondFormattedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+  if (JSON.stringify(secondFormattedFingerprint) !== JSON.stringify(secondEscapedFingerprint)) {
+    throw new Error('The second escape did not update the formatted pane to the current JSON string');
+  }
+  const usesVirtualLiteralViewer = await evaluate(
+    cdp,
+    `Boolean(document.querySelector('.right-editor-pane .large-json-viewer.literal-chunks .large-json-token-string'))`
+  );
+  if (hasLargeRawViewer && !usesVirtualLiteralViewer) {
+    throw new Error('The second escape did not use the virtual root-string viewer');
+  }
+  console.log(`Second escape right-pane synchronization: ${Date.now() - secondEscapeStartedAt} ms`);
+  const firstUnescapeStartedAt = Date.now();
+  await clickButtonByText(cdp, '反转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return JSON.stringify(current) === JSON.stringify(firstEscapedFingerprint);
+    },
+    'first large raw JSON unescape restored the single-escaped text',
+    10000
+  );
+  await waitFor(
+    async () => {
+      const formatted = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+      return JSON.stringify(formatted) === JSON.stringify(firstEscapedFingerprint);
+    },
+    'first unescape updated the formatted result',
+    10000
+  );
+  console.log(`First unescape right-pane synchronization: ${Date.now() - firstUnescapeStartedAt} ms`);
+  const secondUnescapeStartedAt = Date.now();
+  await clickButtonByText(cdp, '反转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return JSON.stringify(current) === JSON.stringify(originalFingerprint);
+    },
+    'large raw JSON restored byte-for-byte after escape round trip',
+    90000
+  );
+  await waitFor(
+    async () => {
+      if (await evaluate(cdp, `Boolean(document.querySelector('.editor-processing-layer'))`)) {
+        return false;
+      }
+      const formatted = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+      return JSON.stringify(formatted) === JSON.stringify(originalFormattedFingerprint);
+    },
+    'JSON reformatted after escape round trip',
+    90000
+  );
+  console.log(`Second unescape right-pane synchronization: ${Date.now() - secondUnescapeStartedAt} ms`);
+}
+
 async function run() {
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.HANJSON_E2E_FORCE) {
     console.log('FxxkJson Electron E2E skipped: no DISPLAY is available on Linux');
@@ -785,14 +929,39 @@ async function run() {
     await runEditTransformScenario(cdp);
     await importSampleThroughNativeFileFlow(cdp);
     await waitFor(
-      () => evaluate(cdp, `document.body.innerText.includes('req-e2e-000000')`),
+      () => evaluate(cdp, `document.querySelector('.right-editor-pane')?.textContent?.includes('req-e2e-000000')`),
       'imported and formatted JSON',
       90000
     );
+    const nativeImportStages = await evaluate(
+      cdp,
+      `(() => {
+        window.__HANJSON_E2E_NATIVE_IMPORT_OBSERVER__?.disconnect();
+        return window.__HANJSON_E2E_NATIVE_IMPORT_STAGES__ ?? [];
+      })()`
+    );
+    if (!nativeImportStages.some((stage) => stage.includes('正在读取'))) {
+      throw new Error(`Native import did not render its reading stage: ${JSON.stringify(nativeImportStages)}`);
+    }
+    const importPerformance = await evaluate(
+      cdp,
+      `(() => {
+        const rightMeta = document.querySelector('.right-editor-pane .editor-pane-header-meta')?.textContent?.trim() ?? '';
+        const startedAt = window.__HANJSON_E2E_NATIVE_IMPORT_STARTED_AT__ ?? performance.now();
+        return {
+          rightMeta,
+          visibleMs: Math.max(0, performance.now() - startedAt),
+        };
+      })()`
+    );
     await assertReadableToolbarStatus(cdp);
+    await assertLargeRawViewerFidelity(cdp);
     await assertLargeViewerAutoWrap(cdp);
     await assertLargeViewerFoldAllSemantics(cdp);
+    await cdp.send('HeapProfiler.collectGarbage');
     const memorySnapshot = await readElectronMemorySnapshot(cdp);
+    console.log('Import performance:', importPerformance);
+    console.log('Memory snapshot:', memorySnapshot);
     assertElectronMemoryBudget(memorySnapshot, sizeMb);
     const multiTabMemory = await runMultiTabMemoryScenario(cdp, tempDir, sizeMb);
 
@@ -800,7 +969,7 @@ async function run() {
     await runSearchReplaceScenario(cdp);
     await runRightNodeScenario(cdp);
     await runClipboardAndCompareScenario(cdp);
-    printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory);
+    printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory, importPerformance);
   } catch (error) {
     const stderr = getStderr();
     await collectFailureArtifacts({ cdp, stderr });
