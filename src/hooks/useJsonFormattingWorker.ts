@@ -1,5 +1,5 @@
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { type MutableRefObject, useCallback, useRef } from 'react';
+import { type MutableRefObject, useCallback, useRef, useState } from 'react';
 import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -173,6 +173,10 @@ export function useJsonFormattingWorker({
     workerStructureEnabledRef,
   });
   const interactiveFlow = interactiveFlowRef.current;
+  const evictedViewerCacheTabsRef = useRef(new Set<string>());
+  const restoringViewerCacheTabsRef = useRef(new Set<string>());
+  const recoverFormatRequestsRef = useRef<(tabIds: string[]) => void>(() => undefined);
+  const [workerGeneration, setWorkerGeneration] = useState(0);
 
   const clearPendingFormat = useCallback((tabId: string) => {
     const timeoutId = formatTimersRef.current[tabId];
@@ -241,9 +245,102 @@ export function useJsonFormattingWorker({
       workerStructureEnabledRef,
     });
 
+  recoverFormatRequestsRef.current = (tabIds) => {
+    for (const tabId of tabIds) {
+      const text = rawTextByTabRef.current[tabId];
+      if (!text) {
+        continue;
+      }
+
+      callbacksRef.current.mutatePerformanceSession(tabId, (session) => {
+        session.pendingFormat = true;
+        session.status = 'running';
+        session.error = null;
+      });
+      callbacksRef.current.logEvent('worker-recovery-format', { tabId });
+      queueFormat(tabId, text, true);
+    }
+  };
+
+  const recoverFormatRequests = useCallback((tabIds: string[]) => {
+    recoverFormatRequestsRef.current(tabIds);
+  }, []);
+
+  const onViewerCacheEvicted = useCallback((tabId: string) => {
+    restoringViewerCacheTabsRef.current.delete(tabId);
+    evictedViewerCacheTabsRef.current.add(tabId);
+    setWorkerGeneration((current) => current + 1);
+  }, []);
+
+  const onViewerCacheRestored = useCallback((tabId: string) => {
+    restoringViewerCacheTabsRef.current.delete(tabId);
+    evictedViewerCacheTabsRef.current.delete(tabId);
+  }, []);
+
+  const onWorkerRestarted = useCallback(() => {
+    restoringViewerCacheTabsRef.current.clear();
+    for (const [tabId, text] of Object.entries(formattedTextByTabRef.current)) {
+      if (text && largeModeRef.current[tabId]) {
+        evictedViewerCacheTabsRef.current.add(tabId);
+      }
+    }
+    setWorkerGeneration((current) => current + 1);
+  }, [formattedTextByTabRef, largeModeRef]);
+
+  const restoreWorkerTabCache = useCallback(
+    ({
+      tabId,
+      rawText,
+      rawRevision,
+      formattedText,
+      viewerData,
+      enableDirectLocate,
+    }: {
+      tabId: string;
+      rawText: string;
+      rawRevision: number;
+      formattedText: string;
+      viewerData: LargeJsonViewerData | null;
+      enableDirectLocate: boolean;
+    }) => {
+      if (
+        !workerRef.current ||
+        !evictedViewerCacheTabsRef.current.has(tabId) ||
+        restoringViewerCacheTabsRef.current.has(tabId) ||
+        !formattedText ||
+        !viewerData
+      ) {
+        return;
+      }
+
+      const viewerLineStarts = viewerData.lineStarts.slice();
+
+      restoringViewerCacheTabsRef.current.add(tabId);
+      postWorkerRequest(
+        {
+          type: 'hydrate-viewer-cache',
+          requestId: ++requestCounterRef.current,
+          tabId,
+          enableDirectLocate,
+          rawRevision,
+          formattedText,
+          rawText: enableDirectLocate ? rawText : undefined,
+          viewerData: {
+            lineCount: viewerData.lineCount,
+            lineStarts: viewerLineStarts,
+            literalChunks: viewerData.literalChunks,
+          },
+        },
+        [viewerLineStarts.buffer]
+      );
+    },
+    [postWorkerRequest, requestCounterRef, workerRef]
+  );
+
   const { removeTabArtifacts, resetTabArtifacts } = createJsonWorkerTabArtifactActions({
     callbacksRef,
     cancelInteractiveRequests,
+    clearFormatWatchdog,
     clearPendingFormat,
     clearTabStructure,
     formatTimersRef,
@@ -259,6 +356,18 @@ export function useJsonFormattingWorker({
     structureStatusRef,
     workerStructureEnabledRef,
   });
+
+  const removeTabArtifactsWithCacheState = (tabId: string) => {
+    evictedViewerCacheTabsRef.current.delete(tabId);
+    restoringViewerCacheTabsRef.current.delete(tabId);
+    removeTabArtifacts(tabId);
+  };
+
+  const resetTabArtifactsWithCacheState = (tabId: string) => {
+    evictedViewerCacheTabsRef.current.delete(tabId);
+    restoringViewerCacheTabsRef.current.delete(tabId);
+    resetTabArtifacts(tabId);
+  };
 
   const importFlowRef = useRef<ReturnType<typeof createJsonWorkerImportFlow> | null>(null);
   importFlowRef.current ??= createJsonWorkerImportFlow({
@@ -284,10 +393,14 @@ export function useJsonFormattingWorker({
     formatTimersRef,
     interactiveFlow,
     latestRequestRef,
+    onViewerCacheEvicted,
+    onViewerCacheRestored,
+    onWorkerRestarted,
     performanceSessionsRef,
     rawTextByTabRef,
     readWorkerText,
     readWorkerTextField,
+    recoverFormatRequests,
     structureStatusRef,
     workerRef,
   });
@@ -301,11 +414,13 @@ export function useJsonFormattingWorker({
     queueRepair,
     queueFormatAfterEditSave,
     releaseTransientWorkerCaches,
-    removeTabArtifacts,
+    restoreWorkerTabCache,
+    removeTabArtifacts: removeTabArtifactsWithCacheState,
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,
-    resetTabArtifacts,
+    resetTabArtifacts: resetTabArtifactsWithCacheState,
+    workerGeneration,
   };
 }

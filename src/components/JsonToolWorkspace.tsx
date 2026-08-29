@@ -4,7 +4,7 @@ import JsonPerformancePanel from './JsonPerformancePanel';
 import JsonToolContextMenus from './JsonToolContextMenus';
 import JsonToolOverlayLayer from './JsonToolOverlayLayer';
 import JsonToolTabBar from './JsonToolTabBar';
-import JsonToolToolbar from './JsonToolToolbar';
+import JsonToolToolbar, { JsonToolToolbarFeedback } from './JsonToolToolbar';
 import { getJsonEditorCssVariables } from '../utils/jsonEditorTypography';
 
 interface JsonToolWorkspaceProps {
@@ -69,6 +69,7 @@ const JsonToolWorkspace: React.FC<JsonToolWorkspaceProps> = ({
       <JsonToolOverlayLayer {...overlayProps} />
       <JsonToolToolbar {...toolbarProps} />
       <JsonToolTabBar {...tabBarProps} />
+      <JsonToolToolbarFeedback {...toolbarProps} />
       <JsonEditorPanes {...panesProps} />
       {shouldShowPerformancePanel && <JsonPerformancePanel {...performancePanelProps} />}
       <JsonToolContextMenus {...contextMenusProps} />

@@ -2,7 +2,7 @@ import type { MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { LargeJsonViewerData, LargeRawViewerData, StructureStatus, WorkerMessage } from '../types/jsonTool';
 import { EMPTY_LARGE_JSON_VIEWER_REGIONS } from '../types/jsonTool';
-import { handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
+import { clearPendingFormattedViewerResult, handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
 function ref<T>(current: T) {
@@ -172,6 +172,49 @@ describe('handleJsonFormattingWorkerResult', () => {
 
     expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '{\n  "ok": true\n}', false, 4_000, 11);
     expect(callbacks.setLargeViewerData).toHaveBeenCalledWith('tab-a', viewerData);
+  });
+
+  it('releases a pending large formatted string when its tab closes before viewer readiness', () => {
+    const { callbacks, context } = createContext();
+
+    handleJsonFormattingWorkerResult(
+      {
+        data: '{"large":true}',
+        rawMetrics: {
+          exceedsDedicatedViewerLineThreshold: false,
+          lineCount: 1,
+          textByteLength: 6_000_000,
+        },
+        formattedMetrics: {
+          exceedsDedicatedViewerLineThreshold: false,
+          lineCount: 1,
+          textByteLength: 6_000_000,
+        },
+        requestId: 1,
+        success: true,
+        tabId: 'tab-a',
+        type: 'format-result',
+      },
+      context
+    );
+    clearPendingFormattedViewerResult('tab-a');
+    callbacks.updateFormattedContent.mockClear();
+
+    handleJsonFormattingWorkerResult(
+      {
+        requestId: 1,
+        tabId: 'tab-a',
+        type: 'viewer-ready',
+        viewerData: {
+          lineCount: 1,
+          lineStarts: new Uint32Array([0]),
+          regions: EMPTY_LARGE_JSON_VIEWER_REGIONS,
+        },
+      },
+      context
+    );
+
+    expect(callbacks.updateFormattedContent).not.toHaveBeenCalled();
   });
 
   it('surfaces a failed format result', () => {

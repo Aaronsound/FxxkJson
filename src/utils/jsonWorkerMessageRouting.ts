@@ -9,6 +9,7 @@ const JSON_WORKER_REQUEST_TYPES = new Set<WorkerRequestMessage['type']>([
   'clear-structure',
   'edit-json',
   'format',
+  'hydrate-viewer-cache',
   'locate',
   'locate-right-direct',
   'release-transient-cache',

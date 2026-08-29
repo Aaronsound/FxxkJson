@@ -83,6 +83,14 @@ interface PendingFormattedViewerResult {
 
 const pendingFormattedViewerByTab = new Map<string, PendingFormattedViewerResult>();
 
+export function clearPendingFormattedViewerResult(tabId: string) {
+  pendingFormattedViewerByTab.delete(tabId);
+}
+
+export function clearAllPendingFormattedViewerResults() {
+  pendingFormattedViewerByTab.clear();
+}
+
 function clearFailedResultArtifacts(callbacks: JsonFormattingWorkerResultCallbacks, tabId: string) {
   callbacks.setTabFormatting(tabId, false);
   callbacks.setProcessingStage(tabId, 'idle');

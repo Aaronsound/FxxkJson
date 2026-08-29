@@ -4,7 +4,7 @@ import type { StructureStatus } from '../types/jsonTool';
 import type { AppAccentTheme } from '../utils/accentTheme';
 import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 
-interface JsonToolToolbarProps {
+export interface JsonToolToolbarProps {
   onImport: () => void;
   onFormat: () => void;
   onRepairJson: () => void;
@@ -119,6 +119,84 @@ function getToolbarHintMessage({
   return t('toolbar.largeLocateReady');
 }
 
+type JsonToolToolbarFeedbackProps = Pick<
+  JsonToolToolbarProps,
+  | 'canEnableLargeFileLocate'
+  | 'currentError'
+  | 'currentStructureStatus'
+  | 'importingFileName'
+  | 'isLargeFileLocateEnabled'
+  | 'isLargeFileMode'
+  | 'onOpenDiagnosticsLog'
+  | 'processingStageText'
+  | 't'
+  | 'usesLightweightLocate'
+>;
+
+export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = ({
+  canEnableLargeFileLocate,
+  currentError,
+  currentStructureStatus,
+  importingFileName,
+  isLargeFileLocateEnabled,
+  isLargeFileMode,
+  onOpenDiagnosticsLog,
+  processingStageText,
+  t = defaultT,
+  usesLightweightLocate,
+}) => {
+  const hintMessage = getToolbarHintMessage({
+    importingFileName,
+    isLargeFileMode,
+    isLargeFileLocateEnabled,
+    canEnableLargeFileLocate,
+    usesLightweightLocate,
+    currentStructureStatus,
+    t,
+  });
+
+  if (!processingStageText && !hintMessage && !currentError) {
+    return null;
+  }
+
+  return (
+    <div className="toolbar-feedback-region">
+      <div
+        className={`toolbar-feedback ${currentError ? 'toolbar-feedback-error' : ''}`}
+        role={currentError ? 'alert' : 'status'}
+        aria-live={currentError ? 'assertive' : 'polite'}
+        aria-label={t('toolbar.status')}
+      >
+        <span className="toolbar-feedback-mark" aria-hidden="true">
+          {currentError ? '!' : processingStageText ? '…' : 'i'}
+        </span>
+        <div className="toolbar-feedback-content">
+          {processingStageText && (
+            <span className="toolbar-hint" title={processingStageText}>
+              {processingStageText}
+            </span>
+          )}
+          {hintMessage && (
+            <span className="toolbar-hint" title={hintMessage}>
+              {hintMessage}
+            </span>
+          )}
+          {currentError && (
+            <span className="toolbar-error" title={currentError}>
+              {currentError}
+            </span>
+          )}
+        </div>
+        {currentError && (
+          <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
+            {t('toolbar.diagnostics')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onImport,
   onFormat,
@@ -144,12 +222,7 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
   onLargeFileLocateToggle,
   showPerformancePanel,
   onShowPerformancePanelChange,
-  importingFileName,
   canEnableLargeFileLocate,
-  usesLightweightLocate,
-  currentStructureStatus,
-  processingStageText,
-  currentError,
   accentTheme = 'emerald',
   onAccentThemeChange,
   language = 'zh',
@@ -204,16 +277,6 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
       window.removeEventListener('resize', updateCompactToolbar);
     };
   }, []);
-  const hintMessage = getToolbarHintMessage({
-    importingFileName,
-    isLargeFileMode,
-    isLargeFileLocateEnabled,
-    canEnableLargeFileLocate,
-    usesLightweightLocate,
-    currentStructureStatus,
-    t,
-  });
-
   return (
     <div className="toolbar">
       <div className="toolbar-layout">
@@ -522,41 +585,6 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
             </label>
           </div>
         </div>
-
-        {(processingStageText || hintMessage || currentError) && (
-          <div
-            className={`toolbar-feedback ${currentError ? 'toolbar-feedback-error' : ''}`}
-            role={currentError ? 'alert' : 'status'}
-            aria-live={currentError ? 'assertive' : 'polite'}
-            aria-label={t('toolbar.status')}
-          >
-            <span className="toolbar-feedback-mark" aria-hidden="true">
-              {currentError ? '!' : processingStageText ? '…' : 'i'}
-            </span>
-            <div className="toolbar-feedback-content">
-              {processingStageText && (
-                <span className="toolbar-hint" title={processingStageText}>
-                  {processingStageText}
-                </span>
-              )}
-              {hintMessage && (
-                <span className="toolbar-hint" title={hintMessage}>
-                  {hintMessage}
-                </span>
-              )}
-              {currentError && (
-                <span className="toolbar-error" title={currentError}>
-                  {currentError}
-                </span>
-              )}
-            </div>
-            {currentError && (
-              <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
-                {t('toolbar.diagnostics')}
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

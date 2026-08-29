@@ -4,7 +4,6 @@ import { clickSelector, evaluate, waitFor } from './e2e-cdp-helpers.mjs';
 import { assertElectronMemoryBudget, readElectronMemorySnapshot } from './e2e-electron-app.mjs';
 import { createSampleJson, importSampleByE2eBridge } from './e2e-json-fixtures.mjs';
 
-const AUXILIARY_TAB_SIZE_MB = 1;
 const AUXILIARY_TAB_COUNT = 2;
 
 async function waitForTabCount(cdp, count, label) {
@@ -22,15 +21,38 @@ async function collectRendererGarbage(cdp) {
 }
 
 export async function runMultiTabMemoryScenario(cdp, tempDir, primarySizeMb) {
+  // A 20MB run uses two dedicated-viewer auxiliaries so the worker's bounded
+  // cache must evict and transparently restore the original tab. Smaller CI
+  // smoke runs keep lightweight auxiliaries to avoid inflating routine time.
+  const auxiliaryTabSizeMb = primarySizeMb >= 20 ? 5 : 1;
   const initialTabCount = await evaluate(cdp, `document.querySelectorAll('.tab-bar .tab').length`);
+  const initialActiveTabTop = await evaluate(
+    cdp,
+    `document.querySelector('.tab-bar .tab.active')?.getBoundingClientRect().top ?? null`
+  );
   const before = await readElectronMemorySnapshot(cdp);
 
   for (let index = 0; index < AUXILIARY_TAB_COUNT; index += 1) {
     const fileName = `multi-tab-memory-${index + 1}.json`;
     const samplePath = path.join(tempDir, fileName);
-    await writeFile(samplePath, createSampleJson(AUXILIARY_TAB_SIZE_MB * 1024 * 1024), 'utf8');
+    await writeFile(samplePath, createSampleJson(auxiliaryTabSizeMb * 1024 * 1024), 'utf8');
     await clickSelector(cdp, '.tab-bar .add-tab');
     await waitForTabCount(cdp, initialTabCount + index + 1, `multi-tab add ${index + 1}`);
+    if (index === 0 && primarySizeMb >= 20) {
+      const blankTabTop = await evaluate(
+        cdp,
+        `document.querySelector('.tab-bar .tab.active')?.getBoundingClientRect().top ?? null`
+      );
+      if (
+        typeof initialActiveTabTop !== 'number' ||
+        typeof blankTabTop !== 'number' ||
+        Math.abs(blankTabTop - initialActiveTabTop) > 0.5
+      ) {
+        throw new Error(
+          `Tab bar moved vertically when switching from large-file guidance to a blank tab: ${initialActiveTabTop} -> ${blankTabTop}`
+        );
+      }
+    }
     await importSampleByE2eBridge(cdp, samplePath);
     await waitFor(
       () =>
@@ -47,7 +69,8 @@ export async function runMultiTabMemoryScenario(cdp, tempDir, primarySizeMb) {
 
   await collectRendererGarbage(cdp);
   const expanded = await readElectronMemorySnapshot(cdp);
-  assertElectronMemoryBudget(expanded, primarySizeMb + AUXILIARY_TAB_COUNT * AUXILIARY_TAB_SIZE_MB);
+  console.log('Multi-tab expanded memory:', expanded);
+  assertElectronMemoryBudget(expanded, primarySizeMb + AUXILIARY_TAB_COUNT * auxiliaryTabSizeMb);
 
   for (let index = AUXILIARY_TAB_COUNT; index > 0; index -= 1) {
     await clickSelector(cdp, '.tab.active .tab-close');
@@ -56,12 +79,15 @@ export async function runMultiTabMemoryScenario(cdp, tempDir, primarySizeMb) {
 
   await collectRendererGarbage(cdp);
   const afterClose = await readElectronMemorySnapshot(cdp);
-  // Peak working set is process-lifetime data and cannot shrink after the
-  // auxiliary tabs close. Keep current working-set/heap budgets tied to the
-  // primary document, but compare the historical peak against all files that
-  // were opened during this scenario.
+  console.log('Multi-tab after-close memory:', afterClose);
+  // Peak working set is process-lifetime data, and V8/Chromium can keep freed
+  // pages resident after a forced GC. Keep the live JS heap budget tied to the
+  // primary document, but allow the OS working set and historical peak to
+  // reflect every file opened during this scenario. The comparisons below
+  // still fail if closing tabs grows either live heap or working set.
   assertElectronMemoryBudget(afterClose, primarySizeMb, {
-    peakSizeMb: primarySizeMb + AUXILIARY_TAB_COUNT * AUXILIARY_TAB_SIZE_MB,
+    peakSizeMb: primarySizeMb + AUXILIARY_TAB_COUNT * auxiliaryTabSizeMb,
+    workingSetSizeMb: primarySizeMb + AUXILIARY_TAB_COUNT * auxiliaryTabSizeMb,
   });
 
   const workingSetSlackMb = 96;

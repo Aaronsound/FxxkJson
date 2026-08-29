@@ -1,7 +1,7 @@
 import { type MutableRefObject, useEffect } from 'react';
 import type { StructureStatus, WorkerMessage } from '../types/jsonTool';
 import type { createJsonWorkerInteractiveFlow } from './jsonWorkerInteractiveFlow';
-import { handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
+import { clearAllPendingFormattedViewerResults, handleJsonFormattingWorkerResult } from './jsonFormattingWorkerResults';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 
 type JsonFormattingWorkerResultCallbacks = Parameters<typeof handleJsonFormattingWorkerResult>[1]['callbacks'];
@@ -20,6 +20,9 @@ interface UseJsonWorkerLifecycleArgs {
   formatTimersRef: MutableRefObject<Record<string, number>>;
   interactiveFlow: ReturnType<typeof createJsonWorkerInteractiveFlow>;
   latestRequestRef: MutableRefObject<Record<string, number>>;
+  onViewerCacheEvicted: (tabId: string) => void;
+  onViewerCacheRestored: (tabId: string) => void;
+  onWorkerRestarted: () => void;
   performanceSessionsRef: MutableRefObject<Record<string, PerformanceSession>>;
   rawTextByTabRef: MutableRefObject<Record<string, string>>;
   readWorkerText: (message: WorkerMessage) => string | null;
@@ -29,8 +32,12 @@ interface UseJsonWorkerLifecycleArgs {
     bufferKey: 'dataBuffer' | 'repairedTextBuffer' | 'formattedTextBuffer'
   ) => string | null;
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
+  recoverFormatRequests: (tabIds: string[]) => void;
   workerRef: MutableRefObject<Worker | null>;
 }
+
+const WORKER_RESTART_DELAY_MS = 60;
+const MAX_AUTOMATIC_WORKER_RESTARTS = 2;
 
 interface FailActiveWorkerRequestsArgs {
   callbacksRef: MutableRefObject<JsonWorkerLifecycleCallbacks>;
@@ -80,72 +87,146 @@ export function useJsonWorkerLifecycle({
   formatTimersRef,
   interactiveFlow,
   latestRequestRef,
+  onViewerCacheEvicted,
+  onViewerCacheRestored,
+  onWorkerRestarted,
   performanceSessionsRef,
   rawTextByTabRef,
   readWorkerText,
   readWorkerTextField,
+  recoverFormatRequests,
   structureStatusRef,
   workerRef,
 }: UseJsonWorkerLifecycleArgs) {
   useEffect(() => {
-    const worker = new Worker(new URL('../workers/jsonParser.worker.js', import.meta.url), { type: 'module' });
+    let disposed = false;
+    let activeWorker: Worker | null = null;
+    let restartAttempts = 0;
+    let restartTimer: number | null = null;
+    let pendingRecoveryTabs: string[] = [];
 
-    workerRef.current = worker;
-    worker.onerror = (event) => {
-      const message = event.message || 'JSON worker failed to load';
-      callbacksRef.current.logEvent('worker-error', {
-        message,
-        source: event.filename,
-        line: event.lineno,
-        column: event.colno,
-      });
-      failActiveWorkerRequests({
-        callbacksRef,
-        clearFormatWatchdog,
-        clearPendingFormat,
-        latestRequestRef,
-        message,
-        userMessage: `JSON worker 加载失败：${message}`,
-      });
-    };
-    worker.onmessageerror = () => {
-      const message = 'JSON worker message transfer failed';
-      callbacksRef.current.logEvent('worker-message-error', {
-        message,
-      });
-      failActiveWorkerRequests({
-        callbacksRef,
-        clearFormatWatchdog,
-        clearPendingFormat,
-        latestRequestRef,
-        message,
-        userMessage: 'JSON worker 消息传输失败，请重试或重新导入文件',
-      });
-    };
-    worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
-      if (interactiveFlow.handleResult(event.data)) {
+    const startWorker = (isRestart: boolean) => {
+      if (disposed) {
         return;
       }
 
-      handleJsonFormattingWorkerResult(event.data, {
-        callbacks: callbacksRef.current,
-        clearFormatWatchdog,
-        latestRequestRef,
-        performanceSessionsRef,
-        rawTextByTabRef,
-        readWorkerText,
-        readWorkerTextField,
-        structureStatusRef,
-      });
+      const worker = new Worker(new URL('../workers/jsonParser.worker.js', import.meta.url), { type: 'module' });
+      activeWorker = worker;
+      workerRef.current = worker;
+      if (isRestart) {
+        callbacksRef.current.logEvent('worker-restarted', { attempt: restartAttempts });
+        onWorkerRestarted();
+        const recoveryTabs = pendingRecoveryTabs;
+        pendingRecoveryTabs = [];
+        window.setTimeout(() => recoverFormatRequests(recoveryTabs), 0);
+      }
+
+      const restartWorker = (message: string, userMessage: string, details: Record<string, unknown>) => {
+        if (disposed || activeWorker !== worker) {
+          return;
+        }
+
+        const { event: eventName, ...logDetails } = details;
+        callbacksRef.current.logEvent(eventName as string, { ...logDetails, message });
+        pendingRecoveryTabs = Array.from(
+          new Set([
+            ...pendingRecoveryTabs,
+            ...Object.keys(performanceSessionsRef.current).filter(
+              (tabId) =>
+                performanceSessionsRef.current[tabId]?.status === 'running' && Boolean(rawTextByTabRef.current[tabId])
+            ),
+          ])
+        );
+        failActiveWorkerRequests({
+          callbacksRef,
+          clearFormatWatchdog,
+          clearPendingFormat,
+          latestRequestRef,
+          message,
+          userMessage,
+        });
+        clearAllPendingFormattedViewerResults();
+        interactiveFlow.stop();
+        worker.onerror = null;
+        worker.onmessageerror = null;
+        worker.onmessage = null;
+        worker.terminate();
+        activeWorker = null;
+        workerRef.current = null;
+
+        if (restartAttempts >= MAX_AUTOMATIC_WORKER_RESTARTS) {
+          callbacksRef.current.logEvent('worker-restart-exhausted', {
+            attempts: restartAttempts,
+            message,
+          });
+          return;
+        }
+
+        restartAttempts += 1;
+        restartTimer = window.setTimeout(() => {
+          restartTimer = null;
+          startWorker(true);
+        }, WORKER_RESTART_DELAY_MS);
+      };
+
+      worker.onerror = (event) => {
+        restartWorker(event.message || 'JSON worker failed to load', 'JSON Worker 异常，正在自动恢复', {
+          event: 'worker-error',
+          source: event.filename,
+          line: event.lineno,
+          column: event.colno,
+        });
+      };
+      worker.onmessageerror = () => {
+        restartWorker('JSON worker message transfer failed', 'JSON Worker 通信异常，正在自动恢复', {
+          event: 'worker-message-error',
+        });
+      };
+      worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+        restartAttempts = 0;
+        if (event.data.type === 'viewer-cache-evicted') {
+          onViewerCacheEvicted(event.data.tabId);
+          return;
+        }
+        if (event.data.type === 'viewer-cache-restored') {
+          onViewerCacheRestored(event.data.tabId);
+          return;
+        }
+        if (event.data.type === 'viewer-ready') {
+          onViewerCacheRestored(event.data.tabId);
+        }
+        if (interactiveFlow.handleResult(event.data)) {
+          return;
+        }
+
+        handleJsonFormattingWorkerResult(event.data, {
+          callbacks: callbacksRef.current,
+          clearFormatWatchdog,
+          latestRequestRef,
+          performanceSessionsRef,
+          rawTextByTabRef,
+          readWorkerText,
+          readWorkerTextField,
+          structureStatusRef,
+        });
+      };
     };
 
+    startWorker(false);
+
     return () => {
+      disposed = true;
+      if (restartTimer !== null) {
+        window.clearTimeout(restartTimer);
+      }
       Object.keys(formatTimersRef.current).forEach(clearPendingFormat);
       Object.keys(formatWatchdogTimersRef.current).forEach(clearFormatWatchdog);
+      clearAllPendingFormattedViewerResults();
       callbacksRef.current.clearLeftHighlights();
       callbacksRef.current.clearRightHighlights();
       interactiveFlow.stop();
-      worker.terminate();
+      activeWorker?.terminate();
+      activeWorker = null;
       workerRef.current = null;
     };
   }, [
@@ -154,6 +235,10 @@ export function useJsonWorkerLifecycle({
     clearPendingFormat,
     formatWatchdogTimersRef,
     interactiveFlow,
+    onViewerCacheEvicted,
+    onViewerCacheRestored,
+    onWorkerRestarted,
     performanceSessionsRef,
+    recoverFormatRequests,
   ]);
 }

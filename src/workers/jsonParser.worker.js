@@ -2,15 +2,16 @@
 
 import { getJsonWorkerMessageHandler, isJsonWorkerRequestMessage } from '../utils/jsonWorkerMessageRouting';
 import { createJsonNodeEditOperations } from './jsonNodeEditOperations.ts';
+import { BoundedLruMap, MAX_RETAINED_LARGE_VIEWER_CACHES } from './jsonWorkerBoundedCache.ts';
 import { releaseJsonWorkerTransientCaches } from './jsonWorkerCacheLifecycle.ts';
 import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations.ts';
 import { createJsonWorkerFormatOperations } from './jsonWorkerFormatOperations.ts';
 import { createJsonWorkerLocateOperations, getLocateCandidateOffsets } from './jsonWorkerLocateOperations.ts';
 import { createJsonWorkerSearchOperations, getSearchRequestKey } from './jsonWorkerSearchOperations.ts';
 import { createJsonWorkerStructureOperations } from './jsonWorkerStructureOperations.ts';
+import { readNamedMessageText } from './jsonWorkerTextPayload.ts';
 
 const structureCache = new Map();
-const viewerCache = new Map();
 const deferredStructureWarmupTimers = new Map();
 const editJsonCache = new Map();
 const nodeEditCache = new Map();
@@ -19,6 +20,24 @@ const rawDocumentCache = new Map();
 const latestFormatRequestByTab = new Map();
 const latestSearchRequestByKey = new Map();
 const latestLocateRequestByTab = new Map();
+const viewerCache = new BoundedLruMap({
+  maxEntries: MAX_RETAINED_LARGE_VIEWER_CACHES,
+  onEvict(tabId) {
+    clearDeferredStructureWarmup(tabId);
+    structureCache.delete(tabId);
+    editJsonCache.delete(tabId);
+    nodeEditCache.delete(tabId);
+    rawSearchCache.delete(tabId);
+    rawDocumentCache.delete(tabId);
+    latestFormatRequestByTab.delete(tabId);
+    cancelInteractiveRequests(tabId);
+    postMessage({
+      type: 'viewer-cache-evicted',
+      requestId: 0,
+      tabId,
+    });
+  },
+});
 const {
   clearDeferredStructureWarmup,
   ensureStructureTrees,
@@ -103,10 +122,47 @@ function handleReleaseTransientCacheMessage(message) {
   });
 }
 
+function handleHydrateViewerCacheMessage(message) {
+  const formattedText = readNamedMessageText(message, 'formattedText', 'formattedTextBuffer');
+  if (typeof formattedText !== 'string' || !(message.viewerData?.lineStarts instanceof Uint32Array)) {
+    return;
+  }
+
+  const rawText = message.enableDirectLocate ? readNamedMessageText(message, 'rawText', 'rawTextBuffer') : undefined;
+  const cacheRequestId = latestFormatRequestByTab.get(message.tabId) ?? message.requestId;
+  viewerCache.set(message.tabId, {
+    requestId: cacheRequestId,
+    formattedText,
+    viewerData: message.viewerData,
+  });
+
+  if (message.enableDirectLocate && typeof rawText === 'string') {
+    const isIdentityFormat = rawText === formattedText;
+    structureCache.set(message.tabId, {
+      requestId: cacheRequestId,
+      directLocate: true,
+      directLocateMode: isIdentityFormat ? 'identity' : 'token-search',
+      rawText: isIdentityFormat ? undefined : rawText,
+      formattedText,
+      viewerData: message.viewerData,
+      tokenLocateCache: { tokenOffsetsByToken: new Map() },
+    });
+  } else {
+    structureCache.delete(message.tabId);
+  }
+
+  postMessage({
+    type: 'viewer-cache-restored',
+    requestId: message.requestId,
+    tabId: message.tabId,
+  });
+}
+
 const workerMessageHandlers = {
   'clear-structure': handleClearStructureMessage,
   'edit-json': jsonWorkerEditJsonOperations.handleEditJsonMessage,
   format: jsonWorkerFormatOperations.handleFormatMessage,
+  'hydrate-viewer-cache': handleHydrateViewerCacheMessage,
   locate: jsonWorkerLocateOperations.handleLocateMessage,
   'locate-right-direct': jsonWorkerLocateOperations.handleLocateRightDirectMessage,
   'release-transient-cache': handleReleaseTransientCacheMessage,

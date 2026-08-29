@@ -22,6 +22,10 @@
 - 让连续大文件转换复用 Worker 文本和语义等价的格式化结果；更深层转义会同步右侧并使用分块虚拟渲染，同时让原生文件流在开始读取前先绘制进度提示。
 - 移除格式化关键路径中的重复全文度量与语法扫描，复用单次编码结果，并将“结果可发送”耗时纳入 5MB/20MB 性能回归门槛。
 - 让 Electron 原生导入直接把已读取的文件缓冲区转交格式化 Worker，避免 20MB 文本在渲染进程重复 UTF-8 编码。
+- 关闭或清空标签时立即释放等待中的大文件结果和格式化超时定时器，避免中途退出留下大文本引用。
+- 将 Worker 大文件查看缓存限制为最近两个标签，并在切回被淘汰标签时透明恢复搜索和定位能力。
+- Worker 加载或通信异常时自动重建，并安全重试尚未完成的格式化请求。
+- 将标签级处理状态和大文件提示移到标签栏下方，避免不同类型标签切换时标签栏上下跳动。
 
 ### English
 
@@ -43,6 +47,10 @@
 - Reused worker text and semantically equivalent formatted results across consecutive large transforms; deeper escapes now synchronize through a chunked virtual viewer, while native streams paint progress before file reading starts.
 - Removed duplicate full-text measurement and syntax scans from the format critical path, reused one encoded result, and added result-ready time to the 5MB/20MB regression gate.
 - Passed native Electron import buffers directly to the formatting worker, avoiding a second UTF-8 encoding of 20MB text in the renderer.
+- Released pending large-file results and format watchdogs immediately when tabs are cleared or closed, preventing abandoned large-text references.
+- Bounded worker-side large-viewer caches to the two most recent tabs and transparently restored search and locate data when revisiting an evicted tab.
+- Automatically rebuilt the worker after load or message failures and safely retried unfinished format requests.
+- Moved tab-specific processing and large-file guidance below the tab bar so switching document types no longer shifts tab positions vertically.
 
 ## v1.0.33 - 2026-08-28
 

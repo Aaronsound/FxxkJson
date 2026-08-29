@@ -63,11 +63,25 @@ export interface EditJsonWorkerRequest {
   reuseText?: boolean;
 }
 
+export interface HydrateViewerCacheWorkerRequest {
+  type: 'hydrate-viewer-cache';
+  requestId: number;
+  tabId: string;
+  enableDirectLocate: boolean;
+  formattedText?: string;
+  formattedTextBuffer?: ArrayBuffer;
+  rawText?: string;
+  rawTextBuffer?: ArrayBuffer;
+  rawRevision?: number;
+  viewerData: LargeJsonLineIndex;
+}
+
 type WorkerFormatTextPayload = WorkerRequestTextPayload | { reuseText: true; text?: never; textBuffer?: never };
 
 export type WorkerRequestMessage =
   | { type: 'clear-structure'; tabId: string }
   | { type: 'release-transient-cache'; tabId: string }
+  | HydrateViewerCacheWorkerRequest
   | (WorkerRequestBase & WorkerFormatTextPayload & WorkerFormatOptions & { type: 'format'; rawRevision?: number })
   | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'repair'; rawRevision?: number })
   | (WorkerRequestBase & {
@@ -111,7 +125,9 @@ export interface WorkerMessage {
     | 'locate-result'
     | 'viewer-ready'
     | 'search-result'
-    | 'edit-json-result';
+    | 'edit-json-result'
+    | 'viewer-cache-evicted'
+    | 'viewer-cache-restored';
   requestId: number;
   tabId: string;
   target?: SearchTarget;

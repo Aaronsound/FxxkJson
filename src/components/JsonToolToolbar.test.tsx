@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTranslator } from '../utils/i18n';
-import JsonToolToolbar from './JsonToolToolbar';
+import JsonToolToolbar, { JsonToolToolbarFeedback } from './JsonToolToolbar';
 
 function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolToolbar>> = {}) {
   const props: React.ComponentProps<typeof JsonToolToolbar> = {
@@ -44,7 +44,12 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
   };
 
   return {
-    ...render(<JsonToolToolbar {...props} />),
+    ...render(
+      <>
+        <JsonToolToolbar {...props} />
+        <JsonToolToolbarFeedback {...props} />
+      </>
+    ),
     props,
   };
 }

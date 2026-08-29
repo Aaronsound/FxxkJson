@@ -56,6 +56,15 @@ describe('JsonToolTabBar', () => {
     expect(tabStyles).toContain('height: 20px;');
   });
 
+  it('keeps contextual status below the tab bar so tab switching cannot move the tabs vertically', () => {
+    const workspaceSource = readFileSync(join(process.cwd(), 'src/components/JsonToolWorkspace.tsx'), 'utf8');
+    const tabBarPosition = workspaceSource.indexOf('<JsonToolTabBar');
+    const feedbackPosition = workspaceSource.indexOf('<JsonToolToolbarFeedback');
+
+    expect(tabBarPosition).toBeGreaterThan(-1);
+    expect(feedbackPosition).toBeGreaterThan(tabBarPosition);
+  });
+
   it('keeps the add action outside the scrolling tab list', () => {
     const { container, props } = renderTabBar();
 

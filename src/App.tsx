@@ -1,5 +1,6 @@
 import type { OnMount } from '@monaco-editor/react';
 import type React from 'react';
+import { useEffect } from 'react';
 import JsonToolAppView from './components/JsonToolAppView';
 import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
 import { useActiveJsonTabState } from './hooks/useActiveJsonTabState';
@@ -368,12 +369,14 @@ const App: React.FC = () => {
     queueRepair,
     queueFormatAfterEditSave,
     releaseTransientWorkerCaches,
+    restoreWorkerTabCache,
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,
     resetTabArtifacts,
+    workerGeneration,
   } = useJsonFormattingWorker({
     ...{
       activeTabIdRef,
@@ -398,6 +401,32 @@ const App: React.FC = () => {
     ...{ setLeftSearchResults, updateTabContent, updateFormattedContent },
     ...{ resetSearchState, revealLeftRange, clearLeftHighlights, clearRightHighlights },
   });
+
+  useEffect(() => {
+    // Re-run after a Worker restart even when the active document itself did not change.
+    void workerGeneration;
+    if (!activeTab) {
+      return;
+    }
+
+    restoreWorkerTabCache({
+      tabId: activeTab.id,
+      rawText: activeRawText,
+      rawRevision: activeDocumentMeta.rawRevision,
+      formattedText: formattedValue,
+      viewerData: activeLargeViewerData,
+      enableDirectLocate: isLargeFileLocateEnabled,
+    });
+  }, [
+    activeDocumentMeta.rawRevision,
+    activeLargeViewerData,
+    activeRawText,
+    activeTab,
+    formattedValue,
+    isLargeFileLocateEnabled,
+    restoreWorkerTabCache,
+    workerGeneration,
+  ]);
 
   const { pinActiveRightPath, selectRightPinnedPath, toggleRightFoldAtOffset } = useRightPaneNavigationActions({
     ...{ activeRightNodeSelection, activeTab, activeTabIdRef, getPinnedPath, largeViewerRef },

@@ -2,12 +2,14 @@ import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { WorkerRequestMessage } from '../types/jsonTool';
 import { disposeModel, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
+import { clearPendingFormattedViewerResult } from './jsonFormattingWorkerResults';
 import type { JsonWorkerCallbacks } from './useJsonWorkerCallbacksRef';
 
 interface CreateJsonWorkerTabArtifactActionsArgs {
   callbacksRef: MutableRefObject<JsonWorkerCallbacks>;
   cancelInteractiveRequests: (tabId: string) => void;
   clearPendingFormat: (tabId: string) => void;
+  clearFormatWatchdog: (tabId: string) => void;
   clearTabStructure: (tabId: string, status?: 'ready' | 'building' | 'disabled') => void;
   formatTimersRef: MutableRefObject<Record<string, number>>;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
@@ -27,6 +29,7 @@ export function createJsonWorkerTabArtifactActions({
   callbacksRef,
   cancelInteractiveRequests,
   clearPendingFormat,
+  clearFormatWatchdog,
   clearTabStructure,
   formatTimersRef,
   formattedTextByTabRef,
@@ -43,6 +46,8 @@ export function createJsonWorkerTabArtifactActions({
 }: CreateJsonWorkerTabArtifactActionsArgs) {
   const resetTabArtifacts = (tabId: string) => {
     clearPendingFormat(tabId);
+    clearFormatWatchdog(tabId);
+    clearPendingFormattedViewerResult(tabId);
     callbacksRef.current.clearPerformanceState(tabId);
     callbacksRef.current.setTabImporting(tabId, null);
     callbacksRef.current.setTabFormatting(tabId, false);
@@ -61,6 +66,8 @@ export function createJsonWorkerTabArtifactActions({
 
   const removeTabArtifacts = (tabId: string) => {
     clearPendingFormat(tabId);
+    clearFormatWatchdog(tabId);
+    clearPendingFormattedViewerResult(tabId);
     callbacksRef.current.clearPerformanceState(tabId, true);
     postWorkerRequest({
       type: 'clear-structure',

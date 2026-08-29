@@ -87,8 +87,8 @@ export async function readElectronMemorySnapshot(cdp) {
   };
 }
 
-export function assertElectronMemoryBudget(snapshot, sizeMb, { peakSizeMb = sizeMb } = {}) {
-  const totalWorkingSetBudgetMb = 700 + sizeMb * 20;
+export function assertElectronMemoryBudget(snapshot, sizeMb, { peakSizeMb = sizeMb, workingSetSizeMb = sizeMb } = {}) {
+  const totalWorkingSetBudgetMb = 700 + workingSetSizeMb * 20;
   const totalPeakWorkingSetBudgetMb = 950 + peakSizeMb * 24;
   const rendererHeapBudgetMb = 96 + sizeMb * 8;
   const failures = [];
