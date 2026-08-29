@@ -35,9 +35,22 @@ concurrency:
 
 jobs:
   electron-e2e:
-    name: Desktop JSON Flow
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: Desktop JSON Flow (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            artifact_name: linux
+          - name: macOS
+            os: macos-latest
+            artifact_name: macos
+          - name: Windows
+            os: windows-latest
+            artifact_name: windows
     env:
       HANJSON_E2E_SIZE_MB: ${{ github.event_name == 'schedule' && '20' || github.event_name == 'workflow_dispatch' && inputs.size_mb || '2' }}
       HANJSON_E2E_ARTIFACT_DIR: electron-e2e-artifacts
@@ -56,15 +69,21 @@ jobs:
         run: npm ci --no-audit --fund=false
 
       - name: Install virtual display
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
-      - name: Run Electron E2E
-        run: xvfb-run --auto-servernum npm run e2e:electron -- --size-mb "$HANJSON_E2E_SIZE_MB"
+      - name: Run Electron E2E on Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run e2e:electron
+
+      - name: Run Electron E2E on macOS or Windows
+        if: runner.os != 'Linux'
+        run: npm run e2e:electron
 
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: electron-e2e-diagnostics
+          name: electron-e2e-diagnostics-${{ matrix.artifact_name }}
           path: electron-e2e-artifacts
           if-no-files-found: ignore

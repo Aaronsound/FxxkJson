@@ -7,12 +7,18 @@
 - 重构中英文 README 首屏，突出大文件、本地处理、跨平台下载和 30 秒上手流程。
 - 新增由真实 Electron 截图合成的中英文动态演示，以及用于 GitHub 分享卡片的 Social Preview 封面。
 - 增加可重复执行的动态演示生成脚本，并将其接入文档截图流程。
+- 将完整 Electron E2E 扩展到 Linux、macOS 和 Windows，并在发布前为每个目标执行 20MB 场景。
+- 将全部 renderer 源码纳入覆盖率基线，补齐内容操作和 worker 编辑流程的关键分支测试。
+- 固定生产依赖安全审计使用 npm 官方接口，并加入面向 `dev` 的 Dependabot 小版本自动维护。
 
 ### English
 
 - Reworked the Chinese and English README landing sections around large files, local processing, cross-platform downloads, and a 30-second quick start.
 - Added bilingual animated demos assembled from real Electron screenshots and a Social Preview image for GitHub link cards.
 - Added a reproducible animated-demo generator and connected it to the documentation screenshot workflow.
+- Expanded the full Electron E2E suite to Linux, macOS, and Windows, with a 20MB scenario on every release target before packaging.
+- Included every renderer source file in the coverage baseline and added focused branch coverage for content actions and worker edits.
+- Pinned production security audits to the official npm endpoint and added Dependabot minor/patch maintenance targeting `dev`.
 
 ## v1.0.33 - 2026-08-28
 

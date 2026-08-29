@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkerMessage } from '../types/jsonTool';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
-import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
 import { MissingOriginalJsonTextError } from './jsonNodeEditOperations';
+import { createJsonWorkerEditJsonOperations } from './jsonWorkerEditJsonOperations';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -140,6 +140,226 @@ describe('createJsonWorkerEditJsonOperations', () => {
         success: false,
         requiresOriginalText: true,
       })
+    );
+  });
+
+  it('formats JSON, caches its original value, and drops the cache for nested JSON strings', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage: vi.fn() });
+    const editJsonCache = new Map();
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache,
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 10,
+      tabId: 'tab-format',
+      operation: 'format',
+      text: '{"value":1}',
+    });
+
+    expect(postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ success: true, data: '{\n  "value": 1\n}' })
+    );
+    expect(editJsonCache.get('tab-format')).toEqual({ originalText: '{"value":1}', originalValue: { value: 1 } });
+
+    operations.handleEditJsonMessage({
+      requestId: 11,
+      tabId: 'tab-format',
+      operation: 'format',
+      text: JSON.stringify('{"nested":true}'),
+    });
+    expect(editJsonCache.has('tab-format')).toBe(false);
+  });
+
+  it('saves edits against the cached original formatting and releases the cache', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage: vi.fn() });
+    const editJsonCache = new Map();
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache,
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+    });
+    const originalText = '{"value": 1}';
+
+    operations.handleEditJsonMessage({ requestId: 12, tabId: 'tab-save', operation: 'format', text: originalText });
+    operations.handleEditJsonMessage({
+      requestId: 13,
+      tabId: 'tab-save',
+      operation: 'save',
+      text: '{\n  "value": 2\n}',
+      originalText: originalText,
+    });
+
+    expect(postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requestId: 13, success: true, data: '{"value":2}' })
+    );
+    expect(editJsonCache.has('tab-save')).toBe(false);
+  });
+
+  it.each([
+    ['copy-literal', '{"value":1}', '"{\\"value\\":1}"'],
+    ['escape-json', '{"value":1}', '"{\\"value\\":1}"'],
+    ['unescape-json', '"{\\"value\\":1}"', '{\n  "value": 1\n}'],
+  ] as const)('handles the %s text transform', (operation, text, expected) => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage: vi.fn() });
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+    });
+
+    operations.handleEditJsonMessage({ requestId: 14, tabId: 'tab-transform', operation, text });
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ operation, success: true, data: expected }));
+  });
+
+  it('reads a node through the cached node operation', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage: vi.fn() });
+    const readJsonNodeForEdit = vi.fn(() => '42');
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit,
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 15,
+      tabId: 'tab-read',
+      operation: 'read-node',
+      text: '{"value":42}',
+      offset: 9,
+    });
+
+    expect(readJsonNodeForEdit).toHaveBeenCalledWith('tab-read', '{"value":42}', 9);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ success: true, data: '42' }));
+  });
+
+  it('routes save and rename node mutations through compact patch responses', () => {
+    const workerPostMessage = vi.fn();
+    vi.stubGlobal('self', { postMessage: workerPostMessage });
+    vi.stubGlobal('postMessage', vi.fn());
+    const saveJsonNodeForEdit = vi.fn(() => createNodeMutationResult('{"saved":true}'));
+    const renameJsonNodeKeyForEdit = vi.fn(() => createNodeMutationResult('{"renamed":true}'));
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit,
+        saveJsonNodeForEdit,
+      },
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 16,
+      tabId: 'tab-node',
+      operation: 'save-node',
+      text: 'true',
+      originalText: '{"value":false}',
+      path: ['value'],
+      rawRevision: 3,
+    });
+    operations.handleEditJsonMessage({
+      requestId: 17,
+      tabId: 'tab-node',
+      operation: 'rename-node-key',
+      text: 'renamed',
+      originalText: '{"value":false}',
+      path: ['value'],
+      rawRevision: 4,
+    });
+
+    expect(saveJsonNodeForEdit).toHaveBeenCalledWith('tab-node', 'true', '{"value":false}', ['value'], 3);
+    expect(renameJsonNodeKeyForEdit).toHaveBeenCalledWith('tab-node', 'renamed', '{"value":false}', ['value'], 4);
+    expect(workerPostMessage).toHaveBeenCalledTimes(2);
+    expect(workerPostMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requestId: 17, operation: 'rename-node-key', rawPatch: expect.any(Object) }),
+      []
+    );
+  });
+
+  it('falls back to a full node response when a patch is too large', () => {
+    const workerPostMessage = vi.fn();
+    vi.stubGlobal('self', { postMessage: workerPostMessage });
+    vi.stubGlobal('postMessage', vi.fn());
+    const largePatchResult = {
+      ...createNodeMutationResult('{"saved":true}'),
+      rawPatch: { sourceLength: 2, startOffset: 1, endOffset: 1, text: 'x'.repeat(256 * 1024 + 1) },
+    };
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => largePatchResult),
+      },
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 18,
+      tabId: 'tab-full',
+      operation: 'save-node',
+      text: 'true',
+      originalText: '{}',
+      path: ['value'],
+    });
+
+    expect(workerPostMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 18, success: true, data: '{"saved":true}', formattedText: '{\n}' }),
+      []
+    );
+  });
+
+  it('returns a normal processing error for invalid JSON', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    vi.stubGlobal('self', { postMessage: vi.fn() });
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+        readJsonNodeForEdit: vi.fn(() => ''),
+        renameJsonNodeKeyForEdit: vi.fn(() => createNodeMutationResult()),
+        saveJsonNodeForEdit: vi.fn(() => createNodeMutationResult()),
+      },
+    });
+
+    operations.handleEditJsonMessage({
+      requestId: 19,
+      tabId: 'tab-error',
+      operation: 'format',
+      text: '{invalid',
+    });
+
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: 19, success: false, requiresOriginalText: false, error: expect.any(String) })
     );
   });
 });

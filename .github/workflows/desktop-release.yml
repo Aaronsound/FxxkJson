@@ -123,6 +123,19 @@ jobs:
       - name: Audit production dependencies
         run: npm run audit:prod
 
+      - name: Run 20MB Electron E2E before packaging
+        run: node ./scripts/e2e-electron-json-flow.mjs --size-mb 20
+        env:
+          HANJSON_E2E_ARTIFACT_DIR: electron-e2e-artifacts
+
+      - name: Upload Electron E2E failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-e2e-diagnostics-${{ matrix.artifact_name }}
+          path: electron-e2e-artifacts
+          if-no-files-found: ignore
+
       - name: Build desktop package
         # Avoid inherited Electron mirror config rewriting electron-builder helper downloads.
         run: node node_modules/electron-builder/cli.js ${{ matrix.builder_args }} --publish never

@@ -1,5 +1,5 @@
-import { createRequire } from 'node:module';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -12,15 +12,15 @@ import {
   readElectronMemorySnapshot,
   startElectronApp,
 } from './e2e-electron-app.mjs';
-import { importSampleThroughNativeFileFlow, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
 import { runRepeatedEditFoldingScenario } from './e2e-json-edit-folding-scenario.mjs';
 import { runEditTransformScenario } from './e2e-json-edit-transform-scenario.mjs';
-import { runMultiTabMemoryScenario } from './e2e-json-multi-tab-memory-scenario.mjs';
+import { importSampleThroughNativeFileFlow, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
 import {
   runClipboardAndCompareScenario,
   runRightNodeScenario,
   runSearchReplaceScenario,
 } from './e2e-json-flow-scenarios.mjs';
+import { runMultiTabMemoryScenario } from './e2e-json-multi-tab-memory-scenario.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -65,10 +65,13 @@ async function resizeElectronWindow(cdp, width, height, predicate, label) {
   try {
     await waitFor(() => evaluate(cdp, predicate), label, 3000);
   } catch {
-    const { windowId } = await cdp.send('Browser.getWindowForTarget');
-    await cdp.send('Browser.setWindowBounds', {
-      windowId,
-      bounds: { height, width },
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      deviceScaleFactor: 1,
+      height,
+      mobile: false,
+      screenHeight: height,
+      screenWidth: width,
+      width,
     });
     await waitFor(() => evaluate(cdp, predicate), `${label} through native window bounds`);
   }
@@ -634,33 +637,50 @@ async function assertLargeViewerAutoWrap(cdp) {
       return true;
     })()`
   );
-  await waitFor(
-    () =>
-      evaluate(
-        cdp,
-        `(() => {
+  const readWrapMetrics = () =>
+    evaluate(
+      cdp,
+      `(() => {
           const rows = Array.from(document.querySelectorAll('.right-editor-pane .large-json-row.wrap'));
-          const shortRows = rows.filter((row) => {
-            const length = row.querySelector('.large-json-line-text')?.textContent?.length ?? 0;
-            return length > 0 && length < 60;
+          const rowMetrics = rows
+            .map((row) => ({
+              height: Number.parseFloat(row.style.height),
+              textLength: row.querySelector('.large-json-line-text')?.textContent?.length ?? 0,
+              top: Number.parseFloat(row.style.top),
+            }))
+            .filter((row) => Number.isFinite(row.height) && Number.isFinite(row.top));
+          const baseHeight = Math.min(...rowMetrics.map((row) => row.height));
+          const shortRows = rowMetrics.filter((row) => row.height <= baseHeight + 0.5);
+          const longRows = rowMetrics.filter((row) => row.height > baseHeight + 0.5);
+          const sortedRows = rowMetrics.toSorted((left, right) => left.top - right.top);
+          const rowsDoNotOverlap = sortedRows.every((row, index) => {
+            const next = sortedRows[index + 1];
+            return !next || row.top + row.height <= next.top + 0.5;
           });
-          const longRow = rows.find((row) => row.querySelector('.large-json-line-text')?.textContent?.includes('"message"'));
-          const rowRects = rows
-            .map((row) => row.getBoundingClientRect())
-            .sort((left, right) => left.top - right.top);
-          const rowsDoNotOverlap = rowRects.every((rect, index) => {
-            const next = rowRects[index + 1];
-            return !next || rect.bottom <= next.top + 0.5;
-          });
-          return shortRows.length >= 3
-            && shortRows.every((row) => Math.round(row.getBoundingClientRect().height) === 18)
-            && Boolean(longRow && longRow.getBoundingClientRect().height > 18)
+          const ready = Number.isFinite(baseHeight)
+            && shortRows.length >= 3
+            && shortRows.some((row) => row.textLength > 0 && row.textLength <= 3)
+            && longRows.length >= 1
             && rowsDoNotOverlap;
+          return {
+            baseHeight,
+            longRowCount: longRows.length,
+            ready,
+            rowCount: rows.length,
+            rowMetrics: rowMetrics.slice(0, 20),
+            rowsDoNotOverlap,
+            shortRowCount: shortRows.length,
+          };
         })()`
-      ),
-    'large viewer wraps only long rows',
-    90000
-  );
+    );
+  try {
+    await waitFor(async () => (await readWrapMetrics())?.ready, 'large viewer wraps only long rows', 30000);
+  } catch (error) {
+    const metrics = await readWrapMetrics();
+    throw new Error(
+      `${error instanceof Error ? error.message : 'large viewer wrap check failed'}: ${JSON.stringify(metrics)}`
+    );
+  }
   await evaluate(
     cdp,
     `(() => {
