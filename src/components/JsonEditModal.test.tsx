@@ -152,15 +152,25 @@ class MockEditor {
 
   revealRangeInCenter = vi.fn();
 
-  selection: InstanceType<typeof mockEditorState.MockSelection> | null = null;
+  selection: {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  } | null = null;
 
-  setSelection = vi.fn((selection: InstanceType<typeof mockEditorState.MockSelection>) => {
-    this.selection = selection;
-    this.position = selection.getEndPosition();
-    this.cursorSelectionListeners.forEach((listener) => {
-      listener();
-    });
-  });
+  setSelection = vi.fn(
+    (selection: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => {
+      this.selection = selection;
+      this.position = {
+        lineNumber: selection.endLineNumber,
+        column: selection.endColumn,
+      };
+      this.cursorSelectionListeners.forEach((listener) => {
+        listener();
+      });
+    }
+  );
 
   setHiddenAreas = vi.fn();
 

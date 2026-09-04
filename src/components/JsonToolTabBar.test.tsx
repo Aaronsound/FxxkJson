@@ -101,6 +101,34 @@ describe('JsonToolTabBar', () => {
     expect(addButton.querySelector('.add-tab-plus')).toHaveTextContent('+');
   });
 
+  it('skips rendering when a parent changes unrelated state', () => {
+    const t = vi.fn((key: string) => key);
+    const props: React.ComponentProps<typeof JsonToolTabBar> = {
+      activeTabId: 'tab-1',
+      renamingTab: null,
+      tabs: [{ id: 'tab-1', title: 'a.json' }],
+      onAddTab: vi.fn(),
+      onCancelRenaming: vi.fn(),
+      onCloseTab: vi.fn(),
+      onFinishRenaming: vi.fn(),
+      onRenamingChange: vi.fn(),
+      onSelectTab: vi.fn(),
+      onStartRenaming: vi.fn(),
+      t,
+    };
+    const Parent = ({ unrelated }: { unrelated: number }) => (
+      <div data-unrelated={unrelated}>
+        <JsonToolTabBar {...props} />
+      </div>
+    );
+    const { rerender } = render(<Parent unrelated={0} />);
+    const initialTranslationCalls = t.mock.calls.length;
+
+    rerender(<Parent unrelated={1} />);
+
+    expect(t).toHaveBeenCalledTimes(initialTranslationCalls);
+  });
+
   it('switches tabs with arrow, Home and End keys', () => {
     const { props } = renderTabBar();
     const tabs = screen.getAllByRole('tab');

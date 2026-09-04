@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import type { Tab } from '../types/jsonTool';
 import { getFirstJsonImportFile } from '../utils/importFiles';
@@ -17,7 +17,7 @@ export function useJsonImportDropZone({ activeTab, importJsonFile, setTabError }
   const dragImportDepthRef = useRef(0);
   const [isDragImportActive, setIsDragImportActive] = useState(false);
 
-  const handleImportDragEnter = (event: DragEvent<HTMLDivElement>) => {
+  const handleImportDragEnter = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (!hasDraggedFiles(event)) {
       return;
     }
@@ -27,9 +27,9 @@ export function useJsonImportDropZone({ activeTab, importJsonFile, setTabError }
     event.dataTransfer.dropEffect = 'copy';
     dragImportDepthRef.current += 1;
     setIsDragImportActive(true);
-  };
+  }, []);
 
-  const handleImportDragOver = (event: DragEvent<HTMLDivElement>) => {
+  const handleImportDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (!hasDraggedFiles(event)) {
       return;
     }
@@ -37,9 +37,9 @@ export function useJsonImportDropZone({ activeTab, importJsonFile, setTabError }
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = 'copy';
-  };
+  }, []);
 
-  const handleImportDragLeave = (event: DragEvent<HTMLDivElement>) => {
+  const handleImportDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
     if (!hasDraggedFiles(event)) {
       return;
     }
@@ -50,30 +50,33 @@ export function useJsonImportDropZone({ activeTab, importJsonFile, setTabError }
     if (dragImportDepthRef.current === 0) {
       setIsDragImportActive(false);
     }
-  };
+  }, []);
 
-  const handleImportDrop = async (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) {
-      return;
-    }
+  const handleImportDrop = useCallback(
+    async (event: DragEvent<HTMLDivElement>) => {
+      if (!hasDraggedFiles(event)) {
+        return;
+      }
 
-    event.preventDefault();
-    event.stopPropagation();
-    dragImportDepthRef.current = 0;
-    setIsDragImportActive(false);
+      event.preventDefault();
+      event.stopPropagation();
+      dragImportDepthRef.current = 0;
+      setIsDragImportActive(false);
 
-    if (!activeTab) {
-      return;
-    }
+      if (!activeTab) {
+        return;
+      }
 
-    const file = getFirstJsonImportFile(event.dataTransfer.files);
-    if (!file) {
-      setTabError(activeTab.id, '请拖入 .json 或 .txt 文件');
-      return;
-    }
+      const file = getFirstJsonImportFile(event.dataTransfer.files);
+      if (!file) {
+        setTabError(activeTab.id, '请拖入 .json 或 .txt 文件');
+        return;
+      }
 
-    await importJsonFile(activeTab.id, file);
-  };
+      await importJsonFile(activeTab.id, file);
+    },
+    [activeTab, importJsonFile, setTabError]
+  );
 
   return {
     handleImportDragEnter,

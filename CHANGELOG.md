@@ -30,6 +30,12 @@
 - Worker 重启后安全恢复未完成的搜索、定位和编辑请求，同时继续忽略旧 Worker 的迟到结果。
 - 增加 Electron 冷启动预算和两轮大文件多标签内存回归，持续检测启动退化与累积内存泄漏。
 - 让新建标签按钮在标签较少时紧跟最后一个标签、溢出时保持可见，并补充快捷键与标签栏空白处双击新建。
+- 稳定搜索、性能记录、编辑器同步与 Worker 生命周期回调，消除 Hook 依赖告警并避免重复副作用。
+- 补充拖拽导入、性能会话和编辑器模型同步的编排测试，覆盖异常文件与回调更新场景。
+- 将搜索和编辑器操作改为复用挂载时提供的 Monaco API，使生产代码中的 Monaco 运行时导入点由 14 个降至 7 个。
+- 稳定标签、标签附件和拖拽导入回调，并隔离标签栏与性能面板的无关重绘。
+- 将编辑、对比、诊断、关于和节点操作弹窗改为按需加载，使主程序包由约 277.2 kB 降至 221.0 kB，并加入独立体积门槛。
+- 增加工作区组合、弹窗装载和状态操作稳定性测试，同时移除未接入界面的浮动面板代码。
 
 ### English
 
@@ -59,6 +65,12 @@
 - Safely resumed unfinished search, locate, and edit requests after worker restarts while continuing to ignore late results from obsolete workers.
 - Added Electron cold-start budgets and two-cycle large-file multi-tab memory regression checks for startup slowdowns and cumulative leaks.
 - Kept the new-tab action beside fitting tabs and visible during overflow, with keyboard and blank-tab-bar double-click creation shortcuts.
+- Stabilized search, performance tracking, editor synchronization, and worker lifecycle callbacks to eliminate Hook dependency warnings and avoid repeated effects.
+- Added orchestration coverage for drag-and-drop imports, performance sessions, and editor model synchronization, including invalid files and updated callbacks.
+- Reused Monaco APIs supplied during editor mounting for search and editor actions, reducing production Monaco runtime import sites from 14 to 7.
+- Stabilized tab, tab-artifact, and drag-import callbacks while isolating the tab bar and performance panel from unrelated renders.
+- Lazy-loaded edit, compare, diagnostics, about, and node-action dialogs, reducing the main App bundle from about 277.2 kB to 221.0 kB and adding a dedicated size budget.
+- Added workspace composition, dialog mounting, and state-action stability tests while removing unused floating-panel code that was never connected to the interface.
 
 ## v1.0.33 - 2026-08-28
 

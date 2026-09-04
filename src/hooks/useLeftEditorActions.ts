@@ -1,6 +1,6 @@
 import type { OnMount } from '@monaco-editor/react';
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { JsonSearchOptions, LargeJsonSearchMatch, Tab } from '../types/jsonTool';
 import { DEFAULT_TAB_TITLE } from '../types/jsonTool';
 import {
@@ -70,7 +70,7 @@ export function useLeftEditorActions({
   syncLeftModel,
   updateTabContent,
 }: UseLeftEditorActionsArgs) {
-  const handleLeftMount: OnMount = (editor) => {
+  const handleLeftMount: OnMount = (editor, monacoApi) => {
     leftEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncLeftModel(currentTabId, getTabContent(currentTabId), true);
@@ -94,13 +94,13 @@ export function useLeftEditorActions({
 
     bindEditorFocusContext(editor, leftEditorFocusContextKey);
 
-    registerSelectAllDeleteCommands(monaco, editor, {
+    registerSelectAllDeleteCommands(monacoApi, editor, {
       focusContextKey: leftEditorFocusContextKey,
       onClearAll: clearSelectedDocument,
       selectionCoversModel: () => selectionCoversModel(editor),
     });
 
-    registerPaneFindAction(monaco, editor, {
+    registerPaneFindAction(monacoApi, editor, {
       actionId: 'openLeftPaneFind',
       label: '搜索原始 JSON',
       focusContextKey: leftEditorFocusContextKey,

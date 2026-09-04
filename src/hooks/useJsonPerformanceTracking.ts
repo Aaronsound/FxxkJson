@@ -1,4 +1,4 @@
-import { type MutableRefObject, useEffect, useRef, useState } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import type { PerformanceSnapshot, PerformanceSnapshotStatus, PerformanceTrigger } from '../types/jsonTool';
 import { getDiagnosticsLogLevel } from '../utils/diagnosticsLogLevel';
 
@@ -46,107 +46,115 @@ export function useJsonPerformanceTracking({ activeTabIdRef, initialTabId }: Use
   const [performanceHistory, setPerformanceHistory] = useState<PerformanceSnapshot[]>([]);
   const performanceSessionsRef = useRef<Record<string, PerformanceSession>>({});
 
-  const logEvent = (event: string, details: Record<string, unknown> = {}) => {
-    window.electronAPI
-      ?.appendLog(
-        JSON.stringify({
-          event,
-          level: getDiagnosticsLogLevel(event),
-          activeTabId: activeTabIdRef.current,
-          ...details,
-        })
-      )
-      .catch(() => {
-        // Ignore logging failures in the renderer path.
-      });
-  };
+  const logEvent = useCallback(
+    (event: string, details: Record<string, unknown> = {}) => {
+      window.electronAPI
+        ?.appendLog(
+          JSON.stringify({
+            event,
+            level: getDiagnosticsLogLevel(event),
+            activeTabId: activeTabIdRef.current,
+            ...details,
+          })
+        )
+        .catch(() => {
+          // Ignore logging failures in the renderer path.
+        });
+    },
+    [activeTabIdRef]
+  );
 
-  const syncPerformanceSnapshot = (tabId: string, shouldLog = false) => {
-    const session = performanceSessionsRef.current[tabId];
-    if (!session) {
-      return;
-    }
-
-    const snapshot: PerformanceSnapshot = {
-      runId: session.runId,
-      trigger: session.trigger,
-      sourceLabel: session.sourceLabel,
-      fileSizeBytes: session.fileSizeBytes,
-      rawBytes: session.rawBytes,
-      formattedBytes: session.formattedBytes,
-      largeMode: session.largeMode,
-      structureEnabled: session.structureEnabled,
-      readFileMs: measureDuration(session.readStartedAt, session.readCompletedAt),
-      leftModelSyncMs: measureDuration(session.leftModelStartedAt, session.leftModelCompletedAt),
-      formatQueueMs: measureDuration(session.formatQueuedAt, session.formatStartedAt),
-      formatWorkerMs: measureDuration(session.formatStartedAt, session.formatCompletedAt),
-      rightModelSyncMs: measureDuration(session.rightModelStartedAt, session.rightModelCompletedAt),
-      viewerIndexMs: typeof session.viewerIndexMs === 'number' ? Math.round(session.viewerIndexMs * 10) / 10 : null,
-      totalToFormattedMs: measureDuration(session.startedAt, session.rightModelCompletedAt),
-      totalToViewerReadyMs: measureDuration(session.startedAt, session.viewerReadyAt),
-      structureIndexMs: measureDuration(session.formatCompletedAt, session.structureCompletedAt),
-      updatedAt: Date.now(),
-      status: session.status,
-      error: session.error,
-    };
-
-    setPerformanceByTab((current) => ({ ...current, [tabId]: snapshot }));
-
-    if (shouldLog) {
-      if (snapshot.status !== 'running') {
-        setPerformanceHistory((current) =>
-          [snapshot, ...current.filter((item) => item.runId !== snapshot.runId)].slice(0, 12)
-        );
+  const syncPerformanceSnapshot = useCallback(
+    (tabId: string, shouldLog = false) => {
+      const session = performanceSessionsRef.current[tabId];
+      if (!session) {
+        return;
       }
 
-      logEvent('performance-snapshot', {
-        tabId,
-        snapshot,
-      });
-    }
-  };
+      const snapshot: PerformanceSnapshot = {
+        runId: session.runId,
+        trigger: session.trigger,
+        sourceLabel: session.sourceLabel,
+        fileSizeBytes: session.fileSizeBytes,
+        rawBytes: session.rawBytes,
+        formattedBytes: session.formattedBytes,
+        largeMode: session.largeMode,
+        structureEnabled: session.structureEnabled,
+        readFileMs: measureDuration(session.readStartedAt, session.readCompletedAt),
+        leftModelSyncMs: measureDuration(session.leftModelStartedAt, session.leftModelCompletedAt),
+        formatQueueMs: measureDuration(session.formatQueuedAt, session.formatStartedAt),
+        formatWorkerMs: measureDuration(session.formatStartedAt, session.formatCompletedAt),
+        rightModelSyncMs: measureDuration(session.rightModelStartedAt, session.rightModelCompletedAt),
+        viewerIndexMs: typeof session.viewerIndexMs === 'number' ? Math.round(session.viewerIndexMs * 10) / 10 : null,
+        totalToFormattedMs: measureDuration(session.startedAt, session.rightModelCompletedAt),
+        totalToViewerReadyMs: measureDuration(session.startedAt, session.viewerReadyAt),
+        structureIndexMs: measureDuration(session.formatCompletedAt, session.structureCompletedAt),
+        updatedAt: Date.now(),
+        status: session.status,
+        error: session.error,
+      };
 
-  const beginPerformanceSession = (
-    tabId: string,
-    trigger: PerformanceTrigger,
-    sourceLabel: string,
-    fileSizeBytes: number | null,
-    rawBytes: number,
-    largeMode: boolean
-  ) => {
-    performanceSessionsRef.current[tabId] = {
-      runId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      requestId: null,
-      pendingFormat: true,
-      trigger,
-      sourceLabel,
-      fileSizeBytes,
-      rawBytes,
-      formattedBytes: 0,
-      largeMode,
-      structureEnabled: false,
-      startedAt: performance.now(),
-      status: 'running',
-      error: null,
-    };
-    syncPerformanceSnapshot(tabId);
-  };
+      setPerformanceByTab((current) => ({ ...current, [tabId]: snapshot }));
 
-  const mutatePerformanceSession = (
-    tabId: string,
-    mutate: (session: PerformanceSession) => void,
-    shouldLog = false
-  ) => {
-    const session = performanceSessionsRef.current[tabId];
-    if (!session) {
-      return;
-    }
+      if (shouldLog) {
+        if (snapshot.status !== 'running') {
+          setPerformanceHistory((current) =>
+            [snapshot, ...current.filter((item) => item.runId !== snapshot.runId)].slice(0, 12)
+          );
+        }
 
-    mutate(session);
-    syncPerformanceSnapshot(tabId, shouldLog);
-  };
+        logEvent('performance-snapshot', {
+          tabId,
+          snapshot,
+        });
+      }
+    },
+    [logEvent]
+  );
 
-  const clearPerformanceState = (tabId: string, removeOnly = false) => {
+  const beginPerformanceSession = useCallback(
+    (
+      tabId: string,
+      trigger: PerformanceTrigger,
+      sourceLabel: string,
+      fileSizeBytes: number | null,
+      rawBytes: number,
+      largeMode: boolean
+    ) => {
+      performanceSessionsRef.current[tabId] = {
+        runId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        requestId: null,
+        pendingFormat: true,
+        trigger,
+        sourceLabel,
+        fileSizeBytes,
+        rawBytes,
+        formattedBytes: 0,
+        largeMode,
+        structureEnabled: false,
+        startedAt: performance.now(),
+        status: 'running',
+        error: null,
+      };
+      syncPerformanceSnapshot(tabId);
+    },
+    [syncPerformanceSnapshot]
+  );
+
+  const mutatePerformanceSession = useCallback(
+    (tabId: string, mutate: (session: PerformanceSession) => void, shouldLog = false) => {
+      const session = performanceSessionsRef.current[tabId];
+      if (!session) {
+        return;
+      }
+
+      mutate(session);
+      syncPerformanceSnapshot(tabId, shouldLog);
+    },
+    [syncPerformanceSnapshot]
+  );
+
+  const clearPerformanceState = useCallback((tabId: string, removeOnly = false) => {
     delete performanceSessionsRef.current[tabId];
     setPerformanceByTab((current) => {
       const next = { ...current };
@@ -157,11 +165,11 @@ export function useJsonPerformanceTracking({ activeTabIdRef, initialTabId }: Use
       }
       return next;
     });
-  };
+  }, []);
 
   useEffect(() => {
     logEvent('renderer-ready');
-  }, []);
+  }, [logEvent]);
 
   useEffect(() => {
     const handleWindowError = (event: ErrorEvent) => {
@@ -190,7 +198,7 @@ export function useJsonPerformanceTracking({ activeTabIdRef, initialTabId }: Use
       window.removeEventListener('error', handleWindowError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
-  }, []);
+  }, [logEvent]);
 
   return {
     clearPerformanceState,

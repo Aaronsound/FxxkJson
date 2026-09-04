@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type {
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -38,7 +38,7 @@ export function useJsonTabArtifacts(initialTabId: string) {
     [initialTabId]: null,
   });
 
-  const initializeTabArtifacts = (tabId: string) => {
+  const initializeTabArtifacts = useCallback((tabId: string) => {
     setLargeViewerDataByTab((current) => ({ ...current, [tabId]: null }));
     setLargeRawViewerDataByTab((current) => ({ ...current, [tabId]: null }));
     setLargeViewerStatusByTab((current) => ({ ...current, [tabId]: 'idle' }));
@@ -46,9 +46,9 @@ export function useJsonTabArtifacts(initialTabId: string) {
     setProcessingStageByTab((current) => ({ ...current, [tabId]: 'idle' }));
     setLocateFeedbackByTab((current) => ({ ...current, [tabId]: null }));
     setRightNodeSelectionByTab((current) => ({ ...current, [tabId]: null }));
-  };
+  }, []);
 
-  const removeTabArtifactsState = (tabId: string) => {
+  const removeTabArtifactsState = useCallback((tabId: string) => {
     setLargeViewerDataByTab((current) => removeRecordEntry(current, tabId));
     setLargeRawViewerDataByTab((current) => removeRecordEntry(current, tabId));
     setLargeViewerStatusByTab((current) => removeRecordEntry(current, tabId));
@@ -56,7 +56,7 @@ export function useJsonTabArtifacts(initialTabId: string) {
     setProcessingStageByTab((current) => removeRecordEntry(current, tabId));
     setLocateFeedbackByTab((current) => removeRecordEntry(current, tabId));
     setRightNodeSelectionByTab((current) => removeRecordEntry(current, tabId));
-  };
+  }, []);
 
   return {
     initializeTabArtifacts,

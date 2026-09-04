@@ -1,4 +1,5 @@
 import type { MutableRefObject } from 'react';
+import { useCallback } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { StructureStatus } from '../types/jsonTool';
 import { STRUCTURE_SYNC_THRESHOLD } from '../types/jsonTool';
@@ -28,41 +29,54 @@ export function useRightEditorDiagnostics({
   rightEditorRef,
   structureStatusRef,
 }: UseRightEditorDiagnosticsArgs) {
-  const clearRightHighlights = () => {
+  const clearRightHighlights = useCallback(() => {
     if (rightEditorRef.current && rightDecorationIdsRef.current.length > 0) {
       rightEditorRef.current.deltaDecorations(rightDecorationIdsRef.current, []);
       rightDecorationIdsRef.current = [];
     }
-  };
+  }, [rightDecorationIdsRef, rightEditorRef]);
 
-  const logRightEditorState = (event: string, tabId: string, extra: Record<string, unknown> = {}) => {
-    const editor = rightEditorRef.current;
-    const model = editor?.getModel();
-    const rawText = rawTextByTabRef.current[tabId] ?? '';
-    const formattedText = formattedTextByTabRef.current[tabId] ?? '';
-    const rawBytes = typeof extra.rawBytes === 'number' ? extra.rawBytes : measureJsonDocument(rawText).textByteLength;
-    const formattedBytes =
-      typeof extra.formattedBytes === 'number'
-        ? extra.formattedBytes
-        : measureJsonDocument(formattedText).textByteLength;
-    const payload = {
-      tabId,
-      rawBytes,
-      formattedBytes,
-      isActiveTab: activeTabIdRef.current === tabId,
-      modelLanguageId: model?.getLanguageId() ?? null,
-      modelLineCount: model?.getLineCount() ?? 0,
-      modelValueLength: model?.getValueLength() ?? 0,
-      largeMode: Boolean(largeModeRef.current[tabId]),
-      locateEnabled: Boolean(largeFileLocateEnabledRef.current[tabId]),
-      structureStatus: structureStatusRef.current[tabId] ?? null,
-      withinStructureThreshold: rawBytes <= STRUCTURE_SYNC_THRESHOLD,
-      ...extra,
-    };
+  const logRightEditorState = useCallback(
+    (event: string, tabId: string, extra: Record<string, unknown> = {}) => {
+      const editor = rightEditorRef.current;
+      const model = editor?.getModel();
+      const rawText = rawTextByTabRef.current[tabId] ?? '';
+      const formattedText = formattedTextByTabRef.current[tabId] ?? '';
+      const rawBytes =
+        typeof extra.rawBytes === 'number' ? extra.rawBytes : measureJsonDocument(rawText).textByteLength;
+      const formattedBytes =
+        typeof extra.formattedBytes === 'number'
+          ? extra.formattedBytes
+          : measureJsonDocument(formattedText).textByteLength;
+      const payload = {
+        tabId,
+        rawBytes,
+        formattedBytes,
+        isActiveTab: activeTabIdRef.current === tabId,
+        modelLanguageId: model?.getLanguageId() ?? null,
+        modelLineCount: model?.getLineCount() ?? 0,
+        modelValueLength: model?.getValueLength() ?? 0,
+        largeMode: Boolean(largeModeRef.current[tabId]),
+        locateEnabled: Boolean(largeFileLocateEnabledRef.current[tabId]),
+        structureStatus: structureStatusRef.current[tabId] ?? null,
+        withinStructureThreshold: rawBytes <= STRUCTURE_SYNC_THRESHOLD,
+        ...extra,
+      };
 
-    logDiagnosticsToConsole(event, payload);
-    logEvent(event, payload);
-  };
+      logDiagnosticsToConsole(event, payload);
+      logEvent(event, payload);
+    },
+    [
+      activeTabIdRef,
+      formattedTextByTabRef,
+      largeFileLocateEnabledRef,
+      largeModeRef,
+      logEvent,
+      rawTextByTabRef,
+      rightEditorRef,
+      structureStatusRef,
+    ]
+  );
 
   return {
     clearRightHighlights,

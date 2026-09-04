@@ -18,7 +18,7 @@ interface UseJsonPaneSearchActionsArgs {
   isLeftSearchLoadingMore: boolean;
   isRightSearchLoadingMore: boolean;
   leftEditorRef: RefObject<monaco.editor.IStandaloneCodeEditor | null>;
-  leftMatches: monaco.Range[];
+  leftMatches: monaco.IRange[];
   leftReplaceText: string;
   leftSearchHasMore: boolean;
   leftSearchNextOffset: number;
@@ -33,7 +33,7 @@ interface UseJsonPaneSearchActionsArgs {
   rightDecorationIdsRef: MutableRefObject<string[]>;
   rightEditorRef: RefObject<monaco.editor.IStandaloneCodeEditor | null>;
   rightMatchIndex: number;
-  rightMatches: monaco.Range[];
+  rightMatches: monaco.IRange[];
   rightSearchHasMore: boolean;
   rightSearchNextOffset: number;
   rightSearchOptions: JsonSearchOptions;
@@ -46,7 +46,7 @@ interface UseJsonPaneSearchActionsArgs {
   setLeftSearchOptions: (value: JsonSearchOptions) => void;
   setLeftSearchTerm: (value: string) => void;
   setRightMatchIndex: Dispatch<SetStateAction<number>>;
-  setRightMatches: Dispatch<SetStateAction<monaco.Range[]>>;
+  setRightMatches: Dispatch<SetStateAction<monaco.IRange[]>>;
   setRightSearchHasMore: (hasMore: boolean) => void;
   setRightSearchNextOffset: (offset: number) => void;
   setRightSearchOptions: (value: JsonSearchOptions) => void;

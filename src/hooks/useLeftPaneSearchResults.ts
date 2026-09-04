@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LargeJsonSearchMatch } from '../types/jsonTool';
 import { SEARCH_HIGHLIGHT_DURATION } from '../types/jsonTool';
 import type { LargeRawReadonlyViewerHandle } from '../components/LargeRawReadonlyViewer';
@@ -10,11 +10,11 @@ interface UseLeftPaneSearchResultsArgs {
   activeTabIdRef: MutableRefObject<string>;
   largeRawViewerRef: RefObject<LargeRawReadonlyViewerHandle | null>;
   leftEditorRef: RefObject<monaco.editor.IStandaloneCodeEditor | null>;
-  leftMatches: monaco.Range[];
+  leftMatches: monaco.IRange[];
   leftMatchIndex: number;
   leftSearchTerm: string;
   setIsLeftSearchLoadingMore: (loading: boolean) => void;
-  setLeftMatches: Dispatch<SetStateAction<monaco.Range[]>>;
+  setLeftMatches: Dispatch<SetStateAction<monaco.IRange[]>>;
   setLeftSearchHasMore: (hasMore: boolean) => void;
   setLeftSearchNextOffset: (offset: number) => void;
   shouldUseDedicatedLeftViewer: boolean;
@@ -44,7 +44,7 @@ export function useLeftPaneSearchResults({
       ? ((leftMatchIndex % activeLeftMatchCount) + activeLeftMatchCount) % activeLeftMatchCount
       : 0;
 
-  const clearLeftHighlights = () => {
+  const clearLeftHighlights = useCallback(() => {
     if (highlightTimeoutRef.current !== null) {
       window.clearTimeout(highlightTimeoutRef.current);
       highlightTimeoutRef.current = null;
@@ -56,79 +56,97 @@ export function useLeftPaneSearchResults({
       leftEditorRef.current.deltaDecorations(leftDecorationIdsRef.current, []);
       leftDecorationIdsRef.current = [];
     }
-  };
+  }, [leftEditorRef]);
 
-  const revealLeftRange = (startOffset: number, endOffset: number) => {
-    if (shouldUseDedicatedLeftViewer) {
+  const revealLeftRange = useCallback(
+    (startOffset: number, endOffset: number) => {
+      if (shouldUseDedicatedLeftViewer) {
+        if (highlightTimeoutRef.current !== null) {
+          window.clearTimeout(highlightTimeoutRef.current);
+        }
+
+        setLeftRawHighlightRange({ start: startOffset, end: endOffset });
+        largeRawViewerRef.current?.revealRange(startOffset, endOffset);
+        highlightTimeoutRef.current = window.setTimeout(clearLeftHighlights, SEARCH_HIGHLIGHT_DURATION);
+        return;
+      }
+
+      const leftEditor = leftEditorRef.current;
+      const leftModel = leftEditor?.getModel();
+      if (!leftEditor || !leftModel) {
+        return;
+      }
+
+      const start = leftModel.getPositionAt(startOffset);
+      const end = leftModel.getPositionAt(endOffset);
+      const range = {
+        startLineNumber: start.lineNumber,
+        startColumn: start.column,
+        endLineNumber: end.lineNumber,
+        endColumn: end.column,
+      };
+
+      leftEditor.revealRangeInCenter(range);
+      leftEditor.setSelection(range);
+      leftDecorationIdsRef.current = leftEditor.deltaDecorations(leftDecorationIdsRef.current, [
+        {
+          range,
+          options: { inlineClassName: 'currentSearchHighlight' },
+        },
+      ]);
+
       if (highlightTimeoutRef.current !== null) {
         window.clearTimeout(highlightTimeoutRef.current);
       }
-
-      setLeftRawHighlightRange({ start: startOffset, end: endOffset });
-      largeRawViewerRef.current?.revealRange(startOffset, endOffset);
       highlightTimeoutRef.current = window.setTimeout(clearLeftHighlights, SEARCH_HIGHLIGHT_DURATION);
-      return;
-    }
+    },
+    [clearLeftHighlights, largeRawViewerRef, leftEditorRef, shouldUseDedicatedLeftViewer]
+  );
 
-    const leftEditor = leftEditorRef.current;
-    const leftModel = leftEditor?.getModel();
-    if (!leftEditor || !leftModel) {
-      return;
-    }
+  const setLeftSearchResults = useCallback(
+    (tabId: string, matches: LargeJsonSearchMatch[], hasMore = false, nextStartOffset = 0, append = false) => {
+      if (tabId !== activeTabIdRef.current) {
+        return;
+      }
 
-    const start = leftModel.getPositionAt(startOffset);
-    const end = leftModel.getPositionAt(endOffset);
-    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
+      setIsLeftSearchLoadingMore(false);
+      const model = leftEditorRef.current?.getModel();
 
-    leftEditor.revealRangeInCenter(range);
-    leftEditor.setSelection(new monaco.Selection(start.lineNumber, start.column, end.lineNumber, end.column));
-    leftDecorationIdsRef.current = leftEditor.deltaDecorations(leftDecorationIdsRef.current, [
-      {
-        range,
-        options: { inlineClassName: 'currentSearchHighlight' },
-      },
-    ]);
+      if (!model) {
+        setLargeRawViewerMatches((current) => (append ? [...current, ...matches] : matches));
+        setLeftSearchHasMore(hasMore);
+        setLeftSearchNextOffset(nextStartOffset);
+        return;
+      }
 
-    if (highlightTimeoutRef.current !== null) {
-      window.clearTimeout(highlightTimeoutRef.current);
-    }
-    highlightTimeoutRef.current = window.setTimeout(clearLeftHighlights, SEARCH_HIGHLIGHT_DURATION);
-  };
+      const ranges = matches.map((match) => {
+        const start = model.getPositionAt(match.start);
+        const end = model.getPositionAt(match.end);
+        return {
+          startLineNumber: start.lineNumber,
+          startColumn: start.column,
+          endLineNumber: end.lineNumber,
+          endColumn: end.column,
+        };
+      });
 
-  const setLeftSearchResults = (
-    tabId: string,
-    matches: LargeJsonSearchMatch[],
-    hasMore = false,
-    nextStartOffset = 0,
-    append = false
-  ) => {
-    if (tabId !== activeTabIdRef.current) {
-      return;
-    }
-
-    setIsLeftSearchLoadingMore(false);
-    const model = leftEditorRef.current?.getModel();
-
-    if (!model) {
-      setLargeRawViewerMatches((current) => (append ? [...current, ...matches] : matches));
+      setLeftMatches((current) => (append ? [...current, ...ranges] : ranges));
+      setLargeRawViewerMatches([]);
       setLeftSearchHasMore(hasMore);
       setLeftSearchNextOffset(nextStartOffset);
-      return;
-    }
-
-    const ranges = matches.map((match) => {
-      const start = model.getPositionAt(match.start);
-      const end = model.getPositionAt(match.end);
-      return new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
-    });
-
-    setLeftMatches((current) => (append ? [...current, ...ranges] : ranges));
-    setLargeRawViewerMatches([]);
-    setLeftSearchHasMore(hasMore);
-    setLeftSearchNextOffset(nextStartOffset);
-  };
+    },
+    [
+      activeTabIdRef,
+      leftEditorRef,
+      setIsLeftSearchLoadingMore,
+      setLeftMatches,
+      setLeftSearchHasMore,
+      setLeftSearchNextOffset,
+    ]
+  );
 
   useEffect(() => {
+    void activeTabId;
     if (!shouldUseDedicatedLeftViewer || !leftSearchTerm) {
       return;
     }
@@ -145,14 +163,16 @@ export function useLeftPaneSearchResults({
     }
   }, [
     activeTabId,
+    clearLeftHighlights,
+    largeRawViewerRef,
     largeRawViewerMatches,
-    leftMatchIndex,
     leftSearchTerm,
     normalizedLeftMatchIndex,
     shouldUseDedicatedLeftViewer,
   ]);
 
   useEffect(() => {
+    void activeTabId;
     const editor = leftEditorRef.current;
     const model = editor?.getModel();
 
@@ -177,15 +197,16 @@ export function useLeftPaneSearchResults({
 
     const activeMatch = leftMatches[activeIndex];
     editor.revealRangeInCenter(activeMatch);
-    editor.setSelection(
-      new monaco.Selection(
-        activeMatch.startLineNumber,
-        activeMatch.startColumn,
-        activeMatch.endLineNumber,
-        activeMatch.endColumn
-      )
-    );
-  }, [activeTabId, leftMatches, leftMatchIndex, leftSearchTerm, shouldUseDedicatedLeftViewer]);
+    editor.setSelection(activeMatch);
+  }, [
+    activeTabId,
+    clearLeftHighlights,
+    leftEditorRef,
+    leftMatches,
+    leftMatchIndex,
+    leftSearchTerm,
+    shouldUseDedicatedLeftViewer,
+  ]);
 
   useEffect(
     () => () => {

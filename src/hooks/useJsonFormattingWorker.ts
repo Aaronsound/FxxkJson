@@ -178,21 +178,27 @@ export function useJsonFormattingWorker({
   const recoverFormatRequestsRef = useRef<(tabIds: string[]) => void>(() => undefined);
   const [workerGeneration, setWorkerGeneration] = useState(0);
 
-  const clearPendingFormat = useCallback((tabId: string) => {
-    const timeoutId = formatTimersRef.current[tabId];
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
-      delete formatTimersRef.current[tabId];
-    }
-  }, []);
+  const clearPendingFormat = useCallback(
+    (tabId: string) => {
+      const timeoutId = formatTimersRef.current[tabId];
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+        delete formatTimersRef.current[tabId];
+      }
+    },
+    [formatTimersRef]
+  );
 
-  const clearFormatWatchdog = useCallback((tabId: string) => {
-    const timeoutId = formatWatchdogTimersRef.current[tabId];
-    if (timeoutId) {
-      window.clearTimeout(timeoutId);
-      delete formatWatchdogTimersRef.current[tabId];
-    }
-  }, []);
+  const clearFormatWatchdog = useCallback(
+    (tabId: string) => {
+      const timeoutId = formatWatchdogTimersRef.current[tabId];
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+        delete formatWatchdogTimersRef.current[tabId];
+      }
+    },
+    [formatWatchdogTimersRef]
+  );
 
   const cancelInteractiveRequests = (tabId: string) => {
     interactiveFlow.cancelRequests(tabId);
@@ -371,18 +377,20 @@ export function useJsonFormattingWorker({
     structureStatusRef,
     workerStructureEnabledRef,
   });
+  const tabArtifactActionsRef = useRef({ removeTabArtifacts, resetTabArtifacts });
+  tabArtifactActionsRef.current = { removeTabArtifacts, resetTabArtifacts };
 
-  const removeTabArtifactsWithCacheState = (tabId: string) => {
+  const removeTabArtifactsWithCacheState = useCallback((tabId: string) => {
     evictedViewerCacheTabsRef.current.delete(tabId);
     restoringViewerCacheTabsRef.current.delete(tabId);
-    removeTabArtifacts(tabId);
-  };
+    tabArtifactActionsRef.current.removeTabArtifacts(tabId);
+  }, []);
 
-  const resetTabArtifactsWithCacheState = (tabId: string) => {
+  const resetTabArtifactsWithCacheState = useCallback((tabId: string) => {
     evictedViewerCacheTabsRef.current.delete(tabId);
     restoringViewerCacheTabsRef.current.delete(tabId);
-    resetTabArtifacts(tabId);
-  };
+    tabArtifactActionsRef.current.resetTabArtifacts(tabId);
+  }, []);
 
   const importFlowRef = useRef<ReturnType<typeof createJsonWorkerImportFlow> | null>(null);
   importFlowRef.current ??= createJsonWorkerImportFlow({

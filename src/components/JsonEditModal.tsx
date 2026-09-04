@@ -110,6 +110,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     resetEditFoldControls,
     scheduleFoldControlsUpdate,
   } = useJsonEditFolding(editorRef);
+  const isEditFindOpen = useCallback(() => editSearch.isFindOpenRef.current, [editSearch.isFindOpenRef]);
 
   useEffect(() => {
     isBusyRef.current = isBusy;
@@ -153,7 +154,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         setContextMenu(null);
         return;
       }
-      if (editSearch.isFindOpenRef.current) {
+      if (isEditFindOpen()) {
         closeFindRef.current();
         return;
       }
@@ -167,7 +168,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       window.removeEventListener('keydown', handleKeyDown, true);
       unsubscribeFindShortcut?.();
     };
-  }, [contextMenu, editSearch.openFind]);
+  }, [contextMenu, editSearch.openFind, isEditFindOpen]);
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;

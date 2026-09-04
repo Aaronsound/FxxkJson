@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { DEFAULT_SEARCH_OPTIONS } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import { getMonacoSearchBatch } from '../utils/jsonEditorInteractions';
@@ -17,7 +17,7 @@ interface UseEditModalSearchArgs {
 export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalSearchArgs) {
   const searchDecorationIdsRef = useRef<string[]>([]);
   const searchAnchorOffsetRef = useRef<number | null>(null);
-  const searchMatchesRef = useRef<monaco.Range[]>([]);
+  const searchMatchesRef = useRef<monaco.IRange[]>([]);
   const searchPreservePositionRef = useRef(false);
   const searchSkipRevealRef = useRef(false);
   const searchTermRef = useRef('');
@@ -26,7 +26,7 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
   const [isFindOpen, setIsFindOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchOptions, setSearchOptions] = useState<JsonSearchOptions>(DEFAULT_SEARCH_OPTIONS);
-  const [searchMatches, setSearchMatches] = useState<monaco.Range[]>([]);
+  const [searchMatches, setSearchMatches] = useState<monaco.IRange[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [searchNextOffset, setSearchNextOffset] = useState(0);
@@ -157,6 +157,7 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
   }, [searchMatches.length]);
 
   useEffect(() => {
+    void editorRevision;
     if (!isFindOpen || !searchTerm) {
       setSearchMatches([]);
       setSearchIndex(0);
@@ -233,14 +234,7 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
     }
 
     editor.revealRangeInCenter(activeMatch);
-    editor.setSelection(
-      new monaco.Selection(
-        activeMatch.startLineNumber,
-        activeMatch.startColumn,
-        activeMatch.endLineNumber,
-        activeMatch.endColumn
-      )
-    );
+    editor.setSelection(activeMatch);
   }, [clearSearchDecorations, editorRef, isFindOpen, normalizedSearchIndex, searchMatches, searchTerm]);
 
   useEffect(

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const rendererDir = fileURLToPath(new URL('../dist-renderer/', import.meta.url));
 const assetsDir = fileURLToPath(new URL('../dist-renderer/assets/', import.meta.url));
 const assetBudgetBytes = 2_500_000;
+const appBundleBudgetBytes = 240 * 1024;
 
 async function readAssetSizes(directory) {
   const entries = await readdir(directory);
@@ -32,6 +33,7 @@ try {
 
 const assets = (await readAssetSizes(assetsDir)).sort((left, right) => right.bytes - left.bytes);
 const oversizedAssets = assets.filter((asset) => asset.bytes > assetBudgetBytes);
+const appBundle = assets.find((asset) => /^App-.*\.js$/.test(asset.name));
 
 console.table(
   assets.slice(0, 8).map((asset) => ({
@@ -45,5 +47,15 @@ if (oversizedAssets.length > 0) {
     `Renderer asset budget exceeded: ${oversizedAssets
       .map((asset) => `${asset.name} ${formatKilobytes(asset.bytes)}`)
       .join(', ')}`
+  );
+}
+
+if (!appBundle) {
+  throw new Error('Renderer App bundle is missing. Check the Vite chunk naming configuration.');
+}
+
+if (appBundle.bytes > appBundleBudgetBytes) {
+  throw new Error(
+    `Renderer App bundle budget exceeded: ${appBundle.name} ${formatKilobytes(appBundle.bytes)} > ${formatKilobytes(appBundleBudgetBytes)}`
   );
 }

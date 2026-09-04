@@ -84,4 +84,31 @@ describe('useJsonToolTabsState', () => {
     expect(result.current.tabs.map((tab) => tab.id)).toEqual(['tab-a', 'tab-b']);
     expect(result.current.activeTabId).toBe('tab-b');
   });
+
+  it('keeps tab actions stable across unrelated state updates', () => {
+    const { result } = renderHook(() => useJsonToolTabsState({ initialTabId: 'tab-a', initialTabTitle: 'first.json' }));
+    const actions = {
+      cancelRenaming: result.current.cancelRenaming,
+      finishRenaming: result.current.finishRenaming,
+      handleRenamingChange: result.current.handleRenamingChange,
+      initializeTabState: result.current.initializeTabState,
+      removeTabState: result.current.removeTabState,
+      renameTab: result.current.renameTab,
+      setDocumentMeta: result.current.setDocumentMeta,
+      setTabError: result.current.setTabError,
+      startRenamingTab: result.current.startRenamingTab,
+    };
+
+    act(() => result.current.setTabFormatting('tab-a', true));
+
+    expect(result.current.cancelRenaming).toBe(actions.cancelRenaming);
+    expect(result.current.finishRenaming).toBe(actions.finishRenaming);
+    expect(result.current.handleRenamingChange).toBe(actions.handleRenamingChange);
+    expect(result.current.initializeTabState).toBe(actions.initializeTabState);
+    expect(result.current.removeTabState).toBe(actions.removeTabState);
+    expect(result.current.renameTab).toBe(actions.renameTab);
+    expect(result.current.setDocumentMeta).toBe(actions.setDocumentMeta);
+    expect(result.current.setTabError).toBe(actions.setTabError);
+    expect(result.current.startRenamingTab).toBe(actions.startRenamingTab);
+  });
 });

@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { RenamingTabState, Tab } from '../types/jsonTool';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
@@ -290,4 +290,4 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
   );
 };
 
-export default JsonToolTabBar;
+export default memo(JsonToolTabBar);

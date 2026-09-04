@@ -320,6 +320,8 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
     }, [rowCount, scrollTop, viewportHeight]);
 
     useEffect(() => {
+      void visibleRange.end;
+      void visibleRange.start;
       const pendingReveal = pendingRevealRef.current;
       if (
         !highlightRange ||
