@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { RightEditorContextMenuState } from '../components/RightEditorContextMenu';
 import type { StructureStatus } from '../types/jsonTool';
 import { getViewportContextMenuPosition } from '../utils/contextMenuPosition';
@@ -62,7 +62,7 @@ export function useRightEditorActions({
   workerStructureEnabledRef,
   wrapLongLines,
 }: UseRightEditorActionsArgs) {
-  return (editor: monaco.editor.IStandaloneCodeEditor) => {
+  return (editor: monaco.editor.IStandaloneCodeEditor, monacoApi: typeof import('monaco-editor')) => {
     rightEditorRef.current = editor;
     const currentTabId = activeTabIdRef.current;
     syncRightModel(currentTabId, formattedTextByTabRef.current[currentTabId] ?? '', true);
@@ -188,7 +188,7 @@ export function useRightEditorActions({
       rightViewStateByTabRef.current[currentTabId] = editor.saveViewState() ?? null;
     });
 
-    registerPaneFindAction(monaco, editor, {
+    registerPaneFindAction(monacoApi, editor, {
       actionId: 'openRightPaneFind',
       label: '搜索格式化结果',
       focusContextKey: rightEditorFocusContextKey,

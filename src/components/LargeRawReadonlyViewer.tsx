@@ -1,7 +1,16 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { LargeRawViewerData } from '../types/jsonTool';
-import { buildLargeRawViewerData, findRawSegmentIndex, getRawSegmentEnd } from '../utils/largeRawViewerData';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
+import { tokenizeJsonLine } from '../utils/largeJsonViewerRender';
+import {
+  buildLargeRawViewerLayoutData,
+  findRawSegmentIndex,
+  getRawSegmentEnd,
+  RAW_SYNTAX_ESCAPED,
+  RAW_SYNTAX_IN_STRING,
+  RAW_SYNTAX_KEY_STRING,
+  RAW_SYNTAX_LITERAL_STRING,
+} from '../utils/largeRawViewerData';
 import './LargeRawReadonlyViewer.css';
 
 const LINE_HEIGHT = JSON_EDITOR_LINE_HEIGHT;
@@ -20,7 +29,9 @@ export interface LargeRawReadonlyRowProps {
   chunkEnd: number;
   chunkStart: number;
   highlightRange: RawHighlightRange | null;
+  lineNumber: number;
   rowIndex: number;
+  syntaxState: number;
   text: string;
 }
 
@@ -40,24 +51,63 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function renderChunkText(text: string, chunkStart: number, chunkEnd: number, highlightRange: RawHighlightRange | null) {
+function renderChunkText(
+  text: string,
+  chunkStart: number,
+  chunkEnd: number,
+  highlightRange: RawHighlightRange | null,
+  syntaxState: number
+) {
   const chunkText = text.slice(chunkStart, chunkEnd);
-  if (!highlightRange || highlightRange.end <= chunkStart || highlightRange.start >= chunkEnd) {
-    return chunkText;
-  }
+  const continuation =
+    syntaxState & RAW_SYNTAX_IN_STRING
+      ? {
+          className:
+            syntaxState & RAW_SYNTAX_KEY_STRING
+              ? 'large-json-token large-json-token-key'
+              : 'large-json-token large-json-token-value large-json-token-string',
+          escaped: Boolean(syntaxState & RAW_SYNTAX_ESCAPED),
+        }
+      : undefined;
+  const tokens =
+    syntaxState & RAW_SYNTAX_LITERAL_STRING
+      ? [
+          {
+            start: 0,
+            end: chunkText.length,
+            className: 'large-json-token large-json-token-value large-json-token-string',
+          },
+        ]
+      : tokenizeJsonLine(chunkText, continuation);
+  const localHighlightStart = highlightRange ? clamp(highlightRange.start - chunkStart, 0, chunkText.length) : -1;
+  const localHighlightEnd = highlightRange
+    ? clamp(highlightRange.end - chunkStart, localHighlightStart, chunkText.length)
+    : -1;
 
-  const localStart = clamp(highlightRange.start - chunkStart, 0, chunkText.length);
-  const localEnd = clamp(highlightRange.end - chunkStart, localStart, chunkText.length);
+  return tokens.map((token, tokenIndex) => {
+    const highlightStart = Math.max(token.start, localHighlightStart);
+    const highlightEnd = Math.min(token.end, localHighlightEnd);
+    const hasHighlight = highlightEnd > highlightStart;
+    const content = hasHighlight ? (
+      <>
+        {chunkText.slice(token.start, highlightStart)}
+        <mark className="large-raw-highlight" data-large-raw-highlight="true">
+          {chunkText.slice(highlightStart, highlightEnd)}
+        </mark>
+        {chunkText.slice(highlightEnd, token.end)}
+      </>
+    ) : (
+      chunkText.slice(token.start, token.end)
+    );
 
-  return (
-    <>
-      {chunkText.slice(0, localStart)}
-      <mark className="large-raw-highlight" data-large-raw-highlight="true">
-        {chunkText.slice(localStart, localEnd)}
-      </mark>
-      {chunkText.slice(localEnd)}
-    </>
-  );
+    return token.className ? (
+      <span className={token.className} key={token.start || tokenIndex}>
+        {content}
+      </span>
+    ) : (
+      <span key={token.start || tokenIndex}>{content}</span>
+    );
+  });
 }
 
 function chunkIntersectsHighlight(chunkStart: number, chunkEnd: number, highlightRange: RawHighlightRange | null) {
@@ -69,7 +119,9 @@ export function areLargeRawReadonlyRowPropsEqual(previous: LargeRawReadonlyRowPr
     previous.text !== next.text ||
     previous.rowIndex !== next.rowIndex ||
     previous.chunkStart !== next.chunkStart ||
-    previous.chunkEnd !== next.chunkEnd
+    previous.chunkEnd !== next.chunkEnd ||
+    previous.lineNumber !== next.lineNumber ||
+    previous.syntaxState !== next.syntaxState
   ) {
     return false;
   }
@@ -90,7 +142,15 @@ export function areLargeRawReadonlyRowPropsEqual(previous: LargeRawReadonlyRowPr
   );
 }
 
-function LargeRawReadonlyRowView({ chunkEnd, chunkStart, highlightRange, rowIndex, text }: LargeRawReadonlyRowProps) {
+function LargeRawReadonlyRowView({
+  chunkEnd,
+  chunkStart,
+  highlightRange,
+  lineNumber,
+  rowIndex,
+  syntaxState,
+  text,
+}: LargeRawReadonlyRowProps) {
   const isHighlighted = chunkIntersectsHighlight(chunkStart, chunkEnd, highlightRange);
 
   return (
@@ -101,8 +161,10 @@ function LargeRawReadonlyRowView({ chunkEnd, chunkStart, highlightRange, rowInde
         height: `${LINE_HEIGHT}px`,
       }}
     >
-      <span className="large-raw-offset">{chunkStart.toLocaleString()}</span>
-      <code className="large-raw-text">{renderChunkText(text, chunkStart, chunkEnd, highlightRange)}</code>
+      <span className="large-raw-offset" title={`offset ${chunkStart.toLocaleString()}`}>
+        {lineNumber > 0 ? lineNumber.toLocaleString() : ''}
+      </span>
+      <code className="large-raw-text">{renderChunkText(text, chunkStart, chunkEnd, highlightRange, syntaxState)}</code>
     </div>
   );
 }
@@ -120,7 +182,7 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
     const pendingScrollTopRef = useRef(0);
     const [scrollTop, setScrollTop] = useState(0);
     const [viewportHeight, setViewportHeight] = useState(0);
-    const segments = useMemo(() => data ?? buildLargeRawViewerData(text), [data, text]);
+    const segments = useMemo(() => data ?? buildLargeRawViewerLayoutData(text), [data, text]);
     const rowCount = segments.rowCount;
 
     const queueScrollTopUpdate = useCallback((nextScrollTop: number) => {
@@ -258,6 +320,8 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
     }, [rowCount, scrollTop, viewportHeight]);
 
     useEffect(() => {
+      void visibleRange.end;
+      void visibleRange.start;
       const pendingReveal = pendingRevealRef.current;
       if (
         !highlightRange ||
@@ -282,7 +346,9 @@ const LargeRawReadonlyViewer = forwardRef<LargeRawReadonlyViewerHandle, LargeRaw
           chunkEnd={chunkEnd}
           chunkStart={chunkStart}
           highlightRange={highlightRange}
+          lineNumber={segments.lineNumbers[rowIndex] ?? 0}
           rowIndex={rowIndex}
+          syntaxState={segments.syntaxStates[rowIndex] ?? 0}
           text={text}
         />
       );

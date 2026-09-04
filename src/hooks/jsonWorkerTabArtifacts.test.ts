@@ -46,8 +46,9 @@ function createActions() {
   const dependencies = {
     callbacksRef: ref(callbacks) as never,
     cancelInteractiveRequests: vi.fn(),
+    clearFormatWatchdog: vi.fn(),
     clearPendingFormat: vi.fn(),
-    clearTabStructure: vi.fn(),
+    clearTabCache: vi.fn(),
     postWorkerRequest: vi.fn(),
     ...refs,
   };
@@ -66,7 +67,8 @@ describe('jsonWorkerTabArtifacts', () => {
     actions.resetTabArtifacts('tab-a');
 
     expect(dependencies.clearPendingFormat).toHaveBeenCalledWith('tab-a');
-    expect(dependencies.clearTabStructure).toHaveBeenCalledWith('tab-a', 'ready');
+    expect(dependencies.clearFormatWatchdog).toHaveBeenCalledWith('tab-a');
+    expect(dependencies.clearTabCache).toHaveBeenCalledWith('tab-a', 'ready');
     expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '', true, 0);
     expect(callbacks.updateFormattedContent).toHaveBeenCalledWith('tab-a', '', true, 0, 0);
     expect(callbacks.setTabError).toHaveBeenCalledWith('tab-a', null);
@@ -77,7 +79,8 @@ describe('jsonWorkerTabArtifacts', () => {
 
     actions.removeTabArtifacts('tab-a');
 
-    expect(dependencies.postWorkerRequest).toHaveBeenCalledWith({ type: 'clear-structure', tabId: 'tab-a' });
+    expect(dependencies.postWorkerRequest).toHaveBeenCalledWith({ type: 'clear-tab-cache', tabId: 'tab-a' });
+    expect(dependencies.clearFormatWatchdog).toHaveBeenCalledWith('tab-a');
     expect(dependencies.cancelInteractiveRequests).toHaveBeenCalledWith('tab-a');
     expect(modelMocks.disposeModel).toHaveBeenCalledWith('left:tab-a');
     expect(modelMocks.disposeModel).toHaveBeenCalledWith('right:tab-a');

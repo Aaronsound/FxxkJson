@@ -2,13 +2,15 @@ import type { MutableRefObject } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { WorkerRequestMessage } from '../types/jsonTool';
 import { disposeModel, getLeftModelPath, getRightModelPath } from '../utils/jsonToolModels';
+import { clearPendingFormattedViewerResult } from './jsonFormattingWorkerResults';
 import type { JsonWorkerCallbacks } from './useJsonWorkerCallbacksRef';
 
 interface CreateJsonWorkerTabArtifactActionsArgs {
   callbacksRef: MutableRefObject<JsonWorkerCallbacks>;
   cancelInteractiveRequests: (tabId: string) => void;
   clearPendingFormat: (tabId: string) => void;
-  clearTabStructure: (tabId: string, status?: 'ready' | 'building' | 'disabled') => void;
+  clearFormatWatchdog: (tabId: string) => void;
+  clearTabCache: (tabId: string, status?: 'ready' | 'building' | 'disabled') => void;
   formatTimersRef: MutableRefObject<Record<string, number>>;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
@@ -27,7 +29,8 @@ export function createJsonWorkerTabArtifactActions({
   callbacksRef,
   cancelInteractiveRequests,
   clearPendingFormat,
-  clearTabStructure,
+  clearFormatWatchdog,
+  clearTabCache,
   formatTimersRef,
   formattedTextByTabRef,
   largeFileLocateEnabledRef,
@@ -43,6 +46,8 @@ export function createJsonWorkerTabArtifactActions({
 }: CreateJsonWorkerTabArtifactActionsArgs) {
   const resetTabArtifacts = (tabId: string) => {
     clearPendingFormat(tabId);
+    clearFormatWatchdog(tabId);
+    clearPendingFormattedViewerResult(tabId);
     callbacksRef.current.clearPerformanceState(tabId);
     callbacksRef.current.setTabImporting(tabId, null);
     callbacksRef.current.setTabFormatting(tabId, false);
@@ -52,7 +57,7 @@ export function createJsonWorkerTabArtifactActions({
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeRawViewerData(tabId, null);
-    clearTabStructure(tabId, 'ready');
+    clearTabCache(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
     callbacksRef.current.updateTabContent(tabId, '', true, 0);
     callbacksRef.current.updateFormattedContent(tabId, '', true, 0, 0);
@@ -61,9 +66,11 @@ export function createJsonWorkerTabArtifactActions({
 
   const removeTabArtifacts = (tabId: string) => {
     clearPendingFormat(tabId);
+    clearFormatWatchdog(tabId);
+    clearPendingFormattedViewerResult(tabId);
     callbacksRef.current.clearPerformanceState(tabId, true);
     postWorkerRequest({
-      type: 'clear-structure',
+      type: 'clear-tab-cache',
       tabId,
     });
     delete formatTimersRef.current[tabId];

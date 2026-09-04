@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { RenamingTabState, Tab } from '../types/jsonTool';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 
@@ -37,6 +37,21 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
   const correctionTimersRef = useRef<number[]>([]);
   const [scrollState, setScrollState] = useState({ hasOverflow: false, canScrollLeft: false, canScrollRight: false });
   const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+
+  useEffect(() => {
+    const handleNewTabShortcut = (event: KeyboardEvent) => {
+      const isPrimaryShortcut = (event.metaKey || event.ctrlKey) && !event.altKey;
+      if (!isPrimaryShortcut || event.shiftKey || event.key.toLowerCase() !== 't') {
+        return;
+      }
+
+      event.preventDefault();
+      onAddTab();
+    };
+
+    window.addEventListener('keydown', handleNewTabShortcut);
+    return () => window.removeEventListener('keydown', handleNewTabShortcut);
+  }, [onAddTab]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -170,7 +185,14 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
   };
 
   return (
-    <div className="tab-bar">
+    <div
+      className="tab-bar"
+      onDoubleClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onAddTab();
+        }
+      }}
+    >
       <button
         type="button"
         className="tab-scroll-button"
@@ -259,11 +281,13 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
           ›
         </button>
         <button type="button" className="add-tab" aria-label={t('tabs.add')} title={t('tabs.add')} onClick={onAddTab}>
-          +
+          <span className="add-tab-plus" aria-hidden="true">
+            +
+          </span>
         </button>
       </div>
     </div>
   );
 };
 
-export default JsonToolTabBar;
+export default memo(JsonToolTabBar);

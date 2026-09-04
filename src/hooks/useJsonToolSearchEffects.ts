@@ -1,4 +1,4 @@
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import {
   type Dispatch,
   type MutableRefObject,
@@ -50,10 +50,10 @@ interface UseJsonToolSearchEffectsArgs {
   setLargeRawViewerMatches: Dispatch<SetStateAction<LargeJsonSearchMatch[]>>;
   setLargeViewerMatchCount: (count: number) => void;
   setLargeViewerMatches: Dispatch<SetStateAction<LargeJsonSearchMatch[]>>;
-  setLeftMatches: Dispatch<SetStateAction<monaco.Range[]>>;
+  setLeftMatches: Dispatch<SetStateAction<monaco.IRange[]>>;
   setLeftSearchHasMore: (hasMore: boolean) => void;
   setLeftSearchNextOffset: (offset: number) => void;
-  setRightMatches: Dispatch<SetStateAction<monaco.Range[]>>;
+  setRightMatches: Dispatch<SetStateAction<monaco.IRange[]>>;
   setRightSearchHasMore: (hasMore: boolean) => void;
   setRightSearchNextOffset: (offset: number) => void;
   shouldUseDedicatedLeftViewer: boolean;
@@ -102,8 +102,9 @@ export function useJsonToolSearchEffects({
   shouldUseDedicatedRightViewer,
 }: UseJsonToolSearchEffectsArgs) {
   useEffect(() => {
+    void activeTabId;
     resetSearchState();
-  }, [activeTabId]);
+  }, [activeTabId, resetSearchState]);
 
   useEffect(() => {
     if (!rightSearchTerm.trim()) {
@@ -120,6 +121,8 @@ export function useJsonToolSearchEffects({
   }, [rememberRightSearchTerm, rightSearchTerm]);
 
   useEffect(() => {
+    void activeDocumentMeta.formattedRevision;
+    void activeLargeViewerData;
     if (!activeTab || !shouldUseDedicatedRightViewer) {
       setLargeViewerMatches([]);
       setLargeViewerMatchCount(0);
@@ -148,8 +151,14 @@ export function useJsonToolSearchEffects({
     activeDocumentMeta.formattedRevision,
     activeLargeViewerData,
     activeTab,
+    requestWorkerSearch,
     rightSearchOptions,
     rightSearchTerm,
+    setIsRightSearchLoadingMore,
+    setLargeViewerMatchCount,
+    setLargeViewerMatches,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
     shouldUseDedicatedRightViewer,
   ]);
 
@@ -180,9 +189,26 @@ export function useJsonToolSearchEffects({
     if (shouldSendRawText) {
       leftSearchWorkerRevisionRef.current[activeTab.id] = rawRevision;
     }
-  }, [activeDocumentMeta.rawLength, activeDocumentMeta.rawRevision, activeTab, leftSearchOptions, leftSearchTerm]);
+  }, [
+    activeDocumentMeta.rawLength,
+    activeDocumentMeta.rawRevision,
+    activeTab,
+    clearLeftHighlights,
+    getTabContent,
+    leftSearchOptions,
+    leftSearchTerm,
+    leftSearchWorkerRevisionRef,
+    requestWorkerSearch,
+    setIsLeftSearchLoadingMore,
+    setLargeRawViewerMatches,
+    setLeftMatches,
+    setLeftSearchHasMore,
+    setLeftSearchNextOffset,
+  ]);
 
   useEffect(() => {
+    void activeTabId;
+    void activeDocumentMeta.formattedRevision;
     const editor = rightEditorRef.current;
     const model = editor?.getModel();
 
@@ -220,21 +246,21 @@ export function useJsonToolSearchEffects({
 
     const activeMatch = matches[activeIndex];
     editor.revealRangeInCenter(activeMatch);
-    editor.setSelection(
-      new monaco.Selection(
-        activeMatch.startLineNumber,
-        activeMatch.startColumn,
-        activeMatch.endLineNumber,
-        activeMatch.endColumn
-      )
-    );
+    editor.setSelection(activeMatch);
   }, [
     activeTabId,
     activeDocumentMeta.formattedRevision,
+    clearRightHighlights,
     isBuildingDedicatedRightViewer,
+    rightDecorationIdsRef,
+    rightEditorRef,
     rightMatchIndex,
     rightSearchOptions,
     rightSearchTerm,
+    setIsRightSearchLoadingMore,
+    setRightMatches,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
     shouldUseDedicatedRightViewer,
   ]);
 

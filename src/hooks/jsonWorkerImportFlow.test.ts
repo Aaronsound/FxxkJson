@@ -55,7 +55,7 @@ function createFlow() {
     cancelInteractiveRequests: vi.fn(),
     getCallbacks: () => callbacks,
     largeFileLocateEnabledRef,
-    postClearStructure: vi.fn(),
+    postClearTabCache: vi.fn(),
     queueFormatAfterImport,
     workerStructureEnabledRef,
   });
@@ -99,6 +99,23 @@ describe('createJsonWorkerImportFlow', () => {
     );
     expect(workerStructureEnabledRef.current['tab-a']).toBe(true);
     expect(session).toMatchObject({ rawBytes: 11, structureEnabled: true });
+  });
+
+  it('forwards native file bytes so large imports do not re-encode the same text', async () => {
+    const { flow, queueFormatAfterImport } = createFlow();
+    const content = '{"ok":true}';
+    const contentBuffer = new TextEncoder().encode(content).buffer;
+
+    const importPromise = flow.importJsonText('tab-a', 'sample.json', contentBuffer.byteLength, content, contentBuffer);
+    await vi.advanceTimersByTimeAsync(0);
+    await importPromise;
+
+    expect(queueFormatAfterImport).toHaveBeenCalledWith(
+      'tab-a',
+      content,
+      expect.objectContaining({ textByteLength: contentBuffer.byteLength }),
+      contentBuffer
+    );
   });
 
   it('reports import failures and clears transient state', async () => {

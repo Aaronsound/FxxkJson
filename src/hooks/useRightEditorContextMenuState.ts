@@ -5,6 +5,8 @@ export function useRightEditorContextMenuState(activeTabId: string, shouldUseDed
   const [rightEditorContextMenu, setRightEditorContextMenu] = useState<RightEditorContextMenuState | null>(null);
 
   useEffect(() => {
+    void activeTabId;
+    void shouldUseDedicatedRightViewer;
     setRightEditorContextMenu(null);
   }, [activeTabId, shouldUseDedicatedRightViewer]);
 

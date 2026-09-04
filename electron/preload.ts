@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { NativeJsonFileBuffer } from './nativeJsonFileBuffer';
 
 interface NativeJsonFileMetadata {
   path: string;
@@ -13,52 +14,72 @@ type NativeJsonFileStreamMessage =
   | { type: 'cancelled' }
   | { type: 'error'; message: string };
 
-function openJsonFile() {
-  return new Promise<(NativeJsonFileMetadata & { content: string }) | null>((resolve, reject) => {
-    const channel = new MessageChannel();
-    const decoder = new TextDecoder();
-    const textChunks: string[] = [];
-    let metadata: NativeJsonFileMetadata | null = null;
+function openJsonFile(onSelected?: (metadata: NativeJsonFileMetadata) => void) {
+  return new Promise<(NativeJsonFileMetadata & { content: string; contentBuffer: ArrayBuffer }) | null>(
+    (resolve, reject) => {
+      const channel = new MessageChannel();
+      let fileBuffer: NativeJsonFileBuffer | null = null;
+      let metadata: NativeJsonFileMetadata | null = null;
 
-    const finish = () => channel.port1.close();
-    channel.port1.onmessage = (event: MessageEvent<NativeJsonFileStreamMessage>) => {
-      const message = event.data;
-      if (message.type === 'selected') {
-        metadata = { name: message.name, path: message.path, size: message.size };
-        return;
-      }
+      const finish = () => {
+        fileBuffer?.release();
+        fileBuffer = null;
+        channel.port1.close();
+      };
+      channel.port1.onmessage = (event: MessageEvent<NativeJsonFileStreamMessage>) => {
+        const message = event.data;
+        if (message.type === 'selected') {
+          metadata = { name: message.name, path: message.path, size: message.size };
+          fileBuffer = new NativeJsonFileBuffer(message.size);
+          onSelected?.(metadata);
+          // The preload isolated world does not reliably expose requestAnimationFrame
+          // in packaged/E2E Electron builds. Yield one task instead so React can
+          // commit the reading state before the main process starts streaming.
+          setTimeout(() => {
+            channel.port1.postMessage({ type: 'selected-ack' });
+          }, 0);
+          return;
+        }
 
-      if (message.type === 'chunk') {
-        textChunks.push(decoder.decode(message.chunk, { stream: true }));
-        channel.port1.postMessage({ type: 'chunk-ack' });
-        return;
-      }
+        if (message.type === 'chunk') {
+          if (!fileBuffer) {
+            finish();
+            reject(new Error('JSON file metadata was not received before its content'));
+            return;
+          }
 
-      if (message.type === 'cancelled') {
-        finish();
-        resolve(null);
-        return;
-      }
+          fileBuffer.append(message.chunk);
+          channel.port1.postMessage({ type: 'chunk-ack' });
+          return;
+        }
 
-      if (message.type === 'error') {
-        finish();
-        reject(new Error(message.message));
-        return;
-      }
+        if (message.type === 'cancelled') {
+          finish();
+          resolve(null);
+          return;
+        }
 
-      if (!metadata) {
-        finish();
-        reject(new Error('JSON file metadata was not received'));
-        return;
-      }
+        if (message.type === 'error') {
+          finish();
+          reject(new Error(message.message));
+          return;
+        }
 
-      textChunks.push(decoder.decode());
-      finish();
-      resolve({ ...metadata, content: textChunks.join('') });
-    };
-    channel.port1.start();
-    ipcRenderer.postMessage('file:openJsonStream', null, [channel.port2]);
-  });
+        if (!metadata || !fileBuffer) {
+          finish();
+          reject(new Error('JSON file metadata was not received'));
+          return;
+        }
+
+        const { buffer: contentBuffer, text: content } = fileBuffer.finish();
+        fileBuffer = null;
+        channel.port1.close();
+        resolve({ ...metadata, content, contentBuffer });
+      };
+      channel.port1.start();
+      ipcRenderer.postMessage('file:openJsonStream', null, [channel.port2]);
+    }
+  );
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {

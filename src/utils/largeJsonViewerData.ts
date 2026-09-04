@@ -11,6 +11,33 @@ import { findTextSearchBatch, findTextSearchMatches } from './searchText';
 
 const INITIAL_LINE_INDEX_CAPACITY = 4096;
 const INITIAL_REGION_INDEX_CAPACITY = 1024;
+export const LARGE_JSON_LITERAL_CHUNK_SIZE = 2000;
+
+export function buildLargeLiteralViewerData(
+  textLength: number,
+  chunkSize = LARGE_JSON_LITERAL_CHUNK_SIZE
+): LargeJsonViewerData {
+  const safeTextLength = Math.max(0, Math.floor(textLength) || 0);
+  const safeChunkSize = Math.max(1, Math.floor(chunkSize) || 1);
+  const lineCount = Math.max(1, Math.ceil(safeTextLength / safeChunkSize));
+  const lineStarts = new Uint32Array(lineCount);
+
+  for (let index = 0; index < lineCount; index += 1) {
+    lineStarts[index] = index * safeChunkSize;
+  }
+
+  return {
+    lineCount,
+    lineStarts,
+    literalChunks: true,
+    regions: {
+      startLines: new Uint32Array(0),
+      endLines: new Uint32Array(0),
+      parentIndexes: new Int32Array(0),
+      kinds: new Uint8Array(0),
+    },
+  };
+}
 
 function growUint32Buffer(buffer: Uint32Array, minimumCapacity: number) {
   let capacity = Math.max(1, buffer.length);

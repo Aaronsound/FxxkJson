@@ -1,5 +1,4 @@
 import type { MutableRefObject } from 'react';
-import { DEDICATED_RIGHT_VIEWER_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type {
   LargeJsonViewerData,
   LargeRawViewerData,
@@ -7,6 +6,7 @@ import type {
   StructureStatus,
   WorkerMessage,
 } from '../types/jsonTool';
+import { DEDICATED_RIGHT_VIEWER_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { resolveJsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
 import { getFormatWorkerResult, getRepairWorkerResult } from '../utils/jsonWorkerResponse';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
@@ -74,6 +74,23 @@ interface JsonFormattingWorkerResultContext {
   structureStatusRef: MutableRefObject<Record<string, StructureStatus>>;
 }
 
+interface PendingFormattedViewerResult {
+  formattedBytes: number;
+  formattedText: string;
+  rawBytes: number;
+  requestId: number;
+}
+
+const pendingFormattedViewerByTab = new Map<string, PendingFormattedViewerResult>();
+
+export function clearPendingFormattedViewerResult(tabId: string) {
+  pendingFormattedViewerByTab.delete(tabId);
+}
+
+export function clearAllPendingFormattedViewerResults() {
+  pendingFormattedViewerByTab.clear();
+}
+
 function clearFailedResultArtifacts(callbacks: JsonFormattingWorkerResultCallbacks, tabId: string) {
   callbacks.setTabFormatting(tabId, false);
   callbacks.setProcessingStage(tabId, 'idle');
@@ -104,15 +121,23 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
     structureStatusRef,
   } = context;
 
-  if (!['format-result', 'repair-result', 'viewer-ready', 'structure-ready'].includes(type)) {
+  if (!['format-result', 'repair-result', 'raw-viewer-ready', 'viewer-ready', 'structure-ready'].includes(type)) {
     return false;
   }
 
   if (latestRequestRef.current[tabId] !== requestId) {
+    if (pendingFormattedViewerByTab.get(tabId)?.requestId === requestId) {
+      pendingFormattedViewerByTab.delete(tabId);
+    }
     return true;
   }
 
   const performanceSession = performanceSessionsRef.current[tabId];
+
+  if (type === 'raw-viewer-ready') {
+    callbacks.setLargeRawViewerData(tabId, message.rawViewerData ?? null);
+    return true;
+  }
 
   if (type === 'format-result') {
     clearFormatWatchdog(tabId);
@@ -134,7 +159,9 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
       });
       callbacks.setTabFormatting(tabId, false);
       callbacks.setTabLargeMode(tabId, largeMode);
-      callbacks.setLargeRawViewerData(tabId, result.rawViewerData);
+      if (result.rawViewerData || rawBytes < LARGE_FILE_THRESHOLD) {
+        callbacks.setLargeRawViewerData(tabId, result.rawViewerData);
+      }
       callbacks.setLargeViewerStatus(tabId, shouldBuildLargeViewer ? 'building' : 'idle');
       callbacks.setProcessingStage(tabId, getProcessingStage(performanceSession, shouldBuildLargeViewer));
       if (performanceSession?.requestId === requestId) {
@@ -143,17 +170,29 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
         performanceSession.formattedBytes = formattedBytes;
         performanceSession.largeMode = largeMode;
       }
-      callbacks.updateFormattedContent(tabId, data, true, formattedBytes, rawBytes);
-      if (performanceSession?.requestId === requestId) {
-        performanceSession.rightModelCompletedAt = performance.now();
-        performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
-        performanceSession.error = null;
-        callbacks.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
+      if (shouldBuildLargeViewer) {
+        pendingFormattedViewerByTab.set(tabId, {
+          formattedBytes,
+          formattedText: data,
+          rawBytes,
+          requestId,
+        });
+      } else {
+        pendingFormattedViewerByTab.delete(tabId);
+        callbacks.setLargeViewerData(tabId, null);
+        callbacks.updateFormattedContent(tabId, data, true, formattedBytes, rawBytes);
+        if (performanceSession?.requestId === requestId) {
+          performanceSession.rightModelCompletedAt = performance.now();
+          performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
+          performanceSession.error = null;
+          callbacks.syncPerformanceSnapshot(tabId, !performanceSession.structureEnabled);
+        }
       }
       callbacks.setTabError(tabId, null);
       return true;
     }
 
+    pendingFormattedViewerByTab.delete(tabId);
     clearFailedResultArtifacts(callbacks, tabId);
     callbacks.mutatePerformanceSession(
       tabId,
@@ -212,10 +251,23 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
         performanceSession.largeMode = largeMode;
       }
       callbacks.updateTabContent(tabId, repairedText, true, rawBytes);
-      callbacks.setLargeRawViewerData(tabId, result.rawViewerData);
-      callbacks.updateFormattedContent(tabId, formattedText, true, formattedBytes, rawBytes);
+      if (result.rawViewerData || rawBytes < LARGE_FILE_THRESHOLD) {
+        callbacks.setLargeRawViewerData(tabId, result.rawViewerData);
+      }
+      if (shouldBuildLargeViewer) {
+        pendingFormattedViewerByTab.set(tabId, {
+          formattedBytes,
+          formattedText,
+          rawBytes,
+          requestId,
+        });
+      } else {
+        pendingFormattedViewerByTab.delete(tabId);
+        callbacks.setLargeViewerData(tabId, null);
+        callbacks.updateFormattedContent(tabId, formattedText, true, formattedBytes, rawBytes);
+      }
       callbacks.resetSearchState();
-      if (performanceSession?.requestId === requestId) {
+      if (performanceSession?.requestId === requestId && !shouldBuildLargeViewer) {
         performanceSession.rightModelCompletedAt = performance.now();
         performanceSession.status = performanceSession.structureEnabled ? 'running' : 'ready';
         performanceSession.error = null;
@@ -225,6 +277,7 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
       return true;
     }
 
+    pendingFormattedViewerByTab.delete(tabId);
     clearFailedResultArtifacts(callbacks, tabId);
     callbacks.mutatePerformanceSession(
       tabId,
@@ -250,6 +303,22 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
   }
 
   if (type === 'viewer-ready') {
+    const pendingFormatted = pendingFormattedViewerByTab.get(tabId);
+    if (pendingFormatted?.requestId === requestId) {
+      callbacks.updateFormattedContent(
+        tabId,
+        pendingFormatted.formattedText,
+        !message.viewerData,
+        pendingFormatted.formattedBytes,
+        pendingFormatted.rawBytes
+      );
+      pendingFormattedViewerByTab.delete(tabId);
+      if (performanceSession?.requestId === requestId) {
+        performanceSession.rightModelCompletedAt = performance.now();
+        performanceSession.formattedBytes = pendingFormatted.formattedBytes;
+        performanceSession.error = null;
+      }
+    }
     if (performanceSession?.requestId === requestId) {
       performanceSession.viewerIndexMs = typeof message.viewerIndexMs === 'number' ? message.viewerIndexMs : null;
       performanceSession.viewerReadyAt = performance.now();

@@ -152,15 +152,25 @@ class MockEditor {
 
   revealRangeInCenter = vi.fn();
 
-  selection: InstanceType<typeof mockEditorState.MockSelection> | null = null;
+  selection: {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  } | null = null;
 
-  setSelection = vi.fn((selection: InstanceType<typeof mockEditorState.MockSelection>) => {
-    this.selection = selection;
-    this.position = selection.getEndPosition();
-    this.cursorSelectionListeners.forEach((listener) => {
-      listener();
-    });
-  });
+  setSelection = vi.fn(
+    (selection: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) => {
+      this.selection = selection;
+      this.position = {
+        lineNumber: selection.endLineNumber,
+        column: selection.endColumn,
+      };
+      this.cursorSelectionListeners.forEach((listener) => {
+        listener();
+      });
+    }
+  );
 
   setHiddenAreas = vi.fn();
 
@@ -689,6 +699,45 @@ describe('JsonEditModal search position', () => {
       ']',
     ].join('\n');
 
+    expect(editor.getValue()).toBe(expectedValue);
+    expect(onValueChange).toHaveBeenCalledWith(expectedValue);
+  });
+
+  it('does not indent restored multiline selections twice when layout is already preserved', async () => {
+    const initialValue = ['[', '  "{\\"name\\":\\"second\\"}"', ']'].join('\n');
+    const selectedString = '"{\\"name\\":\\"second\\"}"';
+    const restoredObject = ['{', '    "name": "second"', '  }'].join('\n');
+    const onUnescapeContent = vi.fn(async () => restoredObject);
+    const onValueChange = vi.fn();
+
+    const { container } = renderModal(initialValue, { onUnescapeContent, onValueChange });
+    const editor = mockEditorState.editor;
+    if (!editor) {
+      throw new Error('Editor was not mounted');
+    }
+
+    const selectionStart = initialValue.indexOf(selectedString);
+    const startPosition = editor.model.getPositionAt(selectionStart);
+    const endPosition = editor.model.getPositionAt(selectionStart + selectedString.length);
+    act(() => {
+      editor.setSelection(
+        new mockEditorState.MockSelection(
+          startPosition.lineNumber,
+          startPosition.column,
+          endPosition.lineNumber,
+          endPosition.column
+        )
+      );
+    });
+
+    openEditorContextMenu(container);
+    fireEvent.click(screen.getByRole('menuitem', { name: '还原选中转义内容' }));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const expectedValue = ['[', '  {', '    "name": "second"', '  }', ']'].join('\n');
     expect(editor.getValue()).toBe(expectedValue);
     expect(onValueChange).toHaveBeenCalledWith(expectedValue);
   });

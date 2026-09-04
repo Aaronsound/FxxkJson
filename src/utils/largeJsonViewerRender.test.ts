@@ -46,6 +46,21 @@ describe('largeJsonViewerRender', () => {
     expect(tokens.some((token) => token.className?.includes('large-json-token-punctuation'))).toBe(true);
   });
 
+  it('continues key and value string coloring across raw viewer chunks', () => {
+    const valueTokens = tokenizeJsonLine('continued value",1', {
+      className: 'large-json-token large-json-token-string',
+      escaped: false,
+    });
+    const keyTokens = tokenizeJsonLine('continued key":1', {
+      className: 'large-json-token large-json-token-key',
+      escaped: false,
+    });
+
+    expect(valueTokens[0]).toMatchObject({ end: 16, className: expect.stringContaining('token-string') });
+    expect(keyTokens[0]).toMatchObject({ end: 14, className: expect.stringContaining('token-key') });
+    expect(valueTokens.some((token) => token.className?.includes('token-number'))).toBe(true);
+  });
+
   it('keeps JSON number grammar boundaries without slicing the remaining line', () => {
     const line = '[-0,0,12,-12.34e+5,1.,01,1e]';
     const numberTexts = tokenizeJsonLine(line)

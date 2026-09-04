@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTranslator } from '../utils/i18n';
-import JsonToolToolbar from './JsonToolToolbar';
+import JsonToolToolbar, { JsonToolToolbarFeedback } from './JsonToolToolbar';
 
 function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolToolbar>> = {}) {
   const props: React.ComponentProps<typeof JsonToolToolbar> = {
@@ -44,7 +44,12 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
   };
 
   return {
-    ...render(<JsonToolToolbar {...props} />),
+    ...render(
+      <>
+        <JsonToolToolbar {...props} />
+        <JsonToolToolbarFeedback {...props} />
+      </>
+    ),
     props,
   };
 }
@@ -78,6 +83,17 @@ describe('JsonToolToolbar', () => {
 
     expect(props.onUnescapeJson).not.toHaveBeenCalled();
     expect(props.onEscapeJson).not.toHaveBeenCalled();
+  });
+
+  it('keeps custom checkbox visuals aligned without changing checkbox behavior', () => {
+    const { props } = renderToolbar();
+
+    expect(document.querySelectorAll('.toolbar-checkbox-control')).toHaveLength(3);
+    fireEvent.click(screen.getByRole('checkbox', { name: '自动换行' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '显示性能面板' }));
+
+    expect(props.onWrapLongLinesChange).toHaveBeenCalledWith(true);
+    expect(props.onShowPerformancePanelChange).toHaveBeenCalledWith(true);
   });
 
   it('opens the about dialog from the toolbar', () => {

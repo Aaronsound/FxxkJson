@@ -9,6 +9,7 @@ interface LargeJsonLineTextProps {
   activeMatchIndex: number;
   lineNumber: number;
   lineText: string;
+  literalString?: boolean;
   matches: LargeJsonLineMatch[];
   selectedLineRange: LargeJsonLocalSelectionRange | null;
 }
@@ -21,6 +22,7 @@ export function areLargeJsonLineTextPropsEqual(previous: LargeJsonLineTextProps,
   if (
     previous.lineNumber !== next.lineNumber ||
     previous.lineText !== next.lineText ||
+    previous.literalString !== next.literalString ||
     previous.matches !== next.matches ||
     !equalSelectionRange(previous.selectedLineRange, next.selectedLineRange)
   ) {
@@ -40,10 +42,13 @@ function LargeJsonLineTextView({
   activeMatchIndex,
   lineNumber,
   lineText,
+  literalString = false,
   matches,
   selectedLineRange,
 }: LargeJsonLineTextProps) {
-  const segments = buildHighlightedJsonLineSegments(lineText, matches, activeMatchIndex);
+  const segments = literalString
+    ? buildLiteralStringSegments(lineText, matches, activeMatchIndex)
+    : buildHighlightedJsonLineSegments(lineText, matches, activeMatchIndex);
 
   if (segments.length === 0) {
     return <>{lineText}</>;
@@ -116,6 +121,40 @@ function LargeJsonLineTextView({
       })}
     </>
   );
+}
+
+function buildLiteralStringSegments(lineText: string, matches: LargeJsonLineMatch[], activeMatchIndex: number) {
+  const className = 'large-json-token large-json-token-value large-json-token-string';
+  const segments: ReturnType<typeof buildHighlightedJsonLineSegments> = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    const start = Math.max(cursor, Math.min(lineText.length, match.localStart));
+    const end = Math.max(start, Math.min(lineText.length, match.localEnd));
+    if (start > cursor) {
+      segments.push({
+        className,
+        isActiveSearchMatch: false,
+        isSearchMatch: false,
+        text: lineText.slice(cursor, start),
+      });
+    }
+    if (end > start) {
+      segments.push({
+        className,
+        isActiveSearchMatch: match.matchIndex === activeMatchIndex,
+        isSearchMatch: true,
+        matchIndex: match.matchIndex,
+        text: lineText.slice(start, end),
+      });
+    }
+    cursor = end;
+  }
+
+  if (cursor < lineText.length) {
+    segments.push({ className, isActiveSearchMatch: false, isSearchMatch: false, text: lineText.slice(cursor) });
+  }
+  return segments;
 }
 
 export const LargeJsonLineText = React.memo(LargeJsonLineTextView, areLargeJsonLineTextPropsEqual);

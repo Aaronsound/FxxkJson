@@ -165,10 +165,7 @@ describe('useJsonFormattingWorker', () => {
     );
     expect(args.setTabFormatting).toHaveBeenLastCalledWith('tab-a', false);
     expect(args.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'idle');
-    expect(args.setTabError).toHaveBeenLastCalledWith(
-      'tab-a',
-      'JSON worker 加载失败：Failed to fetch dynamically imported module'
-    );
+    expect(args.setTabError).toHaveBeenLastCalledWith('tab-a', 'JSON Worker 异常，正在自动恢复');
 
     unmount();
   });
@@ -191,7 +188,7 @@ describe('useJsonFormattingWorker', () => {
     });
     expect(args.setTabFormatting).toHaveBeenLastCalledWith('tab-a', false);
     expect(args.setProcessingStage).toHaveBeenLastCalledWith('tab-a', 'idle');
-    expect(args.setTabError).toHaveBeenLastCalledWith('tab-a', 'JSON worker 消息传输失败，请重试或重新导入文件');
+    expect(args.setTabError).toHaveBeenLastCalledWith('tab-a', 'JSON Worker 通信异常，正在自动恢复');
 
     unmount();
   });
@@ -215,10 +212,185 @@ describe('useJsonFormattingWorker', () => {
       []
     );
     expect(WorkerMock.instances[0].postMessage).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'clear-structure', tabId: 'tab-a' })
+      expect.objectContaining({ type: 'clear-tab-cache', tabId: 'tab-a' })
+    );
+    expect(WorkerMock.instances[0].postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'clear-locate-cache', tabId: 'tab-a' })
     );
 
     unmount();
+  });
+
+  it('clears only locate data when large-file locate is disabled', () => {
+    vi.stubGlobal('Worker', WorkerMock);
+    const args = createArgs();
+    const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+
+    act(() => {
+      result.current.clearTabStructure('tab-a', 'disabled');
+    });
+
+    expect(WorkerMock.instances[0].postMessage).toHaveBeenCalledWith(
+      { type: 'clear-locate-cache', tabId: 'tab-a' },
+      []
+    );
+    expect(WorkerMock.instances[0].postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'clear-tab-cache', tabId: 'tab-a' }),
+      expect.anything()
+    );
+    expect(args.setStructureStatus).toHaveBeenCalledWith('tab-a', 'disabled');
+
+    unmount();
+  });
+
+  it('restores an evicted large-viewer cache only when that tab becomes active again', () => {
+    vi.stubGlobal('Worker', WorkerMock);
+    const args = createArgs();
+    const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+    const viewerData = {
+      lineCount: 2,
+      lineStarts: new Uint32Array([0, 8]),
+      regions: {
+        startLines: new Uint32Array(0),
+        endLines: new Uint32Array(0),
+        parentIndexes: new Int32Array(0),
+        kinds: new Uint8Array(0),
+      },
+    };
+
+    act(() => {
+      WorkerMock.instances[0].onmessage?.(
+        new MessageEvent('message', {
+          data: { type: 'viewer-cache-evicted', requestId: 0, tabId: 'tab-a' },
+        })
+      );
+    });
+    act(() => {
+      result.current.restoreWorkerTabCache({
+        tabId: 'tab-a',
+        rawText: '{"a":1}',
+        rawRevision: 1,
+        formattedText: '{\n  "a": 1\n}',
+        viewerData,
+        enableDirectLocate: false,
+      });
+    });
+
+    expect(WorkerMock.instances[0].postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'hydrate-viewer-cache',
+        tabId: 'tab-a',
+        formattedText: '{\n  "a": 1\n}',
+        viewerData: expect.objectContaining({ lineCount: 2 }),
+      }),
+      expect.any(Array)
+    );
+
+    unmount();
+  });
+
+  it('restarts a failed worker and retries an in-flight format', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('Worker', WorkerMock);
+    const args = createArgs();
+    installPerformanceSessionHarness(args);
+    args.beginPerformanceSession('tab-a', 'manual-format', 'recovery', null, 11, false);
+    args.rawTextByTabRef.current['tab-a'] = '{"ok":true}';
+    const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+
+    act(() => {
+      result.current.queueFormat('tab-a', '{"ok":true}', true);
+      WorkerMock.instances[0].onerror?.(new ErrorEvent('error', { message: 'worker crashed' }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(WorkerMock.instances).toHaveLength(2);
+    expect(WorkerMock.instances[0].terminate).toHaveBeenCalledTimes(1);
+    expect(WorkerMock.instances[1].postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'format', tabId: 'tab-a', text: '{"ok":true}' }),
+      []
+    );
+    expect(args.logEvent).toHaveBeenCalledWith('worker-restarted', { attempt: 1 });
+
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it('recovers edit immediately and cached search and locate after viewer hydration', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('Worker', WorkerMock);
+    const args = createArgs();
+    args.formattedTextByTabRef.current['tab-a'] = '{\n  "ok": true\n}';
+    args.largeModeRef.current['tab-a'] = true;
+    const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+    let edit: Promise<string>;
+
+    act(() => {
+      edit = result.current.requestWorkerEditJson({
+        tabId: 'tab-a',
+        operation: 'escape-json',
+        text: '{"ok":true}',
+      });
+      result.current.requestWorkerSearch({
+        tabId: 'tab-a',
+        query: 'ok',
+        searchOptions: { matchCase: false, useRegex: false, wholeWord: false },
+      });
+      result.current.requestWorkerLocate('tab-a', 5);
+      WorkerMock.instances[0].onerror?.(new ErrorEvent('error', { message: 'worker crashed' }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    const restartedWorker = WorkerMock.instances[1];
+    expect(restartedWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'edit-json', operation: 'escape-json', text: '{"ok":true}' }),
+      []
+    );
+    expect(restartedWorker.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'search' }),
+      expect.anything()
+    );
+
+    act(() => {
+      restartedWorker.onmessage?.(
+        new MessageEvent('message', {
+          data: { type: 'viewer-cache-restored', requestId: 10, tabId: 'tab-a' },
+        })
+      );
+    });
+
+    expect(restartedWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'search', query: 'ok', tabId: 'tab-a' }),
+      []
+    );
+    expect(restartedWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'locate-right-direct', offset: 5, tabId: 'tab-a' }),
+      []
+    );
+    const recoveredEditRequest = restartedWorker.postMessage.mock.calls.find(
+      ([message]) => message.type === 'edit-json'
+    )?.[0];
+    act(() => {
+      restartedWorker.onmessage?.(
+        new MessageEvent('message', {
+          data: {
+            type: 'edit-json-result',
+            requestId: recoveredEditRequest.requestId,
+            tabId: 'tab-a',
+            success: true,
+            data: '"{\\"ok\\":true}"',
+          },
+        })
+      );
+    });
+
+    await expect(edit!).resolves.toBe('"{\\"ok\\":true}"');
+    unmount();
+    vi.useRealTimers();
   });
 
   it('finishes a large JSON import after format and viewer-ready worker messages', async () => {
@@ -303,7 +475,7 @@ describe('useJsonFormattingWorker', () => {
     expect(args.updateFormattedContent).toHaveBeenLastCalledWith(
       'tab-a',
       formattedJson,
-      true,
+      false,
       formattedJson.length,
       largeJson.length
     );

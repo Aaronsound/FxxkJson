@@ -1,5 +1,4 @@
 import type { MutableRefObject } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { editor } from 'monaco-editor/esm/vs/editor/editor.api';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
 import type { RightNodeSelection, Tab } from '../types/jsonTool';
@@ -47,7 +46,12 @@ export function useRightPaneNavigationActions({
 
     const start = model.getPositionAt(Math.max(0, offset));
     const end = model.getPositionAt(Math.max(offset + 1, endOffset));
-    const range = new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
+    const range = {
+      startLineNumber: start.lineNumber,
+      startColumn: start.column,
+      endLineNumber: end.lineNumber,
+      endColumn: end.column,
+    };
     editor.revealRangeInCenter(range);
     editor.setSelection(range);
     editor.focus();

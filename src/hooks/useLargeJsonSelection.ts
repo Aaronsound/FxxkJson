@@ -7,6 +7,8 @@ import {
   useRef,
 } from 'react';
 import type { LargeJsonViewerData, LargeJsonViewerRegion } from '../types/jsonTool';
+import { writeTextToClipboard } from '../utils/clipboard';
+import { getCopyTextForCollapsedSelection as getCollapsedCopyText } from '../utils/largeJsonSelectionCopy';
 import {
   getFirstMeaningfulOffset,
   getLineNumberFromElement,
@@ -14,8 +16,6 @@ import {
   getTextOffsetWithin,
 } from '../utils/largeJsonViewerDom';
 import { clamp } from '../utils/largeJsonViewerRender';
-import { writeTextToClipboard } from '../utils/clipboard';
-import { getCopyTextForCollapsedSelection as getCollapsedCopyText } from '../utils/largeJsonSelectionCopy';
 
 export interface LargeJsonLocalSelectionRange {
   start: number;
@@ -124,13 +124,15 @@ export function useLargeJsonSelection({
       const lineStart = data.lineStarts[lineNumber - 1] ?? 0;
       const nextLineStart = data.lineStarts[lineNumber];
       const lineEnd =
-        lineNumber < data.lineCount ? Math.max(lineStart, (nextLineStart ?? text.length) - 1) : text.length;
+        lineNumber < data.lineCount
+          ? Math.max(lineStart, (nextLineStart ?? text.length) - (data.literalChunks ? 0 : 1))
+          : text.length;
 
       return (
         normalizedSelectedRange.end > lineStart && normalizedSelectedRange.start < Math.max(lineEnd, lineStart + 1)
       );
     },
-    [data.lineCount, data.lineStarts, normalizedSelectedRange, text.length]
+    [data.lineCount, data.lineStarts, data.literalChunks, normalizedSelectedRange, text.length]
   );
 
   const getCopyTextForCollapsedSelection = useCallback(
@@ -211,6 +213,12 @@ export function useLargeJsonSelection({
       range.endOffset,
       endElement.textContent?.length ?? 0
     );
+    if (data.literalChunks) {
+      const documentStart = (data.lineStarts[startLine - 1] ?? 0) + startOffset;
+      const documentEnd = (data.lineStarts[endLine - 1] ?? 0) + endOffset;
+      return text.slice(documentStart, documentEnd);
+    }
+
     const copyText = getCopyTextForCollapsedSelection(startLine, endLine, startOffset, endOffset);
 
     if (copyText === null) {
@@ -218,7 +226,7 @@ export function useLargeJsonSelection({
     }
 
     return copyText;
-  }, [containerRef, getCopyTextForCollapsedSelection, text]);
+  }, [containerRef, data.lineStarts, data.literalChunks, getCopyTextForCollapsedSelection, text]);
 
   const handleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {

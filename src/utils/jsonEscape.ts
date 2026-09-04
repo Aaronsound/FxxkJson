@@ -3,7 +3,7 @@ export interface JsonEscapeTransformResult {
   formattedJson: boolean;
 }
 
-function formatIfJson(text: string): JsonEscapeTransformResult {
+function classifyDecodedText(text: string): JsonEscapeTransformResult {
   const trimmed = text.trim();
   if (!trimmed) {
     return {
@@ -13,8 +13,9 @@ function formatIfJson(text: string): JsonEscapeTransformResult {
   }
 
   try {
+    JSON.parse(trimmed);
     return {
-      text: JSON.stringify(JSON.parse(trimmed), null, 2),
+      text,
       formattedJson: true,
     };
   } catch {
@@ -57,29 +58,39 @@ function decodeEscapedText(text: string) {
 }
 
 export function unescapeJsonText(text: string): JsonEscapeTransformResult {
+  return classifyDecodedText(unescapeJsonStringLiteral(text));
+}
+
+export function unescapeJsonStringLiteral(text: string) {
   const decoded = decodeEscapedText(text);
   if (decoded === null) {
     throw new Error('当前内容不是可反转义的 JSON 字符串');
   }
 
-  return formatIfJson(decoded);
+  return decoded;
 }
 
-export function escapeJsonText(text: string): JsonEscapeTransformResult {
-  const trimmed = text.trim();
-  if (!trimmed) {
+export function escapeJsonStringLiteral(text: string) {
+  if (!text.trim()) {
     throw new Error('没有可转义的内容');
   }
 
+  return JSON.stringify(text);
+}
+
+export function escapeJsonText(text: string): JsonEscapeTransformResult {
+  const escapedText = escapeJsonStringLiteral(text);
+  const trimmed = text.trim();
+
   try {
-    const parsed = JSON.parse(trimmed);
+    JSON.parse(trimmed);
     return {
-      text: JSON.stringify(JSON.stringify(parsed)),
+      text: escapedText,
       formattedJson: true,
     };
   } catch {
     return {
-      text: JSON.stringify(text),
+      text: escapedText,
       formattedJson: false,
     };
   }

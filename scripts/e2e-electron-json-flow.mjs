@@ -1,34 +1,51 @@
-import { createRequire } from 'node:module';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { clickButtonByText, evaluate, waitFor } from './e2e-cdp-helpers.mjs';
 import {
   assertElectronMemoryBudget,
+  assertElectronStartupBudget,
   collectFailureArtifacts,
   connectAndPrepareElectronPage,
   getAvailablePort,
   readElectronMemorySnapshot,
   startElectronApp,
 } from './e2e-electron-app.mjs';
-import { importSampleThroughNativeFileFlow, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
 import { runRepeatedEditFoldingScenario } from './e2e-json-edit-folding-scenario.mjs';
 import { runEditTransformScenario } from './e2e-json-edit-transform-scenario.mjs';
-import { runMultiTabMemoryScenario } from './e2e-json-multi-tab-memory-scenario.mjs';
+import { importSampleThroughNativeFileFlow, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
 import {
   runClipboardAndCompareScenario,
+  runLocateCacheIsolationScenario,
   runRightNodeScenario,
   runSearchReplaceScenario,
 } from './e2e-json-flow-scenarios.mjs';
+import { runMultiTabMemoryScenario } from './e2e-json-multi-tab-memory-scenario.mjs';
 
 const require = createRequire(import.meta.url);
 
-function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory) {
+function printSuccessSummary(
+  sizeMb,
+  samplePath,
+  startupPerformance,
+  memorySnapshot,
+  multiTabMemory,
+  importPerformance
+) {
   console.log('FxxkJson Electron E2E passed');
   console.table([
     { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
     { step: 'import', detail: 'native MessagePort stream imported JSON through the desktop file flow' },
+    {
+      step: 'startup performance',
+      detail: `${startupPerformance.processToInteractiveMs.toFixed(1)} ms process, ${startupPerformance.rendererToInteractiveMs.toFixed(1)} ms renderer (${Number(startupPerformance.rendererEntryMs).toFixed(1)} ms to entry)`,
+    },
+    {
+      step: 'import performance',
+      detail: `${importPerformance.rightMeta}; visible in ${importPerformance.visibleMs.toFixed(1)} ms`,
+    },
     {
       step: 'memory',
       detail: `${memorySnapshot.totalWorkingSetMb.toFixed(1)} MB working set, ${memorySnapshot.totalPeakWorkingSetMb.toFixed(1)} MB peak, ${memorySnapshot.rendererHeapMb.toFixed(1)} MB renderer heap`,
@@ -38,6 +55,7 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
       detail: `${multiTabMemory.expanded.totalWorkingSetMb.toFixed(1)} MB with auxiliary tabs, ${multiTabMemory.afterClose.totalWorkingSetMb.toFixed(1)} MB after close`,
     },
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
+    { step: 'adaptive new tab', detail: 'the plus follows fitting tabs and stays visible when tabs overflow' },
     {
       step: 'toolbar UI',
       detail:
@@ -47,7 +65,12 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory)
     { step: 'split resize', detail: 'center gutter resizes both editor panes' },
     { step: 'dual find escape', detail: 'Escape closes the search belonging to the active pane' },
     { step: 'large folding', detail: 'fold-all stays compact while root and nested nodes preserve expand semantics' },
+    {
+      step: 'large raw fidelity',
+      detail: 'raw colors match the editor and two rapid escape/unescape rounds restore the original fingerprint',
+    },
     { step: 'search', detail: 'right pane traceId search returned results' },
+    { step: 'locate cache', detail: 'disabling locate preserves right-pane search data' },
     { step: 'locate', detail: 'right node click highlighted left raw JSON' },
     { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
     { step: 'rename warnings', detail: 'right node rename dialog shows whitespace and duplicate-key warnings' },
@@ -65,14 +88,98 @@ async function resizeElectronWindow(cdp, width, height, predicate, label) {
   try {
     await waitFor(() => evaluate(cdp, predicate), label, 3000);
   } catch {
-    const { windowId } = await cdp.send('Browser.getWindowForTarget');
-    await cdp.send('Browser.setWindowBounds', {
-      windowId,
-      bounds: { height, width },
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      deviceScaleFactor: 1,
+      height,
+      mobile: false,
+      screenHeight: height,
+      screenWidth: width,
+      width,
     });
     await waitFor(() => evaluate(cdp, predicate), `${label} through native window bounds`);
   }
   await evaluate(cdp, `window.dispatchEvent(new Event('resize')); true`);
+}
+
+async function assertAdaptiveNewTabPosition(cdp) {
+  const initialTabCount = await evaluate(cdp, `document.querySelectorAll('.tab-list .tab').length`);
+  const fittingMetrics = await evaluate(
+    cdp,
+    `(() => {
+      const tabs = document.querySelectorAll('.tab-list .tab');
+      const lastTab = tabs[tabs.length - 1];
+      const addButton = document.querySelector('.tab-bar .add-tab');
+      if (!(lastTab instanceof HTMLElement) || !(addButton instanceof HTMLElement)) return null;
+      const tabRect = lastTab.getBoundingClientRect();
+      const addRect = addButton.getBoundingClientRect();
+      return { gap: addRect.left - tabRect.right, addLeft: addRect.left, tabRight: tabRect.right };
+    })()`
+  );
+  if (!fittingMetrics || fittingMetrics.gap < 0 || fittingMetrics.gap > 12) {
+    throw new Error(`New-tab action did not follow fitting tabs: ${JSON.stringify(fittingMetrics)}`);
+  }
+
+  const addedTabs = 12;
+  for (let index = 0; index < addedTabs; index += 1) {
+    await clickButtonByText(cdp, '+');
+    await waitFor(
+      () => evaluate(cdp, `document.querySelectorAll('.tab-list .tab').length === ${initialTabCount + index + 1}`),
+      `adaptive tab add ${index + 1}`
+    );
+  }
+
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const list = document.querySelector('.tab-list');
+          const rightButton = document.querySelector('.tab-bar-actions .tab-scroll-button');
+          return list instanceof HTMLElement
+            && list.scrollWidth > list.clientWidth + 1
+            && rightButton instanceof HTMLElement
+            && !rightButton.hidden;
+        })()`
+      ),
+    'adaptive tab overflow controls'
+  );
+
+  const overflowMetrics = await evaluate(
+    cdp,
+    `(() => {
+      const bar = document.querySelector('.tab-bar');
+      const list = document.querySelector('.tab-list');
+      const addButton = document.querySelector('.tab-bar .add-tab');
+      const rightButton = document.querySelector('.tab-bar-actions .tab-scroll-button');
+      if (!(bar instanceof HTMLElement) || !(list instanceof HTMLElement) || !(addButton instanceof HTMLElement)) return null;
+      const barRect = bar.getBoundingClientRect();
+      const addRect = addButton.getBoundingClientRect();
+      return {
+        addInside: addRect.right <= barRect.right + 0.5,
+        hasOverflow: list.scrollWidth > list.clientWidth + 1,
+        rightControlVisible: rightButton instanceof HTMLElement && !rightButton.hidden,
+      };
+    })()`
+  );
+  if (!overflowMetrics?.addInside || !overflowMetrics.hasOverflow || !overflowMetrics.rightControlVisible) {
+    throw new Error(`New-tab action did not stay visible during overflow: ${JSON.stringify(overflowMetrics)}`);
+  }
+
+  for (let index = addedTabs; index > 0; index -= 1) {
+    await evaluate(
+      cdp,
+      `(() => {
+        const closeButton = document.querySelector('.tab-list .tab.active .tab-close');
+        if (!(closeButton instanceof HTMLElement)) return false;
+        closeButton.click();
+        return true;
+      })()`
+    );
+    await waitFor(
+      () => evaluate(cdp, `document.querySelectorAll('.tab-list .tab').length === ${initialTabCount + index - 1}`),
+      `adaptive tab close ${index}`
+    );
+  }
 }
 
 async function assertToolbarUi(cdp) {
@@ -81,14 +188,14 @@ async function assertToolbarUi(cdp) {
     `(() => {
       const labels = Array.from(document.querySelectorAll('.toolbar-checkbox'));
       return labels.map((label) => {
-        const input = label.querySelector('input');
+        const control = label.querySelector('.toolbar-checkbox-control');
         const textNode = Array.from(label.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
-        if (!(input instanceof HTMLInputElement) || !textNode) return null;
+        if (!(control instanceof HTMLElement) || !textNode) return null;
         const textRange = document.createRange();
         textRange.selectNodeContents(textNode);
-        const inputRect = input.getBoundingClientRect();
+        const controlRect = control.getBoundingClientRect();
         const textRect = textRange.getBoundingClientRect();
-        return Math.abs(inputRect.top + inputRect.height / 2 - (textRect.top + textRect.height / 2));
+        return Math.abs(controlRect.top + controlRect.height / 2 - (textRect.top + textRect.height / 2));
       });
     })()`
   );
@@ -634,33 +741,50 @@ async function assertLargeViewerAutoWrap(cdp) {
       return true;
     })()`
   );
-  await waitFor(
-    () =>
-      evaluate(
-        cdp,
-        `(() => {
+  const readWrapMetrics = () =>
+    evaluate(
+      cdp,
+      `(() => {
           const rows = Array.from(document.querySelectorAll('.right-editor-pane .large-json-row.wrap'));
-          const shortRows = rows.filter((row) => {
-            const length = row.querySelector('.large-json-line-text')?.textContent?.length ?? 0;
-            return length > 0 && length < 60;
+          const rowMetrics = rows
+            .map((row) => ({
+              height: Number.parseFloat(row.style.height),
+              textLength: row.querySelector('.large-json-line-text')?.textContent?.length ?? 0,
+              top: Number.parseFloat(row.style.top),
+            }))
+            .filter((row) => Number.isFinite(row.height) && Number.isFinite(row.top));
+          const baseHeight = Math.min(...rowMetrics.map((row) => row.height));
+          const shortRows = rowMetrics.filter((row) => row.height <= baseHeight + 0.5);
+          const longRows = rowMetrics.filter((row) => row.height > baseHeight + 0.5);
+          const sortedRows = rowMetrics.toSorted((left, right) => left.top - right.top);
+          const rowsDoNotOverlap = sortedRows.every((row, index) => {
+            const next = sortedRows[index + 1];
+            return !next || row.top + row.height <= next.top + 0.5;
           });
-          const longRow = rows.find((row) => row.querySelector('.large-json-line-text')?.textContent?.includes('"message"'));
-          const rowRects = rows
-            .map((row) => row.getBoundingClientRect())
-            .sort((left, right) => left.top - right.top);
-          const rowsDoNotOverlap = rowRects.every((rect, index) => {
-            const next = rowRects[index + 1];
-            return !next || rect.bottom <= next.top + 0.5;
-          });
-          return shortRows.length >= 3
-            && shortRows.every((row) => Math.round(row.getBoundingClientRect().height) === 18)
-            && Boolean(longRow && longRow.getBoundingClientRect().height > 18)
+          const ready = Number.isFinite(baseHeight)
+            && shortRows.length >= 3
+            && shortRows.some((row) => row.textLength > 0 && row.textLength <= 3)
+            && longRows.length >= 1
             && rowsDoNotOverlap;
+          return {
+            baseHeight,
+            longRowCount: longRows.length,
+            ready,
+            rowCount: rows.length,
+            rowMetrics: rowMetrics.slice(0, 20),
+            rowsDoNotOverlap,
+            shortRowCount: shortRows.length,
+          };
         })()`
-      ),
-    'large viewer wraps only long rows',
-    90000
-  );
+    );
+  try {
+    await waitFor(async () => (await readWrapMetrics())?.ready, 'large viewer wraps only long rows', 30000);
+  } catch (error) {
+    const metrics = await readWrapMetrics();
+    throw new Error(
+      `${error instanceof Error ? error.message : 'large viewer wrap check failed'}: ${JSON.stringify(metrics)}`
+    );
+  }
   await evaluate(
     cdp,
     `(() => {
@@ -727,6 +851,142 @@ async function assertLargeViewerFoldAllSemantics(cdp) {
   );
 }
 
+async function assertLargeRawViewerFidelity(cdp) {
+  const hasLargeRawViewer = await evaluate(
+    cdp,
+    `Boolean(document.querySelector('.left-editor-pane .large-raw-viewer'))`
+  );
+  await waitFor(
+    async () => {
+      const formatted = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+      return formatted.length > 0 && (await evaluate(cdp, `!document.querySelector('.editor-processing-layer')`));
+    },
+    'initial formatted pane ready before escape checks',
+    90000
+  );
+
+  if (hasLargeRawViewer) {
+    const presentation = await evaluate(
+      cdp,
+      `(() => {
+        const viewer = document.querySelector('.left-editor-pane .large-raw-viewer');
+        const rows = Array.from(viewer?.querySelectorAll('.large-raw-row') ?? []);
+        const lineNumbers = rows.slice(0, 4).map((row) => row.querySelector('.large-raw-offset')?.textContent ?? '');
+        return {
+          hasKey: Boolean(viewer?.querySelector('.large-json-token-key')),
+          hasString: Boolean(viewer?.querySelector('.large-json-token-string')),
+          firstLineNumber: lineNumbers[0],
+          continuationLabels: lineNumbers.slice(1),
+        };
+      })()`
+    );
+    if (
+      !presentation?.hasKey ||
+      !presentation?.hasString ||
+      presentation.firstLineNumber !== '1' ||
+      presentation.continuationLabels.some((label) => label !== '')
+    ) {
+      throw new Error(`Large raw viewer did not match editor presentation: ${JSON.stringify(presentation)}`);
+    }
+  }
+
+  const originalFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+  const originalFormattedFingerprint = await evaluate(
+    cdp,
+    `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`
+  );
+  await clickButtonByText(cdp, '转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return current.length > originalFingerprint.length && current.hash !== originalFingerprint.hash;
+    },
+    'large raw JSON escaped without blocking the renderer',
+    90000
+  );
+  const firstEscapedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.editor-processing-layer')`),
+    'first escape reused the ready formatted result',
+    3000
+  );
+  const firstFormattedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+  if (JSON.stringify(firstFormattedFingerprint) !== JSON.stringify(originalFormattedFingerprint)) {
+    throw new Error(
+      `The first escape changed the canonical formatted JSON unexpectedly: ${JSON.stringify({ originalFormattedFingerprint, firstFormattedFingerprint })}`
+    );
+  }
+  const secondEscapeStartedAt = Date.now();
+  await clickButtonByText(cdp, '转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return current.length > firstEscapedFingerprint.length && current.hash !== firstEscapedFingerprint.hash;
+    },
+    'second large raw JSON escape completed',
+    10000
+  );
+  const secondEscapedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.editor-processing-layer')`),
+    'second escape updated the formatted result',
+    10000
+  );
+  const secondFormattedFingerprint = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+  if (JSON.stringify(secondFormattedFingerprint) !== JSON.stringify(secondEscapedFingerprint)) {
+    throw new Error('The second escape did not update the formatted pane to the current JSON string');
+  }
+  const usesVirtualLiteralViewer = await evaluate(
+    cdp,
+    `Boolean(document.querySelector('.right-editor-pane .large-json-viewer.literal-chunks .large-json-token-string'))`
+  );
+  if (hasLargeRawViewer && !usesVirtualLiteralViewer) {
+    throw new Error('The second escape did not use the virtual root-string viewer');
+  }
+  console.log(`Second escape right-pane synchronization: ${Date.now() - secondEscapeStartedAt} ms`);
+  const firstUnescapeStartedAt = Date.now();
+  await clickButtonByText(cdp, '反转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return JSON.stringify(current) === JSON.stringify(firstEscapedFingerprint);
+    },
+    'first large raw JSON unescape restored the single-escaped text',
+    10000
+  );
+  await waitFor(
+    async () => {
+      const formatted = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+      return JSON.stringify(formatted) === JSON.stringify(firstEscapedFingerprint);
+    },
+    'first unescape updated the formatted result',
+    10000
+  );
+  console.log(`First unescape right-pane synchronization: ${Date.now() - firstUnescapeStartedAt} ms`);
+  const secondUnescapeStartedAt = Date.now();
+  await clickButtonByText(cdp, '反转义');
+  await waitFor(
+    async () => {
+      const current = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
+      return JSON.stringify(current) === JSON.stringify(originalFingerprint);
+    },
+    'large raw JSON restored byte-for-byte after escape round trip',
+    90000
+  );
+  await waitFor(
+    async () => {
+      if (await evaluate(cdp, `Boolean(document.querySelector('.editor-processing-layer'))`)) {
+        return false;
+      }
+      const formatted = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveFormattedFingerprint()`);
+      return JSON.stringify(formatted) === JSON.stringify(originalFormattedFingerprint);
+    },
+    'JSON reformatted after escape round trip',
+    90000
+  );
+  console.log(`Second unescape right-pane synchronization: ${Date.now() - secondUnescapeStartedAt} ms`);
+}
+
 async function run() {
   if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.HANJSON_E2E_FORCE) {
     console.log('FxxkJson Electron E2E skipped: no DISPLAY is available on Linux');
@@ -758,6 +1018,8 @@ async function run() {
     getStderr = electronApp.getStderr;
 
     cdp = await connectAndPrepareElectronPage(port);
+    const startupPerformance = await assertElectronStartupBudget(cdp, electronApp.startedAt);
+    await assertAdaptiveNewTabPosition(cdp);
     await assertToolbarUi(cdp);
     await assertSplitResize(cdp);
     await assertPaneFocusAffordance(cdp);
@@ -765,22 +1027,48 @@ async function run() {
     await runEditTransformScenario(cdp);
     await importSampleThroughNativeFileFlow(cdp);
     await waitFor(
-      () => evaluate(cdp, `document.body.innerText.includes('req-e2e-000000')`),
+      () => evaluate(cdp, `document.querySelector('.right-editor-pane')?.textContent?.includes('req-e2e-000000')`),
       'imported and formatted JSON',
       90000
     );
+    const nativeImportStages = await evaluate(
+      cdp,
+      `(() => {
+        window.__HANJSON_E2E_NATIVE_IMPORT_OBSERVER__?.disconnect();
+        return window.__HANJSON_E2E_NATIVE_IMPORT_STAGES__ ?? [];
+      })()`
+    );
+    if (!nativeImportStages.some((stage) => stage.includes('正在读取'))) {
+      throw new Error(`Native import did not render its reading stage: ${JSON.stringify(nativeImportStages)}`);
+    }
+    const importPerformance = await evaluate(
+      cdp,
+      `(() => {
+        const rightMeta = document.querySelector('.right-editor-pane .editor-pane-header-meta')?.textContent?.trim() ?? '';
+        const startedAt = window.__HANJSON_E2E_NATIVE_IMPORT_STARTED_AT__ ?? performance.now();
+        return {
+          rightMeta,
+          visibleMs: Math.max(0, performance.now() - startedAt),
+        };
+      })()`
+    );
     await assertReadableToolbarStatus(cdp);
+    await assertLargeRawViewerFidelity(cdp);
     await assertLargeViewerAutoWrap(cdp);
     await assertLargeViewerFoldAllSemantics(cdp);
+    await cdp.send('HeapProfiler.collectGarbage');
     const memorySnapshot = await readElectronMemorySnapshot(cdp);
+    console.log('Import performance:', importPerformance);
+    console.log('Memory snapshot:', memorySnapshot);
     assertElectronMemoryBudget(memorySnapshot, sizeMb);
     const multiTabMemory = await runMultiTabMemoryScenario(cdp, tempDir, sizeMb);
 
+    await runLocateCacheIsolationScenario(cdp);
     await runRepeatedEditFoldingScenario(cdp);
     await runSearchReplaceScenario(cdp);
     await runRightNodeScenario(cdp);
     await runClipboardAndCompareScenario(cdp);
-    printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory);
+    printSuccessSummary(sizeMb, samplePath, startupPerformance, memorySnapshot, multiTabMemory, importPerformance);
   } catch (error) {
     const stderr = getStderr();
     await collectFailureArtifacts({ cdp, stderr });

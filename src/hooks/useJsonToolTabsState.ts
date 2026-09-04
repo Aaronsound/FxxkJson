@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   DEFAULT_TAB_TITLE,
   EMPTY_DOCUMENT_META,
@@ -40,64 +40,64 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
     [initialTabId]: 'ready',
   });
 
-  const setTabError = (tabId: string, message: string | null) => {
+  const setTabError = useCallback((tabId: string, message: string | null) => {
     setErrorsByTab((current) => ({ ...current, [tabId]: message }));
-  };
+  }, []);
 
-  const setTabImporting = (tabId: string, fileName: string | null) => {
+  const setTabImporting = useCallback((tabId: string, fileName: string | null) => {
     setImportingByTab((current) => ({ ...current, [tabId]: fileName }));
-  };
+  }, []);
 
-  const setTabFormatting = (tabId: string, formatting: boolean) => {
+  const setTabFormatting = useCallback((tabId: string, formatting: boolean) => {
     setIsFormattingByTab((current) => ({ ...current, [tabId]: formatting }));
-  };
+  }, []);
 
-  const setTabLargeModeState = (tabId: string, enabled: boolean) => {
+  const setTabLargeModeState = useCallback((tabId: string, enabled: boolean) => {
     setLargeModeByTab((current) => ({ ...current, [tabId]: enabled }));
-  };
+  }, []);
 
-  const setLargeFileLocateEnabledState = (tabId: string, enabled: boolean) => {
+  const setLargeFileLocateEnabledState = useCallback((tabId: string, enabled: boolean) => {
     setLargeFileLocateEnabledByTab((current) => ({ ...current, [tabId]: enabled }));
-  };
+  }, []);
 
-  const setStructureStatusState = (tabId: string, status: StructureStatus) => {
+  const setStructureStatusState = useCallback((tabId: string, status: StructureStatus) => {
     setStructureStatusByTab((current) => ({ ...current, [tabId]: status }));
-  };
+  }, []);
 
-  const setDocumentMeta = (tabId: string, updater: (current: TabDocumentMeta) => TabDocumentMeta) => {
+  const setDocumentMeta = useCallback((tabId: string, updater: (current: TabDocumentMeta) => TabDocumentMeta) => {
     setDocumentMetaByTab((current) => ({
       ...current,
       [tabId]: updater(current[tabId] ?? EMPTY_DOCUMENT_META),
     }));
-  };
+  }, []);
 
-  const renameTab = (tabId: string, nextTitle: string) => {
+  const renameTab = useCallback((tabId: string, nextTitle: string) => {
     const trimmedTitle = nextTitle.trim() || DEFAULT_TAB_TITLE;
     setTabs((currentTabs) => currentTabs.map((tab) => (tab.id === tabId ? { ...tab, title: trimmedTitle } : tab)));
-  };
+  }, []);
 
-  const startRenamingTab = (tab: Tab) => {
+  const startRenamingTab = useCallback((tab: Tab) => {
     setRenamingTab({ id: tab.id, value: tab.title });
-  };
+  }, []);
 
-  const handleRenamingChange = (value: string) => {
+  const handleRenamingChange = useCallback((value: string) => {
     setRenamingTab((current) => (current ? { ...current, value } : current));
-  };
+  }, []);
 
-  const finishRenaming = () => {
+  const finishRenaming = useCallback(() => {
     if (!renamingTab) {
       return;
     }
 
     renameTab(renamingTab.id, renamingTab.value);
     setRenamingTab(null);
-  };
+  }, [renameTab, renamingTab]);
 
-  const cancelRenaming = () => {
+  const cancelRenaming = useCallback(() => {
     setRenamingTab(null);
-  };
+  }, []);
 
-  const initializeTabState = (tabId: string) => {
+  const initializeTabState = useCallback((tabId: string) => {
     setDocumentMetaByTab((current) => ({ ...current, [tabId]: EMPTY_DOCUMENT_META }));
     setErrorsByTab((current) => ({ ...current, [tabId]: null }));
     setImportingByTab((current) => ({ ...current, [tabId]: null }));
@@ -105,9 +105,9 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
     setLargeModeByTab((current) => ({ ...current, [tabId]: false }));
     setLargeFileLocateEnabledByTab((current) => ({ ...current, [tabId]: false }));
     setStructureStatusByTab((current) => ({ ...current, [tabId]: 'ready' }));
-  };
+  }, []);
 
-  const removeTabState = (tabId: string) => {
+  const removeTabState = useCallback((tabId: string) => {
     setErrorsByTab((current) => {
       const next = { ...current };
       delete next[tabId];
@@ -149,7 +149,7 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
       delete next[tabId];
       return next;
     });
-  };
+  }, []);
 
   return {
     activeTabId,

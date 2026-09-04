@@ -5,6 +5,7 @@
   "metrics": {
     "sample-5mb.json": {
       "totalFormatMs": 45,
+      "formatResultReadyMs": 50,
       "viewerIndexMs": 45,
       "foldAllIntervalsMs": 1,
       "wrapLayoutMs": 8,
@@ -25,6 +26,7 @@
     },
     "sample-20mb.json": {
       "totalFormatMs": 210,
+      "formatResultReadyMs": 150,
       "viewerIndexMs": 190,
       "foldAllIntervalsMs": 1,
       "wrapLayoutMs": 10,

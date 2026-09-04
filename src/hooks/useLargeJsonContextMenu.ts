@@ -13,6 +13,7 @@ export function useLargeJsonContextMenu({ searchTerm }: UseLargeJsonContextMenuP
   }, []);
 
   useEffect(() => {
+    void searchTerm;
     setContextMenu(null);
   }, [searchTerm]);
 

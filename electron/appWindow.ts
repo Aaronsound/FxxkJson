@@ -1,10 +1,11 @@
-import { BrowserWindow } from 'electron';
 import * as path from 'node:path';
+import { BrowserWindow } from 'electron';
 import { logRuntimeEvent } from './runtimeLog';
 import { guardMainWindowContents } from './security';
 
 export function createMainWindow() {
   const shouldOpenDevTools = process.env.ELECTRON_OPEN_DEVTOOLS !== '0';
+  const shouldKeepWindowHidden = process.env.HANJSON_E2E_HIDDEN === '1';
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -15,6 +16,7 @@ export function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: !shouldKeepWindowHidden,
     },
   });
 
@@ -31,7 +33,9 @@ export function createMainWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    if (!shouldKeepWindowHidden) {
+      mainWindow.show();
+    }
   });
 
   mainWindow.webContents.on('console-message', (details) => {

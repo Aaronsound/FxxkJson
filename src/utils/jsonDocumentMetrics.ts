@@ -65,6 +65,25 @@ export function measureJsonDocument(
   };
 }
 
+export function measureJsonDocumentWithKnownByteLength(
+  text: string,
+  textByteLength: number,
+  lineThreshold = DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD
+): JsonDocumentMetrics {
+  let lineCount = 1;
+  let newlineOffset = -1;
+
+  while ((newlineOffset = text.indexOf('\n', newlineOffset + 1)) !== -1) {
+    lineCount += 1;
+  }
+
+  return {
+    exceedsDedicatedViewerLineThreshold: lineThreshold <= 0 ? text.length > 0 : lineCount > lineThreshold,
+    lineCount,
+    textByteLength,
+  };
+}
+
 export function getUtf8ByteLength(text: string) {
   return measureJsonDocument(text).textByteLength;
 }

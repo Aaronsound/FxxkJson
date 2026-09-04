@@ -251,7 +251,7 @@ export async function runEditTransformScenario(cdp) {
 
     const arrayEditValue = await getEditModalValue(cdp);
     const selectedObject = extractObjectAroundMarker(arrayEditValue, `"id": ${scenario.id}`);
-    const expectedSelectedString = JSON.stringify(JSON.stringify(JSON.parse(selectedObject)));
+    const expectedSelectedString = JSON.stringify(selectedObject);
     const startLine = await getTextStartLine(cdp, selectedObject);
     if (!startLine) {
       throw new Error(`Could not find start line for ${label}`);
@@ -311,7 +311,8 @@ export async function runEditTransformScenario(cdp) {
     'edit transform object imported'
   );
 
-  const expectedDocumentString = JSON.stringify(JSON.stringify(JSON.parse(OBJECT_SAMPLE)));
+  const objectEditValue = await getEditModalValue(cdp);
+  const expectedDocumentString = JSON.stringify(objectEditValue);
   await openEditContextMenu(cdp);
   await clickButtonByText(cdp, '整段转成 JSON 字符串');
   await waitFor(

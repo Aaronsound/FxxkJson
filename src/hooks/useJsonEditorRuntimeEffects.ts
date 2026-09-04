@@ -52,6 +52,10 @@ export function useJsonEditorRuntimeEffects({
   }, [activeTabId, activeTabIdRef]);
 
   useEffect(() => {
+    // Viewer artifacts are explicit synchronization triggers even though the
+    // editor models consume their corresponding text and length metadata.
+    void activeLargeViewerData;
+    void activeLargeViewerStatus;
     if (!activeTab) {
       return;
     }
@@ -72,6 +76,10 @@ export function useJsonEditorRuntimeEffects({
     activeLargeViewerData,
     activeLargeViewerStatus,
     activeTab,
+    formattedTextByTabRef,
+    getTabContent,
+    syncLeftModel,
+    syncRightModel,
   ]);
 
   useEffect(() => {
@@ -95,6 +103,7 @@ export function useJsonEditorRuntimeEffects({
     activeTabId,
     isBuildingDedicatedRightViewer,
     isLargeFileMode,
+    logRightEditorState,
     shouldEnableRightPaneFolding,
     shouldUseDedicatedRightViewer,
     wrapLongLines,

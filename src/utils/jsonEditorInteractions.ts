@@ -1,4 +1,4 @@
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatch } from './searchText';
@@ -61,14 +61,19 @@ export function getMonacoSearchBatch(
     ranges: result.matches.map((match) => {
       const start = model.getPositionAt(match.start);
       const end = model.getPositionAt(match.end);
-      return new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column);
+      return {
+        startLineNumber: start.lineNumber,
+        startColumn: start.column,
+        endLineNumber: end.lineNumber,
+        endColumn: end.column,
+      };
     }),
   };
 }
 
 export function getReplacementText(
   model: monaco.editor.ITextModel,
-  range: monaco.Range,
+  range: monaco.IRange,
   searchTerm: string,
   searchOptions: JsonSearchOptions,
   replaceText: string

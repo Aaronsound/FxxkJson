@@ -29,6 +29,8 @@ interface WorkerFormatOptions {
   deferStructure: boolean;
   enableDirectLocate: boolean;
   enableStructure: boolean;
+  rawMetrics?: JsonDocumentMetrics;
+  reuseText?: boolean;
   structureWarmupDelayMs?: number;
 }
 
@@ -58,12 +60,30 @@ export interface EditJsonWorkerRequest {
   searchTerm?: string;
   searchOptions?: JsonSearchOptions;
   replacement?: string;
+  reuseText?: boolean;
 }
 
+export interface HydrateViewerCacheWorkerRequest {
+  type: 'hydrate-viewer-cache';
+  requestId: number;
+  tabId: string;
+  enableDirectLocate: boolean;
+  formattedText?: string;
+  formattedTextBuffer?: ArrayBuffer;
+  rawText?: string;
+  rawTextBuffer?: ArrayBuffer;
+  rawRevision?: number;
+  viewerData: LargeJsonLineIndex;
+}
+
+type WorkerFormatTextPayload = WorkerRequestTextPayload | { reuseText: true; text?: never; textBuffer?: never };
+
 export type WorkerRequestMessage =
-  | { type: 'clear-structure'; tabId: string }
+  | { type: 'clear-locate-cache'; tabId: string }
+  | { type: 'clear-tab-cache'; tabId: string }
   | { type: 'release-transient-cache'; tabId: string }
-  | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'format'; rawRevision?: number })
+  | HydrateViewerCacheWorkerRequest
+  | (WorkerRequestBase & WorkerFormatTextPayload & WorkerFormatOptions & { type: 'format'; rawRevision?: number })
   | (WorkerRequestBase & WorkerRequestTextPayload & WorkerFormatOptions & { type: 'repair'; rawRevision?: number })
   | (WorkerRequestBase & {
       type: 'search';
@@ -94,17 +114,21 @@ export type WorkerRequestMessage =
       searchTerm?: EditJsonWorkerRequest['searchTerm'];
       searchOptions?: EditJsonWorkerRequest['searchOptions'];
       replacement?: EditJsonWorkerRequest['replacement'];
+      reuseText?: EditJsonWorkerRequest['reuseText'];
     });
 
 export interface WorkerMessage {
   type:
     | 'format-result'
     | 'repair-result'
+    | 'raw-viewer-ready'
     | 'structure-ready'
     | 'locate-result'
     | 'viewer-ready'
     | 'search-result'
-    | 'edit-json-result';
+    | 'edit-json-result'
+    | 'viewer-cache-evicted'
+    | 'viewer-cache-restored';
   requestId: number;
   tabId: string;
   target?: SearchTarget;
@@ -122,8 +146,10 @@ export interface WorkerMessage {
   formattedPatch?: JsonTextPatch;
   viewerPatchApplied?: boolean;
   requiresOriginalText?: boolean;
+  requiresText?: boolean;
   rawMetrics?: JsonDocumentMetrics;
   formattedMetrics?: JsonDocumentMetrics;
+  formattedMatchesRaw?: boolean;
   structureWarming?: boolean;
   value?: string | null;
   error?: string;
@@ -193,6 +219,7 @@ export interface LargeJsonViewerRegions {
 export interface LargeJsonLineIndex {
   lineStarts: Uint32Array;
   lineCount: number;
+  literalChunks?: boolean;
 }
 
 export const EMPTY_LARGE_JSON_VIEWER_REGIONS: LargeJsonViewerRegions = {
@@ -203,6 +230,7 @@ export const EMPTY_LARGE_JSON_VIEWER_REGIONS: LargeJsonViewerRegions = {
 };
 
 export interface LargeJsonViewerData extends LargeJsonLineIndex {
+  literalChunks?: boolean;
   regions: LargeJsonViewerRegions;
 }
 
@@ -218,7 +246,9 @@ export const EMPTY_LARGE_JSON_FOLD_STATE: LargeJsonFoldState = { mode: 'explicit
 
 export interface LargeRawViewerData {
   starts: Uint32Array;
+  lineNumbers: Uint32Array;
   lengths: Uint16Array;
+  syntaxStates: Uint8Array;
   rowCount: number;
 }
 

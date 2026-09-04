@@ -9,6 +9,7 @@ const DEFAULT_RUNS = 3;
 const DEFAULT_TOLERANCE = 0.25;
 const COMPARED_METRICS = [
   'totalFormatMs',
+  'formatResultReadyMs',
   'viewerIndexMs',
   'foldAllIntervalsMs',
   'wrapLayoutMs',
@@ -203,6 +204,7 @@ function printResults(results, failures, baselinePath, runs) {
       rawSize: formatBytes(result.rawBytes),
       formattedSize: formatBytes(result.formattedBytes),
       formatTotal: formatDuration(result.totalFormatMs),
+      formatResultReady: formatDuration(result.formatResultReadyMs),
       viewerIndex: formatDuration(result.viewerIndexMs),
       viewerWorkingMemory: formatBytes(result.viewerIndexWorkingBytes),
       viewerMapAvoided: formatBytes(result.viewerLegacyCompactionMapBytes),

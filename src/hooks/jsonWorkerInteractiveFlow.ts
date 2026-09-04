@@ -60,6 +60,14 @@ function getSearchRequestKey(target: SearchTarget, tabId: string) {
   return `${target}:${tabId}`;
 }
 
+interface PendingEditJsonRequest {
+  reject: (error: Error) => void;
+  request: EditJsonWorkerRequest;
+  retriedWithOriginalText: boolean;
+  retriedWithText: boolean;
+  resolve: (value: WorkerMessage) => void;
+}
+
 export function createJsonWorkerInteractiveFlow({
   activeTabIdRef,
   createWorkerTextPayload,
@@ -74,20 +82,32 @@ export function createJsonWorkerInteractiveFlow({
   let searchRequestCounter = 0;
   const latestLocateRequests: Record<string, number> = {};
   const latestSearchRequests: Record<string, number> = {};
-  const pendingEditJsonRequests: Record<
-    number,
-    {
-      reject: (error: Error) => void;
-      request: EditJsonWorkerRequest;
-      retriedWithOriginalText: boolean;
-      resolve: (value: WorkerMessage) => void;
-    }
-  > = {};
+  const latestLocateInputs: Record<string, { offset: number; tabId: string }> = {};
+  const latestSearchInputs: Record<string, WorkerSearchRequest> = {};
+  const pendingEditJsonRequests: Record<number, PendingEditJsonRequest> = {};
+  const suspendedEditJsonRequests: PendingEditJsonRequest[] = [];
 
   const cancelRequests = (tabId: string) => {
     delete latestLocateRequests[tabId];
+    delete latestLocateInputs[tabId];
     delete latestSearchRequests[getSearchRequestKey('left', tabId)];
     delete latestSearchRequests[getSearchRequestKey('right', tabId)];
+    delete latestSearchInputs[getSearchRequestKey('left', tabId)];
+    delete latestSearchInputs[getSearchRequestKey('right', tabId)];
+
+    for (const requestId of Object.keys(pendingEditJsonRequests)) {
+      const pending = pendingEditJsonRequests[Number(requestId)];
+      if (pending?.request.tabId === tabId) {
+        pending.reject(new Error('JSON worker request cancelled'));
+        delete pendingEditJsonRequests[Number(requestId)];
+      }
+    }
+    for (let index = suspendedEditJsonRequests.length - 1; index >= 0; index -= 1) {
+      if (suspendedEditJsonRequests[index]?.request.tabId === tabId) {
+        suspendedEditJsonRequests[index]?.reject(new Error('JSON worker request cancelled'));
+        suspendedEditJsonRequests.splice(index, 1);
+      }
+    }
   };
 
   const requestLocate = (tabId: string, offset: number) => {
@@ -104,6 +124,7 @@ export function createJsonWorkerInteractiveFlow({
 
     const requestId = ++locateRequestCounter;
     latestLocateRequests[tabId] = requestId;
+    latestLocateInputs[tabId] = { tabId, offset };
     const canUseFullLocate = workerStructureEnabledRef.current[tabId] && structureStatusRef.current[tabId] === 'ready';
 
     callbacks.setLocateFeedback(tabId, {
@@ -120,17 +141,18 @@ export function createJsonWorkerInteractiveFlow({
     });
   };
 
-  const requestSearch = ({
-    tabId,
-    query,
-    searchOptions,
-    startOffset = 0,
-    append = false,
-    target = 'right',
-    text,
-    textByteLength,
-    rawRevision,
-  }: WorkerSearchRequest) => {
+  const requestSearch = (request: WorkerSearchRequest) => {
+    const {
+      tabId,
+      query,
+      searchOptions,
+      startOffset = 0,
+      append = false,
+      target = 'right',
+      text,
+      textByteLength,
+      rawRevision,
+    } = request;
     const callbacks = getCallbacks();
     if (!workerRef.current) {
       if (target === 'left') {
@@ -142,7 +164,9 @@ export function createJsonWorkerInteractiveFlow({
     }
 
     const requestId = ++searchRequestCounter;
-    latestSearchRequests[getSearchRequestKey(target, tabId)] = requestId;
+    const requestKey = getSearchRequestKey(target, tabId);
+    latestSearchRequests[requestKey] = requestId;
+    latestSearchInputs[requestKey] = { ...request, target, startOffset, append };
     const textPayload = typeof text === 'string' ? createWorkerTextPayload(text, textByteLength) : null;
     postWorkerRequest(
       {
@@ -165,6 +189,7 @@ export function createJsonWorkerInteractiveFlow({
   const sendEditJsonRequest = (
     request: EditJsonWorkerRequest,
     retriedWithOriginalText: boolean,
+    retriedWithText: boolean,
     resolve: (value: WorkerMessage) => void,
     reject: (error: Error) => void
   ) => {
@@ -182,6 +207,7 @@ export function createJsonWorkerInteractiveFlow({
       searchTerm,
       searchOptions,
       replacement,
+      reuseText,
     } = request;
     if (!workerRef.current) {
       reject(new Error('JSON worker is not ready'));
@@ -189,8 +215,8 @@ export function createJsonWorkerInteractiveFlow({
     }
 
     const requestId = ++locateRequestCounter;
-    pendingEditJsonRequests[requestId] = { reject, request, resolve, retriedWithOriginalText };
-    const textPayload = createWorkerTextPayload(text, textByteLength);
+    pendingEditJsonRequests[requestId] = { reject, request, resolve, retriedWithOriginalText, retriedWithText };
+    const textPayload = !reuseText || retriedWithText ? createWorkerTextPayload(text, textByteLength) : null;
     const shouldIncludeOriginalText = !reuseOriginalText || retriedWithOriginalText;
     const originalTextPayload =
       shouldIncludeOriginalText && typeof originalText === 'string'
@@ -207,7 +233,7 @@ export function createJsonWorkerInteractiveFlow({
         requestId,
         tabId,
         operation,
-        ...textPayload.message,
+        ...textPayload?.message,
         textByteLength,
         ...originalMessage,
         originalTextByteLength,
@@ -217,14 +243,15 @@ export function createJsonWorkerInteractiveFlow({
         searchTerm,
         searchOptions,
         replacement,
+        reuseText,
       },
-      [...textPayload.transfer, ...(originalTextPayload?.transfer ?? [])]
+      [...(textPayload?.transfer ?? []), ...(originalTextPayload?.transfer ?? [])]
     );
   };
 
   const requestEditJsonResult = (request: EditJsonWorkerRequest) =>
     new Promise<WorkerMessage>((resolve, reject) => {
-      sendEditJsonRequest(request, false, resolve, reject);
+      sendEditJsonRequest(request, false, false, resolve, reject);
     });
 
   const requestEditJson = (request: EditJsonWorkerRequest) =>
@@ -239,7 +266,12 @@ export function createJsonWorkerInteractiveFlow({
   const applySearchResult = (message: WorkerMessage) => {
     const target = message.target ?? 'right';
     const requestKey = getSearchRequestKey(target, message.tabId);
-    if (message.tabId !== activeTabIdRef.current || latestSearchRequests[requestKey] !== message.requestId) {
+    if (latestSearchRequests[requestKey] !== message.requestId) {
+      return;
+    }
+
+    delete latestSearchInputs[requestKey];
+    if (message.tabId !== activeTabIdRef.current) {
       return;
     }
 
@@ -256,7 +288,12 @@ export function createJsonWorkerInteractiveFlow({
   };
 
   const applyLocateResult = (message: WorkerMessage) => {
-    if (message.tabId !== activeTabIdRef.current || latestLocateRequests[message.tabId] !== message.requestId) {
+    if (latestLocateRequests[message.tabId] !== message.requestId) {
+      return;
+    }
+
+    delete latestLocateInputs[message.tabId];
+    if (message.tabId !== activeTabIdRef.current) {
       return;
     }
 
@@ -341,7 +378,9 @@ export function createJsonWorkerInteractiveFlow({
           !pending.retriedWithOriginalText &&
           typeof pending.request.originalText === 'string'
         ) {
-          sendEditJsonRequest(pending.request, true, pending.resolve, pending.reject);
+          sendEditJsonRequest(pending.request, true, pending.retriedWithText, pending.resolve, pending.reject);
+        } else if (!message.success && message.requiresText && !pending.retriedWithText) {
+          sendEditJsonRequest(pending.request, pending.retriedWithOriginalText, true, pending.resolve, pending.reject);
         } else if (message.success && (typeof data === 'string' || message.rawPatch)) {
           pending.resolve({
             ...message,
@@ -358,11 +397,51 @@ export function createJsonWorkerInteractiveFlow({
     return false;
   };
 
+  const suspendForRestart = () => {
+    Object.keys(pendingEditJsonRequests).forEach((requestId) => {
+      const pending = pendingEditJsonRequests[Number(requestId)];
+      if (pending) {
+        suspendedEditJsonRequests.push(pending);
+      }
+      delete pendingEditJsonRequests[Number(requestId)];
+    });
+  };
+
+  const resumeEditsAfterRestart = () => {
+    const pendingRequests = suspendedEditJsonRequests.splice(0);
+    for (const pending of pendingRequests) {
+      sendEditJsonRequest(pending.request, true, true, pending.resolve, pending.reject);
+    }
+  };
+
+  const resumeTabRequests = (tabId: string) => {
+    const locateInput = latestLocateInputs[tabId];
+    if (locateInput) {
+      requestLocate(locateInput.tabId, locateInput.offset);
+    }
+
+    for (const target of ['left', 'right'] as const) {
+      const searchInput = latestSearchInputs[getSearchRequestKey(target, tabId)];
+      if (searchInput) {
+        requestSearch(searchInput);
+      }
+    }
+  };
+
   const stop = () => {
+    for (const tabId of new Set([
+      ...Object.keys(latestLocateInputs),
+      ...Object.values(latestSearchInputs).map((request) => request.tabId),
+    ])) {
+      cancelRequests(tabId);
+    }
     Object.keys(pendingEditJsonRequests).forEach((requestId) => {
       pendingEditJsonRequests[Number(requestId)]?.reject(new Error('JSON worker stopped'));
       delete pendingEditJsonRequests[Number(requestId)];
     });
+    for (const pending of suspendedEditJsonRequests.splice(0)) {
+      pending.reject(new Error('JSON worker stopped'));
+    }
   };
 
   return {
@@ -372,6 +451,9 @@ export function createJsonWorkerInteractiveFlow({
     requestEditJsonResult,
     requestLocate,
     requestSearch,
+    resumeEditsAfterRestart,
+    resumeTabRequests,
     stop,
+    suspendForRestart,
   };
 }

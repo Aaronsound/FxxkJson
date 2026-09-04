@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { PerformanceSnapshot } from '../types/jsonTool';
 import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 import { writeTextToClipboard } from '../utils/clipboard';
@@ -196,4 +196,4 @@ const JsonPerformancePanel: React.FC<JsonPerformancePanelProps> = ({
   );
 };
 
-export default JsonPerformancePanel;
+export default memo(JsonPerformancePanel);

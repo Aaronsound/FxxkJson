@@ -48,7 +48,14 @@ export async function benchFile(filePath) {
   const parseResult = measure('parse', () => JSON.parse(rawText));
   const stringifyResult = measure('stringify', () => JSON.stringify(parseResult.value, null, 2));
   const formattedText = stringifyResult.value;
-  const formattedBytes = Buffer.byteLength(formattedText, 'utf8');
+  const formatHandoffResult = measure('format-result-handoff', () => {
+    const buffer = Buffer.from(formattedText, 'utf8');
+    return {
+      formattedBytes: buffer.byteLength,
+      formattedLineCount: countTextLines(formattedText),
+    };
+  });
+  const formattedBytes = formatHandoffResult.value.formattedBytes;
   const uiMetricRescanResult = measure('legacyUiMetricRescan', () => {
     const raw = measure('rawMetricRescan', () => measureDocumentMetrics(rawText));
     const formatted = measure('formattedMetricRescan', () => measureDocumentMetrics(formattedText));
@@ -61,7 +68,7 @@ export async function benchFile(filePath) {
     () => formattedText === formattedIdentityCopy
   );
   const rawViewerResult = measure('raw-viewer-index', () => buildRawViewerDataStats(rawText));
-  const formattedLineCount = countTextLines(formattedText);
+  const formattedLineCount = formatHandoffResult.value.formattedLineCount;
   const viewerResult = measure('viewer-index', () => buildViewerDataStats(formattedText, formattedLineCount));
   let uniqueRegionStartLineCount = 0;
   let previousRegionStartLine = -1;
@@ -228,6 +235,8 @@ export async function benchFile(filePath) {
     parseMs: parseResult.ms,
     stringifyMs: stringifyResult.ms,
     totalFormatMs: parseResult.ms + stringifyResult.ms,
+    formatHandoffMs: formatHandoffResult.ms,
+    formatResultReadyMs: parseResult.ms + stringifyResult.ms + formatHandoffResult.ms,
     viewerIndexMs: viewerResult.ms,
     viewerIndexBytes: viewerResult.value.indexBytes,
     viewerIndexWorkingBytes: viewerResult.value.buildWorkingBytes,

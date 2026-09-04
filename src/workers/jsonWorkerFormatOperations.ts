@@ -1,22 +1,25 @@
-import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { LargeJsonLineIndex, WorkerRequestMessage } from '../types/jsonTool';
+import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import {
   type JsonDocumentMetrics,
-  measureJsonDocument,
+  measureJsonDocumentWithKnownByteLength,
+  resolveJsonDocumentMetrics,
   shouldUseDedicatedRightViewerForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
+import { buildLargeLiteralViewerData, buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
-import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
+import type { RawDocumentCacheEntry } from './jsonNodeEditOperations';
 import {
   copyLargeViewerLineIndex,
   getLargeViewerTransferables,
-  postRepairResult,
-  postTextResult,
+  getRawViewerTransferables,
+  postPreparedRepairResult,
+  postPreparedTextResult,
+  prepareWorkerText,
   readMessageText,
 } from './jsonWorkerTextPayload';
-import type { RawDocumentCacheEntry } from './jsonNodeEditOperations';
 
 type FormatWorkerRequest = Extract<WorkerRequestMessage, { type: 'format' | 'repair' }>;
 
@@ -128,11 +131,17 @@ export function createJsonWorkerFormatOperations({
         }
 
         const viewerIndexStartedAt = performance.now();
-        const viewerData = buildLargeViewerData(
-          formatted,
-          DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
-          formattedMetrics.lineCount
-        );
+        // Reaching this branch already means the caller selected the dedicated
+        // viewer by byte size, line count, or an explicit processing plan. A
+        // large document with only a few extremely long lines still needs the
+        // virtual viewer, so do not apply the line-count gate a second time.
+        const isLargeRootString =
+          formattedMetrics.lineCount === 1 &&
+          formatted.charCodeAt(0) === 34 &&
+          formatted.charCodeAt(formatted.length - 1) === 34;
+        const viewerData = isLargeRootString
+          ? buildLargeLiteralViewerData(formatted.length)
+          : buildLargeViewerData(formatted, 0, formattedMetrics.lineCount);
         const viewerIndexMs = performance.now() - viewerIndexStartedAt;
         const workerViewerData = viewerData ? copyLargeViewerLineIndex(viewerData) : null;
         const isIdentityFormat =
@@ -141,19 +150,19 @@ export function createJsonWorkerFormatOperations({
           enableDirectLocate &&
           !normalizedNestedString &&
           sourceText === formatted;
-        if (viewerData) {
+        if (viewerData && workerViewerData) {
           viewerCache.set(tabId, {
             requestId,
             formattedText: formatted,
             formattedMetrics,
-            viewerData: workerViewerData!,
+            viewerData: workerViewerData,
           });
         } else {
           viewerCache.delete(tabId);
         }
 
         if (!enableStructure && enableDirectLocate && !normalizedNestedString) {
-          if (viewerData) {
+          if (viewerData && workerViewerData) {
             structureCache.set(tabId, {
               requestId,
               directLocate: true,
@@ -162,7 +171,7 @@ export function createJsonWorkerFormatOperations({
               rawMetrics: sourceMetrics,
               formattedText: formatted,
               formattedMetrics,
-              viewerData: workerViewerData!,
+              viewerData: workerViewerData,
               tokenLocateCache: { tokenOffsetsByToken: new Map() },
             });
             postWorkerMessage({
@@ -257,6 +266,10 @@ export function createJsonWorkerFormatOperations({
     }
 
     setTimeout(() => {
+      if (latestFormatRequestByTab.get(tabId) !== requestId) {
+        return;
+      }
+
       const current = structureCache.get(tabId);
       if (!current || current.requestId !== requestId) {
         return;
@@ -283,32 +296,59 @@ export function createJsonWorkerFormatOperations({
     clearDeferredStructureWarmup(tabId);
   }
 
+  function scheduleRawViewerData(tabId: string, requestId: number, rawText: string, rawMetrics: JsonDocumentMetrics) {
+    if (rawMetrics.textByteLength < LARGE_FILE_THRESHOLD) {
+      return;
+    }
+
+    setTimeout(() => {
+      if (latestFormatRequestByTab.get(tabId) !== requestId) {
+        return;
+      }
+
+      const rawViewerData = buildLargeRawViewerData(rawText);
+      postWorkerMessage(
+        {
+          type: 'raw-viewer-ready',
+          requestId,
+          tabId,
+          rawViewerData,
+        },
+        getRawViewerTransferables(rawViewerData)
+      );
+    }, 0);
+  }
+
   function handleFormatMessage(message: FormatWorkerRequest) {
     const { requestId, tabId, enableStructure, enableDirectLocate, deferStructure = false, buildViewer } = message;
-    const text = readMessageText(message);
+    const cachedRaw = rawDocumentCache.get(tabId);
+    const canReuseText =
+      message.reuseText && typeof message.rawRevision === 'number' && cachedRaw?.rawRevision === message.rawRevision;
+    const text = canReuseText ? cachedRaw.rawText : readMessageText(message);
     prepareFormatRequest(tabId, requestId, text);
     try {
-      const sourceMetrics = measureJsonDocument(text);
-      const rawViewerData = sourceMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(text) : null;
+      if (message.reuseText && !canReuseText && !text) {
+        throw new Error('工作线程文本缓存不可用');
+      }
+      const sourceMetrics = resolveJsonDocumentMetrics(text, message.rawMetrics);
       const { formatted, normalizedNestedString } = formatJsonText(text);
-      const formattedMetrics = measureJsonDocument(formatted);
+      const preparedFormatted = prepareWorkerText(formatted);
+      const formattedMetrics = measureJsonDocumentWithKnownByteLength(formatted, preparedFormatted.byteLength);
       rawDocumentCache.set(tabId, {
         rawMetrics: sourceMetrics,
         rawRevision: message.rawRevision ?? null,
         rawText: text,
       });
-      postTextResult(
+      postPreparedTextResult(
         {
           type: 'format-result',
           requestId,
           tabId,
           success: true,
-          rawViewerData,
           rawMetrics: sourceMetrics,
           formattedMetrics,
         },
-        formatted,
-        formattedMetrics.textByteLength
+        preparedFormatted
       );
 
       buildFormatArtifacts({
@@ -325,6 +365,7 @@ export function createJsonWorkerFormatOperations({
         buildViewer,
         structureWarmupDelayMs: message.structureWarmupDelayMs,
       });
+      scheduleRawViewerData(tabId, requestId, text, sourceMetrics);
     } catch (err) {
       clearFormatFailureArtifacts(tabId);
       postWorkerMessage({
@@ -343,30 +384,27 @@ export function createJsonWorkerFormatOperations({
     prepareFormatRequest(tabId, requestId, text);
     try {
       const { repaired, formatted, normalizedNestedString } = repairJsonText(text);
-      const sourceMetrics = measureJsonDocument(repaired);
-      const formattedMetrics = measureJsonDocument(formatted);
-      const rawViewerData =
-        sourceMetrics.textByteLength >= LARGE_FILE_THRESHOLD ? buildLargeRawViewerData(repaired) : null;
+      const preparedRepaired = prepareWorkerText(repaired);
+      const preparedFormatted = prepareWorkerText(formatted);
+      const sourceMetrics = measureJsonDocumentWithKnownByteLength(repaired, preparedRepaired.byteLength);
+      const formattedMetrics = measureJsonDocumentWithKnownByteLength(formatted, preparedFormatted.byteLength);
       rawDocumentCache.set(tabId, {
         rawMetrics: sourceMetrics,
         rawRevision: typeof message.rawRevision === 'number' ? message.rawRevision + 1 : null,
         rawText: repaired,
       });
 
-      postRepairResult(
+      postPreparedRepairResult(
         {
           type: 'repair-result',
           requestId,
           tabId,
           success: true,
-          rawViewerData,
           rawMetrics: sourceMetrics,
           formattedMetrics,
         },
-        formatted,
-        repaired,
-        formattedMetrics.textByteLength,
-        sourceMetrics.textByteLength
+        preparedFormatted,
+        preparedRepaired
       );
 
       buildFormatArtifacts({
@@ -383,6 +421,7 @@ export function createJsonWorkerFormatOperations({
         buildViewer,
         structureWarmupDelayMs: message.structureWarmupDelayMs,
       });
+      scheduleRawViewerData(tabId, requestId, repaired, sourceMetrics);
     } catch (err) {
       clearFormatFailureArtifacts(tabId);
       postWorkerMessage({

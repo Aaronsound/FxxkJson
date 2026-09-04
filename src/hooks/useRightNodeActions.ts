@@ -230,6 +230,7 @@ export function useRightNodeActions({
     [
       applyRawUpdate,
       applyNodeMutationArtifacts,
+      getRawRevision,
       getTabContent,
       logEvent,
       queueFormatAfterEditSave,

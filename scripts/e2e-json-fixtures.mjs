@@ -73,5 +73,26 @@ export async function importSampleByE2eBridge(cdp, samplePath) {
 }
 
 export async function importSampleThroughNativeFileFlow(cdp) {
+  await evaluate(
+    cdp,
+    `(() => {
+      window.__HANJSON_E2E_NATIVE_IMPORT_STAGES__ = [];
+      window.__HANJSON_E2E_NATIVE_IMPORT_TIMINGS__ = [];
+      const startedAt = performance.now();
+      window.__HANJSON_E2E_NATIVE_IMPORT_STARTED_AT__ = startedAt;
+      const capture = () => {
+        const text = document.querySelector('.editor-processing-layer')?.textContent?.trim();
+        if (text && !window.__HANJSON_E2E_NATIVE_IMPORT_STAGES__.includes(text)) {
+          window.__HANJSON_E2E_NATIVE_IMPORT_STAGES__.push(text);
+          window.__HANJSON_E2E_NATIVE_IMPORT_TIMINGS__.push({ text, elapsedMs: performance.now() - startedAt });
+        }
+      };
+      const observer = new MutationObserver(capture);
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+      window.__HANJSON_E2E_NATIVE_IMPORT_OBSERVER__ = observer;
+      capture();
+      return true;
+    })()`
+  );
   await clickButtonByText(cdp, '导入 JSON');
 }

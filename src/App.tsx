@@ -1,45 +1,46 @@
-import type React from 'react';
 import type { OnMount } from '@monaco-editor/react';
+import type React from 'react';
+import { useEffect } from 'react';
 import JsonToolAppView from './components/JsonToolAppView';
-import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
-import { useJsonToolContentActions } from './hooks/useJsonToolContentActions';
-import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
-import { useJsonToolRefs, usePreserveActiveTabViewState } from './hooks/useJsonToolRefs';
-import { useJsonToolTabActions } from './hooks/useJsonToolTabActions';
+import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
+import { useActiveJsonTabState } from './hooks/useActiveJsonTabState';
+import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
+import { useDismissRightNodeSelection } from './hooks/useDismissRightNodeSelection';
+import { useE2eTestBridge } from './hooks/useE2eTestBridge';
+import { useJsonEditActions } from './hooks/useJsonEditActions';
+import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
+import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
 import { useJsonEditSession } from './hooks/useJsonEditSession';
 import { useJsonFormattingWorker } from './hooks/useJsonFormattingWorker';
-import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
-import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
-import { useDismissRightNodeSelection } from './hooks/useDismissRightNodeSelection';
-import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
-import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
-import { useJsonToolPaneSearchStates } from './hooks/useJsonToolPaneSearchStates';
-import { useJsonEditorModelSync } from './hooks/useJsonEditorModelSync';
 import { useJsonImportActions } from './hooks/useJsonImportActions';
 import { useJsonImportDropZone } from './hooks/useJsonImportDropZone';
 import { useJsonPaneSearchActions } from './hooks/useJsonPaneSearchActions';
-import { useLeftPaneSearchResults } from './hooks/useLeftPaneSearchResults';
-import { useActiveJsonTabState } from './hooks/useActiveJsonTabState';
+import { useJsonPerformanceTracking } from './hooks/useJsonPerformanceTracking';
+import { useJsonTabArtifacts } from './hooks/useJsonTabArtifacts';
+import { useJsonToolContentActions } from './hooks/useJsonToolContentActions';
+import { useJsonToolDerivedState } from './hooks/useJsonToolDerivedState';
+import { useJsonToolDialogs } from './hooks/useJsonToolDialogs';
+import { useJsonToolPaneSearchStates } from './hooks/useJsonToolPaneSearchStates';
 import { useJsonToolPreferences } from './hooks/useJsonToolPreferences';
-import { useContextualFindShortcut } from './hooks/useContextualFindShortcut';
-import { useE2eTestBridge } from './hooks/useE2eTestBridge';
+import { useJsonToolRefs, usePreserveActiveTabViewState } from './hooks/useJsonToolRefs';
+import { useJsonToolSearchEffects } from './hooks/useJsonToolSearchEffects';
+import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
+import { useJsonToolTabActions } from './hooks/useJsonToolTabActions';
+import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
+import { useJsonToolViewerState } from './hooks/useJsonToolViewerState';
+import { useJsonToolWorkspaceActions } from './hooks/useJsonToolWorkspaceActions';
+import { useLeftEditorActions } from './hooks/useLeftEditorActions';
+import { useLeftEditorContextMenu } from './hooks/useLeftEditorContextMenu';
+import { useLeftPaneSearchResults } from './hooks/useLeftPaneSearchResults';
 import { useRightEditorActions } from './hooks/useRightEditorActions';
 import { useRightEditorContextMenuState } from './hooks/useRightEditorContextMenuState';
+import { useRightEditorDiagnostics } from './hooks/useRightEditorDiagnostics';
 import { useRightNodeActions } from './hooks/useRightNodeActions';
 import { useRightNodeEditOpeners } from './hooks/useRightNodeEditOpeners';
 import { useRightNodeMutationDialog } from './hooks/useRightNodeMutationDialog';
-import { useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
+import { useRightNodeSelectionHighlight } from './hooks/useRightNodeSelectionHighlight';
 import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationActions';
-import { useJsonToolDerivedState } from './hooks/useJsonToolDerivedState';
-import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
-import { useJsonToolSearchEffects } from './hooks/useJsonToolSearchEffects';
-import { useJsonEditActions } from './hooks/useJsonEditActions';
-import { useLeftEditorActions } from './hooks/useLeftEditorActions';
-import { useJsonEditorRuntimeEffects } from './hooks/useJsonEditorRuntimeEffects';
-import { useRightEditorDiagnostics } from './hooks/useRightEditorDiagnostics';
-import { useJsonToolViewerState } from './hooks/useJsonToolViewerState';
-import { useJsonToolWorkspaceActions } from './hooks/useJsonToolWorkspaceActions';
-import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
+import { useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import { INITIAL_TAB_ID } from './types/jsonTool';
 import './App.css';
 
@@ -364,15 +365,18 @@ const App: React.FC = () => {
     importJsonFile,
     importJsonText,
     queueFormat,
+    queueFormatFromWorkerCache,
     queueRepair,
     queueFormatAfterEditSave,
     releaseTransientWorkerCaches,
+    restoreWorkerTabCache,
     removeTabArtifacts,
     requestWorkerSearch,
     requestWorkerLocate,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,
     resetTabArtifacts,
+    workerGeneration,
   } = useJsonFormattingWorker({
     ...{
       activeTabIdRef,
@@ -398,6 +402,32 @@ const App: React.FC = () => {
     ...{ resetSearchState, revealLeftRange, clearLeftHighlights, clearRightHighlights },
   });
 
+  useEffect(() => {
+    // Re-run after a Worker restart even when the active document itself did not change.
+    void workerGeneration;
+    if (!activeTab) {
+      return;
+    }
+
+    restoreWorkerTabCache({
+      tabId: activeTab.id,
+      rawText: activeRawText,
+      rawRevision: activeDocumentMeta.rawRevision,
+      formattedText: formattedValue,
+      viewerData: activeLargeViewerData,
+      enableDirectLocate: isLargeFileLocateEnabled,
+    });
+  }, [
+    activeDocumentMeta.rawRevision,
+    activeLargeViewerData,
+    activeRawText,
+    activeTab,
+    formattedValue,
+    isLargeFileLocateEnabled,
+    restoreWorkerTabCache,
+    workerGeneration,
+  ]);
+
   const { pinActiveRightPath, selectRightPinnedPath, toggleRightFoldAtOffset } = useRightPaneNavigationActions({
     ...{ activeRightNodeSelection, activeTab, activeTabIdRef, getPinnedPath, largeViewerRef },
     ...{ pinRightPath, requestWorkerLocate, rightEditorRef, setRightNodeSelection, shouldUseDedicatedRightViewer },
@@ -405,6 +435,8 @@ const App: React.FC = () => {
 
   useE2eTestBridge({
     activeTabIdRef,
+    getFormattedContent,
+    getTabContent,
     importJsonText,
   });
 
@@ -519,7 +551,9 @@ const App: React.FC = () => {
     fileInputRef,
     importJsonFile,
     importJsonText,
+    setProcessingStage,
     setTabError,
+    setTabImporting,
   });
 
   const {
@@ -534,9 +568,27 @@ const App: React.FC = () => {
     ...{ activeDocumentMeta, activeTab, beginPerformanceSession, clearPerformanceState, clearTabStructure },
     ...{ getFormattedContent, getTabContent },
     ...{ largeModeRef, leftEditorRef, leftSearchWorkerRevisionRef, openDocumentEditSession },
-    ...{ queueFormat, queueRepair, renameTab, requestWorkerEditJson },
+    ...{
+      queueFormat,
+      queueFormatFromWorkerCache,
+      queueRepair,
+      renameTab,
+      requestWorkerEditJson,
+      requestWorkerEditJsonResult,
+    },
     ...{ resetSearchState, resetTabArtifacts, setEditJsonBusyLabel },
-    ...{ setLargeFileLocateEnabled, setStructureStatus, setTabError, setTabLargeMode, updateTabContent },
+    ...{
+      setLargeFileLocateEnabled,
+      setLargeRawViewerData,
+      setLargeViewerData,
+      setLargeViewerStatus,
+      setProcessingStage,
+      setStructureStatus,
+      setTabError,
+      setTabLargeMode,
+      updateFormattedContent,
+      updateTabContent,
+    },
   });
 
   const { handleOpenEditNodeAtOffset, handleOpenUnescapedNodeAtOffset, readEditableNodeAtOffset } =

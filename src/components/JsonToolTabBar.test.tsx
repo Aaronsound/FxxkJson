@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createTranslator } from '../utils/i18n';
 import JsonToolTabBar from './JsonToolTabBar';
 
 function renderTabBar(overrides: Partial<React.ComponentProps<typeof JsonToolTabBar>> = {}) {
@@ -55,16 +56,77 @@ describe('JsonToolTabBar', () => {
     expect(tabStyles).toContain('height: 20px;');
   });
 
-  it('keeps the add action outside the scrolling tab list', () => {
+  it('keeps contextual status below the tab bar so tab switching cannot move the tabs vertically', () => {
+    const workspaceSource = readFileSync(join(process.cwd(), 'src/components/JsonToolWorkspace.tsx'), 'utf8');
+    const tabBarPosition = workspaceSource.indexOf('<JsonToolTabBar');
+    const feedbackPosition = workspaceSource.indexOf('<JsonToolToolbarFeedback');
+
+    expect(tabBarPosition).toBeGreaterThan(-1);
+    expect(feedbackPosition).toBeGreaterThan(tabBarPosition);
+  });
+
+  it('keeps the add action next to fitting tabs and outside the scrolling tab list', () => {
     const { container, props } = renderTabBar();
 
     const tabList = screen.getByRole('tablist', { name: 'JSON 标签页' });
     const addButton = screen.getByRole('button', { name: '新建标签' });
     expect(tabList.contains(addButton)).toBe(false);
     expect(container.querySelector('.tab-bar-actions')?.contains(addButton)).toBe(true);
+    expect(addButton.querySelector('.add-tab-plus')).toHaveTextContent('+');
+
+    const tabStyles = readFileSync(join(process.cwd(), 'src/styles/tabs.css'), 'utf8');
+    expect(tabStyles).toContain('width: max-content;');
+    expect(tabStyles).toContain('flex: 0 1 auto;');
+    expect(tabStyles).toContain('margin-right: auto;');
 
     fireEvent.click(addButton);
     expect(props.onAddTab).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds a tab from the primary keyboard shortcut and blank tab-bar space', () => {
+    const { container, props } = renderTabBar();
+
+    fireEvent.keyDown(window, { key: 't', metaKey: true });
+    fireEvent.keyDown(window, { key: 'T', ctrlKey: true });
+    fireEvent.doubleClick(container.querySelector('.tab-bar') as HTMLElement);
+
+    expect(props.onAddTab).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps the compact icon understandable in English', () => {
+    renderTabBar({ t: createTranslator('en') });
+
+    const addButton = screen.getByRole('button', { name: 'New tab' });
+    expect(addButton).toHaveAttribute('title', 'New tab');
+    expect(addButton.querySelector('.add-tab-plus')).toHaveTextContent('+');
+  });
+
+  it('skips rendering when a parent changes unrelated state', () => {
+    const t = vi.fn((key: string) => key);
+    const props: React.ComponentProps<typeof JsonToolTabBar> = {
+      activeTabId: 'tab-1',
+      renamingTab: null,
+      tabs: [{ id: 'tab-1', title: 'a.json' }],
+      onAddTab: vi.fn(),
+      onCancelRenaming: vi.fn(),
+      onCloseTab: vi.fn(),
+      onFinishRenaming: vi.fn(),
+      onRenamingChange: vi.fn(),
+      onSelectTab: vi.fn(),
+      onStartRenaming: vi.fn(),
+      t,
+    };
+    const Parent = ({ unrelated }: { unrelated: number }) => (
+      <div data-unrelated={unrelated}>
+        <JsonToolTabBar {...props} />
+      </div>
+    );
+    const { rerender } = render(<Parent unrelated={0} />);
+    const initialTranslationCalls = t.mock.calls.length;
+
+    rerender(<Parent unrelated={1} />);
+
+    expect(t).toHaveBeenCalledTimes(initialTranslationCalls);
   });
 
   it('switches tabs with arrow, Home and End keys', () => {

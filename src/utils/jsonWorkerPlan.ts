@@ -2,6 +2,7 @@ import { DEDICATED_RIGHT_VIEWER_THRESHOLD, STRUCTURE_SYNC_THRESHOLD } from '../t
 import { type JsonDocumentMetrics, measureJsonDocument, shouldUseLargeModeForMetrics } from './jsonDocumentMetrics';
 
 export interface JsonWorkerProcessingPlan {
+  rawMetrics: JsonDocumentMetrics;
   textByteLength: number;
   largeMode: boolean;
   shouldBuildStructureIndex: boolean;
@@ -47,6 +48,7 @@ export function buildJsonWorkerProcessingPlan(
   const workerLocateEnabled = shouldBuildStructureIndex || shouldAttemptDirectLocate;
 
   return {
+    rawMetrics: metrics,
     textByteLength,
     largeMode,
     shouldBuildStructureIndex,

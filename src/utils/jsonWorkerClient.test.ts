@@ -8,7 +8,7 @@ describe('createJsonWorkerClient', () => {
   it('posts worker requests with transferables', () => {
     const postMessage = vi.fn();
     const client = createJsonWorkerClient(() => ({ postMessage }) as unknown as Worker);
-    const request: WorkerRequestMessage = { type: 'clear-structure', tabId: 'tab-1' };
+    const request: WorkerRequestMessage = { type: 'clear-tab-cache', tabId: 'tab-1' };
     const transfer = [new ArrayBuffer(1)];
 
     client.postRequest(request, transfer);

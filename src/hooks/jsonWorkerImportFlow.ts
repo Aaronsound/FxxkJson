@@ -2,11 +2,12 @@ import type { MutableRefObject } from 'react';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { ProcessingStage, StructureStatus } from '../types/jsonTool';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
-import { measureJsonDocument } from '../utils/jsonDocumentMetrics';
+import { measureJsonDocumentWithKnownByteLength } from '../utils/jsonDocumentMetrics';
 import { getFileName } from '../utils/jsonToolModels';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 
 interface JsonImportSource {
+  contentBuffer?: ArrayBuffer;
   name: string;
   size: number;
   readText: () => Promise<string>;
@@ -49,11 +50,12 @@ interface JsonWorkerImportFlowArgs {
   cancelInteractiveRequests: (tabId: string) => void;
   getCallbacks: () => JsonWorkerImportCallbacks;
   largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
-  postClearStructure: (tabId: string) => void;
+  postClearTabCache: (tabId: string) => void;
   queueFormatAfterImport: (
     tabId: string,
     text: string,
-    plan?: ReturnType<typeof buildJsonWorkerProcessingPlan>
+    plan?: ReturnType<typeof buildJsonWorkerProcessingPlan>,
+    textBuffer?: ArrayBuffer
   ) => void;
   workerStructureEnabledRef: MutableRefObject<Record<string, boolean>>;
 }
@@ -62,7 +64,7 @@ export function createJsonWorkerImportFlow({
   cancelInteractiveRequests,
   getCallbacks,
   largeFileLocateEnabledRef,
-  postClearStructure,
+  postClearTabCache,
   queueFormatAfterImport,
   workerStructureEnabledRef,
 }: JsonWorkerImportFlowArgs) {
@@ -90,7 +92,7 @@ export function createJsonWorkerImportFlow({
       callbacks.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
       cancelInteractiveRequests(tabId);
-      postClearStructure(tabId);
+      postClearTabCache(tabId);
       callbacks.resetSearchState();
 
       await new Promise<void>((resolve) => {
@@ -101,8 +103,8 @@ export function createJsonWorkerImportFlow({
         session.readStartedAt = performance.now();
       });
       const content = await source.readText();
-      const metrics = measureJsonDocument(content);
-      const rawBytes = metrics.textByteLength;
+      const rawBytes = source.size;
+      const metrics = measureJsonDocumentWithKnownByteLength(content, rawBytes);
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.readCompletedAt = performance.now();
         session.rawBytes = rawBytes;
@@ -134,7 +136,11 @@ export function createJsonWorkerImportFlow({
         tabId,
         plan.workerLocateEnabled ? 'building' : plan.largeMode ? 'disabled' : 'ready'
       );
-      queueFormatAfterImport(tabId, content, plan);
+      if (source.contentBuffer && source.contentBuffer.byteLength === plan.textByteLength) {
+        queueFormatAfterImport(tabId, content, plan, source.contentBuffer);
+      } else {
+        queueFormatAfterImport(tabId, content, plan);
+      }
     } catch (error) {
       callbacks.mutatePerformanceSession(
         tabId,
@@ -167,8 +173,9 @@ export function createJsonWorkerImportFlow({
         size: file.size,
         readText: () => file.text(),
       }),
-    importJsonText: async (tabId: string, name: string, size: number, content: string) =>
+    importJsonText: async (tabId: string, name: string, size: number, content: string, contentBuffer?: ArrayBuffer) =>
       importJsonSource(tabId, {
+        contentBuffer,
         name,
         size,
         readText: async () => content,

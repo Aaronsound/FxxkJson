@@ -1,4 +1,4 @@
-import type { MutableRefObject } from 'react';
+import { type MutableRefObject, useCallback, useRef } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { PerformanceSnapshot, StructureStatus, Tab } from '../types/jsonTool';
 import { createTab } from '../utils/jsonToolModels';
@@ -56,7 +56,10 @@ export function useJsonToolTabActions({
   tabs,
   workerStructureEnabledRef,
 }: UseJsonToolTabActionsArgs) {
-  const addTab = () => {
+  const handleClearRef = useRef(handleClear);
+  handleClearRef.current = handleClear;
+
+  const addTab = useCallback(() => {
     const nextId = `tab-${Date.now()}`;
     const currentTabId = activeTabIdRef.current;
 
@@ -79,26 +82,55 @@ export function useJsonToolTabActions({
     workerStructureEnabledRef.current[nextId] = false;
     setTabs((currentTabs) => [...currentTabs, createTab(nextId)]);
     setActiveTabId(nextId);
-  };
+  }, [
+    activeTabIdRef,
+    formattedTextByTabRef,
+    initializeTabArtifacts,
+    initializeTabState,
+    largeFileLocateEnabledRef,
+    largeModeRef,
+    leftEditorRef,
+    leftViewStateByTabRef,
+    rawRevisionByTabRef,
+    rawTextByTabRef,
+    rightEditorRef,
+    rightViewStateByTabRef,
+    setActiveTabId,
+    setPerformanceByTab,
+    setTabs,
+    structureStatusRef,
+    workerStructureEnabledRef,
+  ]);
 
-  const closeTab = (tabId: string) => {
-    if (tabs.length === 1) {
-      handleClear();
-      return;
-    }
+  const closeTab = useCallback(
+    (tabId: string) => {
+      if (tabs.length === 1) {
+        handleClearRef.current();
+        return;
+      }
 
-    const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
-    const fallbackTab = tabs[closingIndex === 0 ? 1 : closingIndex - 1];
+      const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
+      const fallbackTab = tabs[closingIndex === 0 ? 1 : closingIndex - 1];
 
-    setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
-    delete leftSearchWorkerRevisionRef.current[tabId];
-    removeTabArtifacts(tabId);
-    removeTabArtifactsState(tabId);
+      setTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== tabId));
+      delete leftSearchWorkerRevisionRef.current[tabId];
+      removeTabArtifacts(tabId);
+      removeTabArtifactsState(tabId);
 
-    if (activeTabId === tabId) {
-      setActiveTabId(fallbackTab.id);
-    }
-  };
+      if (activeTabId === tabId) {
+        setActiveTabId(fallbackTab.id);
+      }
+    },
+    [
+      activeTabId,
+      leftSearchWorkerRevisionRef,
+      removeTabArtifacts,
+      removeTabArtifactsState,
+      setActiveTabId,
+      setTabs,
+      tabs,
+    ]
+  );
 
   return {
     addTab,
