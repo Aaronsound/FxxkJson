@@ -116,6 +116,7 @@ export function useJsonWorkerLifecycle({
       if (isRestart) {
         callbacksRef.current.logEvent('worker-restarted', { attempt: restartAttempts });
         onWorkerRestarted();
+        interactiveFlow.resumeEditsAfterRestart();
         const recoveryTabs = pendingRecoveryTabs;
         pendingRecoveryTabs = [];
         window.setTimeout(() => recoverFormatRequests(recoveryTabs), 0);
@@ -146,7 +147,7 @@ export function useJsonWorkerLifecycle({
           userMessage,
         });
         clearAllPendingFormattedViewerResults();
-        interactiveFlow.stop();
+        interactiveFlow.suspendForRestart();
         worker.onerror = null;
         worker.onmessageerror = null;
         worker.onmessage = null;
@@ -159,6 +160,7 @@ export function useJsonWorkerLifecycle({
             attempts: restartAttempts,
             message,
           });
+          interactiveFlow.stop();
           return;
         }
 

@@ -39,6 +39,21 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
   const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTabId);
 
   useEffect(() => {
+    const handleNewTabShortcut = (event: KeyboardEvent) => {
+      const isPrimaryShortcut = (event.metaKey || event.ctrlKey) && !event.altKey;
+      if (!isPrimaryShortcut || event.shiftKey || event.key.toLowerCase() !== 't') {
+        return;
+      }
+
+      event.preventDefault();
+      onAddTab();
+    };
+
+    window.addEventListener('keydown', handleNewTabShortcut);
+    return () => window.removeEventListener('keydown', handleNewTabShortcut);
+  }, [onAddTab]);
+
+  useEffect(() => {
     const container = containerRef.current;
 
     const clearCorrectionTimers = () => {
@@ -170,7 +185,14 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
   };
 
   return (
-    <div className="tab-bar">
+    <div
+      className="tab-bar"
+      onDoubleClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onAddTab();
+        }
+      }}
+    >
       <button
         type="button"
         className="tab-scroll-button"

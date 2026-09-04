@@ -55,7 +55,7 @@ function createFlow() {
     cancelInteractiveRequests: vi.fn(),
     getCallbacks: () => callbacks,
     largeFileLocateEnabledRef,
-    postClearStructure: vi.fn(),
+    postClearTabCache: vi.fn(),
     queueFormatAfterImport,
     workerStructureEnabledRef,
   });

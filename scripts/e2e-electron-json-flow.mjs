@@ -6,6 +6,7 @@ import process from 'node:process';
 import { clickButtonByText, evaluate, waitFor } from './e2e-cdp-helpers.mjs';
 import {
   assertElectronMemoryBudget,
+  assertElectronStartupBudget,
   collectFailureArtifacts,
   connectAndPrepareElectronPage,
   getAvailablePort,
@@ -17,6 +18,7 @@ import { runEditTransformScenario } from './e2e-json-edit-transform-scenario.mjs
 import { importSampleThroughNativeFileFlow, prepareSampleJsonFile } from './e2e-json-fixtures.mjs';
 import {
   runClipboardAndCompareScenario,
+  runLocateCacheIsolationScenario,
   runRightNodeScenario,
   runSearchReplaceScenario,
 } from './e2e-json-flow-scenarios.mjs';
@@ -24,11 +26,22 @@ import { runMultiTabMemoryScenario } from './e2e-json-multi-tab-memory-scenario.
 
 const require = createRequire(import.meta.url);
 
-function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory, importPerformance) {
+function printSuccessSummary(
+  sizeMb,
+  samplePath,
+  startupPerformance,
+  memorySnapshot,
+  multiTabMemory,
+  importPerformance
+) {
   console.log('FxxkJson Electron E2E passed');
   console.table([
     { step: 'sample', detail: `${sizeMb}MB generated at ${samplePath}` },
     { step: 'import', detail: 'native MessagePort stream imported JSON through the desktop file flow' },
+    {
+      step: 'startup performance',
+      detail: `${startupPerformance.processToInteractiveMs.toFixed(1)} ms process, ${startupPerformance.rendererToInteractiveMs.toFixed(1)} ms renderer (${Number(startupPerformance.rendererEntryMs).toFixed(1)} ms to entry)`,
+    },
     {
       step: 'import performance',
       detail: `${importPerformance.rightMeta}; visible in ${importPerformance.visibleMs.toFixed(1)} ms`,
@@ -42,6 +55,7 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory,
       detail: `${multiTabMemory.expanded.totalWorkingSetMb.toFixed(1)} MB with auxiliary tabs, ${multiTabMemory.afterClose.totalWorkingSetMb.toFixed(1)} MB after close`,
     },
     { step: 'edit folding', detail: 'edit modal keeps JSON folding controls across repeated opens' },
+    { step: 'adaptive new tab', detail: 'the plus follows fitting tabs and stays visible when tabs overflow' },
     {
       step: 'toolbar UI',
       detail:
@@ -56,6 +70,7 @@ function printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory,
       detail: 'raw colors match the editor and two rapid escape/unescape rounds restore the original fingerprint',
     },
     { step: 'search', detail: 'right pane traceId search returned results' },
+    { step: 'locate cache', detail: 'disabling locate preserves right-pane search data' },
     { step: 'locate', detail: 'right node click highlighted left raw JSON' },
     { step: 'delete cancel', detail: 'right node delete preview closes with Escape' },
     { step: 'rename warnings', detail: 'right node rename dialog shows whitespace and duplicate-key warnings' },
@@ -84,6 +99,87 @@ async function resizeElectronWindow(cdp, width, height, predicate, label) {
     await waitFor(() => evaluate(cdp, predicate), `${label} through native window bounds`);
   }
   await evaluate(cdp, `window.dispatchEvent(new Event('resize')); true`);
+}
+
+async function assertAdaptiveNewTabPosition(cdp) {
+  const initialTabCount = await evaluate(cdp, `document.querySelectorAll('.tab-list .tab').length`);
+  const fittingMetrics = await evaluate(
+    cdp,
+    `(() => {
+      const tabs = document.querySelectorAll('.tab-list .tab');
+      const lastTab = tabs[tabs.length - 1];
+      const addButton = document.querySelector('.tab-bar .add-tab');
+      if (!(lastTab instanceof HTMLElement) || !(addButton instanceof HTMLElement)) return null;
+      const tabRect = lastTab.getBoundingClientRect();
+      const addRect = addButton.getBoundingClientRect();
+      return { gap: addRect.left - tabRect.right, addLeft: addRect.left, tabRight: tabRect.right };
+    })()`
+  );
+  if (!fittingMetrics || fittingMetrics.gap < 0 || fittingMetrics.gap > 12) {
+    throw new Error(`New-tab action did not follow fitting tabs: ${JSON.stringify(fittingMetrics)}`);
+  }
+
+  const addedTabs = 12;
+  for (let index = 0; index < addedTabs; index += 1) {
+    await clickButtonByText(cdp, '+');
+    await waitFor(
+      () => evaluate(cdp, `document.querySelectorAll('.tab-list .tab').length === ${initialTabCount + index + 1}`),
+      `adaptive tab add ${index + 1}`
+    );
+  }
+
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `(() => {
+          const list = document.querySelector('.tab-list');
+          const rightButton = document.querySelector('.tab-bar-actions .tab-scroll-button');
+          return list instanceof HTMLElement
+            && list.scrollWidth > list.clientWidth + 1
+            && rightButton instanceof HTMLElement
+            && !rightButton.hidden;
+        })()`
+      ),
+    'adaptive tab overflow controls'
+  );
+
+  const overflowMetrics = await evaluate(
+    cdp,
+    `(() => {
+      const bar = document.querySelector('.tab-bar');
+      const list = document.querySelector('.tab-list');
+      const addButton = document.querySelector('.tab-bar .add-tab');
+      const rightButton = document.querySelector('.tab-bar-actions .tab-scroll-button');
+      if (!(bar instanceof HTMLElement) || !(list instanceof HTMLElement) || !(addButton instanceof HTMLElement)) return null;
+      const barRect = bar.getBoundingClientRect();
+      const addRect = addButton.getBoundingClientRect();
+      return {
+        addInside: addRect.right <= barRect.right + 0.5,
+        hasOverflow: list.scrollWidth > list.clientWidth + 1,
+        rightControlVisible: rightButton instanceof HTMLElement && !rightButton.hidden,
+      };
+    })()`
+  );
+  if (!overflowMetrics?.addInside || !overflowMetrics.hasOverflow || !overflowMetrics.rightControlVisible) {
+    throw new Error(`New-tab action did not stay visible during overflow: ${JSON.stringify(overflowMetrics)}`);
+  }
+
+  for (let index = addedTabs; index > 0; index -= 1) {
+    await evaluate(
+      cdp,
+      `(() => {
+        const closeButton = document.querySelector('.tab-list .tab.active .tab-close');
+        if (!(closeButton instanceof HTMLElement)) return false;
+        closeButton.click();
+        return true;
+      })()`
+    );
+    await waitFor(
+      () => evaluate(cdp, `document.querySelectorAll('.tab-list .tab').length === ${initialTabCount + index - 1}`),
+      `adaptive tab close ${index}`
+    );
+  }
 }
 
 async function assertToolbarUi(cdp) {
@@ -922,6 +1018,8 @@ async function run() {
     getStderr = electronApp.getStderr;
 
     cdp = await connectAndPrepareElectronPage(port);
+    const startupPerformance = await assertElectronStartupBudget(cdp, electronApp.startedAt);
+    await assertAdaptiveNewTabPosition(cdp);
     await assertToolbarUi(cdp);
     await assertSplitResize(cdp);
     await assertPaneFocusAffordance(cdp);
@@ -965,11 +1063,12 @@ async function run() {
     assertElectronMemoryBudget(memorySnapshot, sizeMb);
     const multiTabMemory = await runMultiTabMemoryScenario(cdp, tempDir, sizeMb);
 
+    await runLocateCacheIsolationScenario(cdp);
     await runRepeatedEditFoldingScenario(cdp);
     await runSearchReplaceScenario(cdp);
     await runRightNodeScenario(cdp);
     await runClipboardAndCompareScenario(cdp);
-    printSuccessSummary(sizeMb, samplePath, memorySnapshot, multiTabMemory, importPerformance);
+    printSuccessSummary(sizeMb, samplePath, startupPerformance, memorySnapshot, multiTabMemory, importPerformance);
   } catch (error) {
     const stderr = getStderr();
     await collectFailureArtifacts({ cdp, stderr });

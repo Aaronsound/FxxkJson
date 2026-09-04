@@ -6,7 +6,8 @@ export type JsonWorkerResultHandler = (message: WorkerMessage) => void;
 export type JsonWorkerResultHandlerMap = Partial<Record<WorkerMessage['type'], JsonWorkerResultHandler>>;
 
 const JSON_WORKER_REQUEST_TYPES = new Set<WorkerRequestMessage['type']>([
-  'clear-structure',
+  'clear-locate-cache',
+  'clear-tab-cache',
   'edit-json',
   'format',
   'hydrate-viewer-cache',
@@ -32,7 +33,8 @@ export function isJsonWorkerRequestMessage(value: unknown): value is WorkerReque
   }
 
   return (
-    message.type === 'clear-structure' ||
+    message.type === 'clear-locate-cache' ||
+    message.type === 'clear-tab-cache' ||
     message.type === 'release-transient-cache' ||
     typeof (message as { requestId?: unknown }).requestId === 'number'
   );

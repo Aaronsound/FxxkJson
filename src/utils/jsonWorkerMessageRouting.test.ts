@@ -9,7 +9,8 @@ import {
 
 describe('isJsonWorkerRequestMessage', () => {
   it('accepts supported worker requests and rejects malformed envelopes', () => {
-    expect(isJsonWorkerRequestMessage({ type: 'clear-structure', tabId: 'tab-1' })).toBe(true);
+    expect(isJsonWorkerRequestMessage({ type: 'clear-locate-cache', tabId: 'tab-1' })).toBe(true);
+    expect(isJsonWorkerRequestMessage({ type: 'clear-tab-cache', tabId: 'tab-1' })).toBe(true);
     expect(isJsonWorkerRequestMessage({ type: 'release-transient-cache', tabId: 'tab-1' })).toBe(true);
     expect(isJsonWorkerRequestMessage({ type: 'hydrate-viewer-cache', tabId: 'tab-1', requestId: 2 })).toBe(true);
     expect(isJsonWorkerRequestMessage({ type: 'search', tabId: 'tab-1', requestId: 1 })).toBe(true);
@@ -21,13 +22,13 @@ describe('isJsonWorkerRequestMessage', () => {
 describe('getJsonWorkerMessageHandler', () => {
   it('returns the handler for a known worker message type', () => {
     const handler = vi.fn();
-    const message: WorkerRequestMessage = { type: 'clear-structure', tabId: 'tab-1' };
+    const message: WorkerRequestMessage = { type: 'clear-locate-cache', tabId: 'tab-1' };
 
-    expect(getJsonWorkerMessageHandler({ 'clear-structure': handler }, message)).toBe(handler);
+    expect(getJsonWorkerMessageHandler({ 'clear-locate-cache': handler }, message)).toBe(handler);
   });
 
   it('returns null when a handler is not registered', () => {
-    const message: WorkerRequestMessage = { type: 'clear-structure', tabId: 'tab-1' };
+    const message: WorkerRequestMessage = { type: 'clear-locate-cache', tabId: 'tab-1' };
 
     expect(getJsonWorkerMessageHandler({}, message)).toBeNull();
   });

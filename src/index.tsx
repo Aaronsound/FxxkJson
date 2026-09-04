@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import '@fontsource/jetbrains-mono/400.css';
 import './index.css';
 
+performance.mark('fxxkjson-entry');
+
 async function preloadEditorFont() {
   if (!('fonts' in document)) {
     return;

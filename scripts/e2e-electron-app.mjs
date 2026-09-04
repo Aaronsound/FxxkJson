@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 import { connectToElectronPage, evaluate, waitFor } from './e2e-cdp-helpers.mjs';
 
@@ -22,6 +23,7 @@ export async function getAvailablePort() {
 }
 
 export async function startElectronApp({ appMain, cwd, electronCli, extraEnvironment = {}, port }) {
+  const startedAt = performance.now();
   let stderr = '';
   const isLinuxCi = process.platform === 'linux' && (process.env.CI === 'true' || process.env.CI === '1');
   const electronArgs = [
@@ -56,6 +58,46 @@ export async function startElectronApp({ appMain, cwd, electronCli, extraEnviron
   return {
     child,
     getStderr: () => stderr,
+    startedAt,
+  };
+}
+
+function readPositiveBudget(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+export async function assertElectronStartupBudget(cdp, startedAt) {
+  const processToInteractiveMs = performance.now() - startedAt;
+  const rendererTiming = await evaluate(
+    cdp,
+    `(() => ({
+      entryMs: performance.getEntriesByName('fxxkjson-entry').at(-1)?.startTime ?? null,
+      interactiveMs: performance.getEntriesByName('fxxkjson-interactive').at(-1)?.startTime ?? performance.now(),
+    }))()`
+  );
+  const rendererToInteractiveMs = rendererTiming?.interactiveMs;
+  const isCi = process.env.CI === 'true' || process.env.CI === '1';
+  const processBudgetMs = readPositiveBudget('HANJSON_E2E_PROCESS_STARTUP_BUDGET_MS', isCi ? 20_000 : 6_000);
+  const rendererBudgetMs = readPositiveBudget('HANJSON_E2E_RENDERER_STARTUP_BUDGET_MS', isCi ? 10_000 : 5_000);
+  const failures = [];
+
+  if (processToInteractiveMs > processBudgetMs) {
+    failures.push(`process-to-interactive ${processToInteractiveMs.toFixed(1)} ms exceeds ${processBudgetMs} ms`);
+  }
+  if (typeof rendererToInteractiveMs !== 'number' || rendererToInteractiveMs > rendererBudgetMs) {
+    failures.push(
+      `renderer-to-interactive ${Number(rendererToInteractiveMs).toFixed(1)} ms exceeds ${rendererBudgetMs} ms`
+    );
+  }
+  if (failures.length > 0) {
+    throw new Error(`Electron startup budget exceeded: ${failures.join('; ')}`);
+  }
+
+  return {
+    processToInteractiveMs,
+    rendererEntryMs: rendererTiming?.entryMs ?? null,
+    rendererToInteractiveMs,
   };
 }
 

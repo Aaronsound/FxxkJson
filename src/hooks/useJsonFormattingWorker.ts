@@ -202,7 +202,18 @@ export function useJsonFormattingWorker({
     workerStructureEnabledRef.current[tabId] = false;
     cancelInteractiveRequests(tabId);
     postWorkerRequest({
-      type: 'clear-structure',
+      type: 'clear-locate-cache',
+      tabId,
+    });
+    callbacksRef.current.setStructureStatus(tabId, status);
+    callbacksRef.current.setProcessingStage(tabId, 'idle');
+  };
+
+  const clearTabCache = (tabId: string, status: StructureStatus = 'ready') => {
+    workerStructureEnabledRef.current[tabId] = false;
+    cancelInteractiveRequests(tabId);
+    postWorkerRequest({
+      type: 'clear-tab-cache',
       tabId,
     });
     callbacksRef.current.setStructureStatus(tabId, status);
@@ -232,7 +243,7 @@ export function useJsonFormattingWorker({
       clearFormatWatchdog,
       cancelInteractiveRequests,
       clearPendingFormat,
-      clearTabStructure,
+      clearTabCache,
       createWorkerTextPayload,
       formatWatchdogTimersRef,
       formatTimersRef,
@@ -272,10 +283,14 @@ export function useJsonFormattingWorker({
     setWorkerGeneration((current) => current + 1);
   }, []);
 
-  const onViewerCacheRestored = useCallback((tabId: string) => {
-    restoringViewerCacheTabsRef.current.delete(tabId);
-    evictedViewerCacheTabsRef.current.delete(tabId);
-  }, []);
+  const onViewerCacheRestored = useCallback(
+    (tabId: string) => {
+      restoringViewerCacheTabsRef.current.delete(tabId);
+      evictedViewerCacheTabsRef.current.delete(tabId);
+      interactiveFlow.resumeTabRequests(tabId);
+    },
+    [interactiveFlow]
+  );
 
   const onWorkerRestarted = useCallback(() => {
     restoringViewerCacheTabsRef.current.clear();
@@ -342,7 +357,7 @@ export function useJsonFormattingWorker({
     cancelInteractiveRequests,
     clearFormatWatchdog,
     clearPendingFormat,
-    clearTabStructure,
+    clearTabCache,
     formatTimersRef,
     formattedTextByTabRef,
     largeFileLocateEnabledRef,
@@ -374,9 +389,9 @@ export function useJsonFormattingWorker({
     cancelInteractiveRequests,
     getCallbacks: () => callbacksRef.current,
     largeFileLocateEnabledRef,
-    postClearStructure: (tabId) => {
+    postClearTabCache: (tabId) => {
       postWorkerRequest({
-        type: 'clear-structure',
+        type: 'clear-tab-cache',
         tabId,
       });
     },

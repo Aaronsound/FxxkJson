@@ -100,9 +100,14 @@ function cancelInteractiveRequests(tabId) {
   latestSearchRequestByKey.delete(getSearchRequestKey(tabId, 'right'));
 }
 
-function handleClearStructureMessage(message) {
+function handleClearLocateCacheMessage(message) {
   clearDeferredStructureWarmup(message.tabId);
   structureCache.delete(message.tabId);
+  latestLocateRequestByTab.delete(message.tabId);
+}
+
+function handleClearTabCacheMessage(message) {
+  handleClearLocateCacheMessage(message);
   viewerCache.delete(message.tabId);
   editJsonCache.delete(message.tabId);
   nodeEditCache.delete(message.tabId);
@@ -159,7 +164,8 @@ function handleHydrateViewerCacheMessage(message) {
 }
 
 const workerMessageHandlers = {
-  'clear-structure': handleClearStructureMessage,
+  'clear-locate-cache': handleClearLocateCacheMessage,
+  'clear-tab-cache': handleClearTabCacheMessage,
   'edit-json': jsonWorkerEditJsonOperations.handleEditJsonMessage,
   format: jsonWorkerFormatOperations.handleFormatMessage,
   'hydrate-viewer-cache': handleHydrateViewerCacheMessage,

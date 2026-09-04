@@ -73,7 +73,7 @@ function createQueue() {
         delete formatTimersRef.current[tabId];
       }
     }),
-    clearTabStructure: vi.fn(),
+    clearTabCache: vi.fn(),
     createWorkerTextPayload: (text) => ({
       message: { text },
       transfer: [],

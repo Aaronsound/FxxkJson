@@ -65,7 +65,7 @@ describe('JsonToolTabBar', () => {
     expect(feedbackPosition).toBeGreaterThan(tabBarPosition);
   });
 
-  it('keeps the add action outside the scrolling tab list', () => {
+  it('keeps the add action next to fitting tabs and outside the scrolling tab list', () => {
     const { container, props } = renderTabBar();
 
     const tabList = screen.getByRole('tablist', { name: 'JSON 标签页' });
@@ -74,8 +74,23 @@ describe('JsonToolTabBar', () => {
     expect(container.querySelector('.tab-bar-actions')?.contains(addButton)).toBe(true);
     expect(addButton.querySelector('.add-tab-plus')).toHaveTextContent('+');
 
+    const tabStyles = readFileSync(join(process.cwd(), 'src/styles/tabs.css'), 'utf8');
+    expect(tabStyles).toContain('width: max-content;');
+    expect(tabStyles).toContain('flex: 0 1 auto;');
+    expect(tabStyles).toContain('margin-right: auto;');
+
     fireEvent.click(addButton);
     expect(props.onAddTab).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds a tab from the primary keyboard shortcut and blank tab-bar space', () => {
+    const { container, props } = renderTabBar();
+
+    fireEvent.keyDown(window, { key: 't', metaKey: true });
+    fireEvent.keyDown(window, { key: 'T', ctrlKey: true });
+    fireEvent.doubleClick(container.querySelector('.tab-bar') as HTMLElement);
+
+    expect(props.onAddTab).toHaveBeenCalledTimes(3);
   });
 
   it('keeps the compact icon understandable in English', () => {

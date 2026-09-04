@@ -320,4 +320,91 @@ describe('createJsonWorkerInteractiveFlow', () => {
 
     await expect(edit).resolves.toMatchObject({ rawPatch });
   });
+
+  it('replays pending edit, search, and locate requests after a worker restart', async () => {
+    const { callbacks, flow, requests } = createFlow();
+    const edit = flow.requestEditJson({
+      tabId: 'tab-a',
+      operation: 'escape-json',
+      text: '{"ok":true}',
+      reuseText: true,
+    });
+    flow.requestSearch({ tabId: 'tab-a', query: 'ok', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    flow.requestLocate('tab-a', 4);
+    const originalEditRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
+    const originalSearchRequestId = 'requestId' in requests[1] ? requests[1].requestId : -1;
+    const originalLocateRequestId = 'requestId' in requests[2] ? requests[2].requestId : -1;
+
+    flow.suspendForRestart();
+    flow.resumeEditsAfterRestart();
+    flow.resumeTabRequests('tab-a');
+
+    expect(requests.map((request) => request.type)).toEqual([
+      'edit-json',
+      'search',
+      'locate-right-direct',
+      'edit-json',
+      'locate-right-direct',
+      'search',
+    ]);
+    expect(requests[3]).toMatchObject({ text: '{"ok":true}', reuseText: true });
+    const recoveredEditRequestId = 'requestId' in requests[3] ? requests[3].requestId : -1;
+    const recoveredLocateRequestId = 'requestId' in requests[4] ? requests[4].requestId : -1;
+    const recoveredSearchRequestId = 'requestId' in requests[5] ? requests[5].requestId : -1;
+    expect(recoveredEditRequestId).not.toBe(originalEditRequestId);
+    expect(recoveredSearchRequestId).not.toBe(originalSearchRequestId);
+    expect(recoveredLocateRequestId).not.toBe(originalLocateRequestId);
+
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: originalEditRequestId,
+        tabId: 'tab-a',
+        success: true,
+        data: 'stale',
+      })
+    );
+    flow.handleResult(
+      asResult({
+        type: 'search-result',
+        requestId: recoveredSearchRequestId,
+        tabId: 'tab-a',
+        matches: [],
+      })
+    );
+    flow.handleResult(
+      asResult({
+        type: 'locate-result',
+        requestId: recoveredLocateRequestId,
+        tabId: 'tab-a',
+        found: false,
+      })
+    );
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId: recoveredEditRequestId,
+        tabId: 'tab-a',
+        success: true,
+        data: '"{\\"ok\\":true}"',
+      })
+    );
+
+    await expect(edit).resolves.toBe('"{\\"ok\\":true}"');
+    expect(callbacks.setLargeViewerSearchResults).toHaveBeenCalled();
+    expect(callbacks.setLocateFeedback).toHaveBeenLastCalledWith(
+      'tab-a',
+      expect.objectContaining({ status: 'failed' })
+    );
+  });
+
+  it('rejects suspended edit requests when recovery is abandoned', async () => {
+    const { flow } = createFlow();
+    const edit = flow.requestEditJson({ tabId: 'tab-a', operation: 'escape-json', text: '{"ok":true}' });
+
+    flow.suspendForRestart();
+    flow.stop();
+
+    await expect(edit).rejects.toThrow('JSON worker stopped');
+  });
 });

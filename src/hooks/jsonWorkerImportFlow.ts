@@ -50,7 +50,7 @@ interface JsonWorkerImportFlowArgs {
   cancelInteractiveRequests: (tabId: string) => void;
   getCallbacks: () => JsonWorkerImportCallbacks;
   largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
-  postClearStructure: (tabId: string) => void;
+  postClearTabCache: (tabId: string) => void;
   queueFormatAfterImport: (
     tabId: string,
     text: string,
@@ -64,7 +64,7 @@ export function createJsonWorkerImportFlow({
   cancelInteractiveRequests,
   getCallbacks,
   largeFileLocateEnabledRef,
-  postClearStructure,
+  postClearTabCache,
   queueFormatAfterImport,
   workerStructureEnabledRef,
 }: JsonWorkerImportFlowArgs) {
@@ -92,7 +92,7 @@ export function createJsonWorkerImportFlow({
       callbacks.setStructureStatus(tabId, presumedLargeMode ? 'disabled' : 'ready');
       workerStructureEnabledRef.current[tabId] = false;
       cancelInteractiveRequests(tabId);
-      postClearStructure(tabId);
+      postClearTabCache(tabId);
       callbacks.resetSearchState();
 
       await new Promise<void>((resolve) => {

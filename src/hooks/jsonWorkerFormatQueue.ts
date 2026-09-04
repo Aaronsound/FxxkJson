@@ -37,7 +37,7 @@ interface CreateJsonWorkerFormatQueueArgs {
   clearFormatWatchdog: (tabId: string) => void;
   cancelInteractiveRequests: (tabId: string) => void;
   clearPendingFormat: (tabId: string) => void;
-  clearTabStructure: (tabId: string, status?: StructureStatus) => void;
+  clearTabCache: (tabId: string, status?: StructureStatus) => void;
   createWorkerTextPayload: (
     text: string,
     byteLength?: number
@@ -67,7 +67,7 @@ export function createJsonWorkerFormatQueue({
   clearFormatWatchdog,
   cancelInteractiveRequests,
   clearPendingFormat,
-  clearTabStructure,
+  clearTabCache,
   createWorkerTextPayload,
   formatWatchdogTimersRef,
   formatTimersRef,
@@ -151,7 +151,7 @@ export function createJsonWorkerFormatQueue({
       callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
       callbacksRef.current.setLargeViewerData(tabId, null);
       callbacksRef.current.setLargeRawViewerData(tabId, null);
-      clearTabStructure(tabId, 'ready');
+      clearTabCache(tabId, 'ready');
       callbacksRef.current.updateFormattedContent(tabId, '', true, 0, rawBytes);
       return;
     }

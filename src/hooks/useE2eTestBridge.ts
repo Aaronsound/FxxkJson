@@ -38,6 +38,10 @@ export function useE2eTestBridge({
   useEffect(() => {
     const e2eWindow = window as E2eBridgeWindow;
 
+    if (performance.getEntriesByName('fxxkjson-interactive').length === 0) {
+      performance.mark('fxxkjson-interactive');
+    }
+
     e2eWindow.__HANJSON_E2E_APP__ = {
       getActiveFormattedFingerprint: () => fingerprintText(getFormattedContent(activeTabIdRef.current)),
       getActiveRawFingerprint: () => fingerprintText(getTabContent(activeTabIdRef.current)),

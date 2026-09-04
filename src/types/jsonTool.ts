@@ -79,7 +79,8 @@ export interface HydrateViewerCacheWorkerRequest {
 type WorkerFormatTextPayload = WorkerRequestTextPayload | { reuseText: true; text?: never; textBuffer?: never };
 
 export type WorkerRequestMessage =
-  | { type: 'clear-structure'; tabId: string }
+  | { type: 'clear-locate-cache'; tabId: string }
+  | { type: 'clear-tab-cache'; tabId: string }
   | { type: 'release-transient-cache'; tabId: string }
   | HydrateViewerCacheWorkerRequest
   | (WorkerRequestBase & WorkerFormatTextPayload & WorkerFormatOptions & { type: 'format'; rawRevision?: number })

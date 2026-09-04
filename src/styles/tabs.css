@@ -11,8 +11,10 @@
 
 .tab-list {
   display: flex;
+  width: max-content;
   min-width: 0;
-  flex: 1 1 auto;
+  max-width: 100%;
+  flex: 0 1 auto;
   align-items: flex-end;
   gap: 6px;
   overflow-x: auto;
@@ -154,6 +156,10 @@
   padding-left: 5px;
   border-left: 1px solid var(--app-border);
   background: var(--app-surface);
+}
+
+.tab-bar-actions:last-child {
+  margin-right: auto;
 }
 
 .tab-bar .add-tab {

@@ -10,7 +10,7 @@ interface CreateJsonWorkerTabArtifactActionsArgs {
   cancelInteractiveRequests: (tabId: string) => void;
   clearPendingFormat: (tabId: string) => void;
   clearFormatWatchdog: (tabId: string) => void;
-  clearTabStructure: (tabId: string, status?: 'ready' | 'building' | 'disabled') => void;
+  clearTabCache: (tabId: string, status?: 'ready' | 'building' | 'disabled') => void;
   formatTimersRef: MutableRefObject<Record<string, number>>;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
   largeFileLocateEnabledRef: MutableRefObject<Record<string, boolean>>;
@@ -30,7 +30,7 @@ export function createJsonWorkerTabArtifactActions({
   cancelInteractiveRequests,
   clearPendingFormat,
   clearFormatWatchdog,
-  clearTabStructure,
+  clearTabCache,
   formatTimersRef,
   formattedTextByTabRef,
   largeFileLocateEnabledRef,
@@ -57,7 +57,7 @@ export function createJsonWorkerTabArtifactActions({
     callbacksRef.current.setLargeViewerStatus(tabId, 'idle');
     callbacksRef.current.setLargeViewerData(tabId, null);
     callbacksRef.current.setLargeRawViewerData(tabId, null);
-    clearTabStructure(tabId, 'ready');
+    clearTabCache(tabId, 'ready');
     latestRequestRef.current[tabId] = 0;
     callbacksRef.current.updateTabContent(tabId, '', true, 0);
     callbacksRef.current.updateFormattedContent(tabId, '', true, 0, 0);
@@ -70,7 +70,7 @@ export function createJsonWorkerTabArtifactActions({
     clearPendingFormattedViewerResult(tabId);
     callbacksRef.current.clearPerformanceState(tabId, true);
     postWorkerRequest({
-      type: 'clear-structure',
+      type: 'clear-tab-cache',
       tabId,
     });
     delete formatTimersRef.current[tabId];

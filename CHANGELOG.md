@@ -26,6 +26,10 @@
 - 将 Worker 大文件查看缓存限制为最近两个标签，并在切回被淘汰标签时透明恢复搜索和定位能力。
 - Worker 加载或通信异常时自动重建，并安全重试尚未完成的格式化请求。
 - 将标签级处理状态和大文件提示移到标签栏下方，避免不同类型标签切换时标签栏上下跳动。
+- 关闭大文件定位时仅释放定位索引，保留右侧查看和搜索缓存，重新启用时仍保持原有定位语义。
+- Worker 重启后安全恢复未完成的搜索、定位和编辑请求，同时继续忽略旧 Worker 的迟到结果。
+- 增加 Electron 冷启动预算和两轮大文件多标签内存回归，持续检测启动退化与累积内存泄漏。
+- 让新建标签按钮在标签较少时紧跟最后一个标签、溢出时保持可见，并补充快捷键与标签栏空白处双击新建。
 
 ### English
 
@@ -51,6 +55,10 @@
 - Bounded worker-side large-viewer caches to the two most recent tabs and transparently restored search and locate data when revisiting an evicted tab.
 - Automatically rebuilt the worker after load or message failures and safely retried unfinished format requests.
 - Moved tab-specific processing and large-file guidance below the tab bar so switching document types no longer shifts tab positions vertically.
+- Preserved right-viewer and search caches when large-file locating is disabled, while rebuilding only the locate index when it is enabled again.
+- Safely resumed unfinished search, locate, and edit requests after worker restarts while continuing to ignore late results from obsolete workers.
+- Added Electron cold-start budgets and two-cycle large-file multi-tab memory regression checks for startup slowdowns and cumulative leaks.
+- Kept the new-tab action beside fitting tabs and visible during overflow, with keyboard and blank-tab-bar double-click creation shortcuts.
 
 ## v1.0.33 - 2026-08-28
 
