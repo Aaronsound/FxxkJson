@@ -8,6 +8,99 @@ import { createSampleJson, importSampleByE2eBridge } from './e2e-json-fixtures.m
 
 const require = createRequire(import.meta.url);
 
+async function runPrecisionAndDetails(cdp, tempDir) {
+  await clickSelector(cdp, '.json-compare-card .about-dialog-close');
+  const prefix = '长文本🌍'.repeat(8000);
+  for (const [name, number, suffix] of [
+    ['exact-left.json', '9007199254740993', 'LEFT-END'],
+    ['exact-right.json', '9007199254740994', 'RIGHT-END'],
+  ]) {
+    const fixture = path.join(tempDir, name);
+    await writeFile(fixture, '{"id":' + number + ',"message":' + JSON.stringify(prefix + suffix) + '}');
+    await clickSelector(cdp, '.add-tab');
+    await importSampleByE2eBridge(cdp, fixture);
+    await waitFor(() => evaluate(cdp, `!document.querySelector('.editor-processing-layer')`), 'exact fixture imported');
+  }
+  await clickButtonByText(cdp, '对比 JSON');
+  await evaluate(
+    cdp,
+    `(() => {
+    const [left, right] = document.querySelectorAll('.json-compare-selectors select');
+    for (const [select, name] of [[left, 'exact-left.json'], [right, 'exact-right.json']]) {
+      select.value = Array.from(select.options).find(option => option.textContent === name).value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  })()`
+  );
+  await clickButtonByText(cdp, '开始对比');
+  await waitFor(
+    () => evaluate(cdp, `document.querySelector('.json-compare-card')?.textContent.includes('共 2 处差异')`),
+    'precise integer and string changes'
+  );
+  await clickSelector(cdp, '[aria-label="查看 $.id 的完整值"]');
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Array.from(document.querySelectorAll('.json-compare-value pre')).map(node => node.textContent).join('|') === '9007199254740993|9007199254740994'`
+      ),
+    'exact full number values'
+  );
+  await clickButtonByText(cdp, '返回差异列表');
+  await clickSelector(cdp, '[aria-label="查看 $.message 的完整值"]');
+  await waitFor(
+    () => evaluate(cdp, `document.querySelectorAll('.json-compare-value pre').length === 2`),
+    'value sections ready'
+  );
+  await evaluate(
+    cdp,
+    `Array.from(document.querySelectorAll('.json-compare-value button')).filter(button => button.textContent === '最后一段').forEach(button => button.click())`
+  );
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Array.from(document.querySelectorAll('.json-compare-value pre')).every(node => node.textContent.includes('-END'))`
+      ),
+    'long value tails visible'
+  );
+  const clipboard = await evaluate(cdp, 'window.electronAPI.readClipboardText()');
+  try {
+    await evaluate(
+      cdp,
+      `Array.from(document.querySelectorAll('.json-compare-value'))[1].querySelectorAll('button')[3].click()`
+    );
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `window.electronAPI.readClipboardText().then(text => text === ${JSON.stringify(JSON.stringify(prefix + 'RIGHT-END'))})`
+        ),
+      'copy includes full value, not only its final section'
+    );
+  } finally {
+    await evaluate(cdp, `window.electronAPI.writeClipboardText(${JSON.stringify(clipboard)})`);
+  }
+  console.log('Comparison details: exact integers, long-value sections, and full clipboard contents passed');
+  if (process.env.HANJSON_COMPARE_SCREENSHOT) {
+    const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    await writeFile(process.env.HANJSON_COMPARE_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
+  }
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: 480,
+    height: 760,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await waitFor(() => evaluate(cdp, 'window.innerWidth === 480'), 'compact details layout');
+  const overflow = await evaluate(
+    cdp,
+    `Array.from(document.querySelectorAll('.json-compare-value-actions button')).some(button => button.getBoundingClientRect().right > innerWidth)`
+  );
+  if (overflow) throw new Error('Full-value actions overflow the compact viewport');
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+}
+
 async function runPagination(cdp, tempDir) {
   await clickSelector(cdp, '.json-compare-card .about-dialog-close');
   for (const [name, value] of [
@@ -104,9 +197,18 @@ async function runSize(sizeMb) {
       cwd: process.cwd(),
       electronCli: require.resolve('electron/cli.js'),
       port,
+      extraEnvironment: { HANJSON_E2E_NATIVE_IMPORT: '1', HANJSON_E2E_NATIVE_IMPORT_PATH: fixture },
     });
     child = app.child;
     cdp = await connectAndPrepareElectronPage(port);
+    const cancelled = await evaluate(
+      cdp,
+      `(async () => {
+      const id = 'cancel-native-e2e';
+      return await window.electronAPI.openJsonFile(() => window.electronAPI.cancelJsonFileImport(id), id) === null;
+    })()`
+    );
+    if (!cancelled) throw new Error('Native selection cancellation did not settle');
     await importSampleByE2eBridge(cdp, fixture);
     await waitForImport(cdp);
     await clickSelector(cdp, '.add-tab');
@@ -186,7 +288,10 @@ async function runSize(sizeMb) {
       throw new Error('Cancelled comparison leaked results into a new dialog');
     }
     console.log(`Comparison ${sizeMb}MB: result reset, cancellation, and reopening passed`);
-    if (sizeMb === 2) await runPagination(cdp, tempDir);
+    if (sizeMb === 2) {
+      await runPagination(cdp, tempDir);
+      await runPrecisionAndDetails(cdp, tempDir);
+    }
   } finally {
     cdp?.close();
     child?.kill('SIGTERM');

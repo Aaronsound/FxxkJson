@@ -4,12 +4,18 @@
 
 ### 中文
 
+- 修复 JSON 对比中的大整数、高精度小数及极大/极小指数误判；使用非递归遍历支持深层嵌套，保持数字等价形式的既有语义。
+- 对比结果支持按需查看完整差异值、长内容分段阅读及复制完整值；关闭弹窗时释放对比和详情缓存。
+- 关闭标签、清空或替换导入任务时，真正中止原生文件流与拖拽文件读取，释放读取缓冲并忽略迟到消息。
 - 为文件选择和读取增加标签级任务校验，防止较早导入的迟到结果或错误覆盖新内容，并在关闭、清空标签时作废导入任务。
 - 将 JSON 对比移至独立 Worker，切换对比文件时清除旧结果并取消计算；支持每批 2,000 条继续加载全部差异、已加载结果翻页和完成后的总数提示。
 - 编辑弹窗搜索按文本版本复用全文和行索引，减少连续搜索及加载更多时的重复扫描；编辑或关闭搜索时释放缓存。
 
 ### English
 
+- Compare large integers, precise decimals, and extreme exponents without rounding, and traverse deeply nested JSON iteratively while retaining equivalent-number semantics.
+- Inspect full difference values on demand, page through long values, and copy entire values; release comparison and detail caches when closing the dialog.
+- Abort native file streams and dropped-file reads when tabs are closed, cleared, or replaced, releasing buffers and ignoring late messages.
 - Guard file selection and reads with tab-scoped task identity so late results or errors cannot overwrite newer imports; invalidate imports when tabs are cleared or closed.
 - Run JSON comparisons in a dedicated worker, clear results and cancel work when inputs change, and load all differences in resumable 2,000-entry batches with navigation and a final total.
 - Reuse versioned text and line indexes for editor-dialog searches and subsequent result batches, releasing cached data when editing or closing search.

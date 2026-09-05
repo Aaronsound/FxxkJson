@@ -5,6 +5,7 @@ import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import type { StructureStatus } from '../types/jsonTool';
 import { useJsonFormattingWorker } from './useJsonFormattingWorker';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
+vi.mock('../utils/readImportedFile', () => ({ readImportedFile: (file: File) => file.text() }));
 
 function ref<T>(current: T) {
   return { current } as MutableRefObject<T>;

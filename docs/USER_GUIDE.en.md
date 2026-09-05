@@ -102,6 +102,7 @@ Select **Edit JSON** to open the full-document editor. It supports search and co
 4. Select **Start comparison**.
 5. The result lists added, removed, and changed fields by JSON Path, together with values from both sides.
 6. If there are more than 2,000 differences, select **Load more** to continue. Use **Previous batch** and **Next batch** to revisit loaded results. Counts include only loaded differences until **Comparison complete** confirms the final total.
+7. Select **View full values** below a difference path to inspect both JSON values. Long values are split into sections, with an option to jump to the last section. **Copy full value** copies the entire value, not just the visible section. Numeric precision is preserved; equivalent forms such as `1`, `1.0`, and `1e0` still compare equal.
 
 ![JSON comparison](assets/compare-dialog-en.png)
 

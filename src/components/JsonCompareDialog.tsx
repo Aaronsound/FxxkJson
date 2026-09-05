@@ -5,6 +5,7 @@ import type { Tab } from '../types/jsonTool';
 import { MAX_DIFFS, type JsonDiffEntry, type JsonDiffType } from '../utils/jsonDiff';
 import { useJsonComparison } from '../hooks/useJsonComparison';
 import { createTranslator, type I18nKey } from '../utils/i18n';
+import { JsonCompareDetails } from './JsonCompareDetails';
 
 interface JsonCompareDialogProps {
   tabs: Tab[];
@@ -45,7 +46,8 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
   const [leftTabId, setLeftTabId] = useState(activeTabId);
   const [rightTabId, setRightTabId] = useState(() => getDefaultRightTabId(tabs, activeTabId));
   const [page, setPage] = useState(0);
-  const { result, isComparing, error, compare, reset, loadMore } = useJsonComparison();
+  const { result, isComparing, error, compare, reset, loadMore, getValue } = useJsonComparison();
+  const [selectedDiff, setSelectedDiff] = useState<JsonDiffEntry | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const lastLoadedPage = Math.max(0, Math.ceil((result?.diffs.length ?? 0) / MAX_DIFFS) - 1);
   const visiblePage = Math.min(page, lastLoadedPage);
@@ -59,6 +61,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
   const summary = useMemo(() => (result ? getSummary(result.diffs, t) : t('compare.emptySummary')), [result, t]);
 
   const handleCompare = () => {
+    setSelectedDiff(null);
     setPage(0);
     if (canCompare) compare(getTabText(leftTabId), getTabText(rightTabId));
   };
@@ -90,6 +93,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
               value={leftTabId}
               onChange={(event) => {
                 reset();
+                setSelectedDiff(null);
                 setPage(0);
                 setLeftTabId(event.target.value);
               }}
@@ -107,6 +111,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
               value={rightTabId}
               onChange={(event) => {
                 reset();
+                setSelectedDiff(null);
                 setPage(0);
                 setRightTabId(event.target.value);
               }}
@@ -154,7 +159,16 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
           <div className="json-compare-empty">{t('compare.same')}</div>
         )}
 
-        {result && result.diffs.length > 0 && (
+        {selectedDiff && (
+          <JsonCompareDetails
+            key={selectedDiff.pathText}
+            diff={selectedDiff}
+            getValue={getValue}
+            t={t}
+            onClose={() => setSelectedDiff(null)}
+          />
+        )}
+        {!selectedDiff && result && result.diffs.length > 0 && (
           <div ref={listRef} className="json-compare-list" role="table" aria-label={t('compare.listLabel')}>
             <div className="json-compare-list-header" role="row">
               <span>{t('compare.type')}</span>
@@ -167,7 +181,17 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
                 <span className={`json-compare-type json-compare-type-${diff.type}`}>
                   {t(diffTypeLabelKey[diff.type])}
                 </span>
-                <code>{diff.pathText}</code>
+                <span>
+                  <code>{diff.pathText}</code>
+                  <button
+                    type="button"
+                    className="json-compare-detail-button"
+                    onClick={() => setSelectedDiff(diff)}
+                    aria-label={t('compare.viewValueAt', { path: diff.pathText })}
+                  >
+                    {t('compare.viewValue')}
+                  </button>
+                </span>
                 <code>{diff.leftPreview}</code>
                 <code>{diff.rightPreview}</code>
               </div>
@@ -176,7 +200,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
         )}
 
         <div className="modal-actions">
-          {result && result.diffs.length > 0 && (
+          {!selectedDiff && result && result.diffs.length > 0 && (
             <>
               <span>
                 {t('compare.range', {

@@ -2,6 +2,8 @@ import type { MutableRefObject } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
+// These orchestration tests control late completion; actual reader cancellation is tested separately.
+vi.mock('../utils/readImportedFile', () => ({ readImportedFile: (file: File) => file.text() }));
 
 function ref<T>(current: T) {
   return { current } as MutableRefObject<T>;

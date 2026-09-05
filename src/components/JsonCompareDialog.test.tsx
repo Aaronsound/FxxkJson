@@ -19,7 +19,10 @@ class CompareWorkerMock {
     if ('leftText' in request) this.comparison = createJsonComparison(request.leftText, request.rightText);
     const comparison = this.comparison;
     if (!comparison) throw new Error('No active comparison');
-    queueMicrotask(() => this.onmessage?.({ data: { result: comparison.next() } }));
+    if ('value' in request) {
+      const { id, path, side, offset, full } = request.value;
+      queueMicrotask(() => this.onmessage?.({ data: { id, value: comparison.readValue(path, side, offset, full) } }));
+    } else queueMicrotask(() => this.onmessage?.({ data: { result: comparison.next() } }));
   }
   constructor() {
     CompareWorkerMock.instances.push(this);
@@ -32,6 +35,49 @@ const tabs = [
 ];
 
 describe('JsonCompareDialog', () => {
+  it('reads precise full values after the final batch, and releases the worker on close', async () => {
+    const { unmount } = render(
+      <JsonCompareDialog
+        tabs={tabs}
+        activeTabId="left"
+        isDarkMode={false}
+        getTabText={(id) => (id === 'left' ? '{"id":9007199254740993}' : '{"id":9007199254740994}')}
+        onClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
+    await screen.findByText('已完成全部对比，共 1 处差异。');
+    fireEvent.click(screen.getByRole('button', { name: '查看 $.id 的完整值' }));
+    await within(screen.getByRole('region', { name: '左侧值' })).findByText('9007199254740993');
+    await within(screen.getByRole('region', { name: '右侧值' })).findByText('9007199254740994');
+    expect(CompareWorkerMock.instances[0].terminate).not.toHaveBeenCalled();
+    unmount();
+    expect(CompareWorkerMock.instances[0].terminate).toHaveBeenCalledTimes(1);
+  });
+  it('discards in-flight full-value reads when changing files', async () => {
+    render(
+      <JsonCompareDialog
+        tabs={[...tabs, { id: 'third', title: 'third.json' }]}
+        activeTabId="left"
+        isDarkMode={false}
+        getTabText={(id) => JSON.stringify({ id })}
+        onClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
+    await screen.findByText('$.id');
+    const worker = CompareWorkerMock.instances[0];
+    const post = vi.spyOn(worker, 'postMessage').mockImplementation(() => {});
+    fireEvent.click(screen.getByRole('button', { name: '查看 $.id 的完整值' }));
+    expect(post).toHaveBeenCalledTimes(2);
+    fireEvent.change(screen.getByLabelText('右侧'), { target: { value: 'third' } });
+    await act(async () =>
+      worker.onmessage?.({ data: { id: 1, value: { text: 'stale', offset: 0, total: 5, missing: false } } })
+    );
+    expect(screen.queryByText('完整差异值')).not.toBeInTheDocument();
+    expect(screen.queryByText('stale')).not.toBeInTheDocument();
+    expect(worker.terminate).toHaveBeenCalledTimes(1);
+  });
   beforeEach(() => {
     CompareWorkerMock.instances = [];
     vi.stubGlobal('Worker', CompareWorkerMock);
@@ -53,7 +99,7 @@ describe('JsonCompareDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
 
     expect(await screen.findByText('新增 1 · 删除 1 · 修改 1')).toBeInTheDocument();
     expect(screen.getByText('$.add')).toBeInTheDocument();
@@ -72,7 +118,7 @@ describe('JsonCompareDialog', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: '开始对比' })).toBeDisabled();
+    expect(screen.getByText('开始对比', { selector: 'button' })).toBeDisabled();
     expect(screen.getByText('请选择两个不同的标签进行对比。')).toBeInTheDocument();
   });
 
@@ -86,7 +132,7 @@ describe('JsonCompareDialog', () => {
         onClose={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     await screen.findByText('$.id');
     fireEvent.change(screen.getByLabelText('右侧'), { target: { value: 'third' } });
     expect(screen.queryByText('$.id')).not.toBeInTheDocument();
@@ -104,15 +150,15 @@ describe('JsonCompareDialog', () => {
         onClose={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     const oldWorker = CompareWorkerMock.instances[0];
-    expect(screen.getByRole('button', { name: '正在对比…' })).toBeDisabled();
+    expect(screen.getByText('正在对比…', { selector: 'button' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('右侧'), { target: { value: 'third' } });
     expect(oldWorker.terminate).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     await act(async () => oldWorker.onmessage?.({ data: { result: compareJsonTexts('{}', '{}') } }));
     expect(screen.queryByText('两个 JSON 内容一致。')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '正在对比…' })).toBeDisabled();
+    expect(screen.getByText('正在对比…', { selector: 'button' })).toBeDisabled();
     unmount();
     expect(CompareWorkerMock.instances[1].terminate).toHaveBeenCalledTimes(1);
   });
@@ -127,32 +173,32 @@ describe('JsonCompareDialog', () => {
         onClose={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     expect(await screen.findByText(/已加载 2000 处差异，仍有更多/)).toBeInTheDocument();
     expect(screen.getByText('新增 0 · 删除 0 · 修改 2000')).toBeInTheDocument();
     const worker = CompareWorkerMock.instances[0];
     const post = vi.spyOn(worker, 'postMessage');
     expect(worker.terminate).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '继续加载' }));
-    expect(screen.getByRole('button', { name: '继续加载' })).toBeDisabled();
+    fireEvent.click(screen.getByText('继续加载', { selector: 'button' }));
+    expect(screen.getByText('继续加载', { selector: 'button' })).toBeDisabled();
     await screen.findByText('当前显示第 2001–4000 处');
     expect(screen.getByText('$[2000]')).toBeInTheDocument();
     expect(screen.queryByText('$[0]')).not.toBeInTheDocument();
     expect(document.querySelectorAll('.json-compare-row')).toHaveLength(2000);
-    fireEvent.click(screen.getByRole('button', { name: '继续加载' }));
+    fireEvent.click(screen.getByText('继续加载', { selector: 'button' }));
     await screen.findByText('已完成全部对比，共 5000 处差异。');
     expect(screen.getByText('当前显示第 4001–5000 处')).toBeInTheDocument();
     expect(screen.getByText('$[4999]')).toBeInTheDocument();
     expect(screen.getByText('新增 0 · 删除 0 · 修改 5000')).toBeInTheDocument();
     expect(document.querySelectorAll('.json-compare-row')).toHaveLength(1000);
-    expect(screen.getByRole('button', { name: '继续加载' })).toBeDisabled();
-    expect(worker.terminate).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: '上一批' }));
+    expect(screen.getByText('继续加载', { selector: 'button' })).toBeDisabled();
+    expect(worker.terminate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('上一批', { selector: 'button' }));
     expect(screen.getByText('$[2000]')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '上一批' }));
+    fireEvent.click(screen.getByText('上一批', { selector: 'button' }));
     expect(screen.getByText('$[0]')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '上一批' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: '下一批' }));
+    expect(screen.getByText('上一批', { selector: 'button' })).toBeDisabled();
+    fireEvent.click(screen.getByText('下一批', { selector: 'button' }));
     expect(screen.getByText('$[3999]')).toBeInTheDocument();
     expect(post).toHaveBeenCalledTimes(2);
     expect(post).toHaveBeenNthCalledWith(1, { next: true });
@@ -169,11 +215,11 @@ describe('JsonCompareDialog', () => {
         onClose={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     await screen.findByText(/已加载 2000 处差异/);
     const worker = CompareWorkerMock.instances[0];
     vi.spyOn(worker, 'postMessage').mockImplementation(() => {});
-    fireEvent.click(screen.getByRole('button', { name: '继续加载' }));
+    fireEvent.click(screen.getByText('继续加载', { selector: 'button' }));
     fireEvent.change(screen.getByLabelText('右侧'), { target: { value: 'third' } });
     expect(worker.terminate).toHaveBeenCalledTimes(1);
     const batch = worker.comparison?.next();
@@ -193,19 +239,19 @@ describe('JsonCompareDialog', () => {
         onClose={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     await screen.findByText(/已加载 2000 处差异/);
     vi.spyOn(CompareWorkerMock.instances[0], 'postMessage').mockImplementation(() => {
       throw new Error('batch failed');
     });
-    fireEvent.click(screen.getByRole('button', { name: '继续加载' }));
+    fireEvent.click(screen.getByText('继续加载', { selector: 'button' }));
     expect(screen.getByRole('alert')).toHaveTextContent('batch failed');
     expect(screen.getByText('$[0]')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '继续加载' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    expect(screen.getByText('继续加载', { selector: 'button' })).toBeDisabled();
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     await screen.findByText(/已加载 2000 处差异/);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '继续加载' })).toBeEnabled();
+    expect(screen.getByText('继续加载', { selector: 'button' })).toBeEnabled();
   });
 
   it('allows retry after a worker failure', async () => {
@@ -215,11 +261,11 @@ describe('JsonCompareDialog', () => {
     render(
       <JsonCompareDialog tabs={tabs} activeTabId="left" isDarkMode={false} getTabText={() => '{}'} onClose={vi.fn()} />
     );
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     expect(screen.getByRole('alert')).toHaveTextContent('load failed');
     expect(CompareWorkerMock.instances[0].terminate).toHaveBeenCalled();
     post.mockRestore();
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
     expect(await screen.findByText('两个 JSON 内容一致。')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -235,7 +281,7 @@ describe('JsonCompareDialog', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    fireEvent.click(screen.getByText('开始对比', { selector: 'button' }));
 
     await screen.findByText(/左侧解析失败/);
     expect(

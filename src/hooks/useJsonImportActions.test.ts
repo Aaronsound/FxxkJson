@@ -24,6 +24,7 @@ describe('useJsonImportActions', () => {
     let selected: ((metadata: { name: string; path: string; size: number }) => void) | undefined;
     let finish!: (file: null) => void;
     window.electronAPI = {
+      cancelJsonFileImport: vi.fn(),
       openJsonFile: vi.fn((onSelected) => {
         selected = onSelected;
         return new Promise<null>((resolve) => {
@@ -38,6 +39,9 @@ describe('useJsonImportActions', () => {
     selected?.({ name: 'old.json', path: '/tmp/old.json', size: 2 });
     finish(null);
     await pending;
+    expect(window.electronAPI.cancelJsonFileImport).toHaveBeenCalledWith(
+      vi.mocked(window.electronAPI.openJsonFile).mock.calls[0][1]
+    );
     expect(args.setTabImporting).not.toHaveBeenCalled();
     expect(args.setProcessingStage).not.toHaveBeenCalled();
     expect(args.importJsonText).not.toHaveBeenCalled();

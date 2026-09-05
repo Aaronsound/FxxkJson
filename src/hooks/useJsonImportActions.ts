@@ -38,13 +38,16 @@ export function useJsonImportActions({
 
     if (window.electronAPI?.openJsonFile) {
       const task = beginImport(activeTab.id);
+      const requestId = crypto.randomUUID();
+      const cancelRead = () => window.electronAPI?.cancelJsonFileImport?.(requestId);
+      task.signal.addEventListener('abort', cancelRead, { once: true });
       try {
         const file = await window.electronAPI.openJsonFile((metadata) => {
           if (!task.isCurrent()) return;
           setTabError(activeTab.id, null);
           setTabImporting(activeTab.id, metadata.name);
           setProcessingStage(activeTab.id, 'reading');
-        });
+        }, requestId);
         if (!task.isCurrent()) return;
         if (file) {
           await importJsonText(activeTab.id, file.name, file.size, file.content, file.contentBuffer, task);
@@ -58,6 +61,7 @@ export function useJsonImportActions({
         setProcessingStage(activeTab.id, 'idle');
         setTabError(activeTab.id, error instanceof Error ? `导入失败：${error.message}` : '导入失败');
       } finally {
+        task.signal.removeEventListener('abort', cancelRead);
         task.finish();
       }
       return;

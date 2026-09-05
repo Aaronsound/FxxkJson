@@ -6,12 +6,13 @@ import { measureJsonDocumentWithKnownByteLength } from '../utils/jsonDocumentMet
 import { getFileName } from '../utils/jsonToolModels';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
 import { createJsonImportTasks, type JsonImportTask } from '../utils/jsonImportTasks';
+import { readImportedFile } from '../utils/readImportedFile';
 
 interface JsonImportSource {
   contentBuffer?: ArrayBuffer;
   name: string;
   size: number;
-  readText: () => Promise<string>;
+  readText: (signal: AbortSignal) => Promise<string>;
 }
 
 interface JsonWorkerImportCallbacks {
@@ -107,7 +108,7 @@ export function createJsonWorkerImportFlow({
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.readStartedAt = performance.now();
       });
-      const content = await source.readText();
+      const content = await source.readText(task.signal);
       if (!task.isCurrent()) return;
       const rawBytes = source.size;
       const metrics = measureJsonDocumentWithKnownByteLength(content, rawBytes);
@@ -183,7 +184,7 @@ export function createJsonWorkerImportFlow({
       importJsonSource(tabId, {
         name: file.name,
         size: file.size,
-        readText: () => file.text(),
+        readText: (signal) => readImportedFile(file, signal),
       }),
     importJsonText: async (
       tabId: string,
