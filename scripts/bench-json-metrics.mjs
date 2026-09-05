@@ -107,10 +107,10 @@ function growTypedBuffer(buffer, minimumCapacity) {
 
 export function countTextLines(text) {
   let lineCount = 1;
-  for (let index = 0; index < text.length; index += 1) {
-    if (text.charCodeAt(index) === 10) {
-      lineCount += 1;
-    }
+  let newlineOffset = -1;
+  // Match measureJsonDocumentWithKnownByteLength in the production worker.
+  while ((newlineOffset = text.indexOf('\n', newlineOffset + 1)) !== -1) {
+    lineCount += 1;
   }
   return lineCount;
 }
