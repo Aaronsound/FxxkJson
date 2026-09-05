@@ -1,5 +1,6 @@
 ## 本次更新
 
+- 修复窄窗口下定位原文可能使用旧编辑器高度的问题，并补齐 Apple Silicon、Intel Mac 和 Windows 的发布前验证。
 - JSON 语法错误现在显示行列信息，并支持“定位错误”，普通文件和大文件均可定位，原有自动修复行为不变。
 - 通过现有“编辑 JSON”直接打开错误原文，跳到错误附近；保存失败不丢失草稿，仍在弹窗内定位并继续修改。修正原文后保存保留其他数字写法、空格和换行。
 - JSON 对比在独立 Worker 中执行，每批 2,000 条，可继续加载全部差异；支持查看、分段阅读和复制完整差异值。
@@ -10,6 +11,7 @@
 
 ## What's New
 
+- Refresh editor dimensions before locating raw text in resized windows, with pre-release checks on Apple Silicon, Intel Mac, and Windows.
 - Syntax errors now include line/column details and a Locate error action for both regular and large files, without changing automatic repair behavior.
 - Open invalid raw text through the existing Edit JSON dialog near the error. Failed saves retain the draft and locate the error inside the dialog. Saving corrected raw text preserves unrelated number representations and whitespace.
 - Run JSON comparisons in a dedicated worker and load all differences in resumable 2,000-entry batches; inspect, page through, and copy complete difference values.

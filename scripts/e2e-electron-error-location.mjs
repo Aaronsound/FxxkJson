@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { writeFile } from 'node:fs/promises';
 import { saveManualJsonSample } from './manual-json-samples.mjs';
+import { captureElectronScreenshot } from './e2e-screenshot.mjs';
 import {
   startElectronApp,
   getAvailablePort,
@@ -23,6 +24,16 @@ let cdp;
 const samples = [];
 try {
   cdp = await connectAndPrepareElectronPage(port);
+  // Include the performance footer used by the preceding release E2E. This reduces
+  // the editor viewport and catches stale Monaco layout after a narrow resize.
+  await evaluate(
+    cdp,
+    `(() => {
+    const input = Array.from(document.querySelectorAll('label.toolbar-checkbox'))
+      .find(label => label.textContent.includes('显示性能面板'))?.querySelector('input');
+    if (input && !input.checked) input.click();
+  })()`
+  );
   for (const sizeMb of [0, 2, 20]) {
     const text = sizeMb
       ? `{"payload":"${'x'.repeat(sizeMb * 1024 * 1024)}🌍","name":"中文"\r\n  "broken":true}`
@@ -84,10 +95,14 @@ try {
     const after = await evaluate(cdp, `window.__HANJSON_E2E_APP__.getActiveRawFingerprint()`);
     if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error('Locating modified raw JSON');
     if (!sizeMb) {
-      const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
-      const screenshotPath = path.join(os.tmpdir(), 'fxxkjson-error-location-narrow.png');
-      await writeFile(screenshotPath, Buffer.from(screenshot.data, 'base64'));
-      console.log(`Narrow UI screenshot: ${screenshotPath}`);
+      try {
+        const screenshot = await captureElectronScreenshot(cdp);
+        const screenshotPath = path.join(os.tmpdir(), 'fxxkjson-error-location-narrow.png');
+        await writeFile(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+        console.log(`Narrow UI screenshot: ${screenshotPath}`);
+      } catch (error) {
+        console.warn(`Optional screenshot unavailable: ${error.message}`);
+      }
       await cdp.send('Emulation.clearDeviceMetricsOverride');
     }
     const position = await evaluate(cdp, `document.querySelector('.json-error-position').textContent`);

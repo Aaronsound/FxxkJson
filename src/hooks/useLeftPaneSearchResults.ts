@@ -86,8 +86,11 @@ export function useLeftPaneSearchResults({
         endColumn: end.column,
       };
 
-      leftEditor.revealRangeInCenter(range);
+      // ResizeObserver's automatic layout can still be pending after a window resize.
+      // Measure before scrolling, otherwise a tail error can land below the visible pane.
+      leftEditor.layout();
       leftEditor.setSelection(range);
+      leftEditor.revealRangeInCenter(range);
       leftDecorationIdsRef.current = leftEditor.deltaDecorations(leftDecorationIdsRef.current, [
         {
           range,

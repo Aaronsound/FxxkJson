@@ -2,6 +2,22 @@
 
 ## 未发布 / Unreleased
 
+## v1.0.36 - 2026-09-06
+
+### 中文
+
+- 包含下述 v1.0.35 的全部更新；v1.0.35 在发布前验证中被拦截，未公开发布。
+- 定位原文前同步编辑器尺寸，避免窗口缩小后使用旧高度滚动而遮挡末尾错误。
+- 在合并前增加 Linux、macOS（Apple Silicon / Intel）及 Windows 的错误定位与 20MB 原文编辑测试。
+- 为后台截图诊断增加有界等待，避免 Windows 无响应截图阻塞测试退出；拆分大样本单测并为覆盖率扫描设置独立超时，性能回归门槛保持不变。
+
+### English
+
+- Includes all v1.0.35 changes below. That release was stopped by pre-publication checks and was not published.
+- Refresh editor dimensions before revealing raw-text locations so a resize cannot leave a tail error below the viewport.
+- Check error navigation and 20MB raw editing before merge on Linux, macOS (Apple Silicon / Intel), and Windows.
+- Bound background screenshot diagnostics to prevent unresponsive Windows captures from blocking test cleanup. Split large-fixture tests and give coverage scans dedicated timeouts; performance regression thresholds remain unchanged.
+
 ## v1.0.35 - 2026-09-06
 
 ### 中文

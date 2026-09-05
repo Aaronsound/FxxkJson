@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { JSON_EDITOR_LINE_HEIGHT } from '../utils/jsonEditorTypography';
 import { buildEscapedStringLiteralRawViewerData, buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import LargeRawReadonlyViewer, {
@@ -10,6 +10,7 @@ import LargeRawReadonlyViewer, {
 } from './LargeRawReadonlyViewer';
 
 describe('LargeRawReadonlyViewer', () => {
+  afterEach(cleanup);
   function makeRect(left: number, right: number): DOMRect {
     return {
       x: left,
@@ -162,19 +163,28 @@ describe('LargeRawReadonlyViewer', () => {
     expect(container.querySelector('.large-json-token-string')).toHaveTextContent(text);
   });
 
-  it('coalesces native scroll updates into the virtual viewport frame', async () => {
+  it('coalesces native scroll updates into the virtual viewport frame', () => {
     const text = Array.from({ length: 200 }, (_, index) => `{"line":${index}}`).join('\n');
     const { container } = render(<LargeRawReadonlyViewer text={text} isDarkMode={false} highlightRange={null} />);
     const viewer = container.querySelector('.large-raw-viewer') as HTMLElement;
 
-    fireEvent.scroll(viewer, { target: { scrollTop: 1000 } });
-    fireEvent.scroll(viewer, { target: { scrollTop: 1200 } });
-
-    await waitFor(() => {
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    try {
+      fireEvent.scroll(viewer, { target: { scrollTop: 1000 } });
+      fireEvent.scroll(viewer, { target: { scrollTop: 1200 } });
+      expect(requestFrame).toHaveBeenCalledOnce();
+      expect(container.querySelector('.large-raw-row')).toHaveStyle({ top: '0px' });
+      act(() => frames[0](16));
       const firstVisibleRow = Math.floor(1200 / JSON_EDITOR_LINE_HEIGHT) - 20;
       expect(container.querySelector('.large-raw-row')).toHaveStyle({
         top: `${firstVisibleRow * JSON_EDITOR_LINE_HEIGHT}px`,
       });
-    });
+    } finally {
+      requestFrame.mockRestore();
+    }
   });
 });

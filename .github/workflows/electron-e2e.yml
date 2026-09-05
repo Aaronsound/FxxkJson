@@ -48,6 +48,9 @@ jobs:
           - name: macOS
             os: macos-latest
             artifact_name: macos
+          - name: macOS Intel
+            os: macos-15-intel
+            artifact_name: macos-intel
           - name: Windows
             os: windows-latest
             artifact_name: windows
@@ -72,6 +75,10 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
+      - name: Check coverage and build on Intel Mac
+        if: matrix.artifact_name == 'macos-intel'
+        run: npm run check
+
       - name: Run Electron E2E on Linux
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum npm run e2e:electron
@@ -79,6 +86,18 @@ jobs:
       - name: Run Electron E2E on macOS or Windows
         if: runner.os != 'Linux'
         run: npm run e2e:electron
+
+      - name: Verify invalid JSON editing on Linux
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run --auto-servernum node scripts/e2e-electron-error-location.mjs
+          xvfb-run --auto-servernum node scripts/e2e-electron-middle-error.mjs
+
+      - name: Verify invalid JSON editing on macOS or Windows
+        if: runner.os != 'Linux'
+        run: |
+          node scripts/e2e-electron-error-location.mjs
+          node scripts/e2e-electron-middle-error.mjs
 
       - name: Upload failure diagnostics
         if: failure()
