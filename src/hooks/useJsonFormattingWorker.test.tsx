@@ -398,6 +398,9 @@ describe('useJsonFormattingWorker', () => {
       );
     });
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40);
+    });
     expect(restartedWorker.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'search', query: 'ok', tabId: 'tab-a' }),
       []

@@ -29,6 +29,12 @@ function createArgs(overrides: Partial<SearchEffectsArgs> = {}): SearchEffectsAr
     leftSearchWorkerRevisionRef: { current: {} },
     rememberRightSearchTerm: vi.fn(),
     requestWorkerSearch: vi.fn(),
+    cancelWorkerSearch: vi.fn(),
+    rightSearchCache: {
+      get: vi.fn(() => ({ text: '', lineStarts: new Uint32Array([0]), lineCount: 1 })),
+      clear: vi.fn(),
+    },
+    rightMatches: [],
     resetLeftSearchState: vi.fn(),
     resetRightSearchState: vi.fn(),
     resetSearchState: vi.fn(),
@@ -62,6 +68,41 @@ afterEach(() => {
 });
 
 describe('useJsonToolSearchEffects', () => {
+  it('navigates appended results without rescan or truncation and updates only two highlights', () => {
+    const matches = Array.from({ length: 4000 }, (_, i) => new monaco.Range(i + 1, 1, i + 1, 4));
+    vi.mocked(getMonacoSearchBatch).mockReturnValue({
+      ranges: matches.slice(0, 2000),
+      matches: [],
+      hasMore: true,
+      nextStartOffset: 2000,
+    });
+    const editor = {
+      getModel: vi.fn(() => ({})),
+      deltaDecorations: vi.fn((_old: string[], next: unknown[]) => next.map((_, i) => `d-${i}`)),
+      revealRangeInCenter: vi.fn(),
+      setSelection: vi.fn(),
+    };
+    const args = createArgs({
+      rightEditorRef: { current: editor as never },
+      rightSearchTerm: 'key',
+      rightMatches: matches.slice(0, 2000),
+    });
+    const { rerender, unmount } = renderHook((props: SearchEffectsArgs) => useJsonToolSearchEffects(props), {
+      initialProps: args,
+    });
+    // Keep setters stable as in React; changing only the loaded matches/index must not search again.
+    const loaded = { ...args, rightMatches: matches, rightMatchIndex: 3000 };
+    rerender(loaded);
+    vi.mocked(args.setRightMatches).mockClear();
+    rerender({ ...loaded, rightMatchIndex: 3001 });
+    expect(getMonacoSearchBatch).toHaveBeenCalledTimes(1);
+    expect(args.setRightMatches).not.toHaveBeenCalled();
+    expect(editor.setSelection).toHaveBeenLastCalledWith(matches[3001]);
+    expect(editor.deltaDecorations.mock.calls.at(-1)?.[1]).toHaveLength(2);
+    expect(args.rightDecorationIdsRef.current).toHaveLength(4000);
+    unmount();
+    expect(args.rightSearchCache.clear).toHaveBeenCalled();
+  });
   it('sends dedicated viewer searches and transfers left text once per raw revision', () => {
     const requestWorkerSearch = vi.fn();
     const leftSearchWorkerRevisionRef = { current: {} as Record<string, number> };
@@ -129,6 +170,7 @@ describe('useJsonToolSearchEffects', () => {
           rightDecorationIdsRef,
           rightEditorRef: { current: editor as never },
           rightMatchIndex: 0,
+          rightMatches: [match],
           rightSearchTerm: 'needle',
           setRightMatches,
           setRightSearchHasMore,

@@ -16,6 +16,10 @@ class CompareWorkerMock {
   terminate = vi.fn();
   comparison: ReturnType<typeof createJsonComparison> | null = null;
   postMessage(request: JsonCompareWorkerRequest) {
+    if ('releaseValues' in request) {
+      this.comparison?.releaseValues();
+      return;
+    }
     if ('leftText' in request) this.comparison = createJsonComparison(request.leftText, request.rightText);
     const comparison = this.comparison;
     if (!comparison) throw new Error('No active comparison');
@@ -184,13 +188,14 @@ describe('JsonCompareDialog', () => {
     await screen.findByText('当前显示第 2001–4000 处');
     expect(screen.getByText('$[2000]')).toBeInTheDocument();
     expect(screen.queryByText('$[0]')).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.json-compare-row')).toHaveLength(2000);
+    expect(document.querySelectorAll('.json-compare-row').length).toBeLessThan(60);
     fireEvent.click(screen.getByText('继续加载', { selector: 'button' }));
     await screen.findByText('已完成全部对比，共 5000 处差异。');
     expect(screen.getByText('当前显示第 4001–5000 处')).toBeInTheDocument();
-    expect(screen.getByText('$[4999]')).toBeInTheDocument();
+    fireEvent.scroll(screen.getByRole('table'), { target: { scrollTop: 64000 } });
+    expect(await screen.findByText('$[4999]')).toBeInTheDocument();
     expect(screen.getByText('新增 0 · 删除 0 · 修改 5000')).toBeInTheDocument();
-    expect(document.querySelectorAll('.json-compare-row')).toHaveLength(1000);
+    expect(document.querySelectorAll('.json-compare-row').length).toBeLessThan(60);
     expect(screen.getByText('继续加载', { selector: 'button' })).toBeDisabled();
     expect(worker.terminate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText('上一批', { selector: 'button' }));
@@ -199,7 +204,8 @@ describe('JsonCompareDialog', () => {
     expect(screen.getByText('$[0]')).toBeInTheDocument();
     expect(screen.getByText('上一批', { selector: 'button' })).toBeDisabled();
     fireEvent.click(screen.getByText('下一批', { selector: 'button' }));
-    expect(screen.getByText('$[3999]')).toBeInTheDocument();
+    fireEvent.scroll(screen.getByRole('table'), { target: { scrollTop: 128000 } });
+    expect(await screen.findByText('$[3999]')).toBeInTheDocument();
     expect(post).toHaveBeenCalledTimes(2);
     expect(post).toHaveBeenNthCalledWith(1, { next: true });
     expect(CompareWorkerMock.instances).toHaveLength(1);

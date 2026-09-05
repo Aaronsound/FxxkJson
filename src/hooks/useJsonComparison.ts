@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { JsonCompareWorkerResponse, JsonDiffResult, JsonDiffSide, JsonDiffValue } from '../utils/jsonDiff';
+import type { JsonCompareWorkerResponse, JsonDiffSide, JsonDiffValue } from '../utils/jsonDiff';
+import { createComparisonBatches, type ComparisonSnapshot } from '../utils/jsonComparisonBatches';
 
 export function useJsonComparison() {
   const workerRef = useRef<Worker | null>(null);
@@ -8,7 +9,9 @@ export function useJsonComparison() {
     new Map<number, { resolve: (value: JsonDiffValue) => void; reject: (error: Error) => void }>()
   );
   const valueRequestId = useRef(0);
-  const [result, setResult] = useState<JsonDiffResult | null>(null);
+  const batches = useRef(createComparisonBatches());
+  const getPage = useCallback((page: number) => batches.current.page(page), []);
+  const [result, setResult] = useState<ComparisonSnapshot | null>(null);
   const [isComparing, setIsComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const stop = useCallback(() => {
@@ -21,6 +24,7 @@ export function useJsonComparison() {
   }, []);
   const reset = useCallback(() => {
     stop();
+    batches.current = createComparisonBatches();
     setResult(null);
     setError(null);
     setIsComparing(false);
@@ -52,9 +56,10 @@ export function useJsonComparison() {
             return;
           }
           const batch = event.data.result;
-          if (!batch.truncated && batch.diffs.length === 0) stop();
+          const snapshot = batches.current.append(batch);
+          if (!batch.truncated && snapshot.total === 0) stop();
           busyRef.current = false;
-          setResult((previous) => ({ ...batch, diffs: [...(previous?.diffs ?? []), ...batch.diffs] }));
+          setResult(snapshot);
           setIsComparing(false);
         };
         worker.onerror = (event) => {
@@ -107,5 +112,16 @@ export function useJsonComparison() {
   );
 
   useEffect(() => stop, [stop]);
-  return { result, isComparing, error, compare, reset, loadMore, getValue };
+  const releaseValues = useCallback(() => {
+    for (const request of valueRequests.current.values()) request.reject(new Error('Value inspection closed'));
+    valueRequests.current.clear();
+    try {
+      workerRef.current?.postMessage({ releaseValues: true });
+    } catch (caught) {
+      stop();
+      setError(caught instanceof Error ? caught.message : String(caught));
+      setIsComparing(false);
+    }
+  }, [stop]);
+  return { result, isComparing, error, compare, reset, loadMore, getValue, getPage, releaseValues };
 }

@@ -4,6 +4,11 @@
 
 ### 中文
 
+- 修复右侧普通编辑器搜索在切换匹配项时丢失已加载结果的问题；复用搜索索引，仅更新前后两项的当前匹配高亮。
+- 合并短时间内连续输入的搜索请求，在编码和传输大文本之前跳过过期查询；关闭搜索时取消待发送请求，加载更多仍立即执行。
+- 按块索引超长差异字符串，按需序列化详情片段，避免预先保留完整序列化副本；返回差异列表时释放详情读取缓存，完整复制保持不变。
+- 差异列表仅绘制视口附近的内容，支持长路径自适应行高及跨区键盘导航；查看完整值后恢复列表滚动位置和按钮焦点。
+- 对比结果按批次保存并增量统计，继续加载时不再复制、重新扫描全部已加载差异，保留全部差异和既有翻页行为。
 - 修复 JSON 对比中的大整数、高精度小数及极大/极小指数误判；使用非递归遍历支持深层嵌套，保持数字等价形式的既有语义。
 - 对比结果支持按需查看完整差异值、长内容分段阅读及复制完整值；关闭弹窗时释放对比和详情缓存。
 - 关闭标签、清空或替换导入任务时，真正中止原生文件流与拖拽文件读取，释放读取缓冲并忽略迟到消息。
@@ -13,6 +18,11 @@
 
 ### English
 
+- Preserve loaded search matches when navigating the regular right editor; reuse search indexes and update only the previous and current active-match decorations.
+- Coalesce rapidly typed search requests before encoding and transferring large text; cancel queued requests when search closes while keeping explicit pagination immediate.
+- Index long difference strings by block and serialize detail sections on demand instead of retaining full serialized copies; release readers when returning to the list while preserving full-value copying.
+- Render only nearby difference rows with measured wrapping heights and continuous keyboard navigation; restore list scroll position and button focus after inspecting full values.
+- Retain comparison results by batch and update counts incrementally without copying or rescanning previously loaded differences; preserve complete results and existing batch navigation.
 - Compare large integers, precise decimals, and extreme exponents without rounding, and traverse deeply nested JSON iteratively while retaining equivalent-number semantics.
 - Inspect full difference values on demand, page through long values, and copy entire values; release comparison and detail caches when closing the dialog.
 - Abort native file streams and dropped-file reads when tabs are closed, cleared, or replaced, releasing buffers and ignoring late messages.

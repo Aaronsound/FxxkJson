@@ -57,7 +57,7 @@ Review important fields after a repair, especially before using the result as pr
 4. Left-side search supports Replace and Replace all. Right-side search is read-only and also offers recent searches and pinned JSON Paths.
 5. Press `Esc` in the active pane to close its search widget.
 
-Large-file results load in batches. Select **Load more** when a search has many matches.
+Search results load in batches. Select **Load more** when a search has many matches. Previous/next navigation preserves loaded results. Rapid typing resolves to the latest query.
 
 ## 5. Fold, Copy, and Edit Nodes
 
@@ -103,6 +103,8 @@ Select **Edit JSON** to open the full-document editor. It supports search and co
 5. The result lists added, removed, and changed fields by JSON Path, together with values from both sides.
 6. If there are more than 2,000 differences, select **Load more** to continue. Use **Previous batch** and **Next batch** to revisit loaded results. Counts include only loaded differences until **Comparison complete** confirms the final total.
 7. Select **View full values** below a difference path to inspect both JSON values. Long values are split into sections, with an option to jump to the last section. **Copy full value** copies the entire value, not just the visible section. Numeric precision is preserved; equivalent forms such as `1`, `1.0`, and `1e0` still compare equal.
+   Long-value sections are read on demand. Returning to the list releases detail readers without discarding loaded differences; reopen a value to inspect it again.
+8. The list renders nearby rows as you scroll without discarding other differences. **Back to differences** restores your previous scroll position and button focus. Use Tab / Shift+Tab to move continuously between value-inspection buttons.
 
 ![JSON comparison](assets/compare-dialog-en.png)
 

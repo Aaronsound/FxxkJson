@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DIFF_VALUE_CHUNK_SIZE, type JsonDiffEntry, type JsonDiffSide, type JsonDiffValue } from '../utils/jsonDiff';
 import type { I18nKey } from '../utils/i18n';
 import { writeTextToClipboard } from '../utils/clipboard';
@@ -109,12 +109,14 @@ function ValuePane({ diff, getValue, t, side }: Omit<Props, 'onClose'> & { side:
 }
 
 export function JsonCompareDetails(props: Props) {
+  const backRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => backRef.current?.focus({ preventScroll: true }), []);
   return (
     <div className="json-compare-details">
       <div className="json-compare-value-actions">
         <strong>{props.t('compare.details')}</strong>
         <code>{props.diff.pathText}</code>
-        <button type="button" onClick={props.onClose}>
+        <button ref={backRef} type="button" onClick={props.onClose}>
           {props.t('compare.backToList')}
         </button>
       </div>

@@ -241,6 +241,13 @@ export function useJsonFormattingWorker({
 
   const requestWorkerLocate = interactiveFlow.requestLocate;
   const requestWorkerSearch = interactiveFlow.requestSearch;
+  const cancelWorkerSearch = useCallback(
+    (tabId: string, target: 'left' | 'right') => {
+      const cancelledUnsentText = interactiveFlow.cancelSearch(tabId, target);
+      if (target === 'left' && cancelledUnsentText) delete leftSearchWorkerRevisionRef.current[tabId];
+    },
+    [interactiveFlow, leftSearchWorkerRevisionRef]
+  );
   const requestWorkerEditJson = interactiveFlow.requestEditJson;
   const requestWorkerEditJsonResult = interactiveFlow.requestEditJsonResult;
 
@@ -449,6 +456,7 @@ export function useJsonFormattingWorker({
     restoreWorkerTabCache,
     removeTabArtifacts: removeTabArtifactsWithCacheState,
     requestWorkerSearch,
+    cancelWorkerSearch,
     requestWorkerLocate,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,

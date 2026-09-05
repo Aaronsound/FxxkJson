@@ -8,6 +8,105 @@ import { createSampleJson, importSampleByE2eBridge } from './e2e-json-fixtures.m
 
 const require = createRequire(import.meta.url);
 
+async function runVariableRows(cdp, tempDir) {
+  await clickSelector(cdp, '.json-compare-card .about-dialog-close');
+  for (const side of ['left', 'right']) {
+    const fixture = path.join(tempDir, `wrapped-${side}.json`);
+    const data = Array.from({ length: 120 }, (_, index) => ({
+      [`字段-${'长路径🌍'.repeat(index % 5 === 0 ? 50 : 1)}`]: `${side}-${'多行内容'.repeat(index % 3 === 0 ? 50 : 1)}`,
+    }));
+    await writeFile(fixture, JSON.stringify(data));
+    await clickSelector(cdp, '.add-tab');
+    await importSampleByE2eBridge(cdp, fixture);
+    await waitFor(
+      () => evaluate(cdp, `!document.querySelector('.editor-processing-layer')`),
+      'wrapped fixture imported'
+    );
+  }
+  await clickButtonByText(cdp, '对比 JSON');
+  await evaluate(
+    cdp,
+    `(() => {
+    const selects = document.querySelectorAll('.json-compare-selectors select');
+    for (const [index, side] of ['left', 'right'].entries()) {
+      selects[index].value = Array.from(selects[index].options).find(option => option.textContent === 'wrapped-' + side + '.json').value;
+      selects[index].dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  })()`
+  );
+  await clickButtonByText(cdp, '开始对比');
+  await waitFor(
+    () => evaluate(cdp, `document.querySelector('.json-compare-summary')?.textContent.includes('修改 120')`),
+    'variable-height results'
+  );
+  for (const width of [480, 1100]) {
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false });
+    const result = await evaluate(
+      cdp,
+      `(async () => {
+      const list = document.querySelector('.json-compare-list');
+      list.scrollTop = 0;
+      const seen = new Set();
+      let maxRows = 0;
+      for (let step = 0; step < 2000; step++) {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const rows = Array.from(list.querySelectorAll('.json-compare-row'));
+        maxRows = Math.max(maxRows, rows.length);
+        for (let i = 0; i < rows.length; i++) {
+          seen.add(Number(rows[i].dataset.diffIndex));
+          const next = rows[i + 1];
+          if (next && rows[i].getBoundingClientRect().bottom > next.getBoundingClientRect().top + 1) throw new Error('Wrapped rows overlap');
+          if (rows[i].scrollHeight > rows[i].clientHeight + 2) throw new Error('Wrapped row clipped');
+        }
+        const top = list.scrollTop;
+        list.scrollTop += Math.max(100, list.clientHeight * 0.8);
+        if (top === list.scrollTop) break;
+      }
+      return { count: seen.size, maxRows };
+    })()`
+    );
+    if (result.count !== 120 || result.maxRows > 80)
+      throw new Error(`Variable-height ${width}px: ${JSON.stringify(result)}`);
+    console.log(JSON.stringify({ variableHeightWidth: width, ...result }));
+  }
+  // Native keyboard navigation across the virtual boundary, not programmatic clicks.
+  await evaluate(cdp, `(() => { const list = document.querySelector('.json-compare-list'); list.scrollTop = 0; })()`);
+  await waitFor(
+    () => evaluate(cdp, `Boolean(document.querySelector('[data-diff-index="19"] button'))`),
+    'keyboard boundary ready'
+  );
+  await evaluate(cdp, `document.querySelector('[data-diff-index="19"] button').focus()`);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await waitFor(
+    () => evaluate(cdp, `document.activeElement?.closest('[data-diff-index]')?.dataset.diffIndex === '20'`),
+    'Tab advances to unmounted block'
+  );
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    key: 'Tab',
+    code: 'Tab',
+    windowsVirtualKeyCode: 9,
+    modifiers: 8,
+  });
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'Tab',
+    code: 'Tab',
+    windowsVirtualKeyCode: 9,
+    modifiers: 8,
+  });
+  await waitFor(
+    () => evaluate(cdp, `document.activeElement?.closest('[data-diff-index]')?.dataset.diffIndex === '19'`),
+    'Shift+Tab returns'
+  );
+  if (process.env.HANJSON_COMPARE_LIST_SCREENSHOT) {
+    const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    await writeFile(process.env.HANJSON_COMPARE_LIST_SCREENSHOT, Buffer.from(screenshot.data, 'base64'));
+  }
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+}
+
 async function runPrecisionAndDetails(cdp, tempDir) {
   await clickSelector(cdp, '.json-compare-card .about-dialog-close');
   const prefix = '长文本🌍'.repeat(8000);
@@ -138,12 +237,34 @@ async function runPagination(cdp, tempDir) {
         `loaded ${count} differences`
       );
     }
-    const batchPaths = await evaluate(
+    const scan = await evaluate(
       cdp,
-      `Array.from(document.querySelectorAll('.json-compare-row')).map(row => row.querySelector('code').textContent)`
+      `(async () => {
+        const list = document.querySelector('.json-compare-list');
+        const found = new Map();
+        let maxRows = 0;
+        for (let step = 0; step < 2000; step++) {
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          const rows = Array.from(list.querySelectorAll('.json-compare-row'));
+          maxRows = Math.max(maxRows, rows.length);
+          for (const row of rows) {
+            const index = Number(row.dataset.diffNumber);
+            const text = row.querySelector('code').textContent;
+            if (found.has(index) && found.get(index) !== text) throw new Error('Row identity changed');
+            found.set(index, text);
+          }
+          const previous = list.scrollTop;
+          list.scrollTop += Math.max(100, list.clientHeight * 0.8);
+          if (list.scrollTop === previous) break;
+        }
+        return { paths: Array.from(found).sort((a,b) => a[0]-b[0]).map(entry => entry[1]), maxRows };
+      })()`
     );
-    if (batchPaths.length !== (count === 5000 ? 1000 : 2000)) throw new Error('Unexpected rendered batch size');
-    paths.push(...batchPaths);
+    if (scan.paths.length !== (count === 5000 ? 1000 : 2000))
+      throw new Error(`Missing virtual rows: ${scan.paths.length}`);
+    if (scan.maxRows > 80) throw new Error(`Unbounded DOM: ${scan.maxRows} rows`);
+    console.log(JSON.stringify({ loaded: count, maxRenderedRows: scan.maxRows }));
+    paths.push(...scan.paths);
   }
   if (paths.some((value, index) => value !== `$[${index}]`) || paths.length !== 5000)
     throw new Error('Missing or duplicate differences');
@@ -168,6 +289,34 @@ async function runPagination(cdp, tempDir) {
   await waitFor(
     () => evaluate(cdp, `document.querySelector('.json-compare-row code')?.textContent === '$[2000]'`),
     'next cached batch'
+  );
+  await evaluate(cdp, `document.querySelector('.json-compare-list').scrollTop = 6000`);
+  await waitFor(
+    () => evaluate(cdp, `Number(document.querySelector('.json-compare-row')?.dataset.diffIndex) > 20`),
+    'middle of virtual list'
+  );
+  const saved = await evaluate(
+    cdp,
+    `(() => {
+    const list = document.querySelector('.json-compare-list');
+    const box = list.getBoundingClientRect();
+    const button = Array.from(list.querySelectorAll('button')).find(button => {
+      const rect = button.getBoundingClientRect(); return rect.top > box.top + 40 && rect.bottom < box.bottom;
+    });
+    const saved = { top: list.scrollTop, label: button.getAttribute('aria-label') };
+    button.click();
+    return saved;
+  })()`
+  );
+  await waitFor(() => evaluate(cdp, `document.activeElement?.textContent === '返回差异列表'`), 'detail keyboard focus');
+  await clickButtonByText(cdp, '返回差异列表');
+  await waitFor(
+    () =>
+      evaluate(
+        cdp,
+        `Math.abs(document.querySelector('.json-compare-list').scrollTop - ${saved.top}) < 2 && document.activeElement?.getAttribute('aria-label') === ${JSON.stringify(saved.label)}`
+      ),
+    'scroll and focus restored'
   );
   console.log('Comparison pagination: all 5000 paths verified, no missing/duplicate rows, cached navigation passed');
 }
@@ -290,6 +439,7 @@ async function runSize(sizeMb) {
     console.log(`Comparison ${sizeMb}MB: result reset, cancellation, and reopening passed`);
     if (sizeMb === 2) {
       await runPagination(cdp, tempDir);
+      await runVariableRows(cdp, tempDir);
       await runPrecisionAndDetails(cdp, tempDir);
     }
   } finally {

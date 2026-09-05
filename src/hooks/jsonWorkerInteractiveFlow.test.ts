@@ -1,6 +1,6 @@
 // @vitest-environment node
 import type { MutableRefObject } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StructureStatus, WorkerMessage, WorkerRequestMessage } from '../types/jsonTool';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { packSearchMatches } from '../utils/searchMatchPayload';
@@ -72,6 +72,87 @@ function asResult(message: WorkerMessage) {
 }
 
 describe('createJsonWorkerInteractiveFlow', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  it('coalesces new queries before encoding and keeps left text and right requests isolated', () => {
+    const { flow, requests, transfers } = createFlow();
+    flow.requestSearch({
+      tabId: 'tab-a',
+      target: 'left',
+      query: 'n',
+      text: 'source',
+      textByteLength: LARGE_FILE_THRESHOLD,
+      rawRevision: 8,
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+    });
+    for (const query of ['ne', 'nee', 'needle'])
+      flow.requestSearch({
+        tabId: 'tab-a',
+        target: 'left',
+        query,
+        rawRevision: 8,
+        searchOptions: DEFAULT_SEARCH_OPTIONS,
+      });
+    flow.requestSearch({ tabId: 'tab-a', query: 'right', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    expect(requests).toHaveLength(0);
+    expect(transfers).toHaveLength(0);
+    vi.advanceTimersByTime(39);
+    expect(requests).toHaveLength(0);
+    vi.advanceTimersByTime(1);
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({ query: 'needle', target: 'left', rawRevision: 8 });
+    expect('textBuffer' in requests[0] && new TextDecoder().decode(requests[0].textBuffer)).toBe('source');
+    expect(requests[1]).toMatchObject({ query: 'right', target: 'right' });
+    flow.requestSearch({
+      tabId: 'tab-a',
+      query: 'right',
+      startOffset: 2000,
+      append: true,
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+    });
+    expect(requests).toHaveLength(3);
+    flow.stop();
+  });
+  it('cancels queued work on search close, tab removal and shutdown', () => {
+    const { flow, requests, callbacks } = createFlow();
+    flow.requestSearch({ tabId: 'tab-a', query: 'old', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    flow.cancelSearch('tab-a', 'right');
+    vi.advanceTimersByTime(40);
+    flow.handleResult(asResult({ type: 'search-result', requestId: 1, tabId: 'tab-a', matches: [] }));
+    expect(callbacks.setLargeViewerSearchResults).not.toHaveBeenCalled();
+    flow.requestSearch({ tabId: 'tab-a', query: 'removed', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    flow.cancelRequests('tab-a');
+    flow.requestSearch({ tabId: 'tab-b', query: 'stopped', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    flow.stop();
+    vi.advanceTimersByTime(100);
+    expect(requests).toHaveLength(0);
+  });
+  it('invalidates only unsent text and avoids retransmitting already sent source', () => {
+    const { flow, requests } = createFlow();
+    const input = {
+      tabId: 'tab-a',
+      target: 'left' as const,
+      query: 'n',
+      text: 'source',
+      rawRevision: 1,
+      searchOptions: DEFAULT_SEARCH_OPTIONS,
+    };
+    flow.requestSearch(input);
+    expect(flow.cancelSearch('tab-a', 'left')).toBe(true);
+    flow.requestSearch(input);
+    vi.advanceTimersByTime(40);
+    flow.requestSearch({ ...input, text: undefined, query: 'new' });
+    vi.advanceTimersByTime(40);
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({ text: 'source' });
+    expect(requests[1]).not.toHaveProperty('text');
+    expect(flow.cancelSearch('tab-a', 'left')).toBe(false);
+    flow.requestSearch(input);
+    flow.requestSearch({ ...input, text: undefined, rawRevision: 2 });
+    vi.advanceTimersByTime(40);
+    expect(requests[2]).not.toHaveProperty('text');
+    flow.stop();
+  });
   it('chooses structural and direct right locate requests from the active locate state', () => {
     const structural = createFlow({ structureEnabled: true });
     structural.flow.requestLocate('tab-a', 12.9);
@@ -95,7 +176,9 @@ describe('createJsonWorkerInteractiveFlow', () => {
     const { callbacks, flow, requests } = createFlow();
 
     flow.requestSearch({ tabId: 'tab-a', query: 'old', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    vi.advanceTimersByTime(40);
     flow.requestSearch({ tabId: 'tab-a', query: 'new', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    vi.advanceTimersByTime(40);
     flow.requestSearch({
       tabId: 'tab-a',
       query: 'left',
@@ -147,6 +230,7 @@ describe('createJsonWorkerInteractiveFlow', () => {
       rawRevision: 2,
     });
 
+    vi.advanceTimersByTime(40);
     expect(requests[0]).toMatchObject({ type: 'search', rawRevision: 2 });
     expect('text' in requests[0]).toBe(false);
     expect('textBuffer' in requests[0] && requests[0].textBuffer).toBeInstanceOf(ArrayBuffer);
@@ -330,6 +414,7 @@ describe('createJsonWorkerInteractiveFlow', () => {
       reuseText: true,
     });
     flow.requestSearch({ tabId: 'tab-a', query: 'ok', searchOptions: DEFAULT_SEARCH_OPTIONS });
+    vi.advanceTimersByTime(40);
     flow.requestLocate('tab-a', 4);
     const originalEditRequestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
     const originalSearchRequestId = 'requestId' in requests[1] ? requests[1].requestId : -1;
@@ -338,6 +423,7 @@ describe('createJsonWorkerInteractiveFlow', () => {
     flow.suspendForRestart();
     flow.resumeEditsAfterRestart();
     flow.resumeTabRequests('tab-a');
+    vi.advanceTimersByTime(40);
 
     expect(requests.map((request) => request.type)).toEqual([
       'edit-json',

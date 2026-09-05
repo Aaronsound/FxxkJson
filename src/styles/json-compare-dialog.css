@@ -86,6 +86,22 @@
   overflow: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+  overflow-anchor: none;
+}
+
+.json-compare-list[hidden] {
+  display: none;
+}
+
+.json-compare-virtual-body {
+  position: relative;
+  min-width: 100%;
+}
+
+.json-compare-block {
+  position: absolute;
+  left: 0;
+  width: 100%;
 }
 
 .modal-card-dark .json-compare-list {
@@ -121,6 +137,8 @@
 .json-compare-row {
   border-bottom: 1px solid #f3f4f6;
   font-size: 12px;
+  min-height: 56px;
+  box-sizing: border-box;
 }
 
 .json-compare-row:last-child {

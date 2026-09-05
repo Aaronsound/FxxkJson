@@ -125,6 +125,19 @@ export function isComparisonObject(value: unknown): value is Record<string, unkn
 
 // Iterative serialization also supports deeply nested values. Preview generation
 // consumes only the prefix, rather than serializing a multi-MB subtree first.
+function* quotedStringChunks(value: string, limit: number) {
+  yield '"';
+  for (let start = 0; start < Math.min(value.length, limit); ) {
+    let end = Math.min(start + 4096, value.length, limit);
+    const before = value.charCodeAt(end - 1);
+    const after = value.charCodeAt(end);
+    if (end < limit && before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff) end += 1;
+    yield JSON.stringify(value.slice(start, end)).slice(1, -1);
+    start = end;
+  }
+  yield '"';
+}
+
 export function* comparisonValueChunks(value: unknown, stringLimit = Infinity): Generator<string> {
   type Frame = { value: unknown[] | Record<string, unknown>; keys: string[] | null; index: number };
   const stack: Frame[] = [];
@@ -134,6 +147,8 @@ export function* comparisonValueChunks(value: unknown, stringLimit = Infinity): 
       const array = Array.isArray(current);
       yield array ? '[' : '{';
       stack.push({ value: current, keys: array ? null : Object.keys(current), index: 0 });
+    } else if (typeof current === 'string') {
+      yield* quotedStringChunks(current, stringLimit);
     } else {
       yield current instanceof ExactJsonNumber
         ? current.raw
@@ -152,7 +167,10 @@ export function* comparisonValueChunks(value: unknown, stringLimit = Infinity): 
         if (frame.index > 0) yield ',';
         const key = frame.keys ? frame.keys[frame.index] : frame.index;
         frame.index += 1;
-        if (frame.keys) yield `${JSON.stringify(key)}:`;
+        if (frame.keys) {
+          yield* quotedStringChunks(String(key), stringLimit);
+          yield ':';
+        }
         current = (frame.value as Record<string | number, unknown>)[key];
         hasNext = true;
         break;

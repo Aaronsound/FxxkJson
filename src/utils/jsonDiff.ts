@@ -4,8 +4,8 @@ import {
   comparisonValueChunks,
   isComparisonObject,
   parseComparisonJson,
-  serializeComparisonValue,
 } from './jsonComparisonValues';
+import { createComparisonValueReader, type ComparisonValueReader } from './comparisonValueReader';
 
 export type JsonDiffType = 'added' | 'removed' | 'changed';
 export type JsonDiffSide = 'left' | 'right';
@@ -135,8 +135,12 @@ export function createJsonComparison(leftText: string, rightText: string) {
   let pending: IteratorResult<JsonDiffEntry> | undefined;
   // Keep only the currently inspected path's serialized values, never every full diff value.
   let cachedPath = '';
-  let cachedValues: Partial<Record<JsonDiffSide, string | undefined>> = {};
+  let cachedValues: Partial<Record<JsonDiffSide, ComparisonValueReader | undefined>> = {};
   return {
+    releaseValues() {
+      cachedPath = '';
+      cachedValues = {};
+    },
     next(): JsonDiffResult {
       if (leftError || rightError) return { diffs: [], leftError, rightError, truncated: false };
       const diffs: JsonDiffEntry[] = [];
@@ -167,21 +171,23 @@ export function createJsonComparison(leftText: string, rightText: string) {
           }
           value = (value as Record<string | number, unknown>)[key];
         }
-        cachedValues[side] = value === undefined ? undefined : serializeComparisonValue(value);
+        cachedValues[side] = value === undefined ? undefined : createComparisonValueReader(value);
       }
       const value = cachedValues[side];
-      let start = Math.max(0, Math.min(value?.length ?? 0, Math.floor(offset) || 0));
+      let start = Math.max(0, Math.min(value?.total ?? 0, Math.floor(offset) || 0));
       let end = start + DIFF_VALUE_CHUNK_SIZE;
+      const sliceStart = Math.max(0, start - 1);
+      const window = full ? '' : (value?.slice(sliceStart, end + 1) ?? '');
       const splitsSurrogate = (position: number) => {
-        const before = value?.charCodeAt(position - 1) ?? 0;
-        const after = value?.charCodeAt(position) ?? 0;
+        const before = window.charCodeAt(position - 1 - sliceStart);
+        const after = window.charCodeAt(position - sliceStart);
         return before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff;
       };
       if (splitsSurrogate(start)) start += 1;
       if (splitsSurrogate(end)) end += 1;
       return {
-        text: full ? (value ?? '') : (value ?? '').slice(start, end),
-        total: value?.length ?? 0,
+        text: full ? (value?.full() ?? '') : window.slice(start - sliceStart, end - sliceStart),
+        total: value?.total ?? 0,
         offset: start,
         missing: value === undefined,
       };
@@ -193,6 +199,7 @@ export function compareJsonTexts(leftText: string, rightText: string): JsonDiffR
   return createJsonComparison(leftText, rightText).next();
 }
 export type JsonCompareWorkerRequest =
+  | { releaseValues: true }
   | { leftText: string; rightText: string }
   | { next: true }
   | { value: { id: number; path: Array<string | number>; side: JsonDiffSide; offset: number; full: boolean } };

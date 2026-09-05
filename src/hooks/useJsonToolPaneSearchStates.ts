@@ -1,10 +1,15 @@
 import { usePaneSearchState } from './usePaneSearchState';
+import { useRef } from 'react';
+import { createMonacoSearchCache } from '../utils/monacoSearchCache';
 
 export function useJsonToolPaneSearchStates() {
   const leftPaneSearch = usePaneSearchState();
   const rightPaneSearch = usePaneSearchState();
+  const rightCache = useRef<ReturnType<typeof createMonacoSearchCache> | null>(null);
+  rightCache.current ??= createMonacoSearchCache();
 
   return {
+    rightSearchCache: rightCache.current,
     isLeftFindOpen: leftPaneSearch.isFindOpen,
     isLeftSearchLoadingMore: leftPaneSearch.isSearchLoadingMore,
     isRightFindOpen: rightPaneSearch.isFindOpen,

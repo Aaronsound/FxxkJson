@@ -8,6 +8,7 @@ import type {
   WorkerSearchRequest,
 } from '../types/jsonTool';
 import { getMonacoSearchBatch, getReplacementText } from '../utils/jsonEditorInteractions';
+import type { createMonacoSearchCache } from '../utils/monacoSearchCache';
 
 interface UseJsonPaneSearchActionsArgs {
   activeDocumentMeta: TabDocumentMeta;
@@ -34,6 +35,7 @@ interface UseJsonPaneSearchActionsArgs {
   rightEditorRef: RefObject<monaco.editor.IStandaloneCodeEditor | null>;
   rightMatchIndex: number;
   rightMatches: monaco.IRange[];
+  rightSearchCache: ReturnType<typeof createMonacoSearchCache>;
   rightSearchHasMore: boolean;
   rightSearchNextOffset: number;
   rightSearchOptions: JsonSearchOptions;
@@ -75,10 +77,9 @@ export function useJsonPaneSearchActions({
   requestWorkerSearch,
   resetLeftSearchPaging,
   resetRightSearchPaging,
-  rightDecorationIdsRef,
   rightEditorRef,
-  rightMatchIndex,
   rightMatches,
+  rightSearchCache,
   rightSearchHasMore,
   rightSearchNextOffset,
   rightSearchOptions,
@@ -206,23 +207,19 @@ export function useJsonPaneSearchActions({
       return;
     }
 
-    const result = getMonacoSearchBatch(model, rightSearchTerm, rightSearchOptions, rightSearchNextOffset);
+    const result = getMonacoSearchBatch(
+      model,
+      rightSearchTerm,
+      rightSearchOptions,
+      rightSearchNextOffset,
+      undefined,
+      rightSearchCache.get(model)
+    );
     const nextMatches = [...rightMatches, ...result.ranges];
-    const activeIndex =
-      nextMatches.length > 0 ? ((rightMatchIndex % nextMatches.length) + nextMatches.length) % nextMatches.length : 0;
 
     setRightMatches(nextMatches);
     setRightSearchHasMore(result.hasMore);
     setRightSearchNextOffset(result.nextStartOffset);
-    rightDecorationIdsRef.current = editor.deltaDecorations(
-      rightDecorationIdsRef.current,
-      nextMatches.map((range, index) => ({
-        range,
-        options: {
-          inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
-        },
-      }))
-    );
   };
 
   const handleLeftSearchTermChange = (value: string) => {

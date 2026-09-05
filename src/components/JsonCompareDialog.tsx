@@ -1,11 +1,12 @@
 import type React from 'react';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useModalFocusManagement } from '../hooks/useModalFocusManagement';
 import type { Tab } from '../types/jsonTool';
-import { MAX_DIFFS, type JsonDiffEntry, type JsonDiffType } from '../utils/jsonDiff';
+import { MAX_DIFFS, type JsonDiffEntry } from '../utils/jsonDiff';
 import { useJsonComparison } from '../hooks/useJsonComparison';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 import { JsonCompareDetails } from './JsonCompareDetails';
+import { JsonCompareList } from './JsonCompareList';
 
 interface JsonCompareDialogProps {
   tabs: Tab[];
@@ -16,23 +17,11 @@ interface JsonCompareDialogProps {
   t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
 
-type Translator = (key: I18nKey, params?: Record<string, string | number>) => string;
 const defaultT = createTranslator('zh');
-
-const diffTypeLabelKey: Record<JsonDiffType, I18nKey> = {
-  added: 'compare.added',
-  removed: 'compare.removed',
-  changed: 'compare.changed',
-};
+const EMPTY_DIFFS: JsonDiffEntry[] = [];
 
 function getDefaultRightTabId(tabs: Tab[], activeTabId: string) {
   return tabs.find((tab) => tab.id !== activeTabId)?.id ?? activeTabId;
-}
-
-function getSummary(diffs: JsonDiffEntry[], t: Translator) {
-  const counts = { added: 0, removed: 0, changed: 0 };
-  for (const diff of diffs) counts[diff.type] += 1;
-  return t('compare.summary', counts);
 }
 
 const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
@@ -46,19 +35,19 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
   const [leftTabId, setLeftTabId] = useState(activeTabId);
   const [rightTabId, setRightTabId] = useState(() => getDefaultRightTabId(tabs, activeTabId));
   const [page, setPage] = useState(0);
-  const { result, isComparing, error, compare, reset, loadMore, getValue } = useJsonComparison();
+  const { result, isComparing, error, compare, reset, loadMore, getValue, getPage, releaseValues } =
+    useJsonComparison();
   const [selectedDiff, setSelectedDiff] = useState<JsonDiffEntry | null>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  const lastLoadedPage = Math.max(0, Math.ceil((result?.diffs.length ?? 0) / MAX_DIFFS) - 1);
+  const lastLoadedPage = Math.max(0, (result?.pageCount ?? 0) - 1);
   const visiblePage = Math.min(page, lastLoadedPage);
-  const visibleDiffs = result?.diffs.slice(visiblePage * MAX_DIFFS, (visiblePage + 1) * MAX_DIFFS) ?? [];
+  const visibleDiffs = getPage(visiblePage) ?? EMPTY_DIFFS;
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalFocusManagement(dialogRef, onClose);
 
   const canCompare = tabs.length >= 2 && leftTabId !== rightTabId;
   const selectedLeftTitle = tabs.find((tab) => tab.id === leftTabId)?.title ?? t('compare.left');
   const selectedRightTitle = tabs.find((tab) => tab.id === rightTabId)?.title ?? t('compare.right');
-  const summary = useMemo(() => (result ? getSummary(result.diffs, t) : t('compare.emptySummary')), [result, t]);
+  const summary = result ? t('compare.summary', result.counts) : t('compare.emptySummary');
 
   const handleCompare = () => {
     setSelectedDiff(null);
@@ -68,7 +57,6 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
 
   const changePage = (nextPage: number) => {
     setPage(nextPage);
-    if (listRef.current) listRef.current.scrollTop = 0;
     if (nextPage > lastLoadedPage) loadMore();
   };
 
@@ -142,9 +130,9 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
           <span>{selectedRightTitle}</span>
         </div>
 
-        {result && !result.leftError && !result.rightError && result.diffs.length > 0 && (
+        {result && !result.leftError && !result.rightError && result.total > 0 && (
           <div role="status">
-            {t(result.truncated ? 'compare.truncated' : 'compare.complete', { count: result.diffs.length })}
+            {t(result.truncated ? 'compare.truncated' : 'compare.complete', { count: result.total })}
           </div>
         )}
 
@@ -155,7 +143,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
           </div>
         )}
 
-        {result && !result.leftError && !result.rightError && result.diffs.length === 0 && (
+        {result && !result.leftError && !result.rightError && result.total === 0 && (
           <div className="json-compare-empty">{t('compare.same')}</div>
         )}
 
@@ -165,42 +153,25 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
             diff={selectedDiff}
             getValue={getValue}
             t={t}
-            onClose={() => setSelectedDiff(null)}
+            onClose={() => {
+              setSelectedDiff(null);
+              releaseValues();
+            }}
           />
         )}
-        {!selectedDiff && result && result.diffs.length > 0 && (
-          <div ref={listRef} className="json-compare-list" role="table" aria-label={t('compare.listLabel')}>
-            <div className="json-compare-list-header" role="row">
-              <span>{t('compare.type')}</span>
-              <span>{t('compare.path')}</span>
-              <span>{t('compare.leftValue')}</span>
-              <span>{t('compare.rightValue')}</span>
-            </div>
-            {visibleDiffs.map((diff, index) => (
-              <div className="json-compare-row" role="row" key={`${diff.type}-${diff.pathText}-${index}`}>
-                <span className={`json-compare-type json-compare-type-${diff.type}`}>
-                  {t(diffTypeLabelKey[diff.type])}
-                </span>
-                <span>
-                  <code>{diff.pathText}</code>
-                  <button
-                    type="button"
-                    className="json-compare-detail-button"
-                    onClick={() => setSelectedDiff(diff)}
-                    aria-label={t('compare.viewValueAt', { path: diff.pathText })}
-                  >
-                    {t('compare.viewValue')}
-                  </button>
-                </span>
-                <code>{diff.leftPreview}</code>
-                <code>{diff.rightPreview}</code>
-              </div>
-            ))}
-          </div>
+        {result && result.total > 0 && (
+          <JsonCompareList
+            key={visiblePage}
+            diffs={visibleDiffs}
+            hidden={!!selectedDiff}
+            startIndex={visiblePage * MAX_DIFFS}
+            onSelect={setSelectedDiff}
+            t={t}
+          />
         )}
 
         <div className="modal-actions">
-          {!selectedDiff && result && result.diffs.length > 0 && (
+          {!selectedDiff && result && result.total > 0 && (
             <>
               <span>
                 {t('compare.range', {

@@ -84,10 +84,22 @@ export function createJsonWorkerInteractiveFlow({
   const latestSearchRequests: Record<string, number> = {};
   const latestLocateInputs: Record<string, { offset: number; tabId: string }> = {};
   const latestSearchInputs: Record<string, WorkerSearchRequest> = {};
+  const searchTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const cancelSearch = (tabId: string, target: SearchTarget) => {
+    const key = getSearchRequestKey(target, tabId);
+    const cancelledUnsentText = searchTimers.has(key) && typeof latestSearchInputs[key]?.text === 'string';
+    clearTimeout(searchTimers.get(key));
+    searchTimers.delete(key);
+    delete latestSearchRequests[key];
+    delete latestSearchInputs[key];
+    return cancelledUnsentText;
+  };
   const pendingEditJsonRequests: Record<number, PendingEditJsonRequest> = {};
   const suspendedEditJsonRequests: PendingEditJsonRequest[] = [];
 
   const cancelRequests = (tabId: string) => {
+    cancelSearch(tabId, 'left');
+    cancelSearch(tabId, 'right');
     delete latestLocateRequests[tabId];
     delete latestLocateInputs[tabId];
     delete latestSearchRequests[getSearchRequestKey('left', tabId)];
@@ -166,24 +178,50 @@ export function createJsonWorkerInteractiveFlow({
     const requestId = ++searchRequestCounter;
     const requestKey = getSearchRequestKey(target, tabId);
     latestSearchRequests[requestKey] = requestId;
-    latestSearchInputs[requestKey] = { ...request, target, startOffset, append };
-    const textPayload = typeof text === 'string' ? createWorkerTextPayload(text, textByteLength) : null;
-    postWorkerRequest(
-      {
-        type: 'search',
-        requestId,
-        tabId,
-        target,
-        query,
-        searchOptions,
-        startOffset,
-        append,
-        ...textPayload?.message,
-        textByteLength,
-        rawRevision,
-      },
-      textPayload?.transfer
-    );
+    const previous = latestSearchInputs[requestKey];
+    const inheritPendingText = searchTimers.has(requestKey) && previous?.rawRevision === rawRevision;
+    const inheritedText = typeof text === 'string' ? text : inheritPendingText ? previous?.text : undefined;
+    const inheritedByteLength =
+      typeof text === 'string' ? textByteLength : inheritPendingText ? previous?.textByteLength : undefined;
+    latestSearchInputs[requestKey] = {
+      ...request,
+      text: inheritedText,
+      textByteLength: inheritedByteLength,
+      target,
+      startOffset,
+      append,
+    };
+    clearTimeout(searchTimers.get(requestKey));
+    searchTimers.delete(requestKey);
+    const send = () => {
+      searchTimers.delete(requestKey);
+      if (latestSearchRequests[requestKey] !== requestId || !workerRef.current) return;
+      try {
+        const textPayload =
+          typeof inheritedText === 'string' ? createWorkerTextPayload(inheritedText, inheritedByteLength) : null;
+        postWorkerRequest(
+          {
+            type: 'search',
+            requestId,
+            tabId,
+            target,
+            query,
+            searchOptions,
+            startOffset,
+            append,
+            ...textPayload?.message,
+            textByteLength: inheritedByteLength,
+            rawRevision,
+          },
+          textPayload?.transfer
+        );
+      } catch {
+        applySearchResult({ type: 'search-result', requestId, tabId, target, matches: [], hasMore: false, append });
+      }
+    };
+    // Only coalesce newly typed queries. Explicit pagination remains immediate.
+    if (append) send();
+    else searchTimers.set(requestKey, setTimeout(send, 40));
   };
 
   const sendEditJsonRequest = (
@@ -398,6 +436,8 @@ export function createJsonWorkerInteractiveFlow({
   };
 
   const suspendForRestart = () => {
+    for (const timer of searchTimers.values()) clearTimeout(timer);
+    searchTimers.clear();
     Object.keys(pendingEditJsonRequests).forEach((requestId) => {
       const pending = pendingEditJsonRequests[Number(requestId)];
       if (pending) {
@@ -445,6 +485,7 @@ export function createJsonWorkerInteractiveFlow({
   };
 
   return {
+    cancelSearch,
     cancelRequests,
     handleResult,
     requestEditJson,

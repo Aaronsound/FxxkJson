@@ -93,6 +93,7 @@ const App: React.FC = () => {
     resetRightSearchState,
     rightMatchIndex,
     rightMatches,
+    rightSearchCache,
     rightSearchHasMore,
     rightSearchNextOffset,
     rightSearchOptions,
@@ -373,6 +374,7 @@ const App: React.FC = () => {
     restoreWorkerTabCache,
     removeTabArtifacts,
     requestWorkerSearch,
+    cancelWorkerSearch,
     requestWorkerLocate,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,
@@ -471,6 +473,9 @@ const App: React.FC = () => {
   });
 
   const { closeLeftFind, closeRightFind, openLeftFind, openRightFind } = useJsonToolSearchEffects({
+    cancelWorkerSearch,
+    rightMatches,
+    rightSearchCache,
     ...{ activeDocumentMeta, activeLargeViewerData, activeTab, activeTabId },
     ...{ clearLeftHighlights, clearRightHighlights, getTabContent, isBuildingDedicatedRightViewer },
     ...{ largeRawViewerRef, largeViewerRef, leftEditorRef, leftSearchWorkerRevisionRef },
@@ -678,6 +683,7 @@ const App: React.FC = () => {
     replaceAllLeftMatches,
     replaceLeftMatch,
   } = useJsonPaneSearchActions({
+    rightSearchCache,
     ...{ activeDocumentMeta, activeLeftMatchCount, activeRightMatchCount, activeTab },
     ...{ isBuildingDedicatedRightViewer, isLeftSearchLoadingMore, isRightSearchLoadingMore },
     ...{ leftEditorRef, leftMatches, leftReplaceText, leftSearchHasMore },
