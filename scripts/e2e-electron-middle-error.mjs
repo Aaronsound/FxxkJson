@@ -16,7 +16,10 @@ import { evaluate, waitFor, clickSelector } from './e2e-cdp-helpers.mjs';
 import { createSampleJson } from './e2e-json-fixtures.mjs';
 
 // Use the regular many-record sample, not a single long string or an EOF-only error.
-let originalPath = path.resolve('json/sample-20mb.json');
+let originalPath = path.resolve(
+  'json',
+  process.argv.includes('--generated') ? 'error-edit-source-20mb.json' : 'sample-20mb.json'
+);
 let original;
 try {
   original = await readFile(originalPath, 'utf8');
@@ -90,11 +93,17 @@ try {
         cdp,
         `(() => {
     const viewer = document.querySelector('.left-editor-pane .large-raw-viewer');
-    const mark = viewer?.querySelector('[data-large-raw-highlight="true"]');
-    if (!mark || !mark.textContent.includes(${JSON.stringify(expectedToken)})) return false;
-    const r = mark.getBoundingClientRect(), v = viewer.getBoundingClientRect();
-    if (r.top < v.top || r.bottom > v.bottom || r.left >= v.right || r.right <= v.left) return false;
-    return {text:mark.textContent, scrollRatio:viewer.scrollTop / viewer.scrollHeight};
+    const marks = Array.from(viewer?.querySelectorAll('[data-large-raw-highlight="true"]') ?? []);
+    // Invalid tokenization can split one key across several syntax spans.
+    // Check the complete selected text and every fragment, not just the first quote.
+    const selected = marks.map(mark => mark.textContent).join('');
+    if (!marks.length || !selected.includes(${JSON.stringify(expectedToken)})) return false;
+    const v = viewer.getBoundingClientRect();
+    if (marks.some(mark => {
+      const r = mark.getBoundingClientRect();
+      return r.top < v.top || r.bottom > v.bottom || r.left >= v.right || r.right <= v.left;
+    })) return false;
+    return {text:selected, scrollRatio:viewer.scrollTop / viewer.scrollHeight};
   })()`
       ),
     'middle token visible'
