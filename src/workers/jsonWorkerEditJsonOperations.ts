@@ -13,6 +13,7 @@ import {
 } from '../utils/jsonDocumentMetrics';
 import { escapeJsonStringLiteral, unescapeJsonStringLiteral } from '../utils/jsonEscape';
 import { parseJsonForFormatting } from '../utils/jsonFormat';
+import { findJsonParseError } from '../utils/findJsonParseError';
 import { canInlineJsonTextPatch } from '../utils/jsonTextPatch';
 import { buildLargeLiteralViewerData } from '../utils/largeJsonViewerData';
 import { buildEscapedStringLiteralRawViewerData, buildLargeRawViewerData } from '../utils/largeRawViewerData';
@@ -246,6 +247,12 @@ export function createJsonWorkerEditJsonOperations({
         }
 
         if (operation === 'save') {
+          if (message.preserveRawText) {
+            // Raw-error editing must not reserialize unrelated numbers, keys or whitespace.
+            JSON.parse(text);
+            editJsonCache.delete(tabId);
+            return text;
+          }
           return saveJsonForEdit(tabId, text, originalText, editJsonCache);
         }
 
@@ -334,6 +341,8 @@ export function createJsonWorkerEditJsonOperations({
         requiresOriginalText: err instanceof MissingOriginalJsonTextError,
         requiresText: err instanceof MissingWorkerTextError,
         error: err instanceof Error ? err.message : 'JSON 处理失败',
+        errorKind: err instanceof SyntaxError ? 'syntax' : undefined,
+        errorLocation: err instanceof SyntaxError ? findJsonParseError(text, rawRevision ?? 0) : undefined,
       });
     }
   }

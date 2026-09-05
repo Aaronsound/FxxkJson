@@ -1,3 +1,5 @@
+import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
+
 export interface Tab {
   id: string;
   title: string;
@@ -47,6 +49,7 @@ export interface WorkerSearchRequest {
 }
 
 export interface EditJsonWorkerRequest {
+  preserveRawText?: boolean;
   tabId: string;
   operation: EditJsonWorkerOperation;
   text: string;
@@ -101,6 +104,7 @@ export type WorkerRequestMessage =
   | (WorkerRequestBase & { type: 'locate-right-direct'; offset: number })
   | (WorkerRequestBase & {
       type: 'edit-json';
+      preserveRawText?: boolean;
       operation: EditJsonWorkerRequest['operation'];
       text?: EditJsonWorkerRequest['text'];
       textBuffer?: ArrayBuffer;
@@ -118,6 +122,8 @@ export type WorkerRequestMessage =
     });
 
 export interface WorkerMessage {
+  errorLocation?: JsonErrorLocation;
+  errorKind?: 'syntax';
   type:
     | 'format-result'
     | 'repair-result'

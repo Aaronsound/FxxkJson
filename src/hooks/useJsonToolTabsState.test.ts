@@ -3,6 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_TAB_TITLE } from '../types/jsonTool';
 import { useJsonToolTabsState } from './useJsonToolTabsState';
 
+it('keeps syntax locations tab-scoped and releases them on clear, other errors and close', () => {
+  const { result } = renderHook(() => useJsonToolTabsState({ initialTabId: 'a', initialTabTitle: 'a' }));
+  const location = { offset: 1, length: 1, line: 1, column: 2, rawRevision: 1 };
+  act(() => {
+    result.current.setTabError('a', 'syntax', location);
+    result.current.setTabError('b', 'syntax', location);
+  });
+  expect(result.current.errorLocationsByTab.a).toEqual(location);
+  act(() => result.current.setTabError('a', 'read failed'));
+  expect(result.current.errorLocationsByTab.a).toBeUndefined();
+  expect(result.current.errorLocationsByTab.b).toEqual(location);
+  act(() => result.current.setTabError('b', null));
+  expect(result.current.errorLocationsByTab.b).toBeUndefined();
+  act(() => result.current.setTabError('b', 'syntax', location));
+  act(() => result.current.removeTabState('b'));
+  expect(result.current.errorLocationsByTab.b).toBeUndefined();
+});
+
 describe('useJsonToolTabsState', () => {
   it('initializes every tab-scoped state consistently', () => {
     const { result } = renderHook(() => useJsonToolTabsState({ initialTabId: 'tab-a', initialTabTitle: 'first.json' }));

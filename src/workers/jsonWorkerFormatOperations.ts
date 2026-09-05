@@ -7,6 +7,7 @@ import {
   shouldUseDedicatedRightViewerForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
+import { findJsonParseError } from '../utils/findJsonParseError';
 import { buildLargeLiteralViewerData, buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
 import type { LightweightLocateCache } from '../utils/lightweightLocate';
@@ -374,6 +375,7 @@ export function createJsonWorkerFormatOperations({
         tabId,
         success: false,
         error: err instanceof Error ? err.message : 'JSON 解析失败',
+        errorLocation: err instanceof SyntaxError ? findJsonParseError(text, message.rawRevision ?? 0) : undefined,
       });
     }
   }

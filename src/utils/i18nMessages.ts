@@ -1,5 +1,9 @@
 export const messages = {
   zh: {
+    'error.position': '第 {line} 行，第 {column} 列',
+    'edit.syntaxLocationHint': '已定位到语法错误附近，可直接修改原文，修正后再保存。',
+    'error.locate': '定位错误',
+    'error.locateHint': '仅定位，不修改内容。此处是解析器发现异常的位置；文件末尾错误会标记末尾附近。',
     'toolbar.actions': '操作',
     'toolbar.import': '导入 JSON',
     'toolbar.format': '格式化',
@@ -308,6 +312,11 @@ export const messages = {
     'drag.subtitle': '当前标签会读取拖入的 .json / .txt 文件',
   },
   en: {
+    'error.position': 'Line {line}, column {column}',
+    'edit.syntaxLocationHint': 'Located near the syntax error. Edit the raw text here, then save after correcting it.',
+    'error.locate': 'Locate error',
+    'error.locateHint':
+      'Locate without changing content. This is where parsing detected a problem; end-of-file errors highlight nearby text.',
     'toolbar.actions': 'Actions',
     'toolbar.import': 'Import JSON',
     'toolbar.format': 'Format',

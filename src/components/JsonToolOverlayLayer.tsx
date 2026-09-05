@@ -4,6 +4,7 @@ import ArchitectureWarningDialog from './ArchitectureWarningDialog';
 import type { EditJsonSession } from '../hooks/useJsonEditSession';
 import type { Tab } from '../types/jsonTool';
 import type { I18nKey } from '../utils/i18n';
+import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 const AboutDialog = lazy(() => import('./AboutDialog'));
 const DiagnosticsLogPanel = lazy(() => import('./DiagnosticsLogPanel'));
@@ -16,6 +17,7 @@ interface JsonToolOverlayLayerProps {
   diagnosticsContext: React.ComponentProps<typeof DiagnosticsLogPanel>['context'];
   editJsonBusyLabel: string | null;
   editJsonError: string | null;
+  editJsonErrorLocation?: JsonErrorLocation;
   editJsonSession: EditJsonSession | null;
   getTabText: (tabId: string) => string;
   hasCopiedLiteral: boolean;
@@ -51,6 +53,7 @@ const JsonToolOverlayLayer: React.FC<JsonToolOverlayLayerProps> = ({
   diagnosticsContext,
   editJsonBusyLabel,
   editJsonError,
+  editJsonErrorLocation,
   editJsonSession,
   getTabText,
   hasCopiedLiteral,
@@ -109,6 +112,7 @@ const JsonToolOverlayLayer: React.FC<JsonToolOverlayLayerProps> = ({
           initialValue={editJsonSession.initialValue}
           isDarkMode={isDarkMode}
           error={editJsonError}
+          errorLocation={editJsonErrorLocation}
           busyLabel={editJsonBusyLabel}
           hasCopiedLiteral={hasCopiedLiteral}
           title={editJsonSession.mode === 'node' ? t('edit.nodeTitle') : t('edit.title')}

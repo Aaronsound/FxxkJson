@@ -1,6 +1,6 @@
 {
   "name": "fxxkjson",
-  "version": "1.0.34",
+  "version": "1.0.35",
   "private": true,
   "description": "A desktop JSON formatting, repair, search, compare, and large-file inspection tool.",
   "author": "Alosan",
@@ -44,6 +44,7 @@
     "e2e:electron": "npm run build && node ./scripts/e2e-electron-json-flow.mjs",
     "e2e:electron:compare": "npm run build && node ./scripts/e2e-electron-comparison.mjs",
     "e2e:electron:search": "npm run build && node ./scripts/e2e-electron-search-pagination.mjs",
+    "e2e:electron:errors": "npm run build && node ./scripts/e2e-electron-error-location.mjs && node ./scripts/e2e-electron-middle-error.mjs",
     "e2e:electron:typography": "npm run build && node ./scripts/e2e-electron-typography.mjs",
     "e2e:electron:large": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 5",
     "e2e:electron:large20": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 20",

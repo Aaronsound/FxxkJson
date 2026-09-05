@@ -35,6 +35,8 @@ export interface JsonToolToolbarProps {
   currentStructureStatus: StructureStatus;
   processingStageText: string | null;
   currentError: string | null;
+  currentErrorLocation?: import('../utils/jsonErrorLocation').JsonErrorLocation;
+  onLocateError?: () => void;
   accentTheme?: AppAccentTheme;
   onAccentThemeChange?: (theme: AppAccentTheme) => void;
   language?: AppLanguage;
@@ -123,6 +125,8 @@ type JsonToolToolbarFeedbackProps = Pick<
   JsonToolToolbarProps,
   | 'canEnableLargeFileLocate'
   | 'currentError'
+  | 'currentErrorLocation'
+  | 'onLocateError'
   | 'currentStructureStatus'
   | 'importingFileName'
   | 'isLargeFileLocateEnabled'
@@ -136,6 +140,8 @@ type JsonToolToolbarFeedbackProps = Pick<
 export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = ({
   canEnableLargeFileLocate,
   currentError,
+  currentErrorLocation,
+  onLocateError,
   currentStructureStatus,
   importingFileName,
   isLargeFileLocateEnabled,
@@ -183,10 +189,29 @@ export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = (
           )}
           {currentError && (
             <span className="toolbar-error" title={currentError}>
+              {currentErrorLocation && (
+                <span className="json-error-position">
+                  {t('error.position', {
+                    line: currentErrorLocation.line,
+                    column: currentErrorLocation.column,
+                  })}{' '}
+                  ·{' '}
+                </span>
+              )}
               {currentError}
             </span>
           )}
         </div>
+        {currentError && currentErrorLocation && onLocateError && (
+          <button
+            type="button"
+            className="toolbar-feedback-action locate-json-error"
+            onClick={onLocateError}
+            title={t('error.locateHint')}
+          >
+            {t('error.locate')}
+          </button>
+        )}
         {currentError && (
           <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
             {t('toolbar.diagnostics')}

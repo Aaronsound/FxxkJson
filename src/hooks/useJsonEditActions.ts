@@ -19,6 +19,7 @@ import type { EditJsonSession } from './useJsonEditSession';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { applyJsonNodeMutationArtifacts } from './applyJsonNodeMutationArtifacts';
 import { applyJsonTextPatch } from '../utils/jsonTextPatch';
+import { JsonValidationError, type JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 type EditJsonTransformOperation = Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>;
 
@@ -45,7 +46,7 @@ interface UseJsonEditActionsArgs {
   requestWorkerEditJsonResult: (request: EditJsonWorkerRequest) => Promise<WorkerMessage>;
   resetSearchState: () => void;
   setEditJsonBusyLabel: (label: string | null) => void;
-  setEditJsonError: (error: string | null) => void;
+  setEditJsonError: (error: string | null, location?: JsonErrorLocation) => void;
   setLargeRawViewerData: (tabId: string, data: LargeRawViewerData | null) => void;
   setLargeViewerData: (tabId: string, data: LargeJsonViewerData | null) => void;
   setLargeViewerStatus: (tabId: string, status: 'idle' | 'building' | 'ready') => void;
@@ -136,6 +137,7 @@ export function useJsonEditActions({
         originalText: original,
         rawRevision: getRawRevision(currentTabId),
         reuseOriginalText: isNodeEdit,
+        preserveRawText: !isNodeEdit && editJsonSession?.rawSource,
         path: editJsonSession?.path,
       });
       const updated =
@@ -166,7 +168,12 @@ export function useJsonEditActions({
         queueFormatAfterEditSave(currentTabId, updated, metrics);
       }
     } catch (error) {
-      setEditJsonError(error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败');
+      const message = error instanceof Error ? `保存 JSON 失败：${error.message}` : '保存 JSON 失败';
+      if (error instanceof JsonValidationError) {
+        setEditJsonError(message, error.location);
+      } else {
+        setEditJsonError(message);
+      }
       setEditJsonBusyLabel(null);
     }
   };

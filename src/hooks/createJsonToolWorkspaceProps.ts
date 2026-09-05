@@ -52,6 +52,8 @@ type JsonToolOverlayInput = {
   diagnosticsContext: JsonToolOverlayLayerProps['diagnosticsContext'];
   editJsonBusyLabel: JsonToolOverlayLayerProps['editJsonBusyLabel'];
   editJsonError: JsonToolOverlayLayerProps['editJsonError'];
+  editJsonErrorLocation?: JsonToolOverlayLayerProps['editJsonErrorLocation'];
+  clearEditJsonError?: () => void;
   editJsonSession: JsonToolOverlayLayerProps['editJsonSession'];
   editJsonValueRef: React.MutableRefObject<string>;
   getTabContent: JsonToolOverlayLayerProps['getTabText'];
@@ -82,6 +84,8 @@ type JsonToolToolbarInput = {
   canEditJson: JsonToolToolbarProps['canEditJson'];
   canEnableLargeFileLocate: JsonToolToolbarProps['canEnableLargeFileLocate'];
   currentError: JsonToolToolbarProps['currentError'];
+  currentErrorLocation?: JsonToolToolbarProps['currentErrorLocation'];
+  handleLocateError?: JsonToolToolbarProps['onLocateError'];
   currentStructureStatus: JsonToolToolbarProps['currentStructureStatus'];
   handleClear: JsonToolToolbarProps['onClear'];
   handleEscapeJson: JsonToolToolbarProps['onEscapeJson'];

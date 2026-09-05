@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StructureStatus, WorkerMessage, WorkerRequestMessage } from '../types/jsonTool';
 import { DEFAULT_SEARCH_OPTIONS, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { packSearchMatches } from '../utils/searchMatchPayload';
+import { JsonValidationError } from '../utils/jsonErrorLocation';
 import { createJsonWorkerInteractiveFlow, type JsonWorkerInteractiveCallbacks } from './jsonWorkerInteractiveFlow';
 
 function recordRef<T>(current: Record<string, T>) {
@@ -72,6 +73,26 @@ function asResult(message: WorkerMessage) {
 }
 
 describe('createJsonWorkerInteractiveFlow', () => {
+  it('preserves syntax diagnostics when rejecting an edit request', async () => {
+    const { flow, requests } = createFlow();
+    const edit = flow.requestEditJson({ tabId: 'tab-a', operation: 'format', text: '{' });
+    const requestId = 'requestId' in requests[0] ? requests[0].requestId : -1;
+    const location = { offset: 1, length: 0, line: 1, column: 2, rawRevision: 4 };
+    flow.handleResult(
+      asResult({
+        type: 'edit-json-result',
+        requestId,
+        tabId: 'tab-a',
+        success: false,
+        error: 'invalid',
+        errorKind: 'syntax',
+        errorLocation: location,
+      })
+    );
+    await expect(edit).rejects.toBeInstanceOf(JsonValidationError);
+    await expect(edit).rejects.toMatchObject({ message: 'invalid', location });
+  });
+
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
   it('coalesces new queries before encoding and keeps left text and right requests isolated', () => {

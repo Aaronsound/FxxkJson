@@ -37,6 +37,10 @@ When the window is narrow, less-frequent actions move into the **More** menu ins
 
 Put content in the left pane and select **Format**. The indented result appears on the right. Folding and line wrapping on the right do not alter the raw source.
 
+Formatting syntax errors with an available source location show a line, column, and **Locate error** action. Click it to scroll to and briefly highlight the raw text without editing or repairing it. Locations are invalidated after edits and refreshed by formatting. The parser detects the problem at this position, but its cause may be earlier; end-of-file errors highlight nearby text.
+
+When the large-file raw viewer is read-only, use the existing **Edit JSON** action to open invalid raw text near the error; no successful repair is required first. **Update raw JSON** validates before saving. If validation fails, the dialog retains your draft and locates the error so you can keep editing. Cancel leaves the source unchanged. **Repair JSON** remains the automatic repair option.
+
 ### Repair JSON
 
 Select **Repair JSON** when the input contains common non-standard syntax or malformed JSON. A successful repair updates and formats the document; otherwise the app reports an error.

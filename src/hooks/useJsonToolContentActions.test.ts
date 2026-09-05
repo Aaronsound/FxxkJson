@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import { useJsonToolContentActions } from './useJsonToolContentActions';
+import { JsonValidationError } from '../utils/jsonErrorLocation';
 
 type ContentActionArgs = Parameters<typeof useJsonToolContentActions>[0];
 
@@ -58,6 +59,25 @@ function createArgs(formattedRawRevision = 2, overrides: Partial<ContentActionAr
 }
 
 describe('useJsonToolContentActions edit cache', () => {
+  const location = { offset: 7, length: 1, line: 1, column: 8, rawRevision: 3 };
+  it('opens known invalid raw text directly at its error without another format', async () => {
+    const { args } = createArgs(3, { currentErrorLocation: location, getTabContent: () => '{"a":1 "b":2}' });
+    await useJsonToolContentActions(args).handleOpenEditJson();
+    expect(args.openDocumentEditSession).toHaveBeenCalledWith('{"a":1 "b":2}', location);
+    expect(args.requestWorkerEditJson).not.toHaveBeenCalled();
+    expect(args.updateTabContent).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the exact raw text on syntax failure, but ignores stale locations', async () => {
+    const { args } = createArgs(2, { currentErrorLocation: { ...location, rawRevision: 2 } });
+    vi.mocked(args.requestWorkerEditJson).mockRejectedValueOnce(new JsonValidationError('invalid', location));
+    await useJsonToolContentActions(args).handleOpenEditJson();
+    expect(args.requestWorkerEditJson).toHaveBeenCalledOnce();
+    expect(args.openDocumentEditSession).toHaveBeenCalledWith('{"raw":true}', location);
+    expect(args.setTabError).not.toHaveBeenCalled();
+    expect(args.setEditJsonBusyLabel).toHaveBeenLastCalledWith(null);
+  });
+
   it('opens the formatted cache when it matches the current raw revision', async () => {
     const { args, openDocumentEditSession, requestWorkerEditJson } = createArgs(3);
 

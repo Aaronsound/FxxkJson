@@ -1,18 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import type { JsonEditPath } from '../types/jsonTool';
 import { formatJsonPath } from '../utils/jsonPath';
+import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 export type EditJsonSession = {
   key: number;
   initialValue: string;
   mode: 'document' | 'node';
+  rawSource?: boolean;
   path?: JsonEditPath;
   pathText?: string;
 };
 
 export function useJsonEditSession() {
   const [editJsonSession, setEditJsonSession] = useState<EditJsonSession | null>(null);
-  const [editJsonError, setEditJsonError] = useState<string | null>(null);
+  const [editJsonError, setErrorMessage] = useState<string | null>(null);
+  const [editJsonErrorLocation, setErrorLocation] = useState<JsonErrorLocation | undefined>();
+  const setEditJsonError = (message: string | null, location?: JsonErrorLocation) => {
+    setErrorMessage(message);
+    setErrorLocation(location);
+  };
   const [editJsonBusyLabel, setEditJsonBusyLabel] = useState<string | null>(null);
   const [hasCopiedLiteral, setHasCopiedLiteral] = useState(false);
   const editJsonValueRef = useRef('');
@@ -26,14 +33,16 @@ export function useJsonEditSession() {
     setHasCopiedLiteral(false);
   };
 
-  const openDocumentEditSession = (initialValue: string) => {
+  const openDocumentEditSession = (initialValue: string, location?: JsonErrorLocation) => {
     editJsonValueRef.current = initialValue;
     setEditJsonError(null);
+    setErrorLocation(location);
     clearCopyLiteralNotice();
     setEditJsonSession({
       key: Date.now(),
       initialValue,
       mode: 'document',
+      rawSource: Boolean(location),
     });
   };
 
@@ -80,6 +89,7 @@ export function useJsonEditSession() {
     closeEditJson,
     editJsonBusyLabel,
     editJsonError,
+    editJsonErrorLocation,
     editJsonSession,
     editJsonValueRef,
     hasCopiedLiteral,

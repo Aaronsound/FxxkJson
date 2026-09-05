@@ -1,22 +1,22 @@
 ## 本次更新
 
-- 提升 20MB 以上 JSON 的导入、格式化、连续转义与反转义速度，并严格保留原始空格、缩进和换行。
-- 精简大文件关键路径中的全文扫描、字符串复制和 Worker 传输，让格式化结果更快显示，同时保持搜索、定位、折叠和编辑语义不变。
-- 加强 Worker 异常恢复、超时清理和多标签缓存回收，避免关闭标签或通信异常后继续占用大文本和过期任务。
-- 稳定搜索、性能记录、编辑器同步和标签操作回调，减少无关重绘与重复副作用，并修复双栏搜索关闭等交互边界。
-- 将编辑、对比、诊断、关于和节点操作弹窗改为按需加载，使主程序包由约 277KB 降至 221KB，并加入持续体积门槛。
-- 强化新建标签入口、标签级状态提示和窄窗口交互，同时扩充跨平台 Electron E2E、性能、内存与编排测试。
-- 更新中英文 README、使用指南、真实应用演示和 GitHub 分享图片，并加强 macOS 与 Windows 发布前校验。
+- JSON 语法错误现在显示行列信息，并支持“定位错误”，普通文件和大文件均可定位，原有自动修复行为不变。
+- 通过现有“编辑 JSON”直接打开错误原文，跳到错误附近；保存失败不丢失草稿，仍在弹窗内定位并继续修改。修正原文后保存保留其他数字写法、空格和换行。
+- JSON 对比在独立 Worker 中执行，每批 2,000 条，可继续加载全部差异；支持查看、分段阅读和复制完整差异值。
+- 改善大整数、高精度小数及深层 JSON 对比的准确性；差异列表按视口绘制，长值按需读取，减少内存和重复计算。
+- 减少连续搜索的大文本扫描与传输，修复右侧搜索切换时丢失已加载匹配项的问题。
+- 关闭、清空标签或替换导入任务时中止过期读取，避免迟到结果覆盖新内容。
+- 更新中英文使用指南，并在 macOS、Windows 发布前增加错误定位与 20MB 手动编辑回归测试。
 
 ## What's New
 
-- Accelerated import, formatting, repeated escape, and unescape operations for JSON files of 20MB and beyond while preserving original whitespace exactly.
-- Removed redundant full-document scans, string copies, and worker transfers from large-file critical paths so results appear sooner without changing search, locate, folding, or edit semantics.
-- Hardened worker recovery, timeout cleanup, and multi-tab cache eviction to release large text and obsolete work promptly after failures or tab closure.
-- Stabilized search, performance tracking, editor synchronization, and tab callbacks to reduce unrelated renders and repeated effects, including dual-pane search edge cases.
-- Lazy-loaded edit, compare, diagnostics, about, and node-action dialogs, reducing the main App bundle from about 277KB to 221KB with a dedicated size budget.
-- Refined new-tab access, tab-scoped status guidance, and narrow-window interactions while expanding cross-platform Electron E2E, performance, memory, and orchestration coverage.
-- Refreshed the bilingual README, user guides, real-app demos, and GitHub social image, with stronger macOS and Windows release validation.
+- Syntax errors now include line/column details and a Locate error action for both regular and large files, without changing automatic repair behavior.
+- Open invalid raw text through the existing Edit JSON dialog near the error. Failed saves retain the draft and locate the error inside the dialog. Saving corrected raw text preserves unrelated number representations and whitespace.
+- Run JSON comparisons in a dedicated worker and load all differences in resumable 2,000-entry batches; inspect, page through, and copy complete difference values.
+- Improve comparison accuracy for large integers, precise decimals, and deeply nested JSON. Render nearby difference rows and read long values on demand to reduce memory use and repeated work.
+- Reduce full-text scans and transfers during consecutive searches, and retain loaded right-editor matches when navigating results.
+- Abort obsolete imports when tabs are closed, cleared, or replaced so late results cannot overwrite newer content.
+- Update the bilingual user guides and add error-navigation and 20MB manual-edit regression tests before macOS and Windows packaging.
 
 ## 下载说明
 

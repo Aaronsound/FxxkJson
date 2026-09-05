@@ -89,6 +89,26 @@ describe('createJsonWorkerFormatOperations', () => {
     expect(harness.viewerCache.has('tab-a')).toBe(false);
   });
 
+  it('attaches raw revision and source coordinates only to failed syntax parsing', () => {
+    const harness = createHarness();
+    harness.operations.handleFormatMessage(formatRequest({ text: '{\n"x":1\n"y":2}', rawRevision: 7 }));
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'format-result',
+        success: false,
+        errorLocation: expect.objectContaining({ line: 3, column: 1, offset: 8, rawRevision: 7 }),
+      })
+    );
+    postMessage.mockClear();
+    harness.operations.handleFormatMessage(formatRequest({ text: '{"x":1}', requestId: 2, rawRevision: 8 }));
+    const result = postMessage.mock.calls.find(([message]) => message.type === 'format-result')?.[0];
+    expect(result?.success).toBe(true);
+    expect(result?.errorLocation).toBeUndefined();
+    postMessage.mockClear();
+    harness.operations.handleFormatMessage(formatRequest({ text: '', reuseText: true, rawRevision: 99 }));
+    expect(postMessage.mock.calls[0][0].errorLocation).toBeUndefined();
+  });
+
   it('formats JSON, records raw metadata, and publishes structure readiness', async () => {
     const harness = createHarness();
 

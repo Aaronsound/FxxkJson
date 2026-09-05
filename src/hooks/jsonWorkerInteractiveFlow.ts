@@ -12,6 +12,7 @@ import type {
   WorkerSearchRequest,
 } from '../types/jsonTool';
 import { unpackSearchMatches } from '../utils/searchMatchPayload';
+import { JsonValidationError } from '../utils/jsonErrorLocation';
 
 type WorkerRef = MutableRefObject<Worker | null>;
 type WorkerRecordRef<T> = MutableRefObject<Record<string, T>>;
@@ -240,6 +241,7 @@ export function createJsonWorkerInteractiveFlow({
       originalTextByteLength,
       rawRevision,
       reuseOriginalText,
+      preserveRawText,
       path,
       offset,
       searchTerm,
@@ -276,6 +278,7 @@ export function createJsonWorkerInteractiveFlow({
         ...originalMessage,
         originalTextByteLength,
         rawRevision,
+        preserveRawText,
         path,
         offset,
         searchTerm,
@@ -426,7 +429,11 @@ export function createJsonWorkerInteractiveFlow({
             formattedText: formattedText ?? message.formattedText,
           });
         } else {
-          pending.reject(new Error(message.error ?? 'JSON 处理失败'));
+          pending.reject(
+            message.errorKind === 'syntax'
+              ? new JsonValidationError(message.error ?? 'JSON 处理失败', message.errorLocation)
+              : new Error(message.error ?? 'JSON 处理失败')
+          );
         }
       }
       return true;

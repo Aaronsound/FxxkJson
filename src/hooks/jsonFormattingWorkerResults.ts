@@ -10,6 +10,7 @@ import { DEDICATED_RIGHT_VIEWER_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types
 import { resolveJsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
 import { getFormatWorkerResult, getRepairWorkerResult } from '../utils/jsonWorkerResponse';
 import type { PerformanceSession } from './useJsonPerformanceTracking';
+import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 interface JsonFormattingWorkerResultCallbacks {
   logEvent: (event: string, details?: Record<string, unknown>) => void;
@@ -21,7 +22,7 @@ interface JsonFormattingWorkerResultCallbacks {
   setLocateFeedback: (tabId: string, feedback: null) => void;
   setProcessingStage: (tabId: string, stage: ProcessingStage) => void;
   setStructureStatus: (tabId: string, status: StructureStatus) => void;
-  setTabError: (tabId: string, message: string | null) => void;
+  setTabError: (tabId: string, message: string | null, location?: JsonErrorLocation) => void;
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
   syncPerformanceSnapshot: (tabId: string, shouldLog?: boolean) => void;
@@ -213,7 +214,8 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
       error: result.error ?? 'JSON parse failed',
     });
     callbacks.updateFormattedContent(tabId, '', true, 0, performanceSession?.rawBytes);
-    callbacks.setTabError(tabId, result.error ?? 'JSON 解析失败');
+    if (message.errorLocation) callbacks.setTabError(tabId, result.error ?? 'JSON 解析失败', message.errorLocation);
+    else callbacks.setTabError(tabId, result.error ?? 'JSON 解析失败');
     callbacks.setStructureStatus(tabId, 'disabled');
     return true;
   }

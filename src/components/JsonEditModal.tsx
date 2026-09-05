@@ -25,6 +25,7 @@ import JsonMonacoEditor from './JsonMonacoEditor';
 import OperationNotice from './OperationNotice';
 import PaneFindWidget from './PaneFindWidget';
 import ContextMenuSurface from './ContextMenuSurface';
+import { getErrorHighlightRange, type JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 const EDIT_MODAL_SEARCH_BATCH_SIZE = 50000;
 
@@ -33,6 +34,7 @@ interface JsonEditModalProps {
   initialValue: string;
   isDarkMode: boolean;
   error: string | null;
+  errorLocation?: JsonErrorLocation;
   busyLabel: string | null;
   hasCopiedLiteral: boolean;
   title?: string;
@@ -72,6 +74,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
   initialValue,
   isDarkMode,
   error,
+  errorLocation,
   busyLabel,
   hasCopiedLiteral,
   title = '编辑 JSON',
@@ -108,8 +111,27 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     foldOverlayLeft,
     handleToggleFoldControl,
     resetEditFoldControls,
+    revealEditLine,
     scheduleFoldControlsUpdate,
   } = useJsonEditFolding(editorRef);
+  const revealValidationError = useCallback(
+    (editor: monaco.editor.IStandaloneCodeEditor) => {
+      const model = editor.getModel();
+      if (!model || !errorLocation) return;
+      const { start, end } = getErrorHighlightRange(model.getValue(), errorLocation);
+      const from = model.getPositionAt(start);
+      const to = model.getPositionAt(end);
+      revealEditLine(from.lineNumber);
+      const selection = new monaco.Selection(from.lineNumber, from.column, to.lineNumber, to.column);
+      editor.setSelection(selection);
+      editor.revealRangeInCenter(selection);
+      editor.focus();
+    },
+    [errorLocation, revealEditLine]
+  );
+  useEffect(() => {
+    if (editorRef.current) revealValidationError(editorRef.current);
+  }, [revealValidationError]);
   const isEditFindOpen = useCallback(() => editSearch.isFindOpenRef.current, [editSearch.isFindOpenRef]);
 
   useEffect(() => {
@@ -283,6 +305,8 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
     refreshEditFoldingControls(editor);
     scheduleFoldControlsUpdate();
     window.setTimeout(() => {
+      if (editorRef.current !== editor) return;
+      revealValidationError(editor);
       editor.focus();
     }, 0);
 
@@ -514,7 +538,14 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
         </div>
 
         {busyLabel && <div className="modal-error">{busyLabel}</div>}
-        {error && <div className="modal-error">{error}</div>}
+        {(error || errorLocation) && (
+          <div className="modal-error" role="alert">
+            {errorLocation && (
+              <span>{t('error.position', { line: errorLocation.line, column: errorLocation.column })} · </span>
+            )}
+            {error || t('edit.syntaxLocationHint')}
+          </div>
+        )}
         {transformError && <div className="modal-error">{transformError}</div>}
         {hasCopiedLiteral && <OperationNotice>{t('edit.copiedLiteral')}</OperationNotice>}
 

@@ -18,6 +18,7 @@ import {
   shouldUseLargeModeForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { buildEscapedStringLiteralRawViewerData } from '../utils/largeRawViewerData';
+import { JsonValidationError, type JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 type EscapeOperation = Extract<EditJsonWorkerOperation, 'escape-json' | 'unescape-json'>;
 
@@ -29,6 +30,7 @@ function isFormattedJsonContainer(text: string) {
 interface UseJsonToolContentActionsArgs {
   activeTab: Tab | null;
   activeDocumentMeta: TabDocumentMeta;
+  currentErrorLocation?: JsonErrorLocation;
   beginPerformanceSession: (
     tabId: string,
     trigger: 'manual-format' | 'repair',
@@ -44,7 +46,7 @@ interface UseJsonToolContentActionsArgs {
   leftEditorRef: MutableRefObject<monaco.editor.IStandaloneCodeEditor | null>;
   leftSearchWorkerRevisionRef: MutableRefObject<Record<string, number>>;
   largeModeRef: MutableRefObject<Record<string, boolean>>;
-  openDocumentEditSession: (value: string) => void;
+  openDocumentEditSession: (value: string, location?: JsonErrorLocation) => void;
   queueFormat: (
     tabId: string,
     text: string,
@@ -81,6 +83,7 @@ interface UseJsonToolContentActionsArgs {
 export function useJsonToolContentActions({
   activeTab,
   activeDocumentMeta,
+  currentErrorLocation,
   beginPerformanceSession,
   clearPerformanceState,
   clearTabStructure,
@@ -271,8 +274,12 @@ export function useJsonToolContentActions({
     }
 
     setEditJsonBusyLabel('正在准备编辑内容...');
+    const raw = getTabContent(activeTab.id);
     try {
-      const raw = getTabContent(activeTab.id);
+      if (currentErrorLocation?.rawRevision === activeDocumentMeta.rawRevision) {
+        openDocumentEditSession(raw, currentErrorLocation);
+        return;
+      }
       const cachedFormatted = getFormattedContent(activeTab.id);
       if (cachedFormatted && activeDocumentMeta.formattedRawRevision === activeDocumentMeta.rawRevision) {
         openDocumentEditSession(cachedFormatted);
@@ -281,6 +288,10 @@ export function useJsonToolContentActions({
       const formatted = await requestWorkerEditJson({ tabId: activeTab.id, operation: 'format', text: raw });
       openDocumentEditSession(formatted);
     } catch (error) {
+      if (error instanceof JsonValidationError) {
+        openDocumentEditSession(raw, error.location);
+        return;
+      }
       setTabError(activeTab.id, error instanceof Error ? `打开 JSON 编辑失败：${error.message}` : '打开 JSON 编辑失败');
     } finally {
       setEditJsonBusyLabel(null);

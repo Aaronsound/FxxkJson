@@ -2,8 +2,12 @@
 
 ## 未发布 / Unreleased
 
+## v1.0.35 - 2026-09-06
+
 ### 中文
 
+- 允许通过现有“编辑 JSON”打开错误原文并定位语法错误；保存失败时保留草稿并在弹窗内定位，仅展开遮挡错误的折叠区域。修正原文后保存不会重新序列化其他内容。
+- 格式化语法错误增加行列信息及“定位错误”按钮；按需跳转并短暂标记左侧原文，支持大文件与 CRLF 换行，内容变更后禁用过期位置，保留原有自动修复行为。
 - 修复右侧普通编辑器搜索在切换匹配项时丢失已加载结果的问题；复用搜索索引，仅更新前后两项的当前匹配高亮。
 - 合并短时间内连续输入的搜索请求，在编码和传输大文本之前跳过过期查询；关闭搜索时取消待发送请求，加载更多仍立即执行。
 - 按块索引超长差异字符串，按需序列化详情片段，避免预先保留完整序列化副本；返回差异列表时释放详情读取缓存，完整复制保持不变。
@@ -18,6 +22,8 @@
 
 ### English
 
+- Open invalid raw JSON through the existing Edit JSON dialog at the syntax error. Failed saves retain the draft and locate the error inside the dialog, expanding only enclosing folds. Save corrected raw text without reserializing unrelated content.
+- Add line/column details and an explicit Locate error action for formatting syntax errors, briefly highlighting the raw source without changing it. Support large files and CRLF, invalidate stale locations after edits, and preserve existing repair behavior.
 - Preserve loaded search matches when navigating the regular right editor; reuse search indexes and update only the previous and current active-match decorations.
 - Coalesce rapidly typed search requests before encoding and transferring large text; cancel queued requests when search closes while keeping explicit pagination immediate.
 - Index long difference strings by block and serialize detail sections on demand instead of retaining full serialized copies; release readers when returning to the list while preserving full-value copying.

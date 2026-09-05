@@ -233,6 +233,23 @@ describe('handleJsonFormattingWorkerResult', () => {
     expect(session).toMatchObject({ error: 'bad json', status: 'failed' });
   });
 
+  it('forwards source locations only for the current request', () => {
+    const { callbacks, context } = createContext();
+    const location = { offset: 4, length: 1, line: 2, column: 1, rawRevision: 3 };
+    const message: WorkerMessage = {
+      type: 'format-result',
+      requestId: 99,
+      tabId: 'tab-a',
+      success: false,
+      error: 'bad JSON',
+      errorLocation: location,
+    };
+    handleJsonFormattingWorkerResult(message, context);
+    expect(callbacks.setTabError).not.toHaveBeenCalled();
+    handleJsonFormattingWorkerResult({ ...message, requestId: 1 }, context);
+    expect(callbacks.setTabError).toHaveBeenCalledWith('tab-a', 'bad JSON', location);
+  });
+
   it('applies a successful repair result and resets search state', () => {
     const rawViewerData = {
       lengths: new Uint16Array([7]),

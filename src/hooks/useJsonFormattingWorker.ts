@@ -19,6 +19,7 @@ import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { useJsonWorkerCallbacksRef } from './useJsonWorkerCallbacksRef';
 import { useJsonWorkerInternalRefs } from './useJsonWorkerInternalRefs';
 import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
+import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 export interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
@@ -47,7 +48,7 @@ export interface UseJsonFormattingWorkerArgs {
   syncPerformanceSnapshot: (tabId: string, shouldLog?: boolean) => void;
   renameTab: (tabId: string, nextTitle: string) => void;
   removeTabState: (tabId: string) => void;
-  setTabError: (tabId: string, message: string | null) => void;
+  setTabError: (tabId: string, message: string | null, location?: JsonErrorLocation) => void;
   setTabImporting: (tabId: string, fileName: string | null) => void;
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;

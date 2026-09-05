@@ -1,7 +1,6 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { saveManualJsonSample } from './manual-json-samples.mjs';
 import { startElectronApp, getAvailablePort, connectAndPrepareElectronPage } from './e2e-electron-app.mjs';
 import { evaluate, waitFor, pressShortcut, insertText, clickSelector, clickButtonByText } from './e2e-cdp-helpers.mjs';
 
@@ -166,18 +165,17 @@ try {
     'reader recreated after release'
   );
   console.log(JSON.stringify({ longValueMB: 20, firstSectionsMs: sectionMs, tailLengths: lengths, reopened: true }));
-  const sampleDir = await mkdtemp(path.join(os.tmpdir(), 'fxxkjson-search-detail-'));
-  await writeFile(
-    path.join(sampleDir, 'search-4500.json'),
+  await saveManualJsonSample(
+    'search-4500.json',
     JSON.stringify(Array.from({ length: 4500 }, (_, i) => ({ needle: i })))
   );
   for (const side of ['left', 'right']) {
-    await writeFile(
-      path.join(sampleDir, `long-${side}.json`),
+    await saveManualJsonSample(
+      `long-${side}.json`,
       JSON.stringify({ message: `${'x'.repeat(20 * 1024 * 1024)}-${side}-needle-🌍` })
     );
   }
-  console.log(`Manual test samples: ${sampleDir}`);
+  console.log(`Manual test samples: ${path.resolve('json')}`);
 } finally {
   cdp?.close();
   app.child.kill('SIGTERM');

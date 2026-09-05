@@ -8,6 +8,7 @@ import {
   type TabDocumentMeta,
 } from '../types/jsonTool';
 import { createTab } from '../utils/jsonToolModels';
+import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 interface UseJsonToolTabsStateOptions {
   initialTabId: string;
@@ -24,6 +25,7 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
   const [errorsByTab, setErrorsByTab] = useState<Record<string, string | null>>({
     [initialTabId]: null,
   });
+  const [errorLocationsByTab, setErrorLocationsByTab] = useState<Record<string, JsonErrorLocation>>({});
   const [importingByTab, setImportingByTab] = useState<Record<string, string | null>>({
     [initialTabId]: null,
   });
@@ -40,8 +42,15 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
     [initialTabId]: 'ready',
   });
 
-  const setTabError = useCallback((tabId: string, message: string | null) => {
+  const setTabError = useCallback((tabId: string, message: string | null, location?: JsonErrorLocation) => {
     setErrorsByTab((current) => ({ ...current, [tabId]: message }));
+    setErrorLocationsByTab((current) => {
+      if (message && location) return { ...current, [tabId]: location };
+      if (!current[tabId]) return current;
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
   }, []);
 
   const setTabImporting = useCallback((tabId: string, fileName: string | null) => {
@@ -108,6 +117,11 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
   }, []);
 
   const removeTabState = useCallback((tabId: string) => {
+    setErrorLocationsByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
     setErrorsByTab((current) => {
       const next = { ...current };
       delete next[tabId];
@@ -156,6 +170,7 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
     cancelRenaming,
     documentMetaByTab,
     errorsByTab,
+    errorLocationsByTab,
     finishRenaming,
     handleRenamingChange,
     importingByTab,
