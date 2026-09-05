@@ -101,6 +101,7 @@ Select **Edit JSON** to open the full-document editor. It supports search and co
 3. Choose the left and right tabs.
 4. Select **Start comparison**.
 5. The result lists added, removed, and changed fields by JSON Path, together with values from both sides.
+6. If there are more than 2,000 differences, select **Load more** to continue. Use **Previous batch** and **Next batch** to revisit loaded results. Counts include only loaded differences until **Comparison complete** confirms the final total.
 
 ![JSON comparison](assets/compare-dialog-en.png)
 
@@ -162,4 +163,3 @@ You installed the Intel x64 build. Install `macos-arm64-*.dmg` instead; large-fi
 ### How should I report a problem?
 
 Open **More → Diagnostics**, copy the diagnostics bundle, and create a [GitHub Issue](https://github.com/Aaronsound/FxxkJson/issues) with your operating system, app version, reproduction steps, and approximate file size. Remove credentials, tokens, personal data, and private JSON from logs and screenshots.
-

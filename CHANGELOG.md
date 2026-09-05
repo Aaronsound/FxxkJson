@@ -2,6 +2,18 @@
 
 ## 未发布 / Unreleased
 
+### 中文
+
+- 为文件选择和读取增加标签级任务校验，防止较早导入的迟到结果或错误覆盖新内容，并在关闭、清空标签时作废导入任务。
+- 将 JSON 对比移至独立 Worker，切换对比文件时清除旧结果并取消计算；支持每批 2,000 条继续加载全部差异、已加载结果翻页和完成后的总数提示。
+- 编辑弹窗搜索按文本版本复用全文和行索引，减少连续搜索及加载更多时的重复扫描；编辑或关闭搜索时释放缓存。
+
+### English
+
+- Guard file selection and reads with tab-scoped task identity so late results or errors cannot overwrite newer imports; invalidate imports when tabs are cleared or closed.
+- Run JSON comparisons in a dedicated worker, clear results and cancel work when inputs change, and load all differences in resumable 2,000-entry batches with navigation and a final total.
+- Reuse versioned text and line indexes for editor-dialog searches and subsequent result batches, releasing cached data when editing or closing search.
+
 ## v1.0.34 - 2026-09-05
 
 ### 中文

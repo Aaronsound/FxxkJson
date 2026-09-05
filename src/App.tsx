@@ -361,6 +361,7 @@ const App: React.FC = () => {
   });
 
   const {
+    beginImport,
     clearTabStructure,
     importJsonFile,
     importJsonText,
@@ -547,6 +548,7 @@ const App: React.FC = () => {
   });
 
   const { handleFileSelection, handleImport } = useJsonImportActions({
+    beginImport,
     activeTab,
     fileInputRef,
     importJsonFile,

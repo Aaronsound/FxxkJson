@@ -108,6 +108,40 @@ function installPerformanceSessionHarness(args: Parameters<typeof useJsonFormatt
 }
 
 describe('useJsonFormattingWorker', () => {
+  it.each(['removeTabArtifacts', 'resetTabArtifacts'] as const)(
+    'invalidates pending file reads on %s',
+    async (action) => {
+      vi.useFakeTimers();
+      vi.stubGlobal('Worker', WorkerMock);
+      const args = createArgs();
+      const { result, unmount } = renderHook(() => useJsonFormattingWorker(args));
+      const nativeTask = result.current.beginImport('tab-a');
+      let finish!: (value: string) => void;
+      const file = {
+        name: 'slow.json',
+        size: 2,
+        text: () =>
+          new Promise<string>((resolve) => {
+            finish = resolve;
+          }),
+      } as File;
+      let pending: Promise<void>;
+      await act(async () => {
+        pending = result.current.importJsonFile('tab-a', file);
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => result.current[action]('tab-a'));
+      expect(nativeTask.isCurrent()).toBe(false);
+      vi.mocked(args.updateTabContent).mockClear();
+      await act(async () => {
+        finish('{}');
+        await pending;
+      });
+      expect(args.updateTabContent).not.toHaveBeenCalled();
+      unmount();
+      vi.useRealTimers();
+    }
+  );
   afterEach(() => {
     vi.unstubAllGlobals();
     WorkerMock.instances = [];

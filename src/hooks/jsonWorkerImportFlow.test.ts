@@ -64,6 +64,79 @@ function createFlow() {
 }
 
 describe('createJsonWorkerImportFlow', () => {
+  it('ignores a slower earlier import after a newer file has finished', async () => {
+    const { flow, callbacks, queueFormatAfterImport } = createFlow();
+    let finishRead!: (text: string) => void;
+    const file = {
+      name: 'old.json',
+      size: 9,
+      text: () =>
+        new Promise<string>((resolve) => {
+          finishRead = resolve;
+        }),
+    } as File;
+    const oldImport = flow.importJsonFile('tab-a', file);
+    await vi.advanceTimersByTimeAsync(0);
+    const nextImport = flow.importJsonText('tab-a', 'new.json', 9, '{"new":1}');
+    await vi.advanceTimersByTimeAsync(0);
+    await nextImport;
+    finishRead('{"old":1}');
+    await oldImport;
+    expect(callbacks.updateTabContent).toHaveBeenCalledTimes(1);
+    expect(callbacks.updateTabContent).toHaveBeenCalledWith('tab-a', '{"new":1}', true, 9);
+    expect(queueFormatAfterImport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['resolve', 'reject'])('ignores %s after an import is cancelled', async (outcome) => {
+    const { flow, callbacks, queueFormatAfterImport, workerStructureEnabledRef } = createFlow();
+    let finishRead!: (text: string) => void;
+    let failRead!: (error: Error) => void;
+    const file = {
+      name: 'old.json',
+      size: 9,
+      text: () =>
+        new Promise<string>((resolve, reject) => {
+          finishRead = resolve;
+          failRead = reject;
+        }),
+    } as File;
+    const pending = flow.importJsonFile('tab-a', file);
+    await vi.advanceTimersByTimeAsync(0);
+    flow.cancelImport('tab-a');
+    delete workerStructureEnabledRef.current['tab-a'];
+    vi.clearAllMocks();
+    if (outcome === 'resolve') finishRead('{"old":1}');
+    else failRead(new Error('late error'));
+    await pending;
+    expect(callbacks.updateTabContent).not.toHaveBeenCalled();
+    expect(callbacks.setTabError).not.toHaveBeenCalled();
+    expect(callbacks.setProcessingStage).not.toHaveBeenCalled();
+    expect(queueFormatAfterImport).not.toHaveBeenCalled();
+    expect(workerStructureEnabledRef.current).toEqual({});
+  });
+
+  it('does not begin reading when cancelled before the next task', async () => {
+    const { flow } = createFlow();
+    const file = { name: 'old.json', size: 2, text: vi.fn().mockResolvedValue('{}') } as unknown as File;
+    const pending = flow.importJsonFile('tab-a', file);
+    flow.cancelAllImports();
+    await vi.advanceTimersByTimeAsync(0);
+    await pending;
+    expect(file.text).not.toHaveBeenCalled();
+  });
+
+  it('rejects late native file content without cancelling a newer task', async () => {
+    const { flow, callbacks } = createFlow();
+    const stale = flow.beginImport('tab-a');
+    const current = flow.beginImport('tab-a');
+    await flow.importJsonText('tab-a', 'old.json', 2, '{}', undefined, stale);
+    expect(callbacks.updateTabContent).not.toHaveBeenCalled();
+    expect(current.isCurrent()).toBe(true);
+    const pending = flow.importJsonText('tab-b', 'other.json', 2, '{}');
+    await vi.advanceTimersByTimeAsync(0);
+    await pending;
+    expect(current.isCurrent()).toBe(true);
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });

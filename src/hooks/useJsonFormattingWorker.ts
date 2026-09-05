@@ -1,5 +1,6 @@
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { type MutableRefObject, useCallback, useRef, useState } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { clearPendingFormattedViewerResult } from './jsonFormattingWorkerResults';
 import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -381,12 +382,14 @@ export function useJsonFormattingWorker({
   tabArtifactActionsRef.current = { removeTabArtifacts, resetTabArtifacts };
 
   const removeTabArtifactsWithCacheState = useCallback((tabId: string) => {
+    importFlowRef.current?.cancelImport(tabId);
     evictedViewerCacheTabsRef.current.delete(tabId);
     restoringViewerCacheTabsRef.current.delete(tabId);
     tabArtifactActionsRef.current.removeTabArtifacts(tabId);
   }, []);
 
   const resetTabArtifactsWithCacheState = useCallback((tabId: string) => {
+    importFlowRef.current?.cancelImport(tabId);
     evictedViewerCacheTabsRef.current.delete(tabId);
     restoringViewerCacheTabsRef.current.delete(tabId);
     tabArtifactActionsRef.current.resetTabArtifacts(tabId);
@@ -398,6 +401,10 @@ export function useJsonFormattingWorker({
     getCallbacks: () => callbacksRef.current,
     largeFileLocateEnabledRef,
     postClearTabCache: (tabId) => {
+      clearPendingFormat(tabId);
+      clearFormatWatchdog(tabId);
+      clearPendingFormattedViewerResult(tabId);
+      delete latestRequestRef.current[tabId];
       postWorkerRequest({
         type: 'clear-tab-cache',
         tabId,
@@ -406,7 +413,8 @@ export function useJsonFormattingWorker({
     queueFormatAfterImport,
     workerStructureEnabledRef,
   });
-  const { importJsonFile, importJsonText } = importFlowRef.current;
+  const { beginImport, cancelAllImports, importJsonFile, importJsonText } = importFlowRef.current;
+  useEffect(() => cancelAllImports, [cancelAllImports]);
 
   useJsonWorkerLifecycle({
     callbacksRef,
@@ -429,6 +437,7 @@ export function useJsonFormattingWorker({
   });
 
   return {
+    beginImport,
     clearTabStructure,
     importJsonFile,
     importJsonText,

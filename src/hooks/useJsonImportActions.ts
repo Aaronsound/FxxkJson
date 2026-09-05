@@ -1,9 +1,11 @@
 import type { ChangeEvent, RefObject } from 'react';
 import type { ProcessingStage, Tab } from '../types/jsonTool';
 import { getFirstJsonImportFile } from '../utils/importFiles';
+import type { JsonImportTask } from '../utils/jsonImportTasks';
 
 interface UseJsonImportActionsArgs {
   activeTab: Tab | undefined;
+  beginImport: (tabId: string) => JsonImportTask;
   fileInputRef: RefObject<HTMLInputElement | null>;
   importJsonFile: (tabId: string, file: File) => Promise<void>;
   importJsonText: (
@@ -11,7 +13,8 @@ interface UseJsonImportActionsArgs {
     name: string,
     size: number,
     content: string,
-    contentBuffer?: ArrayBuffer
+    contentBuffer?: ArrayBuffer,
+    task?: JsonImportTask
   ) => Promise<void>;
   setProcessingStage: (tabId: string, stage: ProcessingStage) => void;
   setTabError: (tabId: string, error: string | null) => void;
@@ -20,6 +23,7 @@ interface UseJsonImportActionsArgs {
 
 export function useJsonImportActions({
   activeTab,
+  beginImport,
   fileInputRef,
   importJsonFile,
   importJsonText,
@@ -33,22 +37,28 @@ export function useJsonImportActions({
     }
 
     if (window.electronAPI?.openJsonFile) {
+      const task = beginImport(activeTab.id);
       try {
         const file = await window.electronAPI.openJsonFile((metadata) => {
+          if (!task.isCurrent()) return;
           setTabError(activeTab.id, null);
           setTabImporting(activeTab.id, metadata.name);
           setProcessingStage(activeTab.id, 'reading');
         });
+        if (!task.isCurrent()) return;
         if (file) {
-          await importJsonText(activeTab.id, file.name, file.size, file.content, file.contentBuffer);
+          await importJsonText(activeTab.id, file.name, file.size, file.content, file.contentBuffer, task);
         } else {
           setTabImporting(activeTab.id, null);
           setProcessingStage(activeTab.id, 'idle');
         }
       } catch (error) {
+        if (!task.isCurrent()) return;
         setTabImporting(activeTab.id, null);
         setProcessingStage(activeTab.id, 'idle');
         setTabError(activeTab.id, error instanceof Error ? `导入失败：${error.message}` : '导入失败');
+      } finally {
+        task.finish();
       }
       return;
     }

@@ -42,6 +42,7 @@
     "smoke:dev-worker": "node ./scripts/smoke-vite-worker-imports.mjs",
     "smoke:packaged": "node ./scripts/smoke-packaged-app.mjs",
     "e2e:electron": "npm run build && node ./scripts/e2e-electron-json-flow.mjs",
+    "e2e:electron:compare": "npm run build && node ./scripts/e2e-electron-comparison.mjs",
     "e2e:electron:typography": "npm run build && node ./scripts/e2e-electron-typography.mjs",
     "e2e:electron:large": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 5",
     "e2e:electron:large20": "npm run build && node ./scripts/e2e-electron-json-flow.mjs --size-mb 20",

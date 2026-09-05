@@ -55,6 +55,11 @@ const mockEditorState = vi.hoisted(() => {
 });
 
 class MockTextModel {
+  version = 1;
+
+  getVersionId() {
+    return this.version;
+  }
   private value: string;
 
   constructor(value: string) {
@@ -62,6 +67,7 @@ class MockTextModel {
   }
 
   setValue(value: string) {
+    this.version += 1;
     this.value = value;
   }
 

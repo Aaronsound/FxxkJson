@@ -1,9 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useJsonImportActions } from './useJsonImportActions';
+import { createJsonImportTasks } from '../utils/jsonImportTasks';
 
 function createArgs() {
   return {
+    beginImport: createJsonImportTasks().begin,
     activeTab: { id: 'tab-1', title: 'demo' },
     fileInputRef: { current: { click: vi.fn() } as unknown as HTMLInputElement },
     importJsonFile: vi.fn(),
@@ -15,6 +17,31 @@ function createArgs() {
 }
 
 describe('useJsonImportActions', () => {
+  it.each(['newer import', 'closed tab'])('ignores native file callbacks after %s', async (reason) => {
+    const args = createArgs();
+    const tasks = createJsonImportTasks();
+    args.beginImport = tasks.begin;
+    let selected: ((metadata: { name: string; path: string; size: number }) => void) | undefined;
+    let finish!: (file: null) => void;
+    window.electronAPI = {
+      openJsonFile: vi.fn((onSelected) => {
+        selected = onSelected;
+        return new Promise<null>((resolve) => {
+          finish = resolve;
+        });
+      }),
+    } as unknown as NonNullable<Window['electronAPI']>;
+    const { result } = renderHook(() => useJsonImportActions(args));
+    const pending = result.current.handleImport();
+    if (reason === 'closed tab') tasks.cancel('tab-1');
+    else tasks.begin('tab-1');
+    selected?.({ name: 'old.json', path: '/tmp/old.json', size: 2 });
+    finish(null);
+    await pending;
+    expect(args.setTabImporting).not.toHaveBeenCalled();
+    expect(args.setProcessingStage).not.toHaveBeenCalled();
+    expect(args.importJsonText).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     window.electronAPI = undefined;
   });
@@ -46,7 +73,14 @@ describe('useJsonImportActions', () => {
       await result.current.handleImport();
     });
 
-    expect(args.importJsonText).toHaveBeenCalledWith('tab-1', 'demo.json', 7, '{"ok":true}', contentBuffer);
+    expect(args.importJsonText).toHaveBeenCalledWith(
+      'tab-1',
+      'demo.json',
+      7,
+      '{"ok":true}',
+      contentBuffer,
+      expect.objectContaining({ isCurrent: expect.any(Function) })
+    );
     expect(args.setTabImporting).toHaveBeenCalledWith('tab-1', 'demo.json');
     expect(args.setProcessingStage).toHaveBeenCalledWith('tab-1', 'reading');
     expect(args.fileInputRef.current?.click).not.toHaveBeenCalled();

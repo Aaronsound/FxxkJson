@@ -3,6 +3,7 @@ import { SEARCH_BATCH_SIZE } from '../types/jsonTool';
 import type { JsonSearchOptions } from '../types/jsonTool';
 import { buildLineStarts, findTextSearchBatch } from './searchText';
 import { JSON_EDITOR_FONT_FAMILY, JSON_EDITOR_FONT_SIZE, JSON_EDITOR_LINE_HEIGHT } from './jsonEditorTypography';
+import type { MonacoSearchSnapshot } from './monacoSearchCache';
 
 interface JsonEditorOptionsArgs {
   largeMode: boolean;
@@ -43,13 +44,14 @@ export function getMonacoSearchBatch(
   searchTerm: string,
   searchOptions: JsonSearchOptions,
   startOffset = 0,
-  maxResults = SEARCH_BATCH_SIZE
+  maxResults = SEARCH_BATCH_SIZE,
+  snapshot?: MonacoSearchSnapshot
 ) {
-  const text = model.getValue();
+  const text = snapshot?.text ?? model.getValue();
   const result = findTextSearchBatch(
     text,
-    buildLineStarts(text),
-    model.getLineCount(),
+    snapshot?.lineStarts ?? buildLineStarts(text),
+    snapshot?.lineCount ?? model.getLineCount(),
     searchTerm,
     searchOptions,
     startOffset,
