@@ -37,5 +37,5 @@ describe('JSON error location', () => {
     expect(findJsonParseError('{"x":"🌍","nested":[1,true,null]}', 1)).toBeUndefined();
     const text = `{"payload":"${'x'.repeat(20 * 1024 * 1024)}","bad":}`;
     expect(findJsonParseError(text, 9)).toMatchObject({ offset: text.length - 1, column: text.length, rawRevision: 9 });
-  });
+  }, 30_000); // Full 20MB scan with coverage on shared Intel CI runners; performance has separate gates.
 });

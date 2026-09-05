@@ -4,8 +4,9 @@ import { comparisonValueChunks, ExactJsonNumber, serializeComparisonValue } from
 import { createJsonComparison, DIFF_VALUE_CHUNK_SIZE } from './jsonDiff';
 
 describe('bounded difference value reading', () => {
-  it('measures first-section preparation for 2/20/40 MB strings without materializing full output', () => {
-    for (const sizeMb of [2, 20, 40]) {
+  it.each([2, 20, 40])(
+    'measures first-section preparation for %i MB without materializing full output',
+    (sizeMb) => {
       const value = `${'x'.repeat(sizeMb * 1024 * 1024)}🌍`;
       const before: number[] = [];
       const after: number[] = [];
@@ -28,8 +29,9 @@ describe('bounded difference value reading', () => {
           indexedFirstSectionMs: after.sort((a, b) => a - b)[2],
         })
       );
-    }
-  });
+    },
+    30_000
+  ); // Coverage-instrumented large fixtures; timing regression gates run separately.
   it.each([
     '',
     'plain',

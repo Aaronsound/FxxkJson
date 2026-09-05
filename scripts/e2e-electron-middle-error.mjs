@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createScanner, SyntaxKind } from 'jsonc-parser';
 import { saveManualJsonSample } from './manual-json-samples.mjs';
+import { captureElectronScreenshot } from './e2e-screenshot.mjs';
 import {
   startElectronApp,
   getAvailablePort,
@@ -122,10 +123,14 @@ try {
     'modal error selected'
   );
   const openMs = Date.now() - openStartedAt;
-  const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
-  const screenshotPath = path.join(os.tmpdir(), 'fxxkjson-invalid-raw-edit.png');
-  await writeFile(screenshotPath, Buffer.from(screenshot.data, 'base64'));
-  console.log(`Editor screenshot: ${screenshotPath}`);
+  try {
+    const screenshot = await captureElectronScreenshot(cdp);
+    const screenshotPath = path.join(os.tmpdir(), 'fxxkjson-invalid-raw-edit.png');
+    await writeFile(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+    console.log(`Editor screenshot: ${screenshotPath}`);
+  } catch (error) {
+    console.warn(`Optional screenshot unavailable: ${error.message}`);
+  }
   assert.ok(selection.selected.includes(expectedToken));
   assert.equal(await evaluate(cdp, `window.__HANJSON_E2E_EDIT_MODAL__.getValue().length`), broken.length);
 

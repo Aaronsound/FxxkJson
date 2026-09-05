@@ -5,6 +5,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 import { connectToElectronPage, evaluate, waitFor } from './e2e-cdp-helpers.mjs';
+import { captureElectronScreenshot } from './e2e-screenshot.mjs';
 
 export async function getAvailablePort() {
   const server = http.createServer();
@@ -222,7 +223,7 @@ export async function collectFailureArtifacts({ cdp, stderr }) {
   }
 
   try {
-    const screenshot = await cdp.send('Page.captureScreenshot', {
+    const screenshot = await captureElectronScreenshot(cdp, {
       captureBeyondViewport: true,
       format: 'png',
     });
