@@ -6,6 +6,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useRef,
 } from 'react';
 import type { LargeJsonReadonlyViewerHandle } from '../components/LargeJsonReadonlyViewer';
 import type { LargeRawReadonlyViewerHandle } from '../components/LargeRawReadonlyViewer';
@@ -17,6 +18,7 @@ import type {
   WorkerSearchRequest,
 } from '../types/jsonTool';
 import { getMonacoSearchBatch } from '../utils/jsonEditorInteractions';
+import type { createMonacoSearchCache } from '../utils/monacoSearchCache';
 
 interface UseJsonToolSearchEffectsArgs {
   activeDocumentMeta: TabDocumentMeta;
@@ -35,12 +37,15 @@ interface UseJsonToolSearchEffectsArgs {
   leftSearchWorkerRevisionRef: MutableRefObject<Record<string, number>>;
   rememberRightSearchTerm: (term: string) => void;
   requestWorkerSearch: (request: WorkerSearchRequest) => void;
+  cancelWorkerSearch: (tabId: string, target: 'left' | 'right') => void;
   resetLeftSearchState: () => void;
   resetRightSearchState: () => void;
   resetSearchState: () => void;
   rightDecorationIdsRef: MutableRefObject<string[]>;
   rightEditorRef: RefObject<monaco.editor.IStandaloneCodeEditor | null>;
   rightMatchIndex: number;
+  rightMatches: monaco.IRange[];
+  rightSearchCache: ReturnType<typeof createMonacoSearchCache>;
   rightSearchOptions: JsonSearchOptions;
   rightSearchTerm: string;
   setIsLeftFindOpen: (open: boolean) => void;
@@ -77,12 +82,15 @@ export function useJsonToolSearchEffects({
   leftSearchWorkerRevisionRef,
   rememberRightSearchTerm,
   requestWorkerSearch,
+  cancelWorkerSearch,
   resetLeftSearchState,
   resetRightSearchState,
   resetSearchState,
   rightDecorationIdsRef,
   rightEditorRef,
   rightMatchIndex,
+  rightMatches,
+  rightSearchCache,
   rightSearchOptions,
   rightSearchTerm,
   setIsLeftFindOpen,
@@ -101,6 +109,11 @@ export function useJsonToolSearchEffects({
   shouldUseDedicatedLeftViewer,
   shouldUseDedicatedRightViewer,
 }: UseJsonToolSearchEffectsArgs) {
+  const decoratedSearch = useRef<{
+    editor: monaco.editor.IStandaloneCodeEditor;
+    matches: monaco.IRange[];
+    activeIndex: number;
+  } | null>(null);
   useEffect(() => {
     void activeTabId;
     resetSearchState();
@@ -147,11 +160,13 @@ export function useJsonToolSearchEffects({
       query: rightSearchTerm,
       searchOptions: rightSearchOptions,
     });
+    return () => cancelWorkerSearch(activeTab.id, 'right');
   }, [
     activeDocumentMeta.formattedRevision,
     activeLargeViewerData,
     activeTab,
     requestWorkerSearch,
+    cancelWorkerSearch,
     rightSearchOptions,
     rightSearchTerm,
     setIsRightSearchLoadingMore,
@@ -189,6 +204,7 @@ export function useJsonToolSearchEffects({
     if (shouldSendRawText) {
       leftSearchWorkerRevisionRef.current[activeTab.id] = rawRevision;
     }
+    return () => cancelWorkerSearch(activeTab.id, 'left');
   }, [
     activeDocumentMeta.rawLength,
     activeDocumentMeta.rawRevision,
@@ -199,6 +215,7 @@ export function useJsonToolSearchEffects({
     leftSearchTerm,
     leftSearchWorkerRevisionRef,
     requestWorkerSearch,
+    cancelWorkerSearch,
     setIsLeftSearchLoadingMore,
     setLargeRawViewerMatches,
     setLeftMatches,
@@ -213,6 +230,7 @@ export function useJsonToolSearchEffects({
     const model = editor?.getModel();
 
     if (!editor || !model || !rightSearchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
+      rightSearchCache.clear();
       setRightMatches([]);
       if (!shouldUseDedicatedRightViewer) {
         setRightSearchHasMore(false);
@@ -223,22 +241,73 @@ export function useJsonToolSearchEffects({
       return;
     }
 
-    const result = getMonacoSearchBatch(model, rightSearchTerm, rightSearchOptions);
+    const result = getMonacoSearchBatch(
+      model,
+      rightSearchTerm,
+      rightSearchOptions,
+      0,
+      undefined,
+      rightSearchCache.get(model)
+    );
     const matches = result.ranges;
     setRightMatches(matches);
     setRightSearchHasMore(result.hasMore);
     setRightSearchNextOffset(result.nextStartOffset);
     setIsRightSearchLoadingMore(false);
+  }, [
+    activeTabId,
+    activeDocumentMeta.formattedRevision,
+    clearRightHighlights,
+    isBuildingDedicatedRightViewer,
+    rightEditorRef,
+    rightSearchCache,
+    rightSearchOptions,
+    rightSearchTerm,
+    setIsRightSearchLoadingMore,
+    setRightMatches,
+    setRightSearchHasMore,
+    setRightSearchNextOffset,
+    shouldUseDedicatedRightViewer,
+  ]);
+
+  useEffect(() => () => rightSearchCache.clear(), [rightSearchCache]);
+
+  useEffect(() => {
+    const editor = rightEditorRef.current;
+    if (!editor || !rightSearchTerm || shouldUseDedicatedRightViewer || isBuildingDedicatedRightViewer) {
+      decoratedSearch.current = null;
+      return;
+    }
+    const matches = rightMatches;
     const activeIndex = matches.length > 0 ? ((rightMatchIndex % matches.length) + matches.length) % matches.length : 0;
 
-    const nextDecorations = matches.map((range, index) => ({
-      range,
-      options: {
-        inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight',
-      },
-    }));
-
-    rightDecorationIdsRef.current = editor.deltaDecorations(rightDecorationIdsRef.current, nextDecorations);
+    const previous = decoratedSearch.current;
+    const decoration = (index: number) => ({
+      range: matches[index],
+      options: { inlineClassName: index === activeIndex ? 'currentSearchHighlight' : 'searchHighlight' },
+    });
+    if (
+      previous?.editor === editor &&
+      previous.matches === matches &&
+      rightDecorationIdsRef.current.length === matches.length
+    ) {
+      if (matches.length && previous.activeIndex !== activeIndex) {
+        const indices = [previous.activeIndex, activeIndex];
+        const ids = editor.deltaDecorations(
+          indices.map((index) => rightDecorationIdsRef.current[index]),
+          indices.map(decoration)
+        );
+        indices.forEach((index, i) => {
+          rightDecorationIdsRef.current[index] = ids[i];
+        });
+      }
+    } else {
+      rightDecorationIdsRef.current = editor.deltaDecorations(
+        rightDecorationIdsRef.current,
+        matches.map((_, index) => decoration(index))
+      );
+    }
+    decoratedSearch.current = { editor, matches, activeIndex };
 
     if (matches.length === 0) {
       return;
@@ -248,19 +317,12 @@ export function useJsonToolSearchEffects({
     editor.revealRangeInCenter(activeMatch);
     editor.setSelection(activeMatch);
   }, [
-    activeTabId,
-    activeDocumentMeta.formattedRevision,
-    clearRightHighlights,
     isBuildingDedicatedRightViewer,
     rightDecorationIdsRef,
     rightEditorRef,
     rightMatchIndex,
-    rightSearchOptions,
+    rightMatches,
     rightSearchTerm,
-    setIsRightSearchLoadingMore,
-    setRightMatches,
-    setRightSearchHasMore,
-    setRightSearchNextOffset,
     shouldUseDedicatedRightViewer,
   ]);
 

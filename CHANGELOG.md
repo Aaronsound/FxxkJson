@@ -2,6 +2,42 @@
 
 ## 未发布 / Unreleased
 
+## v1.0.35 - 2026-09-06
+
+### 中文
+
+- 对齐性能回归脚本与实际 Worker 的单次编码及换行查找逻辑，补充行数一致性测试，保持性能门槛不变。
+- 允许通过现有“编辑 JSON”打开错误原文并定位语法错误；保存失败时保留草稿并在弹窗内定位，仅展开遮挡错误的折叠区域。修正原文后保存不会重新序列化其他内容。
+- 格式化语法错误增加行列信息及“定位错误”按钮；按需跳转并短暂标记左侧原文，支持大文件与 CRLF 换行，内容变更后禁用过期位置，保留原有自动修复行为。
+- 修复右侧普通编辑器搜索在切换匹配项时丢失已加载结果的问题；复用搜索索引，仅更新前后两项的当前匹配高亮。
+- 合并短时间内连续输入的搜索请求，在编码和传输大文本之前跳过过期查询；关闭搜索时取消待发送请求，加载更多仍立即执行。
+- 按块索引超长差异字符串，按需序列化详情片段，避免预先保留完整序列化副本；返回差异列表时释放详情读取缓存，完整复制保持不变。
+- 差异列表仅绘制视口附近的内容，支持长路径自适应行高及跨区键盘导航；查看完整值后恢复列表滚动位置和按钮焦点。
+- 对比结果按批次保存并增量统计，继续加载时不再复制、重新扫描全部已加载差异，保留全部差异和既有翻页行为。
+- 修复 JSON 对比中的大整数、高精度小数及极大/极小指数误判；使用非递归遍历支持深层嵌套，保持数字等价形式的既有语义。
+- 对比结果支持按需查看完整差异值、长内容分段阅读及复制完整值；关闭弹窗时释放对比和详情缓存。
+- 关闭标签、清空或替换导入任务时，真正中止原生文件流与拖拽文件读取，释放读取缓冲并忽略迟到消息。
+- 为文件选择和读取增加标签级任务校验，防止较早导入的迟到结果或错误覆盖新内容，并在关闭、清空标签时作废导入任务。
+- 将 JSON 对比移至独立 Worker，切换对比文件时清除旧结果并取消计算；支持每批 2,000 条继续加载全部差异、已加载结果翻页和完成后的总数提示。
+- 编辑弹窗搜索按文本版本复用全文和行索引，减少连续搜索及加载更多时的重复扫描；编辑或关闭搜索时释放缓存。
+
+### English
+
+- Align performance measurements with the worker's single UTF-8 encoding and newline-search path, add line-count parity tests, and keep existing performance budgets unchanged.
+- Open invalid raw JSON through the existing Edit JSON dialog at the syntax error. Failed saves retain the draft and locate the error inside the dialog, expanding only enclosing folds. Save corrected raw text without reserializing unrelated content.
+- Add line/column details and an explicit Locate error action for formatting syntax errors, briefly highlighting the raw source without changing it. Support large files and CRLF, invalidate stale locations after edits, and preserve existing repair behavior.
+- Preserve loaded search matches when navigating the regular right editor; reuse search indexes and update only the previous and current active-match decorations.
+- Coalesce rapidly typed search requests before encoding and transferring large text; cancel queued requests when search closes while keeping explicit pagination immediate.
+- Index long difference strings by block and serialize detail sections on demand instead of retaining full serialized copies; release readers when returning to the list while preserving full-value copying.
+- Render only nearby difference rows with measured wrapping heights and continuous keyboard navigation; restore list scroll position and button focus after inspecting full values.
+- Retain comparison results by batch and update counts incrementally without copying or rescanning previously loaded differences; preserve complete results and existing batch navigation.
+- Compare large integers, precise decimals, and extreme exponents without rounding, and traverse deeply nested JSON iteratively while retaining equivalent-number semantics.
+- Inspect full difference values on demand, page through long values, and copy entire values; release comparison and detail caches when closing the dialog.
+- Abort native file streams and dropped-file reads when tabs are closed, cleared, or replaced, releasing buffers and ignoring late messages.
+- Guard file selection and reads with tab-scoped task identity so late results or errors cannot overwrite newer imports; invalidate imports when tabs are cleared or closed.
+- Run JSON comparisons in a dedicated worker, clear results and cancel work when inputs change, and load all differences in resumable 2,000-entry batches with navigation and a final total.
+- Reuse versioned text and line indexes for editor-dialog searches and subsequent result batches, releasing cached data when editing or closing search.
+
 ## v1.0.34 - 2026-09-05
 
 ### 中文

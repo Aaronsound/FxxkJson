@@ -6,6 +6,7 @@ import type { JsonSearchOptions } from '../types/jsonTool';
 import { getMonacoSearchBatch } from '../utils/jsonEditorInteractions';
 import { findSearchIndexAtOrAfterOffset, getRangeStartOffset, getSafeOffsetAt } from '../utils/searchMatchPosition';
 import { getSearchDecorationWindow } from '../utils/searchDecorationWindow';
+import { createMonacoSearchCache } from '../utils/monacoSearchCache';
 
 const EDIT_MODAL_SEARCH_DECORATION_RADIUS = 250;
 
@@ -15,6 +16,9 @@ interface UseEditModalSearchArgs {
 }
 
 export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalSearchArgs) {
+  const searchCacheRef = useRef<ReturnType<typeof createMonacoSearchCache> | null>(null);
+  searchCacheRef.current ??= createMonacoSearchCache();
+  const searchCache = searchCacheRef.current;
   const searchDecorationIdsRef = useRef<string[]>([]);
   const searchAnchorOffsetRef = useRef<number | null>(null);
   const searchMatchesRef = useRef<monaco.IRange[]>([]);
@@ -87,6 +91,7 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
   );
 
   const closeFind = useCallback(() => {
+    searchCache.clear();
     setIsFindOpen(false);
     setSearchTerm('');
     setSearchMatches([]);
@@ -96,15 +101,16 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
     resetSearchAnchor();
     clearSearchDecorations();
     editorRef.current?.focus();
-  }, [clearSearchDecorations, editorRef, resetSearchAnchor]);
+  }, [clearSearchDecorations, editorRef, resetSearchAnchor, searchCache]);
 
   const openFind = useCallback(() => {
     setIsFindOpen(true);
   }, []);
 
   const refreshSearch = useCallback(() => {
+    searchCache.clear();
     setEditorRevision((current) => current + 1);
-  }, []);
+  }, [searchCache]);
 
   const handleSearchOptionsChange = useCallback(
     (value: JsonSearchOptions) => {
@@ -138,11 +144,18 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
       return;
     }
 
-    const result = getMonacoSearchBatch(model, searchTerm, searchOptions, searchNextOffset, searchBatchSize);
+    const result = getMonacoSearchBatch(
+      model,
+      searchTerm,
+      searchOptions,
+      searchNextOffset,
+      searchBatchSize,
+      searchCache.get(model)
+    );
     setSearchMatches((current) => [...current, ...result.ranges]);
     setSearchHasMore(result.hasMore);
     setSearchNextOffset(result.nextStartOffset);
-  }, [editorRef, searchBatchSize, searchHasMore, searchNextOffset, searchOptions, searchTerm]);
+  }, [editorRef, searchBatchSize, searchHasMore, searchNextOffset, searchOptions, searchTerm, searchCache]);
 
   const goToPreviousMatch = useCallback(() => {
     if (searchMatches.length > 0) {
@@ -159,6 +172,7 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
   useEffect(() => {
     void editorRevision;
     if (!isFindOpen || !searchTerm) {
+      searchCache.clear();
       setSearchMatches([]);
       setSearchIndex(0);
       setSearchHasMore(false);
@@ -174,7 +188,7 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
         return;
       }
 
-      const result = getMonacoSearchBatch(model, searchTerm, searchOptions, 0, searchBatchSize);
+      const result = getMonacoSearchBatch(model, searchTerm, searchOptions, 0, searchBatchSize, searchCache.get(model));
       const nextSearchIndex = searchPreservePositionRef.current
         ? findSearchIndexAtOrAfterOffset(model, result.ranges, searchAnchorOffsetRef.current)
         : 0;
@@ -199,6 +213,7 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
     searchBatchSize,
     searchOptions,
     searchTerm,
+    searchCache,
   ]);
 
   useEffect(() => {
@@ -239,9 +254,10 @@ export function useEditModalSearch({ editorRef, searchBatchSize }: UseEditModalS
 
   useEffect(
     () => () => {
+      searchCache.clear();
       clearSearchDecorations();
     },
-    [clearSearchDecorations]
+    [clearSearchDecorations, searchCache]
   );
 
   return {

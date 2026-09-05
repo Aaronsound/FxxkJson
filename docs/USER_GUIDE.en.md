@@ -37,6 +37,10 @@ When the window is narrow, less-frequent actions move into the **More** menu ins
 
 Put content in the left pane and select **Format**. The indented result appears on the right. Folding and line wrapping on the right do not alter the raw source.
 
+Formatting syntax errors with an available source location show a line, column, and **Locate error** action. Click it to scroll to and briefly highlight the raw text without editing or repairing it. Locations are invalidated after edits and refreshed by formatting. The parser detects the problem at this position, but its cause may be earlier; end-of-file errors highlight nearby text.
+
+When the large-file raw viewer is read-only, use the existing **Edit JSON** action to open invalid raw text near the error; no successful repair is required first. **Update raw JSON** validates before saving. If validation fails, the dialog retains your draft and locates the error so you can keep editing. Cancel leaves the source unchanged. **Repair JSON** remains the automatic repair option.
+
 ### Repair JSON
 
 Select **Repair JSON** when the input contains common non-standard syntax or malformed JSON. A successful repair updates and formats the document; otherwise the app reports an error.
@@ -57,7 +61,7 @@ Review important fields after a repair, especially before using the result as pr
 4. Left-side search supports Replace and Replace all. Right-side search is read-only and also offers recent searches and pinned JSON Paths.
 5. Press `Esc` in the active pane to close its search widget.
 
-Large-file results load in batches. Select **Load more** when a search has many matches.
+Search results load in batches. Select **Load more** when a search has many matches. Previous/next navigation preserves loaded results. Rapid typing resolves to the latest query.
 
 ## 5. Fold, Copy, and Edit Nodes
 
@@ -101,6 +105,10 @@ Select **Edit JSON** to open the full-document editor. It supports search and co
 3. Choose the left and right tabs.
 4. Select **Start comparison**.
 5. The result lists added, removed, and changed fields by JSON Path, together with values from both sides.
+6. If there are more than 2,000 differences, select **Load more** to continue. Use **Previous batch** and **Next batch** to revisit loaded results. Counts include only loaded differences until **Comparison complete** confirms the final total.
+7. Select **View full values** below a difference path to inspect both JSON values. Long values are split into sections, with an option to jump to the last section. **Copy full value** copies the entire value, not just the visible section. Numeric precision is preserved; equivalent forms such as `1`, `1.0`, and `1e0` still compare equal.
+   Long-value sections are read on demand. Returning to the list releases detail readers without discarding loaded differences; reopen a value to inspect it again.
+8. The list renders nearby rows as you scroll without discarding other differences. **Back to differences** restores your previous scroll position and button focus. Use Tab / Shift+Tab to move continuously between value-inspection buttons.
 
 ![JSON comparison](assets/compare-dialog-en.png)
 
@@ -162,4 +170,3 @@ You installed the Intel x64 build. Install `macos-arm64-*.dmg` instead; large-fi
 ### How should I report a problem?
 
 Open **More → Diagnostics**, copy the diagnostics bundle, and create a [GitHub Issue](https://github.com/Aaronsound/FxxkJson/issues) with your operating system, app version, reproduction steps, and approximate file size. Remove credentials, tokens, personal data, and private JSON from logs and screenshots.
-

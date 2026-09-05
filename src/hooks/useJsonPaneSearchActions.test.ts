@@ -61,6 +61,10 @@ function createArgs(overrides: Partial<Parameters<typeof useJsonPaneSearchAction
     rightEditorRef: { current: rightEditor },
     rightMatchIndex: 0,
     rightMatches: [range(2, 6)],
+    rightSearchCache: {
+      get: vi.fn(() => ({ text: '', lineStarts: new Uint32Array([0]), lineCount: 1 })),
+      clear: vi.fn(),
+    },
     rightSearchHasMore: true,
     rightSearchNextOffset: 12,
     rightSearchOptions: DEFAULT_SEARCH_OPTIONS,
@@ -152,6 +156,6 @@ describe('useJsonPaneSearchActions', () => {
     expect(args.setRightMatches).toHaveBeenCalledWith([args.rightMatches[0], extraRange]);
     expect(args.setRightSearchHasMore).toHaveBeenCalledWith(false);
     expect(args.setRightSearchNextOffset).toHaveBeenCalledWith(42);
-    expect(args.rightDecorationIdsRef.current).toEqual(['next-decoration']);
+    expect(args.rightSearchCache.get).toHaveBeenCalledOnce();
   });
 });

@@ -55,6 +55,11 @@ const mockEditorState = vi.hoisted(() => {
 });
 
 class MockTextModel {
+  version = 1;
+
+  getVersionId() {
+    return this.version;
+  }
   private value: string;
 
   constructor(value: string) {
@@ -62,6 +67,7 @@ class MockTextModel {
   }
 
   setValue(value: string) {
+    this.version += 1;
     this.value = value;
   }
 
@@ -456,6 +462,28 @@ describe('JsonEditModal search position', () => {
     renderModal('{"ok":true}', { hasCopiedLiteral: true });
 
     expect(screen.getByText('已复制 JSON 字符串字面量')).toBeInTheDocument();
+  });
+
+  it('opens raw syntax errors at their offset and relocates failed saves without replacing the draft', () => {
+    const initialValue = '{"a":1 "b":2}';
+    const location = { offset: 7, length: 3, line: 1, column: 8, rawRevision: 1 };
+    const { rerender } = renderModal(initialValue, { errorLocation: location });
+    act(() => vi.advanceTimersByTime(1));
+    const editor = mockEditorState.editor!;
+    expect(editor.getSelection()).toMatchObject({ startColumn: 8, endColumn: 11 });
+    expect(screen.getByRole('alert')).toHaveTextContent('第 1 行，第 8 列');
+    editor.getModel().setValue('{"a":12 "b":2}');
+    rerender(
+      <JsonEditModal
+        {...baseProps}
+        initialValue={initialValue}
+        error="保存失败"
+        errorLocation={{ ...location, offset: 8, column: 9 }}
+      />
+    );
+    expect(mockEditorState.editor).toBe(editor);
+    expect(editor.getValue()).toBe('{"a":12 "b":2}');
+    expect(editor.getSelection()).toMatchObject({ startColumn: 9, endColumn: 12 });
   });
 
   it('keeps a late search match active after editing its value', async () => {

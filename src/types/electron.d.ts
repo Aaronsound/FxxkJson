@@ -43,8 +43,10 @@ declare global {
       getRuntimeInfo?: () => Promise<RuntimeAppInfo>;
       getProcessMetrics?: () => Promise<RuntimeProcessMetric[]>;
       openJsonFile: (
-        onSelected?: (metadata: Omit<NativeJsonFile, 'content' | 'contentBuffer'>) => void
+        onSelected?: (metadata: Omit<NativeJsonFile, 'content' | 'contentBuffer'>) => void,
+        requestId?: string
       ) => Promise<NativeJsonFile | null>;
+      cancelJsonFileImport?: (requestId: string) => void;
       onFindShortcut?: (callback: () => void) => () => void;
     };
   }

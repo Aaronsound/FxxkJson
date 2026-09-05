@@ -11,6 +11,8 @@ export function createJsonToolOverlayProps(input: JsonToolWorkspaceInput) {
     diagnosticsContext,
     editJsonBusyLabel,
     editJsonError,
+    editJsonErrorLocation,
+    clearEditJsonError,
     editJsonSession,
     editJsonValueRef,
     getTabContent,
@@ -41,6 +43,7 @@ export function createJsonToolOverlayProps(input: JsonToolWorkspaceInput) {
     diagnosticsContext,
     editJsonBusyLabel,
     editJsonError,
+    editJsonErrorLocation,
     editJsonSession,
     getTabText: getTabContent,
     hasCopiedLiteral,
@@ -61,6 +64,7 @@ export function createJsonToolOverlayProps(input: JsonToolWorkspaceInput) {
     onDismissArchitectureWarning: () => setIsArchitectureWarningDismissed(true),
     onEditJsonValueChange: (value: string) => {
       editJsonValueRef.current = value;
+      clearEditJsonError?.();
     },
     onEscapeEditJsonContent: handleEscapeEditJsonContent,
     onOpenAbout: handleOpenAbout,
@@ -82,6 +86,8 @@ export function createJsonToolToolbarProps(input: JsonToolWorkspaceInput) {
     canEditJson,
     canEnableLargeFileLocate,
     currentError,
+    currentErrorLocation,
+    handleLocateError,
     currentStructureStatus,
     handleClear,
     handleEscapeJson,
@@ -157,6 +163,8 @@ export function createJsonToolToolbarProps(input: JsonToolWorkspaceInput) {
     currentStructureStatus,
     processingStageText,
     currentError,
+    currentErrorLocation,
+    onLocateError: handleLocateError,
     language,
     onLanguageChange: setLanguage,
     onAccentThemeChange: setAccentTheme,

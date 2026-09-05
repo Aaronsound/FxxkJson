@@ -86,6 +86,22 @@
   overflow: auto;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+  overflow-anchor: none;
+}
+
+.json-compare-list[hidden] {
+  display: none;
+}
+
+.json-compare-virtual-body {
+  position: relative;
+  min-width: 100%;
+}
+
+.json-compare-block {
+  position: absolute;
+  left: 0;
+  width: 100%;
 }
 
 .modal-card-dark .json-compare-list {
@@ -121,10 +137,74 @@
 .json-compare-row {
   border-bottom: 1px solid #f3f4f6;
   font-size: 12px;
+  min-height: 56px;
+  box-sizing: border-box;
 }
 
 .json-compare-row:last-child {
   border-bottom: 0;
+}
+
+.json-compare-detail-button {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.json-compare-details {
+  min-height: 0;
+  overflow: auto;
+}
+
+.json-compare-details > p {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.json-compare-value-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.json-compare-value {
+  min-width: 0;
+}
+
+.json-compare-value-status {
+  min-height: 1.5em;
+  font-size: 12px;
+}
+
+.json-compare-value pre {
+  max-height: 32dvh;
+  min-height: 100px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  font-family: var(--json-editor-font-family);
+}
+
+.json-compare-value-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.json-compare-value-actions code {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .json-compare-value-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .modal-card-dark .json-compare-row {

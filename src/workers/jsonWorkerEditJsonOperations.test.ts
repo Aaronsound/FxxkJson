@@ -11,6 +11,64 @@ afterEach(() => {
 });
 
 describe('createJsonWorkerEditJsonOperations', () => {
+  it('returns draft-relative syntax locations and accepts a corrected invalid original', () => {
+    const postMessage = vi.fn();
+    vi.stubGlobal('postMessage', postMessage);
+    const operations = createJsonWorkerEditJsonOperations({
+      editJsonCache: new Map(),
+      jsonNodeEditOperations: {
+        deleteJsonNodeForEdit: vi.fn(),
+        readJsonNodeForEdit: vi.fn(),
+        renameJsonNodeKeyForEdit: vi.fn(),
+        saveJsonNodeForEdit: vi.fn(),
+      },
+    });
+    const broken = '{"a":1 "b":2}';
+    for (const operation of ['format', 'save'] as const) {
+      operations.handleEditJsonMessage({
+        requestId: 1,
+        tabId: 'bad',
+        operation,
+        text: broken,
+        originalText: broken,
+        rawRevision: 8,
+      });
+      expect(postMessage).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          success: false,
+          errorKind: 'syntax',
+          errorLocation: { offset: 7, length: 3, line: 1, column: 8, rawRevision: 8 },
+        })
+      );
+    }
+    operations.handleEditJsonMessage({
+      requestId: 2,
+      tabId: 'bad',
+      operation: 'save',
+      text: '{"a":1,"b":2}',
+      originalText: broken,
+    });
+    expect(postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ success: true, data: '{"a":1,"b":2}' }));
+    const exact = '{ "big": 9007199254740993, "number": 1.00, "dup": 1, "dup": 2 }';
+    operations.handleEditJsonMessage({
+      requestId: 3,
+      tabId: 'bad',
+      operation: 'save',
+      text: exact,
+      originalText: broken,
+      preserveRawText: true,
+    });
+    expect(postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ success: true, data: exact }));
+    operations.handleEditJsonMessage({
+      requestId: 4,
+      tabId: 'bad',
+      operation: 'save',
+      text: broken,
+      preserveRawText: true,
+    });
+    expect(postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ success: false, errorKind: 'syntax' }));
+  });
+
   function createNodeMutationResult(rawText = '{}') {
     return {
       formattedPatch: { sourceLength: 2, startOffset: 1, endOffset: 1, text: '\n' },

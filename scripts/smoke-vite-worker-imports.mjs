@@ -1,6 +1,7 @@
 import { createServer } from 'vite';
 
 const WORKER_MODULES = [
+  '/src/workers/jsonCompare.worker.ts',
   '/src/workers/jsonParser.worker.js',
   '/src/workers/jsonWorkerFormatOperations.ts',
   '/src/workers/jsonWorkerStructureOperations.js',

@@ -55,6 +55,25 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
 }
 
 describe('JsonToolToolbar', () => {
+  it('offers explicit error navigation without invoking repair or auto-locating', () => {
+    const { props, rerender } = renderToolbar({
+      currentError: 'Invalid JSON',
+      currentErrorLocation: { offset: 8, length: 1, line: 3, column: 4, rawRevision: 1 },
+      onLocateError: vi.fn(),
+    });
+    expect(screen.getByText(/第 3 行，第 4 列/)).toBeTruthy();
+    expect(props.onLocateError).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '定位错误' }));
+    expect(props.onLocateError).toHaveBeenCalledOnce();
+    expect(props.onRepairJson).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '修复 JSON' }));
+    expect(props.onRepairJson).toHaveBeenCalledOnce();
+    rerender(<JsonToolToolbarFeedback {...props} t={createTranslator('en')} />);
+    expect(screen.getByRole('button', { name: 'Locate error' })).toBeTruthy();
+    expect(screen.getByText(/Line 3, column 4/)).toBeTruthy();
+    rerender(<JsonToolToolbarFeedback {...props} currentErrorLocation={undefined} />);
+    expect(screen.queryByRole('button', { name: '定位错误' })).toBeNull();
+  });
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();

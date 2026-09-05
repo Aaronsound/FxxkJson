@@ -1,7 +1,14 @@
 import { formatJsonPath } from './jsonPath';
+import {
+  comparisonScalarsEqual,
+  comparisonValueChunks,
+  isComparisonObject,
+  parseComparisonJson,
+} from './jsonComparisonValues';
+import { createComparisonValueReader, type ComparisonValueReader } from './comparisonValueReader';
 
 export type JsonDiffType = 'added' | 'removed' | 'changed';
-
+export type JsonDiffSide = 'left' | 'right';
 export interface JsonDiffEntry {
   type: JsonDiffType;
   path: Array<string | number>;
@@ -9,159 +16,194 @@ export interface JsonDiffEntry {
   leftPreview: string;
   rightPreview: string;
 }
-
 export interface JsonDiffResult {
   diffs: JsonDiffEntry[];
   leftError: string | null;
   rightError: string | null;
+  truncated: boolean;
 }
-
+export interface JsonDiffValue {
+  text: string;
+  total: number;
+  offset: number;
+  missing: boolean;
+}
 const MAX_PREVIEW_LENGTH = 120;
-const MAX_DIFFS = 2000;
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
+export const MAX_DIFFS = 2000;
+export const DIFF_VALUE_CHUNK_SIZE = 16384;
 
 function previewValue(value: unknown) {
-  if (typeof value === 'undefined') {
-    return '';
+  let text = '';
+  for (const chunk of comparisonValueChunks(value, MAX_PREVIEW_LENGTH + 1)) {
+    text += chunk;
+    if (text.length > MAX_PREVIEW_LENGTH) return `${text.slice(0, MAX_PREVIEW_LENGTH - 3)}...`;
   }
+  return text;
+}
 
-  let text: string;
+interface PathLink {
+  parent: PathLink | null;
+  key: string | number;
+}
+function makePath(link: PathLink | null) {
+  const path: Array<string | number> = [];
+  for (; link; link = link.parent) path.push(link.key);
+  return path.reverse();
+}
+
+function* compareValues(left: unknown, right: unknown): Generator<JsonDiffEntry> {
+  type Frame = { left: unknown; right: unknown; path: PathLink | null; keys?: string[]; index?: number };
+  const stack: Frame[] = [{ left, right, path: null }];
+  while (stack.length) {
+    const frame = stack[stack.length - 1];
+    if (frame.index === undefined) {
+      if (comparisonScalarsEqual(frame.left, frame.right)) {
+        stack.pop();
+        continue;
+      }
+      const arrays = Array.isArray(frame.left) && Array.isArray(frame.right);
+      const objects = isComparisonObject(frame.left) && isComparisonObject(frame.right);
+      if (!arrays && !objects) {
+        const path = makePath(frame.path);
+        yield {
+          type: 'changed',
+          path,
+          pathText: formatJsonPath(path),
+          leftPreview: previewValue(frame.left),
+          rightPreview: previewValue(frame.right),
+        };
+        stack.pop();
+        continue;
+      }
+      frame.index = 0;
+      if (objects)
+        frame.keys = Array.from(
+          new Set([...Object.keys(frame.left as object), ...Object.keys(frame.right as object)])
+        ).sort();
+    }
+    const l = frame.left as Record<string | number, unknown> & { length: number };
+    const r = frame.right as typeof l;
+    const length = frame.keys ? frame.keys.length : Math.max(l.length, r.length);
+    if (frame.index >= length) {
+      stack.pop();
+      continue;
+    }
+    const key = frame.keys ? frame.keys[frame.index] : frame.index;
+    frame.index += 1;
+    const hasLeft = Object.hasOwn(l, key);
+    const hasRight = Object.hasOwn(r, key);
+    // Equal leaves are common in large, nearly identical documents. Do not
+    // allocate a traversal frame/path link for each unchanged primitive.
+    if (hasLeft && hasRight && comparisonScalarsEqual(l[key], r[key])) continue;
+    const pathLink = { parent: frame.path, key };
+    if (!hasLeft || !hasRight) {
+      const path = makePath(pathLink);
+      yield {
+        type: hasLeft ? 'removed' : 'added',
+        path,
+        pathText: formatJsonPath(path),
+        leftPreview: previewValue(hasLeft ? l[key] : undefined),
+        rightPreview: previewValue(hasRight ? r[key] : undefined),
+      };
+    } else stack.push({ left: l[key], right: r[key], path: pathLink });
+  }
+}
+
+export function createJsonComparison(leftText: string, rightText: string) {
+  let left: unknown;
+  let right: unknown;
+  let leftError: string | null = null;
+  let rightError: string | null = null;
+  const identicalText = leftText === rightText;
+  let detailSource: string | null = identicalText ? leftText : null;
   try {
-    text = JSON.stringify(value);
-  } catch {
-    text = String(value);
+    left = identicalText ? JSON.parse(leftText) : parseComparisonJson(leftText);
+  } catch (error) {
+    leftError = error instanceof Error ? error.message : String(error);
   }
-
-  if (typeof text !== 'string') {
-    text = String(value);
-  }
-
-  return text.length > MAX_PREVIEW_LENGTH ? `${text.slice(0, MAX_PREVIEW_LENGTH - 3)}...` : text;
-}
-
-function valuesEqual(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) {
-    return true;
-  }
-
-  if (typeof left !== typeof right) {
-    return false;
-  }
-
-  if (Array.isArray(left) && Array.isArray(right)) {
-    return left.length === right.length && left.every((item, index) => valuesEqual(item, right[index]));
-  }
-
-  if (isPlainObject(left) && isPlainObject(right)) {
-    const leftKeys = Object.keys(left);
-    const rightKeys = Object.keys(right);
-    return (
-      leftKeys.length === rightKeys.length &&
-      leftKeys.every((key) => Object.hasOwn(right, key) && valuesEqual(left[key], right[key]))
-    );
-  }
-
-  return false;
-}
-
-function addDiff(
-  diffs: JsonDiffEntry[],
-  type: JsonDiffType,
-  path: Array<string | number>,
-  left: unknown,
-  right: unknown
-) {
-  if (diffs.length >= MAX_DIFFS) {
-    return;
-  }
-
-  diffs.push({
-    type,
-    path,
-    pathText: formatJsonPath(path),
-    leftPreview: previewValue(left),
-    rightPreview: previewValue(right),
-  });
-}
-
-function compareValues(left: unknown, right: unknown, path: Array<string | number>, diffs: JsonDiffEntry[]) {
-  if (diffs.length >= MAX_DIFFS || valuesEqual(left, right)) {
-    return;
-  }
-
-  if (Array.isArray(left) && Array.isArray(right)) {
-    const maxLength = Math.max(left.length, right.length);
-    for (let index = 0; index < maxLength && diffs.length < MAX_DIFFS; index += 1) {
-      const childPath = [...path, index];
-      if (index >= left.length) {
-        addDiff(diffs, 'added', childPath, undefined, right[index]);
-      } else if (index >= right.length) {
-        addDiff(diffs, 'removed', childPath, left[index], undefined);
-      } else {
-        compareValues(left[index], right[index], childPath, diffs);
-      }
+  if (identicalText) {
+    right = left;
+    rightError = leftError;
+  } else {
+    try {
+      right = parseComparisonJson(rightText);
+    } catch (error) {
+      rightError = error instanceof Error ? error.message : String(error);
     }
-    return;
   }
-
-  if (isPlainObject(left) && isPlainObject(right)) {
-    const keys = Array.from(new Set([...Object.keys(left), ...Object.keys(right)])).sort();
-    for (const key of keys) {
-      if (diffs.length >= MAX_DIFFS) {
-        return;
+  const cursor = compareValues(left, right);
+  let pending: IteratorResult<JsonDiffEntry> | undefined;
+  // Keep only the currently inspected path's serialized values, never every full diff value.
+  let cachedPath = '';
+  let cachedValues: Partial<Record<JsonDiffSide, ComparisonValueReader | undefined>> = {};
+  return {
+    releaseValues() {
+      cachedPath = '';
+      cachedValues = {};
+    },
+    next(): JsonDiffResult {
+      if (leftError || rightError) return { diffs: [], leftError, rightError, truncated: false };
+      const diffs: JsonDiffEntry[] = [];
+      pending ??= cursor.next();
+      while (!pending.done && diffs.length < MAX_DIFFS) {
+        diffs.push(pending.value);
+        pending = cursor.next();
       }
-
-      const childPath = [...path, key];
-      const hasLeft = Object.hasOwn(left, key);
-      const hasRight = Object.hasOwn(right, key);
-      if (!hasLeft) {
-        addDiff(diffs, 'added', childPath, undefined, right[key]);
-      } else if (!hasRight) {
-        addDiff(diffs, 'removed', childPath, left[key], undefined);
-      } else {
-        compareValues(left[key], right[key], childPath, diffs);
+      return { diffs, leftError: null, rightError: null, truncated: !pending.done };
+    },
+    readValue(path: Array<string | number>, side: JsonDiffSide, offset = 0, full = false): JsonDiffValue {
+      if (detailSource !== null) {
+        left = parseComparisonJson(detailSource);
+        right = left;
+        detailSource = null;
       }
-    }
-    return;
-  }
-
-  addDiff(diffs, 'changed', path, left, right);
-}
-
-function parseJson(text: string) {
-  if (!text.trim()) {
-    throw new Error('内容为空');
-  }
-
-  return JSON.parse(text);
+      const pathKey = JSON.stringify(path);
+      if (pathKey !== cachedPath) {
+        cachedPath = pathKey;
+        cachedValues = {};
+      }
+      if (!Object.hasOwn(cachedValues, side)) {
+        let value = side === 'left' ? left : right;
+        for (const key of path) {
+          if (!value || typeof value !== 'object' || !Object.hasOwn(value, key)) {
+            value = undefined;
+            break;
+          }
+          value = (value as Record<string | number, unknown>)[key];
+        }
+        cachedValues[side] = value === undefined ? undefined : createComparisonValueReader(value);
+      }
+      const value = cachedValues[side];
+      let start = Math.max(0, Math.min(value?.total ?? 0, Math.floor(offset) || 0));
+      let end = start + DIFF_VALUE_CHUNK_SIZE;
+      const sliceStart = Math.max(0, start - 1);
+      const window = full ? '' : (value?.slice(sliceStart, end + 1) ?? '');
+      const splitsSurrogate = (position: number) => {
+        const before = window.charCodeAt(position - 1 - sliceStart);
+        const after = window.charCodeAt(position - sliceStart);
+        return before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff;
+      };
+      if (splitsSurrogate(start)) start += 1;
+      if (splitsSurrogate(end)) end += 1;
+      return {
+        text: full ? (value?.full() ?? '') : window.slice(start - sliceStart, end - sliceStart),
+        total: value?.total ?? 0,
+        offset: start,
+        missing: value === undefined,
+      };
+    },
+  };
 }
 
 export function compareJsonTexts(leftText: string, rightText: string): JsonDiffResult {
-  let leftValue: unknown;
-  let rightValue: unknown;
-  let leftError: string | null = null;
-  let rightError: string | null = null;
-
-  try {
-    leftValue = parseJson(leftText);
-  } catch (error) {
-    leftError = error instanceof Error ? error.message : '左侧 JSON 解析失败';
-  }
-
-  try {
-    rightValue = parseJson(rightText);
-  } catch (error) {
-    rightError = error instanceof Error ? error.message : '右侧 JSON 解析失败';
-  }
-
-  if (leftError || rightError) {
-    return { diffs: [], leftError, rightError };
-  }
-
-  const diffs: JsonDiffEntry[] = [];
-  compareValues(leftValue, rightValue, [], diffs);
-  return { diffs, leftError: null, rightError: null };
+  return createJsonComparison(leftText, rightText).next();
 }
+export type JsonCompareWorkerRequest =
+  | { releaseValues: true }
+  | { leftText: string; rightText: string }
+  | { next: true }
+  | { value: { id: number; path: Array<string | number>; side: JsonDiffSide; offset: number; full: boolean } };
+export type JsonCompareWorkerResponse =
+  | { result: JsonDiffResult }
+  | { error: string }
+  | { value: JsonDiffValue; id: number };

@@ -1,5 +1,6 @@
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { type MutableRefObject, useCallback, useRef, useState } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { clearPendingFormattedViewerResult } from './jsonFormattingWorkerResults';
 import type {
   LargeJsonSearchMatch,
   LargeJsonViewerData,
@@ -18,6 +19,7 @@ import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { useJsonWorkerCallbacksRef } from './useJsonWorkerCallbacksRef';
 import { useJsonWorkerInternalRefs } from './useJsonWorkerInternalRefs';
 import { useJsonWorkerLifecycle } from './useJsonWorkerLifecycle';
+import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 export interface UseJsonFormattingWorkerArgs {
   activeTabIdRef: MutableRefObject<string>;
@@ -46,7 +48,7 @@ export interface UseJsonFormattingWorkerArgs {
   syncPerformanceSnapshot: (tabId: string, shouldLog?: boolean) => void;
   renameTab: (tabId: string, nextTitle: string) => void;
   removeTabState: (tabId: string) => void;
-  setTabError: (tabId: string, message: string | null) => void;
+  setTabError: (tabId: string, message: string | null, location?: JsonErrorLocation) => void;
   setTabImporting: (tabId: string, fileName: string | null) => void;
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
@@ -240,6 +242,13 @@ export function useJsonFormattingWorker({
 
   const requestWorkerLocate = interactiveFlow.requestLocate;
   const requestWorkerSearch = interactiveFlow.requestSearch;
+  const cancelWorkerSearch = useCallback(
+    (tabId: string, target: 'left' | 'right') => {
+      const cancelledUnsentText = interactiveFlow.cancelSearch(tabId, target);
+      if (target === 'left' && cancelledUnsentText) delete leftSearchWorkerRevisionRef.current[tabId];
+    },
+    [interactiveFlow, leftSearchWorkerRevisionRef]
+  );
   const requestWorkerEditJson = interactiveFlow.requestEditJson;
   const requestWorkerEditJsonResult = interactiveFlow.requestEditJsonResult;
 
@@ -381,12 +390,14 @@ export function useJsonFormattingWorker({
   tabArtifactActionsRef.current = { removeTabArtifacts, resetTabArtifacts };
 
   const removeTabArtifactsWithCacheState = useCallback((tabId: string) => {
+    importFlowRef.current?.cancelImport(tabId);
     evictedViewerCacheTabsRef.current.delete(tabId);
     restoringViewerCacheTabsRef.current.delete(tabId);
     tabArtifactActionsRef.current.removeTabArtifacts(tabId);
   }, []);
 
   const resetTabArtifactsWithCacheState = useCallback((tabId: string) => {
+    importFlowRef.current?.cancelImport(tabId);
     evictedViewerCacheTabsRef.current.delete(tabId);
     restoringViewerCacheTabsRef.current.delete(tabId);
     tabArtifactActionsRef.current.resetTabArtifacts(tabId);
@@ -398,6 +409,10 @@ export function useJsonFormattingWorker({
     getCallbacks: () => callbacksRef.current,
     largeFileLocateEnabledRef,
     postClearTabCache: (tabId) => {
+      clearPendingFormat(tabId);
+      clearFormatWatchdog(tabId);
+      clearPendingFormattedViewerResult(tabId);
+      delete latestRequestRef.current[tabId];
       postWorkerRequest({
         type: 'clear-tab-cache',
         tabId,
@@ -406,7 +421,8 @@ export function useJsonFormattingWorker({
     queueFormatAfterImport,
     workerStructureEnabledRef,
   });
-  const { importJsonFile, importJsonText } = importFlowRef.current;
+  const { beginImport, cancelAllImports, importJsonFile, importJsonText } = importFlowRef.current;
+  useEffect(() => cancelAllImports, [cancelAllImports]);
 
   useJsonWorkerLifecycle({
     callbacksRef,
@@ -429,6 +445,7 @@ export function useJsonFormattingWorker({
   });
 
   return {
+    beginImport,
     clearTabStructure,
     importJsonFile,
     importJsonText,
@@ -440,6 +457,7 @@ export function useJsonFormattingWorker({
     restoreWorkerTabCache,
     removeTabArtifacts: removeTabArtifactsWithCacheState,
     requestWorkerSearch,
+    cancelWorkerSearch,
     requestWorkerLocate,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,

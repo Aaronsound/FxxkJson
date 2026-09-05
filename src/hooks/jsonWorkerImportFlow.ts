@@ -5,12 +5,14 @@ import type { PerformanceSession } from './useJsonPerformanceTracking';
 import { measureJsonDocumentWithKnownByteLength } from '../utils/jsonDocumentMetrics';
 import { getFileName } from '../utils/jsonToolModels';
 import { buildJsonWorkerProcessingPlan } from '../utils/jsonWorkerPlan';
+import { createJsonImportTasks, type JsonImportTask } from '../utils/jsonImportTasks';
+import { readImportedFile } from '../utils/readImportedFile';
 
 interface JsonImportSource {
   contentBuffer?: ArrayBuffer;
   name: string;
   size: number;
-  readText: () => Promise<string>;
+  readText: (signal: AbortSignal) => Promise<string>;
 }
 
 interface JsonWorkerImportCallbacks {
@@ -68,7 +70,9 @@ export function createJsonWorkerImportFlow({
   queueFormatAfterImport,
   workerStructureEnabledRef,
 }: JsonWorkerImportFlowArgs) {
-  const importJsonSource = async (tabId: string, source: JsonImportSource) => {
+  const tasks = createJsonImportTasks();
+  const importJsonSource = async (tabId: string, source: JsonImportSource, task = tasks.begin(tabId)) => {
+    if (!task.isCurrent()) return;
     const callbacks = getCallbacks();
     const presumedLargeMode = source.size >= LARGE_FILE_THRESHOLD;
 
@@ -99,10 +103,13 @@ export function createJsonWorkerImportFlow({
         window.setTimeout(resolve, 0);
       });
 
+      if (!task.isCurrent()) return;
+
       callbacks.mutatePerformanceSession(tabId, (session) => {
         session.readStartedAt = performance.now();
       });
-      const content = await source.readText();
+      const content = await source.readText(task.signal);
+      if (!task.isCurrent()) return;
       const rawBytes = source.size;
       const metrics = measureJsonDocumentWithKnownByteLength(content, rawBytes);
       callbacks.mutatePerformanceSession(tabId, (session) => {
@@ -142,6 +149,7 @@ export function createJsonWorkerImportFlow({
         queueFormatAfterImport(tabId, content, plan);
       }
     } catch (error) {
+      if (!task.isCurrent()) return;
       callbacks.mutatePerformanceSession(
         tabId,
         (session) => {
@@ -163,22 +171,38 @@ export function createJsonWorkerImportFlow({
       callbacks.setLargeViewerData(tabId, null);
       callbacks.setLargeRawViewerData(tabId, null);
       callbacks.setTabError(tabId, error instanceof Error ? `导入失败：${error.message}` : '导入失败');
+    } finally {
+      task.finish();
     }
   };
 
   return {
+    beginImport: tasks.begin,
+    cancelImport: tasks.cancel,
+    cancelAllImports: tasks.clear,
     importJsonFile: async (tabId: string, file: File) =>
       importJsonSource(tabId, {
         name: file.name,
         size: file.size,
-        readText: () => file.text(),
+        readText: (signal) => readImportedFile(file, signal),
       }),
-    importJsonText: async (tabId: string, name: string, size: number, content: string, contentBuffer?: ArrayBuffer) =>
-      importJsonSource(tabId, {
-        contentBuffer,
-        name,
-        size,
-        readText: async () => content,
-      }),
+    importJsonText: async (
+      tabId: string,
+      name: string,
+      size: number,
+      content: string,
+      contentBuffer?: ArrayBuffer,
+      task?: JsonImportTask
+    ) =>
+      importJsonSource(
+        tabId,
+        {
+          contentBuffer,
+          name,
+          size,
+          readText: async () => content,
+        },
+        task
+      ),
   };
 }

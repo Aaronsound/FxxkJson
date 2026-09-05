@@ -104,6 +104,13 @@ export function registerMainProcessIpc({ getMainWindow }: MainProcessIpcOptions)
 }
 
 async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: MessagePortMain) {
+  let cancelled = false;
+  let stream: ReturnType<typeof createReadStream> | undefined;
+  const closeStream = () => {
+    cancelled = true;
+    stream?.destroy();
+  };
+  port.once('close', closeStream);
   const dialogOptions: OpenDialogOptions = {
     properties: ['openFile'],
     filters: [
@@ -115,6 +122,7 @@ async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: Me
   try {
     port.start();
     const filePath = await selectJsonFilePath(mainWindow, dialogOptions);
+    if (cancelled) return;
     if (!filePath) {
       port.postMessage({ type: 'cancelled' });
       port.close();
@@ -122,18 +130,20 @@ async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: Me
     }
 
     const stats = await fs.stat(filePath);
+    if (cancelled) return;
     const fileName = path.basename(filePath);
     const selectionAcknowledged = waitForJsonStreamAcknowledgement(
       port,
       'selected-ack',
       'JSON file stream was closed before the selection was acknowledged'
     );
+    // A synchronous post failure must not leave an unobserved acknowledgement rejection.
+    void selectionAcknowledged.catch(() => {});
     port.postMessage({ type: 'selected', path: filePath, name: fileName, size: stats.size });
     await selectionAcknowledged;
 
-    const stream = createReadStream(filePath, { highWaterMark: JSON_FILE_STREAM_CHUNK_SIZE });
-    const closeStream = () => stream.destroy();
-    port.once('close', closeStream);
+    if (cancelled) return;
+    stream = createReadStream(filePath, { highWaterMark: JSON_FILE_STREAM_CHUNK_SIZE });
 
     for await (const chunk of stream) {
       const chunkAcknowledged = waitForJsonStreamAcknowledgement(
@@ -141,11 +151,12 @@ async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: Me
         'chunk-ack',
         'JSON file stream was closed before the chunk was acknowledged'
       );
+      void chunkAcknowledged.catch(() => {});
       port.postMessage({ type: 'chunk', chunk });
       await chunkAcknowledged;
     }
 
-    port.removeListener('close', closeStream);
+    if (cancelled) return;
     port.postMessage({ type: 'complete' });
     port.close();
 
@@ -154,10 +165,18 @@ async function streamSelectedJsonFile(mainWindow: BrowserWindow | null, port: Me
       fileSize: stats.size,
     });
   } catch (error) {
+    if (cancelled) return;
     const message = error instanceof Error ? error.message : String(error);
-    port.postMessage({ type: 'error', message });
-    port.close();
+    try {
+      port.postMessage({ type: 'error', message });
+    } catch {
+      /* The renderer may have closed its port meanwhile. */
+    }
     logRuntimeEvent('native-file-open-failed', { message });
+  } finally {
+    stream?.destroy();
+    port.removeListener('close', closeStream);
+    port.close();
   }
 }
 

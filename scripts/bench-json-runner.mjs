@@ -49,7 +49,8 @@ export async function benchFile(filePath) {
   const stringifyResult = measure('stringify', () => JSON.stringify(parseResult.value, null, 2));
   const formattedText = stringifyResult.value;
   const formatHandoffResult = measure('format-result-handoff', () => {
-    const buffer = Buffer.from(formattedText, 'utf8');
+    // Match prepareWorkerText: encode once, then measure lines using the known byte length.
+    const buffer = new TextEncoder().encode(formattedText);
     return {
       formattedBytes: buffer.byteLength,
       formattedLineCount: countTextLines(formattedText),

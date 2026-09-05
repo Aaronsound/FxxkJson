@@ -202,6 +202,25 @@ export function useJsonEditFolding(editorRef: RefObject<monaco.editor.IStandalon
     [editorRef, scheduleFoldControlsUpdate]
   );
 
+  const revealEditLine = useCallback(
+    (line: number) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      let changed = false;
+      for (const [key, range] of collapsedFoldRangesRef.current) {
+        if (line >= range.startLineNumber && line <= range.endLineNumber) {
+          collapsedFoldRangesRef.current.delete(key);
+          changed = true;
+        }
+      }
+      if (changed) {
+        setEditHiddenAreas(editor, Array.from(collapsedFoldRangesRef.current.values()));
+        scheduleFoldControlsUpdate();
+      }
+    },
+    [editorRef, scheduleFoldControlsUpdate]
+  );
+
   const clearEditFoldControls = useCallback(() => {
     cancelScheduledFoldControlsUpdate();
     collapsedFoldRangesRef.current.clear();
@@ -214,6 +233,7 @@ export function useJsonEditFolding(editorRef: RefObject<monaco.editor.IStandalon
     foldOverlayLeft,
     handleToggleFoldControl,
     resetEditFoldControls,
+    revealEditLine,
     scheduleFoldControlsUpdate,
   };
 }

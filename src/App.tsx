@@ -1,6 +1,6 @@
 import type { OnMount } from '@monaco-editor/react';
 import type React from 'react';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import JsonToolAppView from './components/JsonToolAppView';
 import { createJsonToolWorkspaceProps } from './hooks/createJsonToolWorkspaceProps';
 import { useActiveJsonTabState } from './hooks/useActiveJsonTabState';
@@ -43,6 +43,7 @@ import { useRightPaneNavigationActions } from './hooks/useRightPaneNavigationAct
 import { useRightSearchQuickAccess } from './hooks/useRightSearchQuickAccess';
 import { INITIAL_TAB_ID } from './types/jsonTool';
 import './App.css';
+import { useJsonErrorNavigation } from './hooks/useJsonErrorNavigation';
 
 const App: React.FC = () => {
   const {
@@ -50,6 +51,7 @@ const App: React.FC = () => {
     cancelRenaming,
     documentMetaByTab,
     errorsByTab,
+    errorLocationsByTab,
     finishRenaming,
     handleRenamingChange,
     importingByTab,
@@ -93,6 +95,7 @@ const App: React.FC = () => {
     resetRightSearchState,
     rightMatchIndex,
     rightMatches,
+    rightSearchCache,
     rightSearchHasMore,
     rightSearchNextOffset,
     rightSearchOptions,
@@ -205,6 +208,7 @@ const App: React.FC = () => {
     closeEditJson,
     editJsonBusyLabel,
     editJsonError,
+    editJsonErrorLocation,
     editJsonSession,
     editJsonValueRef,
     hasCopiedLiteral,
@@ -294,6 +298,10 @@ const App: React.FC = () => {
     setLeftSearchNextOffset,
     shouldUseDedicatedLeftViewer,
   });
+  const focusErrorPane = useCallback(() => {
+    if (shouldUseDedicatedLeftViewer) largeRawViewerRef.current?.focus();
+    else leftEditorRef.current?.focus();
+  }, [shouldUseDedicatedLeftViewer, largeRawViewerRef, leftEditorRef]);
   const { diagnosticsContext, leftPaneMetaText, normalizedRightMatchIndex, processingStageText, rightPaneMetaText } =
     useJsonToolDerivedState({
       ...{ activeDocumentMeta, activeLeftMatchCount, activeLocateFeedback, activePerformanceSnapshot },
@@ -360,7 +368,20 @@ const App: React.FC = () => {
     ...{ structureStatusRef, syncLeftModel, syncRightModel },
   });
 
+  const { currentErrorLocation, handleLocateError } = useJsonErrorNavigation({
+    activeTabId,
+    rawRevision: activeDocumentMeta.rawRevision,
+    error: currentError,
+    location: errorLocationsByTab[activeTabId],
+    getRawRevision,
+    getTabContent,
+    revealLeftRange,
+    clearLeftHighlights,
+    focusLeft: focusErrorPane,
+  });
+
   const {
+    beginImport,
     clearTabStructure,
     importJsonFile,
     importJsonText,
@@ -372,6 +393,7 @@ const App: React.FC = () => {
     restoreWorkerTabCache,
     removeTabArtifacts,
     requestWorkerSearch,
+    cancelWorkerSearch,
     requestWorkerLocate,
     requestWorkerEditJson,
     requestWorkerEditJsonResult,
@@ -470,6 +492,9 @@ const App: React.FC = () => {
   });
 
   const { closeLeftFind, closeRightFind, openLeftFind, openRightFind } = useJsonToolSearchEffects({
+    cancelWorkerSearch,
+    rightMatches,
+    rightSearchCache,
     ...{ activeDocumentMeta, activeLargeViewerData, activeTab, activeTabId },
     ...{ clearLeftHighlights, clearRightHighlights, getTabContent, isBuildingDedicatedRightViewer },
     ...{ largeRawViewerRef, largeViewerRef, leftEditorRef, leftSearchWorkerRevisionRef },
@@ -547,6 +572,7 @@ const App: React.FC = () => {
   });
 
   const { handleFileSelection, handleImport } = useJsonImportActions({
+    beginImport,
     activeTab,
     fileInputRef,
     importJsonFile,
@@ -565,6 +591,7 @@ const App: React.FC = () => {
     handleRepairJson,
     handleUnescapeJson,
   } = useJsonToolContentActions({
+    currentErrorLocation,
     ...{ activeDocumentMeta, activeTab, beginPerformanceSession, clearPerformanceState, clearTabStructure },
     ...{ getFormattedContent, getTabContent },
     ...{ largeModeRef, leftEditorRef, leftSearchWorkerRevisionRef, openDocumentEditSession },
@@ -676,6 +703,7 @@ const App: React.FC = () => {
     replaceAllLeftMatches,
     replaceLeftMatch,
   } = useJsonPaneSearchActions({
+    rightSearchCache,
     ...{ activeDocumentMeta, activeLeftMatchCount, activeRightMatchCount, activeTab },
     ...{ isBuildingDedicatedRightViewer, isLeftSearchLoadingMore, isRightSearchLoadingMore },
     ...{ leftEditorRef, leftMatches, leftReplaceText, leftSearchHasMore },
@@ -714,7 +742,11 @@ const App: React.FC = () => {
     ...{ confirmDeleteDialog, confirmRenameDialog },
     ...{ copyLeftEditorSelection, copyNodeDetailAtOffset, copyValueAtOffset, cutLeftEditorSelection },
     ...{ currentError, currentStructureStatus, diagnosticsContext },
+    currentErrorLocation,
+    handleLocateError,
     ...{ editJsonBusyLabel, editJsonError, editJsonSession, editJsonValueRef },
+    editJsonErrorLocation,
+    clearEditJsonError: () => setEditJsonError(null),
     ...{ finishRenaming, formattedValue, getTabContent },
     ...{ gotoNextLeft, gotoNextRight, gotoPrevLeft, gotoPrevRight },
     ...{ handleClear, handleCopyEscapedJson, handleEscapeEditJsonContent, handleEscapeJson },
