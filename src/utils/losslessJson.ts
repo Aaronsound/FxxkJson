@@ -26,8 +26,15 @@ export function* jsonTokens(text: string) {
   }
 }
 
-/** The caller validates JSON first. This operation changes whitespace only. */
-export function layoutJsonTokens(text: string, indent = '  ', newline = '\n') {
+export type JsonLayoutOutput = { bytes: Uint8Array<ArrayBuffer>; lineCount: number };
+
+/** The caller validates JSON first. The optional sink receives an owned, exact-size transfer buffer. */
+export function layoutJsonTokens(
+  text: string,
+  indent = '  ',
+  newline = '\n',
+  onOutput?: (output: JsonLayoutOutput) => void
+) {
   const encoder = new TextEncoder();
   // TextEncoder replaces lone UTF-16 surrogates. Escape them instead, preserving
   // the JSON string value (including a literal surrogate supplied by an editor).
@@ -37,7 +44,10 @@ export function layoutJsonTokens(text: string, indent = '  ', newline = '\n') {
       )
     : text;
   const trimmed = safeText.trim();
-  if (trimmed[0] !== '{' && trimmed[0] !== '[') return trimmed;
+  if (trimmed[0] !== '{' && trimmed[0] !== '[') {
+    if (onOutput) onOutput({ bytes: encoder.encode(trimmed), lineCount: trimmed.split('\n').length });
+    return trimmed;
+  }
   const source = encoder.encode(safeText);
   // ASCII has identical UTF-16 and UTF-8 offsets. Its native string search can
   // skip long values faster than Uint8Array.indexOf without changing byte copies.
@@ -45,6 +55,9 @@ export function layoutJsonTokens(text: string, indent = '  ', newline = '\n') {
   let output = new Uint8Array(Math.ceil(source.length * (indent ? 1.5 : 1)) + 128);
   let size = 0;
   let depth = 0;
+  let lineCount = 1;
+  const newlineCount = newline.split('\n').length - 1;
+  const indentNewlineCount = indent.split('\n').length - 1;
   const indentation = [encoder.encode(newline)];
   const put = (bytes: Uint8Array, from = 0, to = bytes.length) => {
     const length = to - from;
@@ -63,6 +76,7 @@ export function layoutJsonTokens(text: string, indent = '  ', newline = '\n') {
   const line = () => {
     while (indentation.length <= depth) indentation.push(encoder.encode(newline + indent.repeat(indentation.length)));
     put(indentation[depth]);
+    lineCount += newlineCount + indentNewlineCount * depth;
   };
   const space = new Uint8Array([32]);
   let start = 0;
@@ -108,7 +122,10 @@ export function layoutJsonTokens(text: string, indent = '  ', newline = '\n') {
     previous = code;
   }
   if (start < source.length) put(source, start);
-  return new TextDecoder().decode(output.subarray(0, size));
+  const bytes = output.subarray(0, size);
+  const formatted = new TextDecoder().decode(bytes);
+  if (onOutput) onOutput({ bytes: bytes.slice(), lineCount });
+  return formatted;
 }
 
 export function compactJsonText(text: string) {

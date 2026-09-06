@@ -1,5 +1,5 @@
 import { jsonrepair } from 'jsonrepair';
-import { layoutJsonTokens } from './losslessJson';
+import { layoutJsonTokens, type JsonLayoutOutput } from './losslessJson';
 
 const MAX_NESTED_JSON_STRING_DEPTH = 3;
 
@@ -25,7 +25,7 @@ function looksLikeEscapedJsonContainer(text: string) {
   );
 }
 
-export function formatJsonText(text: string): JsonFormatResult {
+export function formatJsonText(text: string, onOutput?: (output: JsonLayoutOutput) => void): JsonFormatResult {
   let source = text;
   let value: unknown;
   try {
@@ -53,7 +53,7 @@ export function formatJsonText(text: string): JsonFormatResult {
   }
 
   return {
-    formatted: layoutJsonTokens(source),
+    formatted: layoutJsonTokens(source, '  ', '\n', onOutput),
     normalizedNestedString,
   };
 }

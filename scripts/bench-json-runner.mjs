@@ -9,7 +9,6 @@ import {
   buildTokenizerSampleLines,
   buildViewerDataStats,
   buildWrapLayoutStats,
-  countTextLines,
   createTextPatch,
   findCaseInsensitiveSearchBatch,
   findLegacyLineAwareLiteralBatch,
@@ -46,17 +45,24 @@ export async function benchFile(filePath) {
   const readEnd = performance.now();
 
   const rawBytes = Buffer.byteLength(rawText, 'utf8');
-  const parseResult = measure('parse', () => JSON.parse(rawText));
-  const stringifyResult = measure('lossless-layout', () => layoutJsonTokens(rawText));
+  const parseResult = measure('parse', () => {
+    JSON.parse(rawText);
+  });
+  let layout;
+  const stringifyResult = measure('lossless-layout', () =>
+    layoutJsonTokens(rawText, '  ', '\n', (output) => {
+      layout = output;
+    })
+  );
   const formattedText = stringifyResult.value;
   const formatHandoffResult = measure('format-result-handoff', () => {
-    // Match prepareWorkerText: encode once, then measure lines using the known byte length.
-    const buffer = new TextEncoder().encode(formattedText);
+    // Match the worker: reuse the formatter's exact UTF-8 buffer and emitted line count.
     return {
-      formattedBytes: buffer.byteLength,
-      formattedLineCount: countTextLines(formattedText),
+      formattedBytes: layout.bytes.byteLength,
+      formattedLineCount: layout.lineCount,
     };
   });
+  layout = undefined; // The worker transfers ownership rather than retaining this buffer for later indexing.
   const formattedBytes = formatHandoffResult.value.formattedBytes;
   const uiMetricRescanResult = measure('legacyUiMetricRescan', () => {
     const raw = measure('rawMetricRescan', () => measureDocumentMetrics(rawText));

@@ -1,5 +1,5 @@
 import type { LargeJsonLineIndex, WorkerRequestMessage } from '../types/jsonTool';
-import { LARGE_FILE_THRESHOLD } from '../types/jsonTool';
+import { DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD, LARGE_FILE_THRESHOLD } from '../types/jsonTool';
 import {
   type JsonDocumentMetrics,
   measureJsonDocumentWithKnownByteLength,
@@ -7,7 +7,7 @@ import {
   shouldUseDedicatedRightViewerForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
-import { findDuplicateJsonKeyAsync } from '../utils/losslessJson';
+import { findDuplicateJsonKeyAsync, type JsonLayoutOutput } from '../utils/losslessJson';
 import { findJsonParseError } from '../utils/findJsonParseError';
 import { buildLargeLiteralViewerData, buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
@@ -365,9 +365,21 @@ export function createJsonWorkerFormatOperations({
         throw new Error('工作线程文本缓存不可用');
       }
       const sourceMetrics = resolveJsonDocumentMetrics(text, message.rawMetrics);
-      const { formatted, normalizedNestedString } = formatJsonText(text);
-      const preparedFormatted = prepareWorkerText(formatted);
-      const formattedMetrics = measureJsonDocumentWithKnownByteLength(formatted, preparedFormatted.byteLength);
+      let layout: JsonLayoutOutput | undefined;
+      const { formatted, normalizedNestedString } = formatJsonText(text, (output) => {
+        layout = output;
+      });
+      if (!layout) throw new Error('Missing formatted output');
+      const preparedFormatted = {
+        text: formatted,
+        byteLength: layout.bytes.byteLength,
+        buffer: layout.bytes.byteLength >= LARGE_FILE_THRESHOLD ? layout.bytes.buffer : null,
+      };
+      const formattedMetrics = {
+        textByteLength: layout.bytes.byteLength,
+        lineCount: layout.lineCount,
+        exceedsDedicatedViewerLineThreshold: layout.lineCount > DEDICATED_RIGHT_VIEWER_LINE_THRESHOLD,
+      };
       rawDocumentCache.set(tabId, {
         rawMetrics: sourceMetrics,
         rawRevision: message.rawRevision ?? null,

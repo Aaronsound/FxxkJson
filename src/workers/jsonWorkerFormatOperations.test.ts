@@ -168,6 +168,21 @@ describe('createJsonWorkerFormatOperations', () => {
     });
   });
 
+  it('transfers exactly the formatted bytes and matching metrics for large Unicode output', () => {
+    const harness = createHarness();
+    const value = { payload: 'x'.repeat(LARGE_FILE_THRESHOLD), note: '中文😀' };
+    const expected = JSON.stringify(value, null, 2);
+    harness.operations.handleFormatMessage(formatRequest({ text: JSON.stringify(value), enableStructure: false }));
+    const call = postMessage.mock.calls.find(([message]) => message.type === 'format-result');
+    const message = call?.[0];
+    expect(message.success).toBe(true);
+    expect(message.data).toBeUndefined();
+    expect(message.formattedMetrics).toEqual(measureJsonDocument(expected));
+    expect(message.dataBuffer.byteLength).toBe(message.formattedMetrics.textByteLength);
+    expect(new TextDecoder().decode(message.dataBuffer)).toBe(expected);
+    expect(call?.[1]).toEqual([message.dataBuffer]);
+  });
+
   it('formats the matching cached raw revision without another text payload', () => {
     const harness = createHarness();
     const cachedText = '{"cached":true}';

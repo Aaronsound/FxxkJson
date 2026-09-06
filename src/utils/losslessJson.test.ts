@@ -79,6 +79,28 @@ describe('lossless JSON workflows', () => {
     expect(layoutJsonTokens(text)).toBe(expected);
     expect(compactJsonText(expected)).toBe(text);
   });
+  it.each([
+    ['{"text":"中文😀","a":[1,2]}', '  ', '\n'],
+    ['{"text":"a\\n\\\"b","a":[{},[]]}', '\t', '\r\n'],
+    ['{"a":[1,2]}', '', '\n'],
+    ['"plain \\n text"', '  ', '\n'],
+    ['9007199254740993', '  ', '\n'],
+    ['{}', '  ', '\n'],
+    ['['.repeat(80) + '0' + ']'.repeat(80), '  ', '\n'],
+  ])('emits exact transferable bytes and line counts for %s', (text, indent, newline) => {
+    let output: import('./losslessJson').JsonLayoutOutput | undefined;
+    const formatted = layoutJsonTokens(text, indent, newline, (value) => {
+      output = value;
+    });
+    expect(output).toBeDefined();
+    expect(output!.lineCount).toBe(formatted.split('\n').length);
+    expect(output!.bytes).toEqual(new TextEncoder().encode(formatted));
+    expect(output!.bytes.byteOffset).toBe(0);
+    expect(output!.bytes.buffer.byteLength).toBe(output!.bytes.byteLength);
+    const transferred = structuredClone(output!.bytes, { transfer: [output!.bytes.buffer] });
+    expect(new TextDecoder().decode(transferred)).toBe(formatted);
+    expect(layoutJsonTokens(text, indent, newline)).toBe(formatted);
+  });
   it('detects escaped-equivalent keys but not keys in independent objects or string contents', async () => {
     expect(findDuplicateJsonKey('[{"a":1},{"a":2}]')).toBeNull();
     const text = '{"a":1,"\\u0061":2}';
