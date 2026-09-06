@@ -3,6 +3,39 @@
   max-height: min(840px, calc(100dvh - 32px));
 }
 
+.json-compare-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.json-compare-filters label {
+  display: flex;
+  flex: 1 1 140px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.json-compare-filters input,
+.json-compare-filters select {
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  color: var(--app-text);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+
+.json-compare-filter-status {
+  flex-basis: 100%;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .json-compare-selectors {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;

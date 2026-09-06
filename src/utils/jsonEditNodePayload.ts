@@ -1,4 +1,5 @@
 import type { JsonEditPath } from '../types/jsonTool';
+import { layoutJsonTokens } from './losslessJson';
 
 export interface EditableNodePayload {
   path: JsonEditPath;
@@ -54,8 +55,8 @@ export function getJsonLiteralDetails(jsonLiteral: string): Omit<EditableNodeDet
   const kind = getJsonValueKind(parsedValue);
   return {
     clipboardValue: kind === 'string' ? (parsedValue as string) : jsonLiteral,
-    compactJson: JSON.stringify(parsedValue),
-    formattedJson: JSON.stringify(parsedValue, null, 2),
+    compactJson: layoutJsonTokens(jsonLiteral, ''),
+    formattedJson: layoutJsonTokens(jsonLiteral),
     kind,
     parsedValue,
   };

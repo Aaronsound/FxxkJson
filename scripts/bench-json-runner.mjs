@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { parseTree } from 'jsonc-parser';
+import { layoutJsonTokens } from './load-lossless-formatter.mjs';
 import {
   buildFoldAllStats,
   buildRawViewerDataStats,
@@ -46,7 +47,7 @@ export async function benchFile(filePath) {
 
   const rawBytes = Buffer.byteLength(rawText, 'utf8');
   const parseResult = measure('parse', () => JSON.parse(rawText));
-  const stringifyResult = measure('stringify', () => JSON.stringify(parseResult.value, null, 2));
+  const stringifyResult = measure('lossless-layout', () => layoutJsonTokens(rawText));
   const formattedText = stringifyResult.value;
   const formatHandoffResult = measure('format-result-handoff', () => {
     // Match prepareWorkerText: encode once, then measure lines using the known byte length.

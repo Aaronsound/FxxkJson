@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import JsonCompareDialog from './JsonCompareDialog';
+import { createTranslator } from '../utils/i18n';
 import {
   compareJsonTexts,
   createJsonComparison,
@@ -39,6 +40,69 @@ const tabs = [
 ];
 
 describe('JsonCompareDialog', () => {
+  it('explains duplicate keys in English without displaying a false equality result', async () => {
+    render(
+      <JsonCompareDialog
+        tabs={tabs}
+        activeTabId="left"
+        isDarkMode={true}
+        t={createTranslator('en')}
+        getTabText={() => '{"status":1,"status":2}'}
+        onClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Duplicate key on the left: "status"');
+    expect(screen.getByRole('alert')).toHaveTextContent('Duplicate key on the right: "status"');
+    expect(screen.queryByText('The two JSON documents are identical.')).not.toBeInTheDocument();
+  });
+  it('shows a duplicate warning instead of claiming equality, including empty keys', async () => {
+    render(
+      <JsonCompareDialog
+        tabs={tabs}
+        activeTabId="left"
+        isDarkMode={false}
+        getTabText={(id) => (id === 'left' ? '{"":1,"":2}' : '{"":2}')}
+        onClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('左侧存在重复 key：""');
+    expect(screen.queryByText('两个 JSON 内容一致。')).not.toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+  it('filters type and path, clears filters, and distinguishes partial zero matches from complete zero matches', async () => {
+    render(
+      <JsonCompareDialog
+        tabs={tabs}
+        activeTabId="left"
+        isDarkMode={false}
+        getTabText={(id) =>
+          JSON.stringify({ items: Array(2001).fill(id), ...(id === 'right' ? { zorders: true } : {}) })
+        }
+        onClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: '开始对比' }));
+    await screen.findByText(/已加载 2000 处差异，仍有更多/);
+    fireEvent.change(screen.getByLabelText('字段路径'), { target: { value: 'zorders' } });
+    expect(screen.getByText(/已加载的差异中暂无匹配/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '继续加载' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: '继续加载' }));
+    await screen.findByText('$.zorders');
+    expect(screen.getByText('全部 2002 处差异中，匹配 1 处。')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('差异类型'), { target: { value: 'removed' } });
+    expect(screen.getByText('全部差异中没有匹配项。')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '继续加载' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('差异类型'), { target: { value: 'added' } });
+    fireEvent.click(screen.getByRole('button', { name: '查看 $.zorders 的完整值' }));
+    await within(screen.getByRole('region', { name: '右侧值' })).findByText('true');
+    fireEvent.click(screen.getByRole('button', { name: '清除筛选' }));
+    expect(screen.queryByText('完整差异值')).not.toBeInTheDocument();
+    expect(screen.getByText('$.items[0]')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('右侧'), { target: { value: 'left' } });
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
   it('reads precise full values after the final batch, and releases the worker on close', async () => {
     const { unmount } = render(
       <JsonCompareDialog

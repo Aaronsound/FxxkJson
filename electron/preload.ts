@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showLogFile: () => ipcRenderer.invoke('log:showInFolder'),
   readClipboardText: () => ipcRenderer.invoke('clipboard:readText'),
   writeClipboardText: (text: string) => ipcRenderer.invoke('clipboard:writeText', text),
+  saveJsonFile: (request: { name: string; text: string }) => ipcRenderer.invoke('file:saveJson', request),
   getRuntimeInfo: () => ipcRenderer.invoke('app:runtimeInfo'),
   getProcessMetrics: () => ipcRenderer.invoke('app:processMetrics'),
   openJsonFile,

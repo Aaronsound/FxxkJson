@@ -55,6 +55,17 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof JsonToolTo
 }
 
 describe('JsonToolToolbar', () => {
+  it('shows a non-error duplicate warning with explicit navigation and a save entry', () => {
+    const onLocateDuplicate = vi.fn();
+    const onSaveAs = vi.fn();
+    renderToolbar({ duplicateWarning: { key: 'id', offset: 9, rawRevision: 1 }, onLocateDuplicate, onSaveAs });
+    expect(screen.getByText(/已保留全部字段/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('定位重复 key'));
+    expect(onLocateDuplicate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByText('另存为…'));
+    expect(onSaveAs).toHaveBeenCalledOnce();
+  });
   it('offers explicit error navigation without invoking repair or auto-locating', () => {
     const { props, rerender } = renderToolbar({
       currentError: 'Invalid JSON',

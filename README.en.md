@@ -59,6 +59,10 @@ Current builds are unsigned, so macOS Gatekeeper or Windows SmartScreen may show
 - Search, fold, copy values, and copy JSON Path from the formatted result.
 - Edit the current node, delete nodes, and rename keys.
 - Manage multiple tabs and compare JSON differences between two tabs.
+- Preserve large integers, precise decimals, and duplicate fields during formatting and edit saves; warn about duplicate keys and pause ambiguous structural comparisons.
+- Filter comparison results by difference type and field path, and continue loading later differences.
+- Export raw, formatted, or single-line compact JSON through More → Save as.
+- Recover accidentally closed tabs in the current session through More → Reopen closed tab or `Ctrl/Cmd + Shift + T` (bounded count/memory, without automatic disk persistence).
 - Work with many tabs through a fixed add button, scroll controls, and keyboard navigation.
 - Choose Emerald, Mist Blue, Graphite, Obsidian, Blue, Indigo, or Violet; the preference is stored locally and works in dark mode.
 - Use responsive toolbars, menus, and dialogs in narrow windows, and drag the center splitter to resize either pane.

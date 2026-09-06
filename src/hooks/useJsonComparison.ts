@@ -11,6 +11,10 @@ export function useJsonComparison() {
   const valueRequestId = useRef(0);
   const batches = useRef(createComparisonBatches());
   const getPage = useCallback((page: number) => batches.current.page(page), []);
+  const filterResults = useCallback(
+    (...args: Parameters<typeof batches.current.filter>) => batches.current.filter(...args),
+    []
+  );
   const [result, setResult] = useState<ComparisonSnapshot | null>(null);
   const [isComparing, setIsComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,5 +127,5 @@ export function useJsonComparison() {
       setIsComparing(false);
     }
   }, [stop]);
-  return { result, isComparing, error, compare, reset, loadMore, getValue, getPage, releaseValues };
+  return { result, isComparing, error, compare, reset, loadMore, getValue, getPage, filterResults, releaseValues };
 }

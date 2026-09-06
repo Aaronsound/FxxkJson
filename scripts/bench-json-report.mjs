@@ -8,7 +8,7 @@ export function printResult(result) {
   console.table([
     { stage: 'read-file', duration: formatDuration(result.readFileMs) },
     { stage: 'parse', duration: formatDuration(result.parseMs) },
-    { stage: 'stringify', duration: formatDuration(result.stringifyMs) },
+    { stage: 'lossless-layout', duration: formatDuration(result.stringifyMs) },
     { stage: 'format-total', duration: formatDuration(result.totalFormatMs) },
     { stage: 'viewer-index', duration: formatDuration(result.viewerIndexMs) },
     { stage: 'raw-tree', duration: formatDuration(result.rawTreeMs) },

@@ -14,6 +14,7 @@ type JsonWorkerCallbackKeys =
   | 'revealLeftRange'
   | 'setStructureStatus'
   | 'setTabError'
+  | 'setTabWarning'
   | 'setTabFormatting'
   | 'setTabImporting'
   | 'setTabLargeMode'

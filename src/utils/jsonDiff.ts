@@ -1,4 +1,5 @@
 import { formatJsonPath } from './jsonPath';
+import { findDuplicateJsonKey } from './losslessJson';
 import {
   comparisonScalarsEqual,
   comparisonValueChunks,
@@ -17,6 +18,8 @@ export interface JsonDiffEntry {
   rightPreview: string;
 }
 export interface JsonDiffResult {
+  leftDuplicateKey?: string;
+  rightDuplicateKey?: string;
   diffs: JsonDiffEntry[];
   leftError: string | null;
   rightError: string | null;
@@ -114,19 +117,24 @@ export function createJsonComparison(leftText: string, rightText: string) {
   let right: unknown;
   let leftError: string | null = null;
   let rightError: string | null = null;
+  let leftDuplicateKey: string | undefined;
+  let rightDuplicateKey: string | undefined;
   const identicalText = leftText === rightText;
   let detailSource: string | null = identicalText ? leftText : null;
   try {
     left = identicalText ? JSON.parse(leftText) : parseComparisonJson(leftText);
+    leftDuplicateKey = findDuplicateJsonKey(leftText)?.key;
   } catch (error) {
     leftError = error instanceof Error ? error.message : String(error);
   }
   if (identicalText) {
     right = left;
     rightError = leftError;
+    rightDuplicateKey = leftDuplicateKey;
   } else {
     try {
       right = parseComparisonJson(rightText);
+      rightDuplicateKey = findDuplicateJsonKey(rightText)?.key;
     } catch (error) {
       rightError = error instanceof Error ? error.message : String(error);
     }
@@ -142,6 +150,8 @@ export function createJsonComparison(leftText: string, rightText: string) {
       cachedValues = {};
     },
     next(): JsonDiffResult {
+      if (leftDuplicateKey !== undefined || rightDuplicateKey !== undefined)
+        return { diffs: [], leftError, rightError, truncated: false, leftDuplicateKey, rightDuplicateKey };
       if (leftError || rightError) return { diffs: [], leftError, rightError, truncated: false };
       const diffs: JsonDiffEntry[] = [];
       pending ??= cursor.next();

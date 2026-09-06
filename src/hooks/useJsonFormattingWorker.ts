@@ -10,6 +10,7 @@ import type {
   ProcessingStage,
   RightNodeSelection,
   StructureStatus,
+  WorkerMessage,
 } from '../types/jsonTool';
 import { createJsonWorkerFormatQueue } from './jsonWorkerFormatQueue';
 import { createJsonWorkerImportFlow } from './jsonWorkerImportFlow';
@@ -49,6 +50,7 @@ export interface UseJsonFormattingWorkerArgs {
   renameTab: (tabId: string, nextTitle: string) => void;
   removeTabState: (tabId: string) => void;
   setTabError: (tabId: string, message: string | null, location?: JsonErrorLocation) => void;
+  setTabWarning?: (tabId: string, warning: WorkerMessage['duplicateKey']) => void;
   setTabImporting: (tabId: string, fileName: string | null) => void;
   setTabFormatting: (tabId: string, formatting: boolean) => void;
   setTabLargeMode: (tabId: string, enabled: boolean) => void;
@@ -108,6 +110,7 @@ export function useJsonFormattingWorker({
   renameTab,
   removeTabState,
   setTabError,
+  setTabWarning,
   setTabImporting,
   setTabFormatting,
   setTabLargeMode,
@@ -148,6 +151,7 @@ export function useJsonFormattingWorker({
     revealLeftRange,
     setStructureStatus,
     setTabError,
+    setTabWarning,
     setTabFormatting,
     setTabImporting,
     setTabLargeMode,

@@ -26,6 +26,7 @@ import { useJsonToolRefs, usePreserveActiveTabViewState } from './hooks/useJsonT
 import { useJsonToolSearchEffects } from './hooks/useJsonToolSearchEffects';
 import { useJsonToolStateSetters } from './hooks/useJsonToolStateSetters';
 import { useJsonToolTabActions } from './hooks/useJsonToolTabActions';
+import { getUtf8ByteLength } from './utils/jsonDocumentMetrics';
 import { useJsonToolTabsState } from './hooks/useJsonToolTabsState';
 import { useJsonToolViewerState } from './hooks/useJsonToolViewerState';
 import { useJsonToolWorkspaceActions } from './hooks/useJsonToolWorkspaceActions';
@@ -48,6 +49,8 @@ import { useJsonErrorNavigation } from './hooks/useJsonErrorNavigation';
 const App: React.FC = () => {
   const {
     activeTabId,
+    warningsByTab,
+    setTabWarning,
     cancelRenaming,
     documentMetaByTab,
     errorsByTab,
@@ -417,7 +420,7 @@ const App: React.FC = () => {
     },
     ...{ performanceSessionsRef, beginPerformanceSession, clearPerformanceState },
     ...{ logEvent, mutatePerformanceSession, syncPerformanceSnapshot },
-    ...{ renameTab, removeTabState, setTabError, setTabImporting, setTabFormatting },
+    ...{ renameTab, removeTabState, setTabError, setTabWarning, setTabImporting, setTabFormatting },
     ...{ setTabLargeMode, setProcessingStage, setLocateFeedback, setRightNodeSelection, setStructureStatus },
     ...{ setLargeViewerData, setLargeRawViewerData, setLargeViewerStatus, setLargeViewerSearchResults },
     ...{ setLeftSearchResults, updateTabContent, updateFormattedContent },
@@ -664,7 +667,11 @@ const App: React.FC = () => {
     ...{ resetSearchState, setEditJsonBusyLabel, setTabError },
   });
 
-  const { addTab, closeTab } = useJsonToolTabActions({
+  const { addTab, closeTab, reopenTab, canReopenTab } = useJsonToolTabActions({
+    restoreTabContent: async (tabId, snapshot) => {
+      await importJsonText(tabId, snapshot.title, getUtf8ByteLength(snapshot.text), snapshot.text);
+      renameTab(tabId, snapshot.title);
+    },
     ...{ activeTabId, activeTabIdRef, formattedTextByTabRef, handleClear },
     ...{ initializeTabArtifacts, initializeTabState, largeFileLocateEnabledRef, largeModeRef },
     ...{ leftEditorRef, leftSearchWorkerRevisionRef, leftViewStateByTabRef, rawRevisionByTabRef, rawTextByTabRef },
@@ -728,13 +735,23 @@ const App: React.FC = () => {
   }
 
   const workspaceProps = createJsonToolWorkspaceProps({
+    duplicateWarning:
+      warningsByTab[activeTabId]?.rawRevision === activeDocumentMeta.rawRevision && !currentError
+        ? warningsByTab[activeTabId]
+        : null,
+    handleLocateDuplicate: () => {
+      const warning = warningsByTab[activeTabId];
+      if (warning?.rawRevision !== getRawRevision(activeTabId) || typeof warning.offset !== 'number') return;
+      revealLeftRange(warning.offset, warning.offset + 1);
+      focusErrorPane();
+    },
     ...{ activeDocumentMeta, activeLargeRawViewerData, activeLargeViewerFoldState, activeLargeViewerData },
     ...{ activeLeftMatchCount, activePerformanceSnapshot, activeRawText, activeRightMatchCount },
     accentTheme,
     ...{ activeRightPinnedPathItems, activeRightSelectedRange },
     activeTab,
     activeTabId,
-    ...{ addTab, applyRightNodeMutationAtOffset },
+    ...{ addTab, reopenTab, canReopenTab, applyRightNodeMutationAtOffset },
     canCompareJson: tabs.length >= 2,
     ...{ canControlRightPaneFolding, canEditJson, canEnableLargeFileLocate },
     ...{ cancelMutationDialog, cancelRenaming, closeLeftFind, closeRightFind, closeTab },

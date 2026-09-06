@@ -31,6 +31,21 @@ function renderTabBar(overrides: Partial<React.ComponentProps<typeof JsonToolTab
 }
 
 describe('JsonToolTabBar', () => {
+  it('reopens via Ctrl/Cmd Shift T but ignores repeat, composition and modal shortcuts', () => {
+    const onReopenTab = vi.fn();
+    const { props } = renderTabBar({ onReopenTab });
+    fireEvent.keyDown(window, { key: 'T', ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: 't', metaKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: 'T', ctrlKey: true, shiftKey: true, repeat: true });
+    fireEvent.keyDown(window, { key: 'T', ctrlKey: true, shiftKey: true, isComposing: true });
+    const modal = document.createElement('div');
+    modal.setAttribute('aria-modal', 'true');
+    document.body.append(modal);
+    fireEvent.keyDown(window, { key: 'T', ctrlKey: true, shiftKey: true });
+    modal.remove();
+    expect(onReopenTab).toHaveBeenCalledTimes(2);
+    expect(props.onAddTab).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     cleanup();
   });

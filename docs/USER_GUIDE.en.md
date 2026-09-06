@@ -1,5 +1,18 @@
 # FxxkJson User Guide
 
+## Comparison filters and tab recovery (v1.0.37+)
+
+- Duplicate keys pause structural comparison and identify the affected side. Resolve them with Edit JSON first; no fields are deleted automatically.
+- Filter differences by Added, Removed or Changed and by a case-sensitive path substring (not a regular expression). Filters cover loaded differences only. If comparison is incomplete, Load more remains available even with zero matches. Clear filters restores all loaded results.
+- Use More → Reopen closed tab or `Ctrl + Shift + T` (`Cmd + Shift + T` on macOS) to restore a tab's name and exact source, including invalid drafts. Viewers are rebuilt; undo history, searches and fold states are not restored.
+- Recovery stays in memory for this session only: at most 10 nonempty tabs and 128 MiB of conservatively estimated UTF-16 text memory (about 67 million characters). Oldest entries are evicted first. A single oversized tab is not retained and clears older recovery entries to avoid reopening the wrong document. Exiting clears recovery history; save important edits explicitly.
+
+## Lossless formatting and Save as (v1.0.37+)
+
+Formatting preserves large integers, precise decimals, exponent notation, and duplicate keys instead of reserializing them as JavaScript numbers. Duplicate-key warnings can locate the first repeated member in the raw source. Duplicates inside an unwrapped string show a warning without an inaccurate raw offset. Use Edit JSON to resolve duplicate members; ambiguous single-node mutations are blocked.
+
+Choose More → Save as… to export raw text, formatted JSON, or single-line compact JSON, then choose a destination. Raw mode can save invalid drafts; the other modes require parseable content. A new filename is suggested and the current tab is not modified. Cancelling the system dialog keeps the content-selection dialog open. If you deliberately choose an existing file, review the system overwrite prompt.
+
 [简体中文](USER_GUIDE.md) · [Back to README](../README.en.md) · [Download the latest release](https://github.com/Aaronsound/FxxkJson/releases/latest)
 
 FxxkJson is a local-first desktop JSON tool for importing, formatting, repairing, searching, editing, comparing, and browsing JSON—including files larger than 5MB. JSON content is processed on your machine.

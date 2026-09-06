@@ -7,6 +7,7 @@ import {
   shouldUseDedicatedRightViewerForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { formatJsonText, repairJsonText } from '../utils/jsonFormat';
+import { findDuplicateJsonKeyAsync } from '../utils/losslessJson';
 import { findJsonParseError } from '../utils/findJsonParseError';
 import { buildLargeLiteralViewerData, buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
@@ -320,6 +321,38 @@ export function createJsonWorkerFormatOperations({
     }, 0);
   }
 
+  function scheduleDuplicateWarning(
+    tabId: string,
+    requestId: number,
+    text: string,
+    formatted: string,
+    normalizedNestedString: boolean,
+    rawRevision: number
+  ) {
+    // Diagnostics are incremental and run after the visible result, not on its critical path.
+    setTimeout(() => {
+      const isCurrent = () => latestFormatRequestByTab.get(tabId) === requestId;
+      if (!isCurrent()) return;
+      void findDuplicateJsonKeyAsync(normalizedNestedString ? formatted : text, isCurrent).then((duplicate) => {
+        if (!isCurrent()) return;
+        const cached = rawDocumentCache.get(tabId);
+        if (!normalizedNestedString && cached?.rawText === text) cached.hasDuplicateKeys = Boolean(duplicate);
+        postWorkerMessage({
+          type: 'duplicate-key-result',
+          requestId,
+          tabId,
+          duplicateKey: duplicate
+            ? {
+                key: duplicate.key,
+                offset: normalizedNestedString ? undefined : duplicate.offset,
+                rawRevision,
+              }
+            : null,
+        });
+      });
+    }, 0);
+  }
+
   function handleFormatMessage(message: FormatWorkerRequest) {
     const { requestId, tabId, enableStructure, enableDirectLocate, deferStructure = false, buildViewer } = message;
     const cachedRaw = rawDocumentCache.get(tabId);
@@ -367,6 +400,7 @@ export function createJsonWorkerFormatOperations({
         structureWarmupDelayMs: message.structureWarmupDelayMs,
       });
       scheduleRawViewerData(tabId, requestId, text, sourceMetrics);
+      scheduleDuplicateWarning(tabId, requestId, text, formatted, normalizedNestedString, message.rawRevision ?? 0);
     } catch (err) {
       clearFormatFailureArtifacts(tabId);
       postWorkerMessage({
@@ -424,6 +458,14 @@ export function createJsonWorkerFormatOperations({
         structureWarmupDelayMs: message.structureWarmupDelayMs,
       });
       scheduleRawViewerData(tabId, requestId, repaired, sourceMetrics);
+      scheduleDuplicateWarning(
+        tabId,
+        requestId,
+        repaired,
+        formatted,
+        normalizedNestedString,
+        (message.rawRevision ?? 0) + 1
+      );
     } catch (err) {
       clearFormatFailureArtifacts(tabId);
       postWorkerMessage({

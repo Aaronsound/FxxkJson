@@ -22,6 +22,20 @@ it('keeps syntax locations tab-scoped and releases them on clear, other errors a
 });
 
 describe('useJsonToolTabsState', () => {
+  it('stores duplicate warnings independently and releases closed-tab warnings', () => {
+    const { result } = renderHook(() => useJsonToolTabsState({ initialTabId: 'a', initialTabTitle: 'a' }));
+    const warning = { key: 'id', offset: 10, rawRevision: 2 };
+    act(() => {
+      result.current.setTabWarning('a', warning);
+      result.current.setTabWarning('b', warning);
+    });
+    expect(result.current.warningsByTab.a).toEqual(warning);
+    act(() => result.current.setTabWarning('a', null));
+    expect(result.current.warningsByTab.a).toBeNull();
+    expect(result.current.warningsByTab.b).toEqual(warning);
+    act(() => result.current.removeTabState('b'));
+    expect(result.current.warningsByTab.b).toBeUndefined();
+  });
   it('initializes every tab-scoped state consistently', () => {
     const { result } = renderHook(() => useJsonToolTabsState({ initialTabId: 'tab-a', initialTabTitle: 'first.json' }));
 

@@ -13,6 +13,7 @@ import type { PerformanceSession } from './useJsonPerformanceTracking';
 import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
 
 interface JsonFormattingWorkerResultCallbacks {
+  setTabWarning?: (tabId: string, warning: WorkerMessage['duplicateKey']) => void;
   logEvent: (event: string, details?: Record<string, unknown>) => void;
   mutatePerformanceSession: (tabId: string, mutate: (session: PerformanceSession) => void, shouldLog?: boolean) => void;
   resetSearchState: () => void;
@@ -122,7 +123,16 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
     structureStatusRef,
   } = context;
 
-  if (!['format-result', 'repair-result', 'raw-viewer-ready', 'viewer-ready', 'structure-ready'].includes(type)) {
+  if (
+    ![
+      'format-result',
+      'repair-result',
+      'raw-viewer-ready',
+      'viewer-ready',
+      'structure-ready',
+      'duplicate-key-result',
+    ].includes(type)
+  ) {
     return false;
   }
 
@@ -134,6 +144,10 @@ export function handleJsonFormattingWorkerResult(message: WorkerMessage, context
   }
 
   const performanceSession = performanceSessionsRef.current[tabId];
+  if (type === 'duplicate-key-result') {
+    callbacks.setTabWarning?.(tabId, message.duplicateKey);
+    return true;
+  }
 
   if (type === 'raw-viewer-ready') {
     callbacks.setLargeRawViewerData(tabId, message.rawViewerData ?? null);
