@@ -2,6 +2,14 @@
 
 ## 未发布 / Unreleased
 
+### 中文
+
+- 修复大文件错误原文编辑后保存关闭卡顿：编辑弹窗忽略隐藏或移除后的零尺寸布局，避免再次对整份超长单行 JSON 计算换行。保留正常窗口缩放、保存校验和原文格式，并增加 20MB/40MB 保存耗时与布局回归检查。
+
+### English
+
+- Avoid rewrapping an entire long JSON line at a detached editor's fallback width when closing the edit dialog after saving. Visible resizing, save validation, and raw formatting are preserved, with 20MB/40MB save timing and layout regression checks.
+
 ## v1.0.36 - 2026-09-06
 
 ### 中文

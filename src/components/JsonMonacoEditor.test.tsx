@@ -21,6 +21,17 @@ describe('JsonMonacoEditor', () => {
     editorRender.mockClear();
   });
 
+  it('allows modal-owned layout while keeping automatic layout enabled by default', () => {
+    const { rerender } = render(
+      <JsonMonacoEditor defaultValue="{}" isDarkMode={false} largeMode={false} wrapLongLines />
+    );
+    expect(getLastEditorOptions().automaticLayout).toBe(true);
+    rerender(
+      <JsonMonacoEditor defaultValue="{}" isDarkMode={false} largeMode={false} wrapLongLines automaticLayout={false} />
+    );
+    expect(getLastEditorOptions().automaticLayout).toBe(false);
+  });
+
   it('keeps the options object stable until an editor option changes', () => {
     const { rerender } = render(
       <JsonMonacoEditor defaultValue="{}" isDarkMode={false} largeMode={false} wrapLongLines={false} />

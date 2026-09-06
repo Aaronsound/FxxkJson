@@ -184,6 +184,12 @@ class MockEditor {
 
   layout = vi.fn();
 
+  container = document.createElement('div');
+
+  getContainerDomNode() {
+    return this.container;
+  }
+
   render = vi.fn();
 
   foldingRegions = {
@@ -455,7 +461,47 @@ describe('JsonEditModal search position', () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it('relayouts visible resizes but ignores detached dimensions and disconnects on disposal', () => {
+    let notify: ResizeObserverCallback = () => undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notify = callback;
+        }
+        observe = observe;
+        disconnect = disconnect;
+      }
+    );
+    renderModal('{"ok":true}');
+    const editor = mockEditorState.editor!;
+    const container = editor.getContainerDomNode();
+    expect(observe).toHaveBeenCalledWith(container);
+    Object.defineProperties(container, {
+      clientWidth: { value: 960, configurable: true },
+      clientHeight: { value: 400, configurable: true },
+    });
+    editor.layout.mockClear();
+    act(() => notify([], {} as ResizeObserver));
+    expect(editor.layout).toHaveBeenCalledOnce();
+    Object.defineProperties(container, {
+      clientWidth: { value: 0, configurable: true },
+      clientHeight: { value: 0, configurable: true },
+    });
+    act(() => notify([], {} as ResizeObserver));
+    expect(editor.layout).toHaveBeenCalledOnce();
+    act(() => {
+      for (const listener of editor.disposeListeners) listener();
+    });
+    expect(disconnect).toHaveBeenCalledOnce();
+    act(() => notify([], {} as ResizeObserver));
+    expect(editor.layout).toHaveBeenCalledOnce();
   });
 
   it('shows feedback after copying a JSON string literal', () => {

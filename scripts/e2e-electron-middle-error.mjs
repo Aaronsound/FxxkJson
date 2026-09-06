@@ -16,17 +16,22 @@ import { evaluate, waitFor, clickSelector } from './e2e-cdp-helpers.mjs';
 import { createSampleJson } from './e2e-json-fixtures.mjs';
 
 // Use the regular many-record sample, not a single long string or an EOF-only error.
+const sizeIndex = process.argv.indexOf('--size-mb');
+const sampleSizeMb = sizeIndex < 0 ? 20 : Number(process.argv[sizeIndex + 1]);
+assert.ok([20, 40].includes(sampleSizeMb), 'Use --size-mb 20 or 40');
 let originalPath = path.resolve(
   'json',
-  process.argv.includes('--generated') ? 'error-edit-source-20mb.json' : 'sample-20mb.json'
+  process.argv.includes('--generated') || sampleSizeMb !== 20
+    ? `error-edit-source-${sampleSizeMb}mb.json`
+    : 'sample-20mb.json'
 );
 let original;
 try {
   original = await readFile(originalPath, 'utf8');
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
-  original = createSampleJson(20 * 1024 * 1024);
-  originalPath = await saveManualJsonSample('error-edit-source-20mb.json', original);
+  original = createSampleJson(sampleSizeMb * 1024 * 1024);
+  originalPath = await saveManualJsonSample(`error-edit-source-${sampleSizeMb}mb.json`, original);
 }
 JSON.parse(original);
 const scanner = createScanner(original, true);
@@ -47,7 +52,7 @@ const broken = original.slice(0, removedOffset) + original.slice(removedOffset +
 assert.equal(broken.length, original.length - 1);
 assert.equal(`${broken.slice(0, removedOffset)},${broken.slice(removedOffset)}`, original);
 assert.throws(() => JSON.parse(broken), SyntaxError);
-const outputPath = await saveManualJsonSample('sample-20mb-middle-missing-comma.json', broken);
+const outputPath = await saveManualJsonSample(`sample-${sampleSizeMb}mb-middle-missing-comma.json`, broken);
 console.log(
   JSON.stringify({
     outputPath,
@@ -170,7 +175,55 @@ try {
   );
   const fixed = await evaluate(cdp, 'window.__HANJSON_E2E_EDIT_MODAL__.getValue()');
   assert.equal(fixed, original);
+  if (process.argv.includes('--resize-editor')) {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 800,
+      height: 600,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `(() => {
+      const editor = window.__HANJSON_E2E_EDIT_MODAL__.__editor;
+      const node = editor.getContainerDomNode();
+      return node.clientWidth > 0 && node.clientWidth < 800 && editor.getLayoutInfo().width === node.clientWidth;
+    })()`
+        ),
+      'visible modal resizes'
+    );
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await waitFor(
+      () =>
+        evaluate(
+          cdp,
+          `(() => {
+      const editor = window.__HANJSON_E2E_EDIT_MODAL__.__editor;
+      const node = editor.getContainerDomNode();
+      return node.clientWidth >= 900 && editor.getLayoutInfo().width === node.clientWidth;
+    })()`
+        ),
+      'visible modal restores size'
+    );
+  }
+  await evaluate(
+    cdp,
+    `(() => {
+    const editor = window.__HANJSON_E2E_EDIT_MODAL__.__editor;
+    window.__saveLayouts = [{time:performance.now(), width:editor.getLayoutInfo().width, height:editor.getLayoutInfo().height}];
+    editor.onDidLayoutChange(info => window.__saveLayouts.push({time:performance.now(),width:info.width,height:info.height}));
+  })()`
+  );
+  if (process.argv.includes('--profile-save')) {
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.start');
+  }
+  const saveStartedAt = Date.now();
   await clickSelector(cdp, '.modal-actions button:first-child');
+  await waitFor(() => evaluate(cdp, `!document.querySelector('#json-edit-title')`), 'saved editor closed');
+  const saveClosedMs = Date.now() - saveStartedAt;
   await waitFor(
     () =>
       evaluate(
@@ -179,7 +232,30 @@ try {
       ),
     'corrected JSON saved and formatted'
   );
-  console.log(JSON.stringify({ invalidEditPassed: true, openMs, exactRawRestored: true, failedSaveKeptDraft: true }));
+  console.log(
+    JSON.stringify({
+      invalidEditPassed: true,
+      openMs,
+      saveClosedMs,
+      saveReadyMs: Date.now() - saveStartedAt,
+      exactRawRestored: true,
+      failedSaveKeptDraft: true,
+    })
+  );
+  const saveLayouts = await evaluate(cdp, 'window.__saveLayouts');
+  console.log(JSON.stringify({ saveLayouts }));
+  assert.ok(
+    saveLayouts.every((layout) => layout.width > 5 && layout.height > 5),
+    'Closing must not rewrap a detached 5px editor'
+  );
+  const isCi = process.env.CI === 'true' || process.env.CI === '1';
+  assert.ok(saveClosedMs < ((isCi ? 5000 : 1500) * sampleSizeMb) / 20, `Save close regression: ${saveClosedMs}ms`);
+  if (process.argv.includes('--profile-save')) {
+    const { profile } = await cdp.send('Profiler.stop');
+    const profilePath = path.join(os.tmpdir(), 'fxxkjson-error-save.cpuprofile');
+    await writeFile(profilePath, JSON.stringify(profile));
+    console.log(`Save CPU profile: ${profilePath}`);
+  }
   const savedFingerprint = await evaluate(cdp, 'window.__HANJSON_E2E_APP__.getActiveRawFingerprint()');
   let hash = 2166136261;
   for (let index = 0; index < original.length; index++)
