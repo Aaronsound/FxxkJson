@@ -121,8 +121,16 @@ try {
     ),
     true
   );
-  const screenshot = path.join(os.tmpdir(), `fxxkjson-compare-filter-${process.pid}.png`);
-  await writeFile(screenshot, Buffer.from((await captureElectronScreenshot(cdp)).data, 'base64'));
+  let screenshot;
+  try {
+    screenshot = path.join(os.tmpdir(), `fxxkjson-compare-filter-${process.pid}.png`);
+    await writeFile(screenshot, Buffer.from((await captureElectronScreenshot(cdp)).data, 'base64'));
+  } catch (error) {
+    // Hidden Windows/Linux CI windows may not provide compositor screenshots.
+    // The geometry and interaction assertions above remain mandatory everywhere.
+    screenshot = undefined;
+    console.warn(`Optional screenshot unavailable: ${error.message}`);
+  }
   console.log(
     JSON.stringify({ filter: '5002 differences, late match, type/path, details and narrow layout passed', screenshot })
   );

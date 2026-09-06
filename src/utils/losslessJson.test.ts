@@ -72,6 +72,13 @@ describe('lossless JSON workflows', () => {
     expect(compactJsonText(formatJsonText(text).formatted)).toBe(text);
     expect(findDuplicateJsonKey(text)?.key).toBe('a');
   });
+  it.each(['ASCII', '中文😀', '\ud800'])('keeps quote offsets exact for %s input', (prefix) => {
+    const value = prefix + '\\"'.repeat(1000) + '\\';
+    const text = JSON.stringify({ value, after: [value, { done: true }] });
+    const expected = JSON.stringify(JSON.parse(text), null, 2);
+    expect(layoutJsonTokens(text)).toBe(expected);
+    expect(compactJsonText(expected)).toBe(text);
+  });
   it('detects escaped-equivalent keys but not keys in independent objects or string contents', async () => {
     expect(findDuplicateJsonKey('[{"a":1},{"a":2}]')).toBeNull();
     const text = '{"a":1,"\\u0061":2}';

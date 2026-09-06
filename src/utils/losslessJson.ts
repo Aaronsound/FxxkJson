@@ -39,6 +39,9 @@ export function layoutJsonTokens(text: string, indent = '  ', newline = '\n') {
   const trimmed = safeText.trim();
   if (trimmed[0] !== '{' && trimmed[0] !== '[') return trimmed;
   const source = encoder.encode(safeText);
+  // ASCII has identical UTF-16 and UTF-8 offsets. Its native string search can
+  // skip long values faster than Uint8Array.indexOf without changing byte copies.
+  const ascii = source.length === safeText.length;
   let output = new Uint8Array(Math.ceil(source.length * (indent ? 1.5 : 1)) + 128);
   let size = 0;
   let depth = 0;
@@ -69,7 +72,7 @@ export function layoutJsonTokens(text: string, indent = '  ', newline = '\n') {
     if (code === 34) {
       let end = index;
       do {
-        end = source.indexOf(34, end + 1);
+        end = ascii ? safeText.indexOf('"', end + 1) : source.indexOf(34, end + 1);
         let slash = end - 1;
         while (source[slash] === 92) slash -= 1;
         if ((end - slash) % 2 === 1) break;
