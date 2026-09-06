@@ -72,6 +72,36 @@ describe('createJsonWorkerFormatOperations', () => {
     vi.unstubAllGlobals();
     postMessage.mockReset();
   });
+  it('preserves duplicate fields and reports source offsets after publishing the result', async () => {
+    const { operations, rawDocumentCache } = createHarness();
+    operations.handleFormatMessage(formatRequest({ text: '{"id":9007199254740993,"id":2}', rawRevision: 9 }));
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'format-result', data: '{\n  "id": 9007199254740993,\n  "id": 2\n}' }),
+      []
+    );
+    expect(postMessage.mock.calls.some(([message]) => message.type === 'duplicate-key-result')).toBe(false);
+    await vi.runAllTimersAsync();
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'duplicate-key-result', duplicateKey: { key: 'id', offset: 23, rawRevision: 9 } })
+    );
+    expect(rawDocumentCache.get('tab-a').hasDuplicateKeys).toBe(true);
+  });
+  it('does not expose invalid raw offsets for unwrapped strings and cancels stale diagnostics', async () => {
+    const { operations, latestFormatRequestByTab } = createHarness();
+    operations.handleFormatMessage(formatRequest({ text: JSON.stringify('{"a":1,"a":2}') }));
+    await vi.runAllTimersAsync();
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'duplicate-key-result',
+        duplicateKey: { key: 'a', offset: undefined, rawRevision: 0 },
+      })
+    );
+    postMessage.mockClear();
+    operations.handleFormatMessage(formatRequest({ text: '{"a":1,"a":2}', requestId: 2 }));
+    latestFormatRequestByTab.delete('tab-a');
+    await vi.runAllTimersAsync();
+    expect(postMessage.mock.calls.some(([message]) => message.type === 'duplicate-key-result')).toBe(false);
+  });
 
   it('prepares a new request and invalidates only incompatible caches', () => {
     const harness = createHarness();
@@ -136,6 +166,21 @@ describe('createJsonWorkerFormatOperations', () => {
       tabId: 'tab-a',
       ready: true,
     });
+  });
+
+  it('transfers exactly the formatted bytes and matching metrics for large Unicode output', () => {
+    const harness = createHarness();
+    const value = { payload: 'x'.repeat(LARGE_FILE_THRESHOLD), note: '中文😀' };
+    const expected = JSON.stringify(value, null, 2);
+    harness.operations.handleFormatMessage(formatRequest({ text: JSON.stringify(value), enableStructure: false }));
+    const call = postMessage.mock.calls.find(([message]) => message.type === 'format-result');
+    const message = call?.[0];
+    expect(message.success).toBe(true);
+    expect(message.data).toBeUndefined();
+    expect(message.formattedMetrics).toEqual(measureJsonDocument(expected));
+    expect(message.dataBuffer.byteLength).toBe(message.formattedMetrics.textByteLength);
+    expect(new TextDecoder().decode(message.dataBuffer)).toBe(expected);
+    expect(call?.[1]).toEqual([message.dataBuffer]);
   });
 
   it('formats the matching cached raw revision without another text payload', () => {

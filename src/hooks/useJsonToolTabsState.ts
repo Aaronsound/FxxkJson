@@ -6,6 +6,7 @@ import {
   type StructureStatus,
   type Tab,
   type TabDocumentMeta,
+  type WorkerMessage,
 } from '../types/jsonTool';
 import { createTab } from '../utils/jsonToolModels';
 import type { JsonErrorLocation } from '../utils/jsonErrorLocation';
@@ -18,6 +19,10 @@ interface UseJsonToolTabsStateOptions {
 export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonToolTabsStateOptions) {
   const [tabs, setTabs] = useState<Tab[]>([createTab(initialTabId, initialTabTitle)]);
   const [activeTabId, setActiveTabId] = useState(initialTabId);
+  const [warningsByTab, setWarningsByTab] = useState<Record<string, WorkerMessage['duplicateKey']>>({});
+  const setTabWarning = useCallback((tabId: string, warning: WorkerMessage['duplicateKey']) => {
+    setWarningsByTab((current) => ({ ...current, [tabId]: warning }));
+  }, []);
   const [renamingTab, setRenamingTab] = useState<RenamingTabState | null>(null);
   const [documentMetaByTab, setDocumentMetaByTab] = useState<Record<string, TabDocumentMeta>>({
     [initialTabId]: EMPTY_DOCUMENT_META,
@@ -117,6 +122,11 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
   }, []);
 
   const removeTabState = useCallback((tabId: string) => {
+    setWarningsByTab((current) => {
+      const next = { ...current };
+      delete next[tabId];
+      return next;
+    });
     setErrorLocationsByTab((current) => {
       const next = { ...current };
       delete next[tabId];
@@ -166,6 +176,8 @@ export function useJsonToolTabsState({ initialTabId, initialTabTitle }: UseJsonT
   }, []);
 
   return {
+    warningsByTab,
+    setTabWarning,
     activeTabId,
     cancelRenaming,
     documentMetaByTab,

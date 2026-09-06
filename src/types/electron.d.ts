@@ -40,6 +40,7 @@ declare global {
       showLogFile: () => Promise<string>;
       readClipboardText?: () => Promise<string>;
       writeClipboardText: (text: string) => Promise<boolean>;
+      saveJsonFile?: (request: { name: string; text: string }) => Promise<string | null>;
       getRuntimeInfo?: () => Promise<RuntimeAppInfo>;
       getProcessMetrics?: () => Promise<RuntimeProcessMetric[]>;
       openJsonFile: (

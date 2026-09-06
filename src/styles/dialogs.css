@@ -275,3 +275,25 @@
   border-color: rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
 }
+.json-save-card {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.json-save-card .modal-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.json-save-card select {
+  min-width: 0;
+  width: 100%;
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+}

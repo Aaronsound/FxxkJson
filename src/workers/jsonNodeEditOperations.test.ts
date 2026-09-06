@@ -38,6 +38,14 @@ function createHarness() {
 }
 
 describe('jsonNodeEditOperations', () => {
+  it('refuses ambiguous duplicate-key mutations without touching raw data', () => {
+    const { operations, rawDocumentCache } = createHarness();
+    const raw = '{"a":1,"a":2}';
+    expect(() => operations.saveJsonNodeForEdit('a', '3', raw, ['a'], 1)).toThrow('重复 key');
+    expect(() => operations.deleteJsonNodeForEdit('a', raw, ['a'], 1)).toThrow('重复 key');
+    expect(() => operations.renameJsonNodeKeyForEdit('a', 'b', raw, ['a'], 1)).toThrow('重复 key');
+    expect(rawDocumentCache.size).toBe(0);
+  });
   it('reads a formatted node and caches matching raw/formatted ranges for later saves', () => {
     const { nodeEditCache, operations, structureCache } = createHarness();
     const rawText = '{"name":"old","count":1}';

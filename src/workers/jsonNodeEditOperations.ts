@@ -11,6 +11,7 @@ import type {
 } from '../types/jsonTool';
 import { buildLargeViewerData } from '../utils/largeJsonViewerData';
 import { buildLargeRawViewerData } from '../utils/largeRawViewerData';
+import { findDuplicateJsonKey } from '../utils/losslessJson';
 import { measureJsonDocument, patchJsonDocumentMetrics } from '../utils/jsonDocumentMetrics';
 import { createJsonTextPatch, patchLargeJsonLineIndex } from '../utils/jsonTextPatch';
 import { getJsonOffsetLocateResult, getJsonPathLocateRange } from '../utils/jsonPathLocate';
@@ -45,6 +46,7 @@ interface NodeEditViewerCacheEntry {
 }
 
 interface RawDocumentCacheEntry {
+  hasDuplicateKeys?: boolean;
   rawMetrics: JsonDocumentMetrics;
   rawRevision: number | null;
   rawText: string;
@@ -122,9 +124,20 @@ export function createJsonNodeEditOperations({
   structureCache,
   viewerCache,
 }: JsonNodeEditOperationsArgs) {
+  function assertUniqueNodePaths(tabId: string, text: string) {
+    const cached = rawDocumentCache.get(tabId);
+    const matches = cached?.rawText === text;
+    const duplicate =
+      matches && typeof cached.hasDuplicateKeys === 'boolean'
+        ? cached.hasDuplicateKeys
+        : Boolean(findDuplicateJsonKey(text));
+    if (matches) cached.hasDuplicateKeys = duplicate;
+    if (duplicate) throw new Error('存在重复 key，请使用顶部“编辑 JSON”修改完整原文，避免修改到同名节点。');
+  }
   function resolveOriginalRawState(tabId: string, originalText: string | undefined, rawRevision?: number) {
     const cached = rawDocumentCache.get(tabId);
     if (typeof originalText === 'string') {
+      assertUniqueNodePaths(tabId, originalText);
       return {
         rawMetrics:
           typeof rawRevision === 'number' &&
@@ -137,6 +150,7 @@ export function createJsonNodeEditOperations({
     }
 
     if (typeof rawRevision === 'number' && cached?.rawRevision === rawRevision) {
+      assertUniqueNodePaths(tabId, cached.rawText);
       return cached;
     }
 
@@ -377,6 +391,7 @@ export function createJsonNodeEditOperations({
     if (!Array.isArray(path)) {
       throw new Error('当前节点无法保存');
     }
+    assertUniqueNodePaths(tabId, text);
 
     const originalState = resolveOriginalRawState(tabId, originalText, rawRevision);
     const originalRawText = originalState.rawText;

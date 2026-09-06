@@ -14,6 +14,7 @@ interface JsonToolTabBarProps {
   onCancelRenaming: () => void;
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
+  onReopenTab?: () => void;
   t?: (key: I18nKey, params?: Record<string, string | number>) => string;
 }
 
@@ -30,6 +31,7 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
   onCancelRenaming,
   onCloseTab,
   onAddTab,
+  onReopenTab,
   t = defaultT,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -41,17 +43,24 @@ const JsonToolTabBar: React.FC<JsonToolTabBarProps> = ({
   useEffect(() => {
     const handleNewTabShortcut = (event: KeyboardEvent) => {
       const isPrimaryShortcut = (event.metaKey || event.ctrlKey) && !event.altKey;
-      if (!isPrimaryShortcut || event.shiftKey || event.key.toLowerCase() !== 't') {
+      if (
+        !isPrimaryShortcut ||
+        event.key.toLowerCase() !== 't' ||
+        event.repeat ||
+        event.isComposing ||
+        document.querySelector('[aria-modal="true"]')
+      ) {
         return;
       }
 
       event.preventDefault();
-      onAddTab();
+      if (event.shiftKey) onReopenTab?.();
+      else onAddTab();
     };
 
     window.addEventListener('keydown', handleNewTabShortcut);
     return () => window.removeEventListener('keydown', handleNewTabShortcut);
-  }, [onAddTab]);
+  }, [onAddTab, onReopenTab]);
 
   useEffect(() => {
     const container = containerRef.current;

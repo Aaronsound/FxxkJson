@@ -226,7 +226,7 @@ describe('createJsonWorkerEditJsonOperations', () => {
     expect(postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({ success: true, data: '{\n  "value": 1\n}' })
     );
-    expect(editJsonCache.get('tab-format')).toEqual({ originalText: '{"value":1}', originalValue: { value: 1 } });
+    expect(editJsonCache.get('tab-format')).toEqual({ originalText: '{"value":1}' });
 
     operations.handleEditJsonMessage({
       requestId: 11,

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import http from 'node:http';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -24,6 +25,9 @@ export async function getAvailablePort() {
 }
 
 export async function startElectronApp({ appMain, cwd, electronCli, extraEnvironment = {}, port }) {
+  // Hidden test windows must not change the user's language, theme or search history,
+  // or compete with an already-running desktop window for its Chromium profile.
+  const testProfile = await mkdtemp(path.join(os.tmpdir(), 'fxxkjson-e2e-profile-'));
   const startedAt = performance.now();
   let stderr = '';
   const isLinuxCi = process.platform === 'linux' && (process.env.CI === 'true' || process.env.CI === '1');
@@ -31,6 +35,7 @@ export async function startElectronApp({ appMain, cwd, electronCli, extraEnviron
     electronCli,
     ...(isLinuxCi ? ['--no-sandbox', '--disable-gpu'] : []),
     `--remote-debugging-port=${port}`,
+    `--user-data-dir=${testProfile}`,
     appMain,
   ];
   const child = spawn(process.execPath, electronArgs, {
@@ -55,6 +60,11 @@ export async function startElectronApp({ appMain, cwd, electronCli, extraEnviron
       stderr += `\nElectron exited with code ${code}`;
     }
   });
+  const cleanProfile = () => {
+    void rm(testProfile, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
+  };
+  child.once('close', cleanProfile);
+  child.once('error', cleanProfile);
 
   return {
     child,

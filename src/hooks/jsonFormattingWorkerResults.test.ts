@@ -45,6 +45,7 @@ function createContext(overrides: Partial<Parameters<typeof handleJsonFormatting
     setProcessingStage: vi.fn(),
     setStructureStatus: vi.fn(),
     setTabError: vi.fn(),
+    setTabWarning: vi.fn(),
     setTabFormatting: vi.fn(),
     setTabLargeMode: vi.fn(),
     syncPerformanceSnapshot: vi.fn(),
@@ -78,6 +79,23 @@ function createContext(overrides: Partial<Parameters<typeof handleJsonFormatting
 }
 
 describe('handleJsonFormattingWorkerResult', () => {
+  it('applies only current diagnostic results without treating warnings as format failures', () => {
+    const { callbacks, context } = createContext();
+    const message: WorkerMessage = {
+      type: 'duplicate-key-result',
+      requestId: 1,
+      tabId: 'tab-a',
+      duplicateKey: { key: 'id', offset: 8, rawRevision: 2 },
+    };
+    handleJsonFormattingWorkerResult(message, context);
+    expect(callbacks.setTabWarning).toHaveBeenCalledWith('tab-a', message.duplicateKey);
+    expect(callbacks.setTabError).not.toHaveBeenCalled();
+    callbacks.setTabWarning.mockClear();
+    handleJsonFormattingWorkerResult({ ...message, requestId: 0 }, context);
+    expect(callbacks.setTabWarning).not.toHaveBeenCalled();
+    handleJsonFormattingWorkerResult({ ...message, duplicateKey: null }, context);
+    expect(callbacks.setTabWarning).toHaveBeenCalledWith('tab-a', null);
+  });
   it('ignores unrelated worker messages and stale format requests', () => {
     const { callbacks, context } = createContext();
 

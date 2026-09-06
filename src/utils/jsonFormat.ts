@@ -1,4 +1,5 @@
 import { jsonrepair } from 'jsonrepair';
+import { layoutJsonTokens, type JsonLayoutOutput } from './losslessJson';
 
 const MAX_NESTED_JSON_STRING_DEPTH = 3;
 
@@ -24,17 +25,27 @@ function looksLikeEscapedJsonContainer(text: string) {
   );
 }
 
-function parseNestedJsonString(value: unknown) {
-  let parsed = value;
-  let normalizedNestedString = false;
-
-  for (let depth = 0; depth < MAX_NESTED_JSON_STRING_DEPTH; depth += 1) {
-    if (typeof parsed !== 'string' || !looksLikeJsonContainer(parsed)) {
-      break;
-    }
-
+export function formatJsonText(text: string, onOutput?: (output: JsonLayoutOutput) => void): JsonFormatResult {
+  let source = text;
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch (error) {
+    if (!looksLikeEscapedJsonContainer(text)) throw error;
     try {
-      parsed = JSON.parse(parsed);
+      source = JSON.parse(`"${text.trim()}"`) as string;
+      value = JSON.parse(source);
+    } catch {
+      throw error;
+    }
+  }
+  let normalizedNestedString = source !== text;
+  for (let depth = 0; depth < MAX_NESTED_JSON_STRING_DEPTH; depth += 1) {
+    if (typeof value !== 'string' || !looksLikeJsonContainer(value)) break;
+    try {
+      const nested: unknown = JSON.parse(value);
+      source = value;
+      value = nested;
       normalizedNestedString = true;
     } catch {
       break;
@@ -42,32 +53,7 @@ function parseNestedJsonString(value: unknown) {
   }
 
   return {
-    value: parsed,
-    normalizedNestedString,
-  };
-}
-
-export function parseJsonForFormatting(text: string) {
-  try {
-    return parseNestedJsonString(JSON.parse(text));
-  } catch (error) {
-    if (!looksLikeEscapedJsonContainer(text)) {
-      throw error;
-    }
-
-    try {
-      return parseNestedJsonString(JSON.parse(`"${text.trim()}"`));
-    } catch {
-      throw error;
-    }
-  }
-}
-
-export function formatJsonText(text: string): JsonFormatResult {
-  const { value, normalizedNestedString } = parseJsonForFormatting(text);
-
-  return {
-    formatted: JSON.stringify(value, null, 2),
+    formatted: layoutJsonTokens(source, '  ', '\n', onOutput),
     normalizedNestedString,
   };
 }

@@ -122,6 +122,10 @@ export function createJsonToolToolbarProps(input: JsonToolWorkspaceInput) {
   return {
     accentTheme,
     onImport: handleImport,
+    onReopenTab: input.reopenTab,
+    canReopenTab: input.canReopenTab,
+    duplicateWarning: input.duplicateWarning,
+    onLocateDuplicate: input.handleLocateDuplicate,
     onFormat: handleFormat,
     onRepairJson: handleRepairJson,
     onUnescapeJson: handleUnescapeJson,

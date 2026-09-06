@@ -12,7 +12,8 @@ import {
   shouldUseDedicatedRightViewerForMetrics,
 } from '../utils/jsonDocumentMetrics';
 import { escapeJsonStringLiteral, unescapeJsonStringLiteral } from '../utils/jsonEscape';
-import { parseJsonForFormatting } from '../utils/jsonFormat';
+import { formatJsonText } from '../utils/jsonFormat';
+import { compactJsonText } from '../utils/losslessJson';
 import { findJsonParseError } from '../utils/findJsonParseError';
 import { canInlineJsonTextPatch } from '../utils/jsonTextPatch';
 import { buildLargeLiteralViewerData } from '../utils/largeJsonViewerData';
@@ -34,7 +35,7 @@ import {
 
 interface EditJsonCacheEntry {
   originalText: string;
-  originalValue: JsonValue;
+  originalValue?: JsonValue;
 }
 
 interface JsonNodeEditOperations {
@@ -105,18 +106,17 @@ function postWorkerMessage(message: WorkerMessage, transfer: Transferable[] = []
 }
 
 function formatJsonForEdit(tabId: string, text: string, editJsonCache: Map<string, EditJsonCacheEntry>) {
-  const { value, normalizedNestedString } = parseJsonForFormatting(text);
+  const { formatted, normalizedNestedString } = formatJsonText(text);
 
   if (normalizedNestedString) {
     editJsonCache.delete(tabId);
   } else {
     editJsonCache.set(tabId, {
       originalText: text,
-      originalValue: value as JsonValue,
     });
   }
 
-  return JSON.stringify(value, null, 2);
+  return formatted;
 }
 
 function saveJsonForEdit(
@@ -141,7 +141,7 @@ function saveJsonForEdit(
 }
 
 function copyJsonAsStringLiteral(text: string) {
-  return JSON.stringify(JSON.stringify(JSON.parse(text)));
+  return JSON.stringify(compactJsonText(text));
 }
 
 function transformJsonEscape(operation: EditJsonWorkerOperation, text: string) {

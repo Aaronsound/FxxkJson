@@ -3,6 +3,25 @@ import { createComparisonBatches } from './jsonComparisonBatches';
 import type { JsonDiffEntry } from './jsonDiff';
 
 describe('comparison batch storage', () => {
+  it('filters all loaded pages without dropping unloaded state or changing stored batches', () => {
+    const store = createComparisonBatches();
+    const diffs: JsonDiffEntry[] = Array.from({ length: 4001 }, (_, index) => ({
+      type: index % 2 ? 'added' : 'changed',
+      path: ['orders', index],
+      pathText: `$.orders[${index}]`,
+      leftPreview: '0',
+      rightPreview: '1',
+    }));
+    for (let start = 0; start < diffs.length; start += 2000)
+      store.append({ diffs: diffs.slice(start, start + 2000), leftError: null, rightError: null, truncated: true });
+    const selected = store.filter('changed', 'orders');
+    expect(selected.total).toBe(2001);
+    expect(selected.pages[1][0]).toBe(diffs[4000]);
+    expect(store.filter('all', '').total).toBe(4001);
+    expect(store.filter('all', 'Orders').total).toBe(0);
+    expect(store.filter('removed', '').total).toBe(0);
+    expect(store.page(0)?.[0]).toBe(diffs[0]);
+  });
   it('retains batch identity, counts only new entries and keeps old snapshots immutable', () => {
     const store = createComparisonBatches();
     let reads = 0;

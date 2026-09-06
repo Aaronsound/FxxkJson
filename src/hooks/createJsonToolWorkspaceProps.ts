@@ -31,6 +31,8 @@ type JsonToolWorkspaceShellInput = {
   activePerformanceSnapshot: JsonPerformancePanelProps['snapshot'];
   activeTabId: JsonToolTabBarProps['activeTabId'];
   addTab: JsonToolTabBarProps['onAddTab'];
+  reopenTab?: () => void;
+  canReopenTab?: boolean;
   cancelRenaming: JsonToolTabBarProps['onCancelRenaming'];
   closeTab: JsonToolTabBarProps['onCloseTab'];
   finishRenaming: JsonToolTabBarProps['onFinishRenaming'];
@@ -78,6 +80,8 @@ type JsonToolOverlayInput = {
 };
 
 type JsonToolToolbarInput = {
+  duplicateWarning?: JsonToolToolbarProps['duplicateWarning'];
+  handleLocateDuplicate?: JsonToolToolbarProps['onLocateDuplicate'];
   accentTheme: AppAccentTheme;
   canCompareJson: JsonToolToolbarProps['canCompareJson'];
   canControlRightPaneFolding: JsonToolToolbarProps['canControlRightPaneFolding'];
@@ -250,6 +254,7 @@ export function createJsonToolWorkspaceProps(
       onCancelRenaming: input.cancelRenaming,
       onCloseTab: input.closeTab,
       onAddTab: input.addTab,
+      onReopenTab: input.reopenTab,
       t: input.t,
     },
     toolbarProps: createJsonToolToolbarProps(input),

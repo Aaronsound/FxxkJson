@@ -1,4 +1,5 @@
 import type React from 'react';
+import { lazy, Suspense, useState } from 'react';
 import JsonEditorPanes from './JsonEditorPanes';
 import JsonPerformancePanel from './JsonPerformancePanel';
 import JsonToolContextMenus from './JsonToolContextMenus';
@@ -6,6 +7,7 @@ import JsonToolOverlayLayer from './JsonToolOverlayLayer';
 import JsonToolTabBar from './JsonToolTabBar';
 import JsonToolToolbar, { JsonToolToolbarFeedback } from './JsonToolToolbar';
 import { getJsonEditorCssVariables } from '../utils/jsonEditorTypography';
+const JsonSaveDialog = lazy(() => import('./JsonSaveDialog'));
 
 interface JsonToolWorkspaceProps {
   contextMenusProps: React.ComponentProps<typeof JsonToolContextMenus>;
@@ -40,6 +42,7 @@ const JsonToolWorkspace: React.FC<JsonToolWorkspaceProps> = ({
   tabBarProps,
   toolbarProps,
 }) => {
+  const [saveSnapshot, setSaveSnapshot] = useState<{ raw: string; title: string } | null>(null);
   const workspaceStyle: React.CSSProperties & ReturnType<typeof getJsonEditorCssVariables> = {
     ...getJsonEditorCssVariables(isDarkMode),
     height: '100vh',
@@ -67,7 +70,25 @@ const JsonToolWorkspace: React.FC<JsonToolWorkspaceProps> = ({
       />
 
       <JsonToolOverlayLayer {...overlayProps} />
-      <JsonToolToolbar {...toolbarProps} />
+      <JsonToolToolbar
+        {...toolbarProps}
+        onSaveAs={() =>
+          setSaveSnapshot({
+            raw: overlayProps.getTabText(tabBarProps.activeTabId),
+            title: tabBarProps.tabs.find((tab) => tab.id === tabBarProps.activeTabId)?.title ?? 'document',
+          })
+        }
+      />
+      {saveSnapshot && (
+        <Suspense fallback={null}>
+          <JsonSaveDialog
+            {...saveSnapshot}
+            isDarkMode={isDarkMode}
+            t={toolbarProps.t}
+            onClose={() => setSaveSnapshot(null)}
+          />
+        </Suspense>
+      )}
       <JsonToolTabBar {...tabBarProps} />
       <JsonToolToolbarFeedback {...toolbarProps} />
       <JsonEditorPanes {...panesProps} />

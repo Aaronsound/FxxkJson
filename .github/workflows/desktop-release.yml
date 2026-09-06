@@ -132,6 +132,8 @@ jobs:
         run: |
           node ./scripts/e2e-electron-error-location.mjs
           node ./scripts/e2e-electron-middle-error.mjs
+          node ./scripts/e2e-electron-lossless-save.mjs
+          node ./scripts/e2e-electron-compare-restore.mjs
         env:
           HANJSON_E2E_ARTIFACT_DIR: electron-e2e-artifacts
 

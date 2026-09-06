@@ -7,7 +7,8 @@ on:
       - main
     paths:
       - 'src/**'
-      - 'scripts/bench-json.mjs'
+      - 'scripts/bench-json*.mjs'
+      - 'scripts/load-lossless-formatter.mjs'
       - 'scripts/perf-*.mjs'
       - 'scripts/perf-baseline.json'
       - 'package.json'

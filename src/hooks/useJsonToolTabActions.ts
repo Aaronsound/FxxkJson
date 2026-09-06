@@ -1,9 +1,11 @@
-import { type MutableRefObject, useCallback, useRef } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 import type * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import type { PerformanceSnapshot, StructureStatus, Tab } from '../types/jsonTool';
 import { createTab } from '../utils/jsonToolModels';
+import { createClosedTabHistory, type ClosedTabSnapshot } from '../utils/closedTabHistory';
 
 interface UseJsonToolTabActionsArgs {
+  restoreTabContent: (tabId: string, snapshot: ClosedTabSnapshot) => Promise<void>;
   activeTabId: string;
   activeTabIdRef: MutableRefObject<string>;
   formattedTextByTabRef: MutableRefObject<Record<string, string>>;
@@ -32,6 +34,7 @@ interface UseJsonToolTabActionsArgs {
 }
 
 export function useJsonToolTabActions({
+  restoreTabContent,
   activeTabId,
   activeTabIdRef,
   formattedTextByTabRef,
@@ -58,9 +61,20 @@ export function useJsonToolTabActions({
 }: UseJsonToolTabActionsArgs) {
   const handleClearRef = useRef(handleClear);
   handleClearRef.current = handleClear;
+  const history = useRef(createClosedTabHistory());
+  const [canReopenTab, setCanReopenTab] = useState(false);
+  const pendingRestore = useRef<{ id: string; snapshot: ClosedTabSnapshot } | null>(null);
+  const restoreRef = useRef(restoreTabContent);
+  restoreRef.current = restoreTabContent;
+  useEffect(() => {
+    const pending = pendingRestore.current;
+    if (!pending || !tabs.some((tab) => tab.id === pending.id)) return;
+    pendingRestore.current = null;
+    void restoreRef.current(pending.id, pending.snapshot);
+  }, [tabs]);
 
   const addTab = useCallback(() => {
-    const nextId = `tab-${Date.now()}`;
+    const nextId = `tab-${crypto.randomUUID()}`;
     const currentTabId = activeTabIdRef.current;
 
     if (currentTabId) {
@@ -82,6 +96,7 @@ export function useJsonToolTabActions({
     workerStructureEnabledRef.current[nextId] = false;
     setTabs((currentTabs) => [...currentTabs, createTab(nextId)]);
     setActiveTabId(nextId);
+    return nextId;
   }, [
     activeTabIdRef,
     formattedTextByTabRef,
@@ -104,6 +119,10 @@ export function useJsonToolTabActions({
 
   const closeTab = useCallback(
     (tabId: string) => {
+      const closingTab = tabs.find((tab) => tab.id === tabId);
+      if (!closingTab) return;
+      history.current.push({ title: closingTab.title, text: rawTextByTabRef.current[tabId] ?? '' });
+      setCanReopenTab(history.current.size > 0);
       if (tabs.length === 1) {
         handleClearRef.current();
         return;
@@ -129,11 +148,24 @@ export function useJsonToolTabActions({
       setActiveTabId,
       setTabs,
       tabs,
+      rawTextByTabRef,
     ]
   );
+
+  const reopenTab = useCallback(() => {
+    if (pendingRestore.current) return;
+    const snapshot = history.current.pop();
+    if (!snapshot) return;
+    const id = addTab();
+    pendingRestore.current = { id, snapshot };
+    setTabs((current) => current.map((tab) => (tab.id === id ? { ...tab, title: snapshot.title } : tab)));
+    setCanReopenTab(history.current.size > 0);
+  }, [addTab, setTabs]);
 
   return {
     addTab,
     closeTab,
+    reopenTab,
+    canReopenTab,
   };
 }

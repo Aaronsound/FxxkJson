@@ -1,24 +1,22 @@
-## 本次更新
+## v1.0.37 本次更新
 
-- 修复窄窗口下定位原文可能使用旧编辑器高度的问题，并补齐 Apple Silicon、Intel Mac 和 Windows 的发布前验证。
-- JSON 语法错误现在显示行列信息，并支持“定位错误”，普通文件和大文件均可定位，原有自动修复行为不变。
-- 通过现有“编辑 JSON”直接打开错误原文，跳到错误附近；保存失败不丢失草稿，仍在弹窗内定位并继续修改。修正原文后保存保留其他数字写法、空格和换行。
-- JSON 对比在独立 Worker 中执行，每批 2,000 条，可继续加载全部差异；支持查看、分段阅读和复制完整差异值。
-- 改善大整数、高精度小数及深层 JSON 对比的准确性；差异列表按视口绘制，长值按需读取，减少内存和重复计算。
-- 减少连续搜索的大文本扫描与传输，修复右侧搜索切换时丢失已加载匹配项的问题。
-- 关闭、清空标签或替换导入任务时中止过期读取，避免迟到结果覆盖新内容。
-- 更新中英文使用指南，并在 macOS、Windows 发布前增加错误定位与 20MB 手动编辑回归测试。
+- 修复大文件编辑后保存关闭的卡顿，避免弹窗隐藏后对整份超长 JSON 重算布局，保留正常缩放和错误校验。
+- 格式化、编辑保存和节点复制保留长整数、高精度小数、指数写法及重复字段，不再因重新序列化悄悄改变数值或丢掉字段。
+- 重复 key 提供提示和原文定位；结构对比发现重复 key 时指出具体哪一侧有问题，避免误判内容一致。
+- 对比结果支持按新增、删除、修改及字段路径筛选；明确区分已加载范围与完整结果，支持继续加载后续匹配。
+- 新增“更多 → 另存为”，支持原文、格式化和单行压缩 JSON，原文模式可保存尚未修好的草稿。
+- 新增“恢复关闭的标签”，支持 Ctrl/Cmd + Shift + T；本次运行中最多保留 10 个标签和 128 MiB 文本内存，不自动将报文写入磁盘。
+- 更新中英文说明，并将无损保存、差异筛选、标签恢复和大文件错误编辑回归接入跨平台发布检查。
 
-## What's New
+## What's New in v1.0.37
 
-- Refresh editor dimensions before locating raw text in resized windows, with pre-release checks on Apple Silicon, Intel Mac, and Windows.
-- Syntax errors now include line/column details and a Locate error action for both regular and large files, without changing automatic repair behavior.
-- Open invalid raw text through the existing Edit JSON dialog near the error. Failed saves retain the draft and locate the error inside the dialog. Saving corrected raw text preserves unrelated number representations and whitespace.
-- Run JSON comparisons in a dedicated worker and load all differences in resumable 2,000-entry batches; inspect, page through, and copy complete difference values.
-- Improve comparison accuracy for large integers, precise decimals, and deeply nested JSON. Render nearby difference rows and read long values on demand to reduce memory use and repeated work.
-- Reduce full-text scans and transfers during consecutive searches, and retain loaded right-editor matches when navigating results.
-- Abort obsolete imports when tabs are closed, cleared, or replaced so late results cannot overwrite newer content.
-- Update the bilingual user guides and add error-navigation and 20MB manual-edit regression tests before macOS and Windows packaging.
+- Avoid costly hidden-editor layout when saving large JSON edits, while preserving responsive resizing and validation.
+- Preserve large integers, precise decimals, exponent notation, and duplicate members when formatting, saving edits, or copying nodes, without silent numeric changes or field loss.
+- Warn about duplicate keys and locate them in raw text. Structural comparison identifies duplicates on either side instead of reporting misleading equality.
+- Filter differences by Added, Removed, Changed, or field path, with explicit partial-result status and continuation for later matches.
+- Add More → Save as for raw, formatted, and single-line compact JSON; raw mode also saves invalid drafts.
+- Add Reopen closed tab with Ctrl/Cmd + Shift + T. Retain at most 10 tabs and 128 MiB of text memory for this session only, without automatically writing documents to disk.
+- Update bilingual documentation and add cross-platform release checks for lossless export, comparison filters, tab recovery, and large invalid-document editing.
 
 ## 下载说明
 

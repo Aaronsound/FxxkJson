@@ -1,6 +1,26 @@
 # 更新日志 / Changelog
 
-## 未发布 / Unreleased
+## v1.0.37 — 2026-09-07
+
+### 中文
+
+- 结构对比检测并提示两侧重复 key，避免覆盖字段后误判为一致；新增差异类型与字段路径筛选，明确区分已加载范围和完整结果，支持继续加载后续匹配。
+- 新增“恢复关闭的标签”（更多菜单或 Ctrl/Cmd + Shift + T），仅在本次运行中保留最多 10 份原文和名称，总文本内存预算 128 MiB；恢复时重新构建查看器，不保留旧索引或将报文写入磁盘。
+
+- 格式化、编辑保存和节点复制保留数字原文与重复字段，避免长整数、高精度小数及指数被重新序列化改变；后台分批检查重复 key，提供原文定位，拒绝有歧义的同名节点修改并引导使用完整编辑。
+- 新增“更多 → 另存为”，支持原文（包括错误草稿）、格式化和单行压缩 JSON；后台准备大文件，通过系统保存窗口选择路径，完整写入后再替换目标文件。
+- 性能回归直接复用生产无损排版代码，新增精度、重复 key、原生保存和 2MB/20MB/40MB 桌面端回归，并接入跨平台检查。
+- 修复大文件错误原文编辑后保存关闭卡顿：编辑弹窗忽略隐藏或移除后的零尺寸布局，避免再次对整份超长单行 JSON 计算换行。保留正常窗口缩放、保存校验和原文格式，并增加 20MB/40MB 保存耗时与布局回归检查。
+
+### English
+
+- Structural comparison now reports duplicate keys on either side instead of silently comparing overwritten fields. Added type/path filters with explicit partial-result status and continuation for later matches.
+- Added Reopen closed tab (More menu or Ctrl/Cmd + Shift + T). Retains up to 10 source texts/names within a conservative 128 MiB text-memory budget for this session only; viewers are rebuilt on restore, without retaining old indexes or writing documents to disk.
+
+- Preserve numeric literals and duplicate members in formatting, edit saves, and node copies. Check duplicate keys incrementally after rendering, offer raw-source navigation, and reject ambiguous same-name node mutations in favor of full-document editing.
+- Add More → Save as for raw text (including invalid drafts), formatted JSON, or single-line compact JSON. Prepare large exports in a worker, select the destination with the system dialog, and replace the target only after a complete write.
+- Benchmark the production lossless layout implementation and add precision, duplicate-key, native-save, and 2MB/20MB/40MB Electron regression checks to cross-platform verification.
+- Avoid rewrapping an entire long JSON line at a detached editor's fallback width when closing the edit dialog after saving. Visible resizing, save validation, and raw formatting are preserved, with 20MB/40MB save timing and layout regression checks.
 
 ## v1.0.36 - 2026-09-06
 

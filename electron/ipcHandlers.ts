@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, MessagePortMain, OpenDialogOptions } from 'electron';
 import { app, clipboard, dialog, ipcMain, shell } from 'electron';
 import { isRunningUnderRosetta } from './rosetta';
+import { validateJsonSaveRequest, writeJsonFileAtomically } from './saveJsonFile';
 import {
   appendRuntimeLog,
   getLogReadLimit,
@@ -66,6 +67,29 @@ export function registerMainProcessIpc({ getMainWindow }: MainProcessIpcOptions)
   });
 
   handleTrustedIpc('clipboard:readText', async () => clipboard.readText());
+  handleTrustedIpc('file:saveJson', async (payload: unknown) => {
+    const { name, text } = validateJsonSaveRequest(payload);
+    const options = {
+      defaultPath: name,
+      filters: [
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    };
+    const mainWindow = getMainWindow();
+    const testPath =
+      !app.isPackaged && process.env.HANJSON_E2E_NATIVE_SAVE === '1'
+        ? process.env.HANJSON_E2E_NATIVE_SAVE_PATH
+        : undefined;
+    const result = testPath
+      ? { canceled: false, filePath: path.resolve(testPath) }
+      : mainWindow
+        ? await dialog.showSaveDialog(mainWindow, options)
+        : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return null;
+    await writeJsonFileAtomically(result.filePath, text);
+    return result.filePath;
+  });
 
   handleTrustedIpc('app:runtimeInfo', async () => ({
     arch: process.arch,

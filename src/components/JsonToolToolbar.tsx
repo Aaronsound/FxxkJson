@@ -5,6 +5,11 @@ import type { AppAccentTheme } from '../utils/accentTheme';
 import { type AppLanguage, createTranslator, type I18nKey } from '../utils/i18n';
 
 export interface JsonToolToolbarProps {
+  onSaveAs?: () => void;
+  onReopenTab?: () => void;
+  canReopenTab?: boolean;
+  duplicateWarning?: import('../types/jsonTool').WorkerMessage['duplicateKey'];
+  onLocateDuplicate?: () => void;
   onImport: () => void;
   onFormat: () => void;
   onRepairJson: () => void;
@@ -123,6 +128,8 @@ function getToolbarHintMessage({
 
 type JsonToolToolbarFeedbackProps = Pick<
   JsonToolToolbarProps,
+  | 'duplicateWarning'
+  | 'onLocateDuplicate'
   | 'canEnableLargeFileLocate'
   | 'currentError'
   | 'currentErrorLocation'
@@ -138,6 +145,8 @@ type JsonToolToolbarFeedbackProps = Pick<
 >;
 
 export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = ({
+  duplicateWarning,
+  onLocateDuplicate,
   canEnableLargeFileLocate,
   currentError,
   currentErrorLocation,
@@ -161,7 +170,7 @@ export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = (
     t,
   });
 
-  if (!processingStageText && !hintMessage && !currentError) {
+  if (!processingStageText && !hintMessage && !currentError && !duplicateWarning) {
     return null;
   }
 
@@ -177,6 +186,11 @@ export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = (
           {currentError ? '!' : processingStageText ? '…' : 'i'}
         </span>
         <div className="toolbar-feedback-content">
+          {duplicateWarning && (
+            <span className="toolbar-hint">
+              {t('warning.duplicateKey', { key: duplicateWarning.key.slice(0, 80) })}
+            </span>
+          )}
           {processingStageText && (
             <span className="toolbar-hint" title={processingStageText}>
               {processingStageText}
@@ -212,6 +226,11 @@ export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = (
             {t('error.locate')}
           </button>
         )}
+        {duplicateWarning && typeof duplicateWarning.offset === 'number' && onLocateDuplicate && (
+          <button type="button" className="toolbar-feedback-action" onClick={onLocateDuplicate}>
+            {t('warning.locateDuplicate')}
+          </button>
+        )}
         {currentError && (
           <button type="button" className="toolbar-feedback-action" onClick={onOpenDiagnosticsLog}>
             {t('toolbar.diagnostics')}
@@ -223,6 +242,9 @@ export const JsonToolToolbarFeedback: React.FC<JsonToolToolbarFeedbackProps> = (
 };
 
 const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
+  onSaveAs,
+  onReopenTab,
+  canReopenTab,
   onImport,
   onFormat,
   onRepairJson,
@@ -372,6 +394,31 @@ const JsonToolToolbar: React.FC<JsonToolToolbarProps> = ({
             >
               <summary className="toolbar-more-trigger">{t('toolbar.more')}</summary>
               <div className="toolbar-more-popover">
+                {onReopenTab && (
+                  <button
+                    type="button"
+                    disabled={!canReopenTab}
+                    title={t('tabs.reopenHint')}
+                    onClick={() => {
+                      closeMoreMenu();
+                      onReopenTab();
+                    }}
+                  >
+                    {t('tabs.reopen')}
+                  </button>
+                )}
+                {onSaveAs && (
+                  <button
+                    type="button"
+                    disabled={!canEditJson}
+                    onClick={() => {
+                      closeMoreMenu();
+                      onSaveAs();
+                    }}
+                  >
+                    {t('save.title')}
+                  </button>
+                )}
                 {isCompactToolbar && (
                   <div className="toolbar-more-compact-actions">
                     <div className="toolbar-more-section">

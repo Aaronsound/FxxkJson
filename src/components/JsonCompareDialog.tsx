@@ -1,8 +1,8 @@
 import type React from 'react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useModalFocusManagement } from '../hooks/useModalFocusManagement';
 import type { Tab } from '../types/jsonTool';
-import { MAX_DIFFS, type JsonDiffEntry } from '../utils/jsonDiff';
+import { MAX_DIFFS, type JsonDiffEntry, type JsonDiffType } from '../utils/jsonDiff';
 import { useJsonComparison } from '../hooks/useJsonComparison';
 import { createTranslator, type I18nKey } from '../utils/i18n';
 import { JsonCompareDetails } from './JsonCompareDetails';
@@ -35,12 +35,20 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
   const [leftTabId, setLeftTabId] = useState(activeTabId);
   const [rightTabId, setRightTabId] = useState(() => getDefaultRightTabId(tabs, activeTabId));
   const [page, setPage] = useState(0);
-  const { result, isComparing, error, compare, reset, loadMore, getValue, getPage, releaseValues } =
+  const [filterType, setFilterType] = useState<JsonDiffType | 'all'>('all');
+  const [filterPath, setFilterPath] = useState('');
+  const { result, isComparing, error, compare, reset, loadMore, getValue, filterResults, releaseValues } =
     useJsonComparison();
+  const filtered = useMemo(() => {
+    if (!result) return { pages: [], total: 0 };
+    return filterResults(filterType, filterPath);
+  }, [result, filterResults, filterType, filterPath]);
+  const hasFilter = filterType !== 'all' || !!filterPath.trim();
+  const hasDuplicate = result?.leftDuplicateKey !== undefined || result?.rightDuplicateKey !== undefined;
   const [selectedDiff, setSelectedDiff] = useState<JsonDiffEntry | null>(null);
-  const lastLoadedPage = Math.max(0, (result?.pageCount ?? 0) - 1);
+  const lastLoadedPage = Math.max(0, filtered.pages.length - 1);
   const visiblePage = Math.min(page, lastLoadedPage);
-  const visibleDiffs = getPage(visiblePage) ?? EMPTY_DIFFS;
+  const visibleDiffs = filtered.pages[visiblePage] ?? EMPTY_DIFFS;
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalFocusManagement(dialogRef, onClose);
 
@@ -56,8 +64,14 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
   };
 
   const changePage = (nextPage: number) => {
-    setPage(nextPage);
+    setPage(hasFilter && nextPage > lastLoadedPage ? visiblePage : nextPage);
     if (nextPage > lastLoadedPage) loadMore();
+  };
+
+  const clearSelection = () => {
+    setPage(0);
+    setSelectedDiff(null);
+    releaseValues();
   };
 
   return (
@@ -130,6 +144,68 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
           <span>{selectedRightTitle}</span>
         </div>
 
+        {hasDuplicate && (
+          <div className="modal-error" role="alert">
+            {result?.leftDuplicateKey !== undefined && (
+              <div>{t('compare.leftDuplicate', { key: JSON.stringify(result.leftDuplicateKey.slice(0, 80)) })}</div>
+            )}
+            {result?.rightDuplicateKey !== undefined && (
+              <div>{t('compare.rightDuplicate', { key: JSON.stringify(result.rightDuplicateKey.slice(0, 80)) })}</div>
+            )}
+            <div>{t('compare.duplicateHint')}</div>
+          </div>
+        )}
+
+        {result && !result.leftError && !result.rightError && !hasDuplicate && result.total > 0 && (
+          <div className="json-compare-filters">
+            <label>
+              {t('compare.filterType')}
+              <select
+                value={filterType}
+                onChange={(event) => {
+                  setFilterType(event.target.value as typeof filterType);
+                  clearSelection();
+                }}
+              >
+                <option value="all">{t('compare.filterAll')}</option>
+                <option value="added">{t('compare.added')}</option>
+                <option value="removed">{t('compare.removed')}</option>
+                <option value="changed">{t('compare.changed')}</option>
+              </select>
+            </label>
+            <label>
+              {t('compare.filterPath')}
+              <input
+                value={filterPath}
+                placeholder={t('compare.filterPathPlaceholder')}
+                onChange={(event) => {
+                  setFilterPath(event.target.value);
+                  clearSelection();
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!hasFilter}
+              onClick={() => {
+                setFilterType('all');
+                setFilterPath('');
+                clearSelection();
+              }}
+            >
+              {t('compare.resetFilters')}
+            </button>
+            {hasFilter && (
+              <div role="status" className="json-compare-filter-status">
+                {t(result.truncated ? 'compare.filteredPartial' : 'compare.filteredComplete', {
+                  count: filtered.total,
+                  total: result.total,
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {result && !result.leftError && !result.rightError && result.total > 0 && (
           <div role="status">
             {t(result.truncated ? 'compare.truncated' : 'compare.complete', { count: result.total })}
@@ -143,7 +219,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
           </div>
         )}
 
-        {result && !result.leftError && !result.rightError && result.total === 0 && (
+        {result && !result.leftError && !result.rightError && !hasDuplicate && result.total === 0 && (
           <div className="json-compare-empty">{t('compare.same')}</div>
         )}
 
@@ -159,9 +235,12 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
             }}
           />
         )}
-        {result && result.total > 0 && (
+        {result && result.total > 0 && filtered.total === 0 && (
+          <div className="json-compare-empty">{t(result.truncated ? 'compare.noLoadedMatch' : 'compare.noMatch')}</div>
+        )}
+        {result && filtered.total > 0 && (
           <JsonCompareList
-            key={visiblePage}
+            key={`${filterType}:${filterPath}:${visiblePage}`}
             diffs={visibleDiffs}
             hidden={!!selectedDiff}
             startIndex={visiblePage * MAX_DIFFS}
@@ -175,7 +254,7 @@ const JsonCompareDialog: React.FC<JsonCompareDialogProps> = ({
             <>
               <span>
                 {t('compare.range', {
-                  start: visiblePage * MAX_DIFFS + 1,
+                  start: filtered.total ? visiblePage * MAX_DIFFS + 1 : 0,
                   end: visiblePage * MAX_DIFFS + visibleDiffs.length,
                 })}
               </span>

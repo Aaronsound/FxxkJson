@@ -194,6 +194,16 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
+    // Monaco's built-in observer also lays out detached/hidden elements at 5px.
+    // Only measure a visible editor; otherwise closing a single-line 20MB draft
+    // rewraps the entire document before the React wrapper disposes it.
+    const container = editor.getContainerDomNode();
+    const resizeObserver = new ResizeObserver(() => {
+      if (editorRef.current === editor && container.clientWidth > 0 && container.clientHeight > 0) {
+        editor.layout();
+      }
+    });
+    resizeObserver.observe(container);
     enableLargeEditModelFolding(editor);
     const editModel = editor.getModel();
     const e2eWindow = window as JsonEditModalE2EWindow;
@@ -287,6 +297,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
       };
     }
     editor.onDidDispose(() => {
+      resizeObserver.disconnect();
       if (editorRef.current === editor) {
         editorRef.current = null;
       }
@@ -464,6 +475,7 @@ const JsonEditModal: React.FC<JsonEditModalProps> = ({
             largeMode={false}
             preserveStructuralFolding
             wrapLongLines
+            automaticLayout={false}
             readOnly={isBusy}
             beforeMount={(editorApi) => prepareLargeEditModel(editorApi, editModelPath, initialValue)}
             onMount={handleEditorMount}

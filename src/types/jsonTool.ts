@@ -122,10 +122,12 @@ export type WorkerRequestMessage =
     });
 
 export interface WorkerMessage {
+  duplicateKey?: { key: string; offset?: number; rawRevision: number } | null;
   errorLocation?: JsonErrorLocation;
   errorKind?: 'syntax';
   type:
     | 'format-result'
+    | 'duplicate-key-result'
     | 'repair-result'
     | 'raw-viewer-ready'
     | 'structure-ready'

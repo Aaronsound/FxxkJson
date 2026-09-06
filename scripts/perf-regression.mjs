@@ -203,6 +203,8 @@ function printResults(results, failures, baselinePath, runs) {
       file: result.fileName,
       rawSize: formatBytes(result.rawBytes),
       formattedSize: formatBytes(result.formattedBytes),
+      parse: formatDuration(result.parseMs),
+      layout: formatDuration(result.stringifyMs),
       formatTotal: formatDuration(result.totalFormatMs),
       formatResultReady: formatDuration(result.formatResultReadyMs),
       viewerIndex: formatDuration(result.viewerIndexMs),
